@@ -621,6 +621,7 @@ export default function SkeletonScreen() {
       allowUniversalAccessFromFileURLs
       allowingReadAccessToURL={FileSystem.cacheDirectory ?? "file:///"}
       mixedContentMode="always"
+      allowsInlineMediaPlayback
       mediaPlaybackRequiresUserAction={false}
       javaScriptEnabled
       domStorageEnabled
