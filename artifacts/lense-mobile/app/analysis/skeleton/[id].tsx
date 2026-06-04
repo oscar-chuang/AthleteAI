@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  ActivityIndicator,
   Platform,
   useWindowDimensions,
   StyleSheet,
@@ -353,6 +354,7 @@ export default function SkeletonScreen() {
 
   const [angles,     setAngles]     = useState<JointAngles | null>(null);
   const [modelReady, setModelReady] = useState(false);
+  const [preparing,  setPreparing]  = useState(true);
 
   // ── Orientation ────────────────────────────────────────────────────────────
   async function toggleOrientation() {
@@ -374,17 +376,50 @@ export default function SkeletonScreen() {
     } catch {}
   }
 
-  // ── Write HTML to disk so WebView loads from file:// (required for CORS +
-  //    local video access — inline source={{ html }} gives a null origin that
-  //    blocks both the MediaPipe CDN and file:// video URIs).
+  // ── Prepare HTML + video on disk ──────────────────────────────────────────
+  // WebView loads from file:// so it gets a real origin (required for the
+  // MediaPipe CDN WASM fetch). WKWebView's allowingReadAccessTo covers only
+  // the HTML file's directory, so we copy the video into the same folder
+  // before rendering.
   const [htmlFileUri, setHtmlFileUri] = useState<string | null>(null);
   useEffect(() => {
-    const dest = (FileSystem.cacheDirectory ?? "") + "pose-tracker.html";
-    FileSystem.writeAsStringAsync(dest, buildHtml(videoUri), {
-      encoding: FileSystem.EncodingType.UTF8,
-    })
-      .then(() => setHtmlFileUri(dest))
-      .catch((e) => console.warn("pose HTML write failed", e));
+    let cancelled = false;
+    setPreparing(true);
+    setHtmlFileUri(null);
+
+    (async () => {
+      try {
+        const cacheDir = FileSystem.cacheDirectory ?? "";
+
+        // Resolve a video URI that sits inside cacheDir (same dir as the HTML)
+        let resolvedVideo: string | undefined = videoUri;
+        if (videoUri) {
+          const ext = (videoUri.split(".").pop() ?? "mp4").split(/[?#]/)[0];
+          const localVideo = cacheDir + "pose-video." + ext;
+          try {
+            // copyAsync silently overwrites if dest already exists
+            await FileSystem.copyAsync({ from: videoUri, to: localVideo });
+            resolvedVideo = localVideo;
+          } catch (copyErr) {
+            // On Android content:// URIs may not need copying — keep original
+            console.warn("Video copy skipped:", copyErr);
+          }
+        }
+
+        const htmlPath = cacheDir + "pose-tracker.html";
+        await FileSystem.writeAsStringAsync(htmlPath, buildHtml(resolvedVideo), {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+
+        if (!cancelled) setHtmlFileUri(htmlPath);
+      } catch (e) {
+        console.warn("Pose setup failed:", e);
+      } finally {
+        if (!cancelled) setPreparing(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [videoUri]);
 
   // ── Angle display helpers ──────────────────────────────────────────────────
@@ -427,7 +462,12 @@ export default function SkeletonScreen() {
       )}
 
       {/* ── WebView (MediaPipe runs here) ── */}
-      {htmlFileUri && (
+      {preparing ? (
+        <View style={[ss.webviewSlot, { height: isLandscape ? undefined : Math.min(screenH * 0.52, 340), flex: isLandscape ? 1 : undefined }]}>
+          <ActivityIndicator color="#6c63ff" size="large" />
+          <Text style={ss.preparingText}>Preparing video…</Text>
+        </View>
+      ) : htmlFileUri ? (
         <WebView
           ref={webviewRef}
           source={{ uri: htmlFileUri }}
@@ -435,6 +475,7 @@ export default function SkeletonScreen() {
           allowFileAccess
           allowFileAccessFromFileURLs
           allowUniversalAccessFromFileURLs
+          allowingReadAccessToURL={FileSystem.cacheDirectory ?? "file:///"}
           mixedContentMode="always"
           mediaPlaybackRequiresUserAction={false}
           javaScriptEnabled
@@ -444,7 +485,7 @@ export default function SkeletonScreen() {
           onMessage={handleMessage}
           backgroundColor="#07070f"
         />
-      )}
+      ) : null}
 
       {/* ── Portrait: angle cards ── */}
       {!isLandscape && angleCards.length > 0 && (
@@ -498,7 +539,9 @@ const ss = StyleSheet.create({
   angleCard:    { width: "30%", flexGrow: 1, backgroundColor: "#0f0f1c", borderRadius: 12, padding: 12, alignItems: "center", borderWidth: 1 },
   angleDeg:     { fontSize: 22, fontFamily: "Inter_700Bold" },
   angleLabel:   { fontSize: 10, color: "#8888aa", fontFamily: "Inter_400Regular", marginTop: 3 },
-  noVideo:      { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 40 },
-  noVideoText:  { fontSize: 14, color: "#4a4a6a", fontFamily: "Inter_600SemiBold", textAlign: "center" },
-  noVideoSub:   { fontSize: 12, color: "#3a3a5c", fontFamily: "Inter_400Regular", textAlign: "center" },
+  noVideo:       { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 40 },
+  noVideoText:   { fontSize: 14, color: "#4a4a6a", fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  noVideoSub:    { fontSize: 12, color: "#3a3a5c", fontFamily: "Inter_400Regular", textAlign: "center" },
+  webviewSlot:   { backgroundColor: "#07070f", alignItems: "center", justifyContent: "center", gap: 10 },
+  preparingText: { fontSize: 12, color: "#8888aa", fontFamily: "Inter_400Regular" },
 });
