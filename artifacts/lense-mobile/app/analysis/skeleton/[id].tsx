@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import * as ScreenOrientation from "expo-screen-orientation";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 
 import { useAnalyses } from "@/lib/analysesStore";
 
@@ -381,7 +381,7 @@ export default function SkeletonScreen() {
   useEffect(() => {
     const dest = (FileSystem.cacheDirectory ?? "") + "pose-tracker.html";
     FileSystem.writeAsStringAsync(dest, buildHtml(videoUri), {
-      encoding: "utf8" as any,
+      encoding: FileSystem.EncodingType.UTF8,
     })
       .then(() => setHtmlFileUri(dest))
       .catch((e) => console.warn("pose HTML write failed", e));
