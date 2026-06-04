@@ -1,0 +1,303 @@
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Platform,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useLocalSearchParams } from "expo-router";
+import { Feather } from "@expo/vector-icons";
+
+import { useColors } from "@/hooks/useColors";
+import { MOCK_ATHLETE } from "@/lib/athleteData";
+import type { CoachingTip } from "@/lib/types";
+
+const SCORE_KEYS = ["technique", "power", "balance", "consistency", "mobility", "speed"] as const;
+
+const SEVERITY_CONFIG = {
+  info: { color: "#38bdf8", icon: "info" as const, label: "Info" },
+  warning: { color: "#f59e0b", icon: "alert-triangle" as const, label: "Warning" },
+  critical: { color: "#ef4444", icon: "alert-circle" as const, label: "Critical" },
+};
+
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
+export default function AnalysisDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const [expandedTip, setExpandedTip] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"scores" | "tips" | "risks">("scores");
+
+  const analysis = MOCK_ATHLETE.analyses.find((a) => a.id === id);
+  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 20;
+
+  if (!analysis) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
+        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Analysis not found</Text>
+      </View>
+    );
+  }
+
+  const s = StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    scroll: { flex: 1 },
+    heroCard: {
+      margin: 20,
+      backgroundColor: colors.card,
+      borderRadius: colors.radius,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    heroTitle: { fontSize: 22, fontFamily: "Inter_700Bold", color: colors.foreground },
+    heroMeta: { fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 4, textTransform: "capitalize" },
+    scoreRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 16 },
+    overallCircle: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      borderWidth: 3,
+      borderColor: colors.primary,
+      backgroundColor: colors.primary + "20",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    overallNum: { fontSize: 26, fontFamily: "Inter_700Bold", color: colors.primary },
+    overallLabel: { fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
+    scoresMini: { flex: 1, marginLeft: 16, gap: 6 },
+    scoreMiniRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+    scoreMiniLabel: { fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular", width: 78, textTransform: "capitalize" },
+    scoreMiniBarBg: { flex: 1, height: 5, backgroundColor: colors.border, borderRadius: 2.5 },
+    scoreMiniBarFill: { height: 5, borderRadius: 2.5 },
+    scoreMiniNum: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: colors.foreground, width: 28, textAlign: "right" },
+    tabRow: {
+      flexDirection: "row",
+      marginHorizontal: 20,
+      marginBottom: 16,
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      padding: 4,
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: 8,
+      alignItems: "center",
+      borderRadius: 8,
+    },
+    tabText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+    section: { paddingHorizontal: 20, marginBottom: 16 },
+    listItem: {
+      flexDirection: "row",
+      gap: 10,
+      marginBottom: 10,
+      alignItems: "flex-start",
+    },
+    dot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      marginTop: 7,
+    },
+    listText: { fontSize: 14, color: colors.foreground, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 20 },
+    tipCard: {
+      backgroundColor: colors.card,
+      borderRadius: colors.radius,
+      marginBottom: 10,
+      borderWidth: 1,
+      overflow: "hidden",
+    },
+    tipHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      padding: 14,
+    },
+    tipTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground, flex: 1 },
+    tipBody: { paddingHorizontal: 14, paddingBottom: 14 },
+    tipDesc: { fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", lineHeight: 19 },
+    drillBox: {
+      marginTop: 10,
+      backgroundColor: colors.muted,
+      borderRadius: 8,
+      padding: 10,
+    },
+    drillLabel: { fontSize: 11, color: colors.primary, fontFamily: "Inter_600SemiBold", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },
+    drillText: { fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular", lineHeight: 17 },
+    riskCard: {
+      backgroundColor: colors.card,
+      borderRadius: colors.radius,
+      padding: 14,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    riskRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+    riskJoint: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground },
+    riskPct: { fontSize: 16, fontFamily: "Inter_700Bold" },
+    riskBarBg: { height: 6, backgroundColor: colors.border, borderRadius: 3, marginBottom: 8 },
+    riskBarFill: { height: 6, borderRadius: 3 },
+    riskDesc: { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginBottom: 4 },
+    riskPrev: { fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular" },
+    prevLabel: { color: colors.primary, fontFamily: "Inter_500Medium" },
+  });
+
+  function getScoreColor(score: number) {
+    if (score >= 80) return colors.success;
+    if (score >= 65) return colors.primary;
+    return colors.warning;
+  }
+
+  function getRiskColor(risk: number) {
+    if (risk >= 50) return colors.destructive;
+    if (risk >= 30) return colors.warning;
+    return colors.success;
+  }
+
+  return (
+    <View style={s.container}>
+      <ScrollView style={s.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomPad }}>
+        <View style={s.heroCard}>
+          <Text style={s.heroTitle}>{analysis.title}</Text>
+          <Text style={s.heroMeta}>
+            {analysis.sport} · {analysis.duration}s · {formatDate(analysis.uploadedAt)}
+          </Text>
+
+          {analysis.comparedTo && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: colors.primary + "20", borderRadius: 20, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4 }}>
+              <Feather name="star" size={11} color={colors.primary} />
+              <Text style={{ fontSize: 11, color: colors.primary, fontFamily: "Inter_500Medium" }}>
+                {analysis.similarityScore}% match with {analysis.comparedTo}
+              </Text>
+            </View>
+          )}
+
+          <View style={s.scoreRow}>
+            <View style={s.overallCircle}>
+              <Text style={s.overallNum}>{analysis.scores.overall}</Text>
+              <Text style={s.overallLabel}>SCORE</Text>
+            </View>
+            <View style={s.scoresMini}>
+              {SCORE_KEYS.map((key) => {
+                const score = analysis.scores[key];
+                const clr = getScoreColor(score);
+                return (
+                  <View key={key} style={s.scoreMiniRow}>
+                    <Text style={s.scoreMiniLabel}>{key}</Text>
+                    <View style={s.scoreMiniBarBg}>
+                      <View style={[s.scoreMiniBarFill, { width: `${score}%` as any, backgroundColor: clr }]} />
+                    </View>
+                    <Text style={s.scoreMiniNum}>{score}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+
+        <View style={s.tabRow}>
+          {(["scores", "tips", "risks"] as const).map((tab) => {
+            const active = activeTab === tab;
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[s.tab, active && { backgroundColor: colors.primary }]}
+                onPress={() => setActiveTab(tab)}
+                activeOpacity={0.7}
+              >
+                <Text style={[s.tabText, { color: active ? "#fff" : colors.mutedForeground, textTransform: "capitalize" }]}>
+                  {tab === "scores" ? "Highlights" : tab === "risks" ? "Injury Risk" : "Tips"}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {activeTab === "scores" && (
+          <View style={s.section}>
+            <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.success, marginBottom: 10 }}>
+              Strengths
+            </Text>
+            {analysis.strengths.map((str, i) => (
+              <View key={i} style={s.listItem}>
+                <View style={[s.dot, { backgroundColor: colors.success }]} />
+                <Text style={s.listText}>{str}</Text>
+              </View>
+            ))}
+            <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.warning, marginBottom: 10, marginTop: 8 }}>
+              Areas to Improve
+            </Text>
+            {analysis.improvements.map((imp, i) => (
+              <View key={i} style={s.listItem}>
+                <View style={[s.dot, { backgroundColor: colors.warning }]} />
+                <Text style={s.listText}>{imp}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {activeTab === "tips" && (
+          <View style={s.section}>
+            {analysis.tips.map((tip) => {
+              const cfg = SEVERITY_CONFIG[tip.severity];
+              const expanded = expandedTip === tip.id;
+              return (
+                <TouchableOpacity
+                  key={tip.id}
+                  style={[s.tipCard, { borderColor: cfg.color + "44" }]}
+                  activeOpacity={0.8}
+                  onPress={() => setExpandedTip(expanded ? null : tip.id)}
+                >
+                  <View style={s.tipHeader}>
+                    <Feather name={cfg.icon} size={16} color={cfg.color} />
+                    <Text style={s.tipTitle}>{tip.title}</Text>
+                    <Feather name={expanded ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
+                  </View>
+                  {expanded && (
+                    <View style={s.tipBody}>
+                      <Text style={s.tipDesc}>{tip.description}</Text>
+                      {tip.drill && (
+                        <View style={s.drillBox}>
+                          <Text style={s.drillLabel}>Drill</Text>
+                          <Text style={s.drillText}>{tip.drill}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {activeTab === "risks" && (
+          <View style={s.section}>
+            {analysis.injuryRisks.map((risk, i) => {
+              const clr = getRiskColor(risk.risk);
+              return (
+                <View key={i} style={s.riskCard}>
+                  <View style={s.riskRow}>
+                    <Text style={s.riskJoint}>{risk.joint}</Text>
+                    <Text style={[s.riskPct, { color: clr }]}>{risk.risk}%</Text>
+                  </View>
+                  <View style={s.riskBarBg}>
+                    <View style={[s.riskBarFill, { width: `${risk.risk}%` as any, backgroundColor: clr }]} />
+                  </View>
+                  <Text style={s.riskDesc}>{risk.description}</Text>
+                  <Text style={s.riskPrev}><Text style={s.prevLabel}>Prevention: </Text>{risk.prevention}</Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
