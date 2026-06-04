@@ -1,1 +1,1 @@
-- [AthleteAI migration patterns](athleteai-migration.md) — Next.js→Vite: use wouter Link/useLocation, remove "use client", theme CSS in index.css not globals.css
+- [WebView file:// origin fix](webview-file-origin.md) — source={{ html }} gives null origin, blocking file:// video + CDN WASM; write HTML to disk and load via file:// URI instead.

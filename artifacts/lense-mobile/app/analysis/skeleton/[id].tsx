@@ -12,6 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import * as ScreenOrientation from "expo-screen-orientation";
+import * as FileSystem from "expo-file-system";
 
 import { useAnalyses } from "@/lib/analysesStore";
 
@@ -373,8 +374,18 @@ export default function SkeletonScreen() {
     } catch {}
   }
 
-  // ── HTML (memoised so it doesn't rebuild on every render) ─────────────────
-  const html = React.useMemo(() => buildHtml(videoUri), [videoUri]);
+  // ── Write HTML to disk so WebView loads from file:// (required for CORS +
+  //    local video access — inline source={{ html }} gives a null origin that
+  //    blocks both the MediaPipe CDN and file:// video URIs).
+  const [htmlFileUri, setHtmlFileUri] = useState<string | null>(null);
+  useEffect(() => {
+    const dest = (FileSystem.cacheDirectory ?? "") + "pose-tracker.html";
+    FileSystem.writeAsStringAsync(dest, buildHtml(videoUri), {
+      encoding: FileSystem.EncodingType.UTF8,
+    })
+      .then(() => setHtmlFileUri(dest))
+      .catch((e) => console.warn("pose HTML write failed", e));
+  }, [videoUri]);
 
   // ── Angle display helpers ──────────────────────────────────────────────────
   function angleColor(deg: number) {
@@ -416,22 +427,24 @@ export default function SkeletonScreen() {
       )}
 
       {/* ── WebView (MediaPipe runs here) ── */}
-      <WebView
-        ref={webviewRef}
-        source={{ html }}
-        style={{ flex: isLandscape ? 1 : undefined, height: isLandscape ? undefined : Math.min(screenH * 0.52, 340) }}
-        allowFileAccess
-        allowFileAccessFromFileURLs
-        allowUniversalAccessFromFileURLs
-        mixedContentMode="always"
-        mediaPlaybackRequiresUserAction={false}
-        javaScriptEnabled
-        domStorageEnabled
-        originWhitelist={["*"]}
-        scrollEnabled={false}
-        onMessage={handleMessage}
-        backgroundColor="#07070f"
-      />
+      {htmlFileUri && (
+        <WebView
+          ref={webviewRef}
+          source={{ uri: htmlFileUri }}
+          style={{ flex: isLandscape ? 1 : undefined, height: isLandscape ? undefined : Math.min(screenH * 0.52, 340) }}
+          allowFileAccess
+          allowFileAccessFromFileURLs
+          allowUniversalAccessFromFileURLs
+          mixedContentMode="always"
+          mediaPlaybackRequiresUserAction={false}
+          javaScriptEnabled
+          domStorageEnabled
+          originWhitelist={["*", "file://*"]}
+          scrollEnabled={false}
+          onMessage={handleMessage}
+          backgroundColor="#07070f"
+        />
+      )}
 
       {/* ── Portrait: angle cards ── */}
       {!isLandscape && angleCards.length > 0 && (
