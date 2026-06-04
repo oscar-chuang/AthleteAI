@@ -8,7 +8,7 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
 import { useColors } from "@/hooks/useColors";
@@ -32,6 +32,7 @@ export default function AnalysisDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [expandedTip, setExpandedTip] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"scores" | "tips" | "risks">("scores");
 
@@ -200,6 +201,29 @@ export default function AnalysisDetailScreen() {
               })}
             </View>
           </View>
+
+          <TouchableOpacity
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              marginTop: 16,
+              backgroundColor: colors.primary + "18",
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.primary + "55",
+              paddingVertical: 12,
+            }}
+            activeOpacity={0.75}
+            onPress={() => router.push(`/analysis/skeleton/${id}`)}
+          >
+            <Feather name="user" size={16} color={colors.primary} />
+            <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.primary }}>
+              View Skeleton Overlay
+            </Text>
+            <Feather name="chevron-right" size={14} color={colors.primary} />
+          </TouchableOpacity>
         </View>
 
         <View style={s.tabRow}>

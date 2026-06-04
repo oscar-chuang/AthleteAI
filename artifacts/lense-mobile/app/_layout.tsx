@@ -35,6 +35,13 @@ function RootLayoutNav() {
           headerBackTitle: "Back",
         }}
       />
+      <Stack.Screen
+        name="analysis/skeleton/[id]"
+        options={{
+          headerShown: false,
+          presentation: "fullScreenModal",
+        }}
+      />
     </Stack>
   );
 }
