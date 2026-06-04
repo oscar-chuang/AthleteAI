@@ -24,6 +24,11 @@ interface JointAngles {
   leftElbow: number; rightElbow: number;
 }
 
+// 0 = safe, 1 = caution, 2 = injury risk (matches the WebView risk model)
+type RiskMap = Record<keyof JointAngles, number>;
+
+const RISK_COLORS = ["#22c55e", "#f59e0b", "#ef4444"];
+
 // ─── HTML builder ─────────────────────────────────────────────────────────────
 // The entire pose-tracking UI lives inside the WebView.
 // MediaPipe runs in the phone's browser engine (WebAssembly + WebGL),
@@ -93,6 +98,12 @@ canvas{pointer-events:none}
   border:1px solid transparent;transition:all .15s}
 #skelBtn.on{background:rgba(34,211,238,.12);color:#22d3ee;border-color:rgba(34,211,238,.28)}
 #skelBtn.off{background:#1c1c2e;color:#8888aa}
+
+/* Risk legend */
+#legend{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:5px;
+  background:rgba(4,4,12,.82);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:8px 11px}
+.lg{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:700;color:#c0c0d0;letter-spacing:.3px}
+.ld{width:9px;height:9px;border-radius:50%;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -100,7 +111,12 @@ canvas{pointer-events:none}
   ${videoUri
     ? `<video id="v" playsinline webkit-playsinline muted loop preload="auto"></video>
        <canvas id="c"></canvas>
-       <div id="badge"><div id="dot"></div><span id="btxt">Loading AI…</span></div>`
+       <div id="badge"><div id="dot"></div><span id="btxt">Loading AI…</span></div>
+       <div id="legend">
+         <div class="lg"><span class="ld" style="background:#22c55e"></span>SAFE</div>
+         <div class="lg"><span class="ld" style="background:#f59e0b"></span>CAUTION</div>
+         <div class="lg"><span class="ld" style="background:#ef4444"></span>RISK</div>
+       </div>`
     : `<div id="empty">
          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#3a3a5c" stroke-width="1.5" stroke-linecap="round">
            <rect x="2" y="6" width="20" height="12" rx="2"/><path d="m9 10 5 2-5 2z"/>
@@ -200,6 +216,15 @@ ${videoUri ? `
     ctx.restore();
   }
 
+  /* Risk colors: 0 safe, 1 caution, 2 risk */
+  const RL=["#22c55e","#f59e0b","#ef4444"];
+  /* Map an angle to a risk level given low/high caution+risk thresholds */
+  function lvl(a,loRisk,loWarn,hiWarn,hiRisk){
+    if(a<=loRisk||a>=hiRisk)return 2;
+    if(a<=loWarn||a>=hiWarn)return 1;
+    return 0;
+  }
+
   /* ── Draw results ── */
   function onResults(res){
     busy=false;
@@ -211,48 +236,95 @@ ${videoUri ? `
     const v=i=>(lm[i]?.visibility||0)>0.35;
     const p=i=>({x:lm[i].x*W,y:lm[i].y*H});
 
-    /* Bones */
+    /* ── Compute angle + injury risk for each key joint ──
+       Knee  : deep flexion (<70) or hyperextension (>178) = risk
+       Hip   : deep flexion (<55) = risk  (only low side matters)
+       Elbow : hyperextension (>172) = risk (only high side matters) */
+    const jr={}; // index -> {deg, lvl}
+    if(v(23)&&v(25)&&v(27)){const a=ang(p(23),p(25),p(27));jr[25]={deg:a,lvl:lvl(a,70,90,175,178)};}
+    if(v(24)&&v(26)&&v(28)){const a=ang(p(24),p(26),p(28));jr[26]={deg:a,lvl:lvl(a,70,90,175,178)};}
+    if(v(11)&&v(23)&&v(25)){const a=ang(p(11),p(23),p(25));jr[23]={deg:a,lvl:lvl(a,55,80,999,999)};}
+    if(v(12)&&v(24)&&v(26)){const a=ang(p(12),p(24),p(26));jr[24]={deg:a,lvl:lvl(a,55,80,999,999)};}
+    if(v(11)&&v(13)&&v(15)){const a=ang(p(11),p(13),p(15));jr[13]={deg:a,lvl:lvl(a,-1,-1,160,172)};}
+    if(v(12)&&v(14)&&v(16)){const a=ang(p(12),p(14),p(16));jr[14]={deg:a,lvl:lvl(a,-1,-1,160,172)};}
+    let maxLvl=0;Object.keys(jr).forEach(k=>{if(jr[k].lvl>maxLvl)maxLvl=jr[k].lvl;});
+
+    /* Bones — colored by risk if attached to a flagged joint, else L/R */
     CONN.forEach(([a,b])=>{
       if(!v(a)||!v(b))return;
       const pA=p(a),pB=p(b);
-      const col=LI.has(a)&&LI.has(b)?"#22d3ee":RI.has(a)&&RI.has(b)?"#a78bfa":"rgba(255,255,255,.5)";
+      const rm=Math.max(jr[a]?jr[a].lvl:-1, jr[b]?jr[b].lvl:-1);
+      const col=rm>=1?RL[rm]
+        :LI.has(a)&&LI.has(b)?"#22d3ee":RI.has(a)&&RI.has(b)?"#a78bfa":"rgba(255,255,255,.5)";
       ctx.save();
-      ctx.strokeStyle=col;ctx.lineWidth=3.5;ctx.lineCap="round";
-      ctx.shadowBlur=10;ctx.shadowColor=col;ctx.globalAlpha=.9;
+      ctx.strokeStyle=col;ctx.lineWidth=rm>=1?4.5:3.5;ctx.lineCap="round";
+      ctx.shadowBlur=rm>=2?17:10;ctx.shadowColor=col;ctx.globalAlpha=.92;
       ctx.beginPath();ctx.moveTo(pA.x,pA.y);ctx.lineTo(pB.x,pB.y);ctx.stroke();
       ctx.restore();
     });
 
-    /* Joints */
+    /* Joints — risk joints colored + pulse ring, others L/R */
     let seen=0;
     KJ.forEach(i=>{
       if(!v(i))return;seen++;
       const pt=p(i);
-      const col=LI.has(i)?"#22d3ee":RI.has(i)?"#a78bfa":"#fff";
+      const risk=jr[i];
+      const col=risk?RL[risk.lvl]:(LI.has(i)?"#22d3ee":RI.has(i)?"#a78bfa":"#fff");
+      const r=risk&&risk.lvl===2?9:risk&&risk.lvl===1?7.5:6.5;
       ctx.save();
-      ctx.shadowBlur=14;ctx.shadowColor=col;
-      ctx.fillStyle=col+"cc";ctx.beginPath();ctx.arc(pt.x,pt.y,7,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle="#07070f";ctx.beginPath();ctx.arc(pt.x,pt.y,3.2,0,Math.PI*2);ctx.fill();
+      if(risk&&risk.lvl===2){
+        ctx.strokeStyle=col;ctx.globalAlpha=.45;ctx.lineWidth=2;
+        ctx.beginPath();ctx.arc(pt.x,pt.y,r+5,0,Math.PI*2);ctx.stroke();
+        ctx.globalAlpha=1;
+      }
+      ctx.shadowBlur=risk&&risk.lvl===2?18:14;ctx.shadowColor=col;
+      ctx.fillStyle=col;ctx.beginPath();ctx.arc(pt.x,pt.y,r,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle="#07070f";ctx.beginPath();ctx.arc(pt.x,pt.y,3,0,Math.PI*2);ctx.fill();
       ctx.restore();
     });
     btxt.textContent=seen>0?seen+" joints tracked":"Pose active";
 
-    /* Angle labels */
-    if(v(23)&&v(25)&&v(27)) label(p(25).x+32,p(25).y,ang(p(23),p(25),p(27))+"°","#22d3ee");
-    if(v(24)&&v(26)&&v(28)) label(p(26).x-32,p(26).y,ang(p(24),p(26),p(28))+"°","#a78bfa");
-    if(v(11)&&v(23)&&v(25)) label(p(23).x+36,p(23).y-12,ang(p(11),p(23),p(25))+"°","#f59e0b");
+    /* Angle labels — colored by risk */
+    function angLabel(i,dx,dy){const j=jr[i];if(!j)return;label(p(i).x+dx,p(i).y+dy,j.deg+"°",RL[j.lvl]);}
+    angLabel(25,34,0);
+    angLabel(26,-34,0);
+    angLabel(23,38,-12);
+    angLabel(24,-38,-12);
 
-    /* Post angles to React Native */
-    if(v(23)&&v(25)&&v(27)&&v(24)&&v(26)&&v(28)){
+    /* Injury-risk banner */
+    if(maxLvl===2){
+      ctx.save();
+      ctx.font="bold 16px -apple-system,sans-serif";
+      const t="\u26A0 INJURY RISK";
+      const w=ctx.measureText(t).width+26;
+      ctx.fillStyle="rgba(239,68,68,.92)";
+      ctx.beginPath();ctx.roundRect(W/2-w/2,12,w,32,9);ctx.fill();
+      ctx.fillStyle="#fff";ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.fillText(t,W/2,29);
+      ctx.restore();
+    }
+
+    /* Post angles + risk to React Native */
+    if(Object.keys(jr).length){
       try{
-        window.ReactNativeWebView.postMessage(JSON.stringify({type:"angles",data:{
-          leftKnee: ang(p(23),p(25),p(27)),
-          rightKnee:ang(p(24),p(26),p(28)),
-          leftHip:  v(11)?ang(p(11),p(23),p(25)):0,
-          rightHip: v(12)?ang(p(12),p(24),p(26)):0,
-          leftElbow: v(11)&&v(13)&&v(15)?ang(p(11),p(13),p(15)):0,
-          rightElbow:v(12)&&v(14)&&v(16)?ang(p(12),p(14),p(16)):0,
-        }}));
+        window.ReactNativeWebView.postMessage(JSON.stringify({type:"angles",
+          data:{
+            leftKnee:  jr[25]?jr[25].deg:0,
+            rightKnee: jr[26]?jr[26].deg:0,
+            leftHip:   jr[23]?jr[23].deg:0,
+            rightHip:  jr[24]?jr[24].deg:0,
+            leftElbow: jr[13]?jr[13].deg:0,
+            rightElbow:jr[14]?jr[14].deg:0,
+          },
+          risk:{
+            leftKnee:  jr[25]?jr[25].lvl:0,
+            rightKnee: jr[26]?jr[26].lvl:0,
+            leftHip:   jr[23]?jr[23].lvl:0,
+            rightHip:  jr[24]?jr[24].lvl:0,
+            leftElbow: jr[13]?jr[13].lvl:0,
+            rightElbow:jr[14]?jr[14].lvl:0,
+          },
+          maxLvl}));
       }catch(e){}
     }
   }
@@ -354,6 +426,8 @@ export default function SkeletonScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [angles,     setAngles]     = useState<JointAngles | null>(null);
+  const [risk,       setRisk]       = useState<RiskMap | null>(null);
+  const [maxLvl,     setMaxLvl]     = useState(0);
   const [modelReady, setModelReady] = useState(false);
   const [preparing,  setPreparing]  = useState(true);
 
@@ -372,6 +446,8 @@ export default function SkeletonScreen() {
       const msg = JSON.parse(event.nativeEvent.data);
       if (msg.type === "angles") {
         setAngles(msg.data as JointAngles);
+        if (msg.risk) setRisk(msg.risk as RiskMap);
+        setMaxLvl(typeof msg.maxLvl === "number" ? msg.maxLvl : 0);
         if (!modelReady) setModelReady(true);
       }
     } catch {}
@@ -424,18 +500,15 @@ export default function SkeletonScreen() {
   }, [videoUri]);
 
   // ── Angle display helpers ──────────────────────────────────────────────────
-  function angleColor(deg: number) {
-    return deg < 100 ? "#ef4444" : deg < 130 ? "#f59e0b" : "#22c55e";
-  }
-
-  const angleCards = angles ? [
-    { label: "L Knee",  deg: angles.leftKnee  },
-    { label: "R Knee",  deg: angles.rightKnee },
-    { label: "L Hip",   deg: angles.leftHip   },
-    { label: "R Hip",   deg: angles.rightHip  },
-    { label: "L Elbow", deg: angles.leftElbow },
-    { label: "R Elbow", deg: angles.rightElbow},
-  ] : [];
+  // Color comes from the WebView's per-joint risk model (green/amber/red).
+  const angleCards = angles ? ([
+    { label: "L Knee",  deg: angles.leftKnee,   key: "leftKnee"   },
+    { label: "R Knee",  deg: angles.rightKnee,  key: "rightKnee"  },
+    { label: "L Hip",   deg: angles.leftHip,    key: "leftHip"    },
+    { label: "R Hip",   deg: angles.rightHip,   key: "rightHip"   },
+    { label: "L Elbow", deg: angles.leftElbow,  key: "leftElbow"  },
+    { label: "R Elbow", deg: angles.rightElbow, key: "rightElbow" },
+  ] as const) : [];
 
   return (
     <View style={ss.root}>
@@ -491,12 +564,31 @@ export default function SkeletonScreen() {
       {/* ── Portrait: angle cards ── */}
       {!isLandscape && angleCards.length > 0 && (
         <View style={ss.angleSection}>
-          <Text style={ss.sectionLabel}>LIVE JOINT ANGLES</Text>
+          <View style={ss.angleHeaderRow}>
+            <Text style={ss.sectionLabel}>LIVE JOINT ANGLES</Text>
+            {maxLvl === 2 ? (
+              <View style={[ss.riskPill, { backgroundColor: "#ef444422", borderColor: "#ef444455" }]}>
+                <Feather name="alert-triangle" size={11} color="#ef4444" />
+                <Text style={[ss.riskPillText, { color: "#ef4444" }]}>Injury risk</Text>
+              </View>
+            ) : maxLvl === 1 ? (
+              <View style={[ss.riskPill, { backgroundColor: "#f59e0b22", borderColor: "#f59e0b55" }]}>
+                <Feather name="alert-circle" size={11} color="#f59e0b" />
+                <Text style={[ss.riskPillText, { color: "#f59e0b" }]}>Caution</Text>
+              </View>
+            ) : (
+              <View style={[ss.riskPill, { backgroundColor: "#22c55e22", borderColor: "#22c55e55" }]}>
+                <Feather name="check-circle" size={11} color="#22c55e" />
+                <Text style={[ss.riskPillText, { color: "#22c55e" }]}>Good form</Text>
+              </View>
+            )}
+          </View>
           <View style={ss.angleGrid}>
-            {angleCards.filter(a => a.deg > 0).map(({ label, deg }) => {
-              const c = angleColor(deg);
+            {angleCards.filter(a => a.deg > 0).map(({ label, deg, key }) => {
+              const lvl = Math.max(0, Math.min(2, risk ? (risk[key] ?? 0) : 0));
+              const c = RISK_COLORS[lvl];
               return (
-                <View key={label} style={[ss.angleCard, { borderColor: c + "44" }]}>
+                <View key={label} style={[ss.angleCard, { borderColor: c + "55", backgroundColor: lvl === 2 ? "#ef44440f" : "#0f0f1c" }]}>
                   <Text style={[ss.angleDeg, { color: c }]}>{deg}°</Text>
                   <Text style={ss.angleLabel}>{label}</Text>
                 </View>
@@ -535,7 +627,10 @@ const ss = StyleSheet.create({
   rotateBtnText:{ fontSize: 12, color: "#fff", fontFamily: "Inter_600SemiBold" },
   portraitBtn:  { position: "absolute", top: 14, right: 14, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#6c63ff", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
   angleSection: { paddingHorizontal: 18, paddingTop: 16 },
-  sectionLabel: { fontSize: 10, color: "#8888aa", fontFamily: "Inter_600SemiBold", letterSpacing: 1.5, marginBottom: 10 },
+  angleHeaderRow:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  sectionLabel: { fontSize: 10, color: "#8888aa", fontFamily: "Inter_600SemiBold", letterSpacing: 1.5 },
+  riskPill:     { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
+  riskPillText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   angleGrid:    { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   angleCard:    { width: "30%", flexGrow: 1, backgroundColor: "#0f0f1c", borderRadius: 12, padding: 12, alignItems: "center", borderWidth: 1 },
   angleDeg:     { fontSize: 22, fontFamily: "Inter_700Bold" },
