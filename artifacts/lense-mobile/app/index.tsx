@@ -6,12 +6,14 @@ import {
   TouchableOpacity,
   Platform,
   Animated,
+  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
 import { useColors } from "@/hooks/useColors";
+import { useAuth } from "@/lib/authContext";
 
 const SPORTS = ["Fencing", "Weightlifting", "Basketball", "Golf", "Tennis", "Running"];
 
@@ -26,6 +28,14 @@ export default function LandingScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // Skip landing page for returning users
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace("/(tabs)");
+    }
+  }, [isLoading, isAuthenticated]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -184,7 +194,7 @@ export default function LandingScreen() {
   });
 
   return (
-    <View style={s.container}>
+    <ScrollView style={s.container} contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false} bounces={false}>
       <Animated.View
         style={[s.inner, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
       >
@@ -248,7 +258,7 @@ export default function LandingScreen() {
           <TouchableOpacity
             style={s.secondaryBtn}
             activeOpacity={0.75}
-            onPress={() => router.push("/(tabs)/")}
+            onPress={() => router.push("/auth/login")}
           >
             <Text style={s.secondaryBtnText}>Sign in</Text>
           </TouchableOpacity>
@@ -256,6 +266,6 @@ export default function LandingScreen() {
           <Text style={s.freeNote}>Free to start · No credit card required</Text>
         </View>
       </Animated.View>
-    </View>
+    </ScrollView>
   );
 }

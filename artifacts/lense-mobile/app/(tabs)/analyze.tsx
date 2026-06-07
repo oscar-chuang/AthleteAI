@@ -1,35 +1,40 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   Platform,
   Modal,
   ActivityIndicator,
   Alert,
+  RefreshControl,
+  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 
 import { useColors } from "@/hooks/useColors";
-import { useAnalyses } from "@/lib/analysesStore";
-import type { VideoAnalysis } from "@/lib/types";
+import { analyses as analysesApi, type AnalysisRecord, ApiError } from "@/lib/api";
+import { useAuth, useCanAccessFeature } from "@/lib/authContext";
 
-const SPORT_ICONS: Record<string, "activity" | "target" | "zap" | "wind"> = {
-  weightlifting: "activity",
-  basketball: "target",
-  running: "zap",
-  golf: "wind",
-  default: "activity",
-};
+const SPORTS = [
+  "Weightlifting", "Running", "Basketball", "Golf", "Tennis",
+  "Swimming", "CrossFit", "Boxing", "Soccer", "Gymnastics", "Other",
+];
 
-function getSportIcon(sport: string) {
-  return SPORT_ICONS[sport] ?? SPORT_ICONS.default;
-}
+const ANALYSIS_STEPS = [
+  "Extracting video frames...",
+  "Detecting body pose...",
+  "Calculating joint angles...",
+  "Running AI analysis...",
+  "Generating report...",
+];
 
 function getScoreColor(score: number, colors: ReturnType<typeof useColors>) {
   if (score >= 80) return colors.success;
@@ -38,404 +43,304 @@ function getScoreColor(score: number, colors: ReturnType<typeof useColors>) {
 }
 
 function formatDate(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
-
-const ANALYSIS_STEPS = [
-  "Extracting video frames...",
-  "Detecting body pose...",
-  "Calculating joint angles...",
-  "Scoring technique...",
-  "Generating report...",
-];
 
 export default function AnalyzeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { analyses, addAnalysis } = useAnalyses();
+  const { profile } = useAuth();
+  const canUnlimited = useCanAccessFeature("unlimitedAnalyses");
+
+  const [analysisList, setAnalysisList] = useState<AnalysisRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisStep, setAnalysisStep] = useState(0);
-  const [analysisDone, setAnalysisDone] = useState(false);
+
+  // Sport picker modal state
+  const [showSportPicker, setShowSportPicker] = useState(false);
+  const [pendingUri, setPendingUri] = useState<string | null>(null);
+  const [pendingTitle, setPendingTitle] = useState("");
+  const [selectedSport, setSelectedSport] = useState("");
+
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
 
+  const loadAnalyses = useCallback(async () => {
+    try {
+      const { analyses } = await analysesApi.list();
+      setAnalysisList(analyses);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { loadAnalyses(); }, [loadAnalyses]);
+
+  // Poll for processing analyses
+  useEffect(() => {
+    const processing = analysisList.some((a) => a.status === "processing" || a.status === "pending");
+    if (!processing) return;
+    const interval = setInterval(loadAnalyses, 5000);
+    return () => clearInterval(interval);
+  }, [analysisList, loadAnalyses]);
+
   async function handleUpload() {
-    let result: ImagePicker.ImagePickerResult;
     try {
       if (Platform.OS !== "web") {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== "granted") {
-          Alert.alert(
-            "Permission needed",
-            "Allow photo & video access in Settings so you can pick a clip to analyze.",
-          );
+          Alert.alert("Permission needed", "Allow photo & video access in Settings to pick a clip.");
           return;
         }
       }
 
-      result = await ImagePicker.launchImageLibraryAsync({
+      const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: "videos",
         allowsEditing: false,
         quality: 1,
       });
+
+      if (result.canceled) return;
+      const uri = result.assets[0]?.uri ?? "";
+      if (!uri) return;
+
+      setPendingUri(uri);
+      setPendingTitle("");
+      setSelectedSport(profile?.sport ?? "");
+      setShowSportPicker(true);
     } catch (err) {
-      // iOS PHPhotosErrorDomain (e.g. error 3164) happens when the selected
-      // clip can't be exported — usually an iCloud-only video that hasn't been
-      // downloaded to the device, or a format Expo Go can't transcode.
       const msg = err instanceof Error ? err.message : String(err);
       const isiCloud = /3164|PHPhotos|could not be completed/i.test(msg);
       Alert.alert(
         "Couldn't load that video",
         isiCloud
-          ? "This clip is stored in iCloud and isn't downloaded to your phone yet. Open the Photos app, let it fully download (tap the clip until the spinner finishes), then try again — or pick a video that's saved on this device."
-          : "Something went wrong loading that video. Please try a different clip.",
+          ? "This clip is in iCloud and hasn't downloaded yet. Open Photos, let it download fully, then try again."
+          : "Something went wrong. Please try a different clip.",
       );
-      return;
     }
+  }
 
-    if (result.canceled) return;
-
-    const pickedUri = result.assets[0]?.uri ?? "";
-    if (!pickedUri) {
-      Alert.alert("Couldn't load that video", "Please try selecting the clip again.");
-      return;
-    }
-
+  async function submitAnalysis() {
+    if (!selectedSport || !pendingUri) return;
+    setShowSportPicker(false);
     setAnalyzing(true);
     setAnalysisStep(0);
-    setAnalysisDone(false);
 
-    for (let i = 0; i < ANALYSIS_STEPS.length; i++) {
-      setAnalysisStep(i);
-      await new Promise((r) => setTimeout(r, 900));
+    // Animate steps while API processes
+    const stepInterval = setInterval(() => {
+      setAnalysisStep((s) => Math.min(s + 1, ANALYSIS_STEPS.length - 1));
+    }, 900);
+
+    try {
+      const { analysis } = await analysesApi.create({
+        title: pendingTitle.trim() || `${selectedSport} — Analysis`,
+        sport: selectedSport.toLowerCase(),
+        videoUrl: pendingUri,
+      });
+
+      // Persist the local video URI so the skeleton overlay can find it later
+      await AsyncStorage.setItem(`video_uri_${analysis.id}`, pendingUri);
+
+      clearInterval(stepInterval);
+      setAnalysisStep(ANALYSIS_STEPS.length - 1);
+      await new Promise((r) => setTimeout(r, 500));
+      setAnalyzing(false);
+
+      await loadAnalyses();
+      router.push(`/analysis/${analysis.id}`);
+    } catch (err) {
+      clearInterval(stepInterval);
+      setAnalyzing(false);
+      if (err instanceof ApiError && err.code === "UPGRADE_REQUIRED") {
+        Alert.alert(
+          "Upgrade Required",
+          err.message,
+          [
+            { text: "Not now", style: "cancel" },
+            { text: "View Plans", onPress: () => router.push("/pricing") },
+          ]
+        );
+      } else {
+        Alert.alert("Analysis failed", "Please try again.");
+      }
     }
-
-    setAnalysisDone(true);
-
-    const newAnalysis: VideoAnalysis = {
-      id: `an-new-${Date.now()}`,
-      title: "New Upload — Analysis",
-      sport: "weightlifting",
-      uploadedAt: new Date().toISOString(),
-      duration: Math.floor(Math.random() * 15) + 5,
-      thumbnailUrl: pickedUri,
-      scores: {
-        overall: 75,
-        technique: 70,
-        power: 84,
-        balance: 72,
-        consistency: 68,
-        mobility: 66,
-        speed: 80,
-      },
-      strengths: [
-        "Good hip drive throughout the movement",
-        "Consistent bar path with minimal deviation",
-      ],
-      improvements: [
-        "Improve brace before initiating the pull",
-        "Reduce lumbar flexion at lockout",
-      ],
-      tips: [
-        {
-          id: "new-t1",
-          category: "technique",
-          severity: "warning",
-          title: "Brace Earlier",
-          description:
-            "You're initiating the pull before a full brace is achieved. This reduces spinal stability.",
-          drill:
-            "Practice bracing with a belt before each set. 3 deep breaths, big brace, then pull.",
-        },
-      ],
-      injuryRisks: [
-        {
-          joint: "Lumbar Spine",
-          risk: 48,
-          description: "Mild flexion under load",
-          prevention: "Reduce load 5%, focus on brace",
-        },
-      ],
-      frames: [],
-    };
-
-    addAnalysis(newAnalysis, pickedUri);
-
-    await new Promise((r) => setTimeout(r, 600));
-    setAnalyzing(false);
-    setAnalysisDone(false);
-
-    router.push(`/analysis/${newAnalysis.id}`);
   }
 
   const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: {
-      paddingTop: topPad + 16,
-      paddingHorizontal: 20,
-      paddingBottom: 20,
-    },
+    header: { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 20 },
     title: { fontSize: 28, fontFamily: "Inter_700Bold", color: colors.foreground },
-    subtitle: {
-      fontSize: 14,
-      color: colors.mutedForeground,
-      fontFamily: "Inter_400Regular",
-      marginTop: 4,
-    },
-    uploadBtn: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      backgroundColor: colors.primary,
-      borderRadius: colors.radius,
-      paddingVertical: 14,
-      paddingHorizontal: 20,
-      marginHorizontal: 20,
-      marginBottom: 20,
-      justifyContent: "center",
-    },
+    subtitle: { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 4 },
+    uploadBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.primary, borderRadius: colors.radius, paddingVertical: 14, paddingHorizontal: 20, marginHorizontal: 20, marginBottom: 20, justifyContent: "center" },
     uploadBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
-    card: {
-      backgroundColor: colors.card,
-      borderRadius: colors.radius,
-      marginHorizontal: 20,
-      marginBottom: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      overflow: "hidden",
-    },
+    card: { backgroundColor: colors.card, borderRadius: colors.radius, marginHorizontal: 20, marginBottom: 12, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
     cardBody: { padding: 16, flexDirection: "row", alignItems: "center", gap: 14 },
-    iconBg: {
-      width: 48,
-      height: 48,
-      borderRadius: 12,
-      backgroundColor: colors.primary + "20",
-      alignItems: "center",
-      justifyContent: "center",
-    },
+    iconBg: { width: 48, height: 48, borderRadius: 12, backgroundColor: colors.primary + "20", alignItems: "center", justifyContent: "center" },
     cardTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground },
-    cardMeta: {
-      fontSize: 12,
-      color: colors.mutedForeground,
-      fontFamily: "Inter_400Regular",
-      marginTop: 2,
-      textTransform: "capitalize",
-    },
-    scoreCircle: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: colors.background,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: 2,
-    },
+    cardMeta: { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 2, textTransform: "capitalize" },
+    scoreCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", borderWidth: 2 },
     scoreText: { fontSize: 16, fontFamily: "Inter_700Bold" },
-    bottomScores: { flexDirection: "row", paddingHorizontal: 16, paddingBottom: 14, gap: 8 },
-    scorePill: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      backgroundColor: colors.muted,
-      borderRadius: 20,
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-    },
-    scorePillLabel: {
-      fontSize: 10,
-      color: colors.mutedForeground,
-      fontFamily: "Inter_400Regular",
-    },
-    scorePillValue: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: colors.foreground },
-    comparedBadge: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      backgroundColor: colors.primary + "20",
-      borderRadius: 20,
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-    },
-    comparedText: { fontSize: 10, color: colors.primary, fontFamily: "Inter_500Medium" },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(5,5,8,0.94)",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: 32,
-    },
-    modalCard: {
-      width: "100%",
-      backgroundColor: colors.card,
-      borderRadius: 20,
-      padding: 32,
-      alignItems: "center",
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    modalIconBg: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      backgroundColor: colors.primary + "22",
-      borderWidth: 2,
-      borderColor: colors.primary + "66",
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 20,
-    },
-    modalTitle: {
-      fontSize: 18,
-      fontFamily: "Inter_700Bold",
-      color: colors.foreground,
-      marginBottom: 8,
-    },
-    modalStep: {
-      fontSize: 13,
-      color: colors.mutedForeground,
-      fontFamily: "Inter_400Regular",
-      textAlign: "center",
-      marginBottom: 24,
-    },
-    stepsContainer: { width: "100%", gap: 8 },
-    stepRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-    stepDot: {
-      width: 20,
-      height: 20,
-      borderRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    stepText: { fontSize: 13, fontFamily: "Inter_400Regular" },
+    empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, paddingTop: 60 },
+    emptyIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.primary + "22", alignItems: "center", justifyContent: "center", marginBottom: 16 },
+    emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold", color: colors.foreground, marginBottom: 8 },
+    emptyText: { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+    // Overlay
+    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", alignItems: "center", justifyContent: "center", padding: 32 },
+    overlayCard: { backgroundColor: colors.card, borderRadius: 20, padding: 28, alignItems: "center", width: "100%" },
+    overlayTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 8 },
+    overlayStep: { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 16, textAlign: "center" },
+    // Sport picker modal
+    pickerModal: { flex: 1, backgroundColor: colors.background },
+    pickerHeader: { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    pickerTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: colors.foreground },
+    pickerContent: { flex: 1, padding: 20 },
+    pickerLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: colors.foreground, marginBottom: 8 },
+    pickerInput: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12, color: colors.foreground, fontSize: 15, fontFamily: "Inter_400Regular", marginBottom: 20 },
+    sportGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 24 },
+    sportChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.card },
+    sportChipSelected: { borderColor: colors.primary, backgroundColor: colors.primary + "22" },
+    sportChipText: { fontSize: 13, fontFamily: "Inter_500Medium", color: colors.mutedForeground },
+    sportChipTextSelected: { color: colors.primary },
+    analyzeBtn: { backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 15, alignItems: "center" },
+    analyzeBtnDisabled: { opacity: 0.5 },
+    analyzeBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+    statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+    statusText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   });
-
-  const renderItem = ({ item }: { item: VideoAnalysis }) => {
-    const scoreColor = getScoreColor(item.scores.overall, colors);
-    return (
-      <TouchableOpacity
-        style={s.card}
-        activeOpacity={0.75}
-        onPress={() => router.push(`/analysis/${item.id}`)}
-      >
-        <View style={s.cardBody}>
-          <View style={s.iconBg}>
-            <Feather name={getSportIcon(item.sport)} size={22} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.cardTitle}>{item.title}</Text>
-            <Text style={s.cardMeta}>
-              {item.sport} · {item.duration}s · {formatDate(item.uploadedAt)}
-            </Text>
-          </View>
-          <View style={[s.scoreCircle, { borderColor: scoreColor }]}>
-            <Text style={[s.scoreText, { color: scoreColor }]}>{item.scores.overall}</Text>
-          </View>
-        </View>
-
-        <View style={s.bottomScores}>
-          {(["technique", "power", "balance"] as const).map((key) => (
-            <View key={key} style={s.scorePill}>
-              <Text style={s.scorePillLabel}>{key.slice(0, 4).toUpperCase()}</Text>
-              <Text style={s.scorePillValue}>{item.scores[key]}</Text>
-            </View>
-          ))}
-          {item.comparedTo && (
-            <View style={s.comparedBadge}>
-              <Feather name="star" size={9} color={colors.primary} />
-              <Text style={s.comparedText}>{item.similarityScore}% match</Text>
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
-    );
-  };
 
   return (
     <View style={s.container}>
-      <View style={s.header}>
-        <Text style={s.title}>Analyses</Text>
-        <Text style={s.subtitle}>{analyses.length} recordings analyzed</Text>
-      </View>
-
-      <TouchableOpacity style={s.uploadBtn} activeOpacity={0.8} onPress={handleUpload}>
-        <Feather name="upload" size={18} color="#fff" />
-        <Text style={s.uploadBtnText}>Upload New Video</Text>
-      </TouchableOpacity>
-
-      <FlatList
-        data={analyses}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: bottomPad }}
-      />
-
+      {/* Processing overlay */}
       <Modal visible={analyzing} transparent animationType="fade">
-        <View style={s.modalOverlay}>
-          <View style={s.modalCard}>
-            <View style={s.modalIconBg}>
-              {analysisDone ? (
-                <Feather name="check" size={28} color={colors.success} />
-              ) : (
-                <ActivityIndicator size="large" color={colors.primary} />
-              )}
-            </View>
-
-            <Text style={s.modalTitle}>
-              {analysisDone ? "Analysis Complete!" : "Analyzing Video"}
-            </Text>
-            <Text style={s.modalStep}>
-              {analysisDone ? "Your results are ready" : ANALYSIS_STEPS[analysisStep]}
-            </Text>
-
-            <View style={s.stepsContainer}>
-              {ANALYSIS_STEPS.map((step, i) => {
-                const done = i < analysisStep || analysisDone;
-                const active = i === analysisStep && !analysisDone;
-                return (
-                  <View key={i} style={s.stepRow}>
-                    <View
-                      style={[
-                        s.stepDot,
-                        {
-                          backgroundColor: done
-                            ? colors.success + "22"
-                            : active
-                              ? colors.primary + "22"
-                              : colors.muted,
-                        },
-                      ]}
-                    >
-                      {done ? (
-                        <Feather name="check" size={11} color={colors.success} />
-                      ) : active ? (
-                        <ActivityIndicator size="small" color={colors.primary} />
-                      ) : null}
-                    </View>
-                    <Text
-                      style={[
-                        s.stepText,
-                        {
-                          color: done
-                            ? colors.success
-                            : active
-                              ? colors.foreground
-                              : colors.mutedForeground,
-                          fontFamily: active ? "Inter_500Medium" : "Inter_400Regular",
-                        },
-                      ]}
-                    >
-                      {step.replace("...", "")}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
+        <View style={s.overlay}>
+          <View style={s.overlayCard}>
+            <ActivityIndicator color={colors.primary} size="large" />
+            <Text style={s.overlayTitle}>Analyzing your video</Text>
+            <Text style={s.overlayStep}>{ANALYSIS_STEPS[analysisStep]}</Text>
           </View>
         </View>
       </Modal>
+
+      {/* Sport/title picker modal */}
+      <Modal visible={showSportPicker} animationType="slide">
+        <View style={s.pickerModal}>
+          <View style={s.pickerHeader}>
+            <TouchableOpacity onPress={() => setShowSportPicker(false)}>
+              <Feather name="x" size={22} color={colors.foreground} />
+            </TouchableOpacity>
+            <Text style={s.pickerTitle}>Analysis Details</Text>
+            <View style={{ width: 22 }} />
+          </View>
+          <ScrollView style={s.pickerContent} keyboardShouldPersistTaps="handled">
+            <Text style={[s.pickerLabel, { marginTop: 4 }]}>Title (optional)</Text>
+            <TextInput
+              style={s.pickerInput}
+              value={pendingTitle}
+              onChangeText={setPendingTitle}
+              placeholder="e.g. Deadlift 180kg"
+              placeholderTextColor={colors.mutedForeground}
+              autoCapitalize="words"
+            />
+            <Text style={s.pickerLabel}>Sport</Text>
+            <View style={s.sportGrid}>
+              {SPORTS.map((sport) => {
+                const sel = selectedSport.toLowerCase() === sport.toLowerCase();
+                return (
+                  <TouchableOpacity
+                    key={sport}
+                    style={[s.sportChip, sel && s.sportChipSelected]}
+                    onPress={() => setSelectedSport(sport)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[s.sportChipText, sel && s.sportChipTextSelected]}>{sport}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <TouchableOpacity
+              style={[s.analyzeBtn, !selectedSport && s.analyzeBtnDisabled]}
+              onPress={submitAnalysis}
+              disabled={!selectedSport}
+              activeOpacity={0.85}
+            >
+              <Text style={s.analyzeBtnText}>Analyze Video</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      <FlatList
+        data={analysisList}
+        keyExtractor={(item) => item.id}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadAnalyses(); }} tintColor={colors.primary} />}
+        ListHeaderComponent={
+          <>
+            <View style={s.header}>
+              <Text style={s.title}>Analyses</Text>
+              <Text style={s.subtitle}>
+                {canUnlimited ? "Unlimited" : `${analysisList.length}/3`} analyses used
+              </Text>
+            </View>
+            <TouchableOpacity style={s.uploadBtn} onPress={handleUpload} activeOpacity={0.85}>
+              <Feather name="upload" size={18} color="#fff" />
+              <Text style={s.uploadBtnText}>Upload Training Video</Text>
+            </TouchableOpacity>
+          </>
+        }
+        ListEmptyComponent={
+          loading ? (
+            <View style={s.empty}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : (
+            <View style={s.empty}>
+              <View style={s.emptyIcon}>
+                <Feather name="video" size={28} color={colors.primary} />
+              </View>
+              <Text style={s.emptyTitle}>No analyses yet</Text>
+              <Text style={s.emptyText}>Upload a training video and get AI-powered biomechanics analysis in seconds.</Text>
+            </View>
+          )
+        }
+        renderItem={({ item }) => {
+          const isProcessing = item.status === "processing" || item.status === "pending";
+          const score = item.overallScore ?? 0;
+          const scoreColor = getScoreColor(score, colors);
+          return (
+            <TouchableOpacity
+              style={s.card}
+              onPress={() => !isProcessing && router.push(`/analysis/${item.id}`)}
+              activeOpacity={isProcessing ? 1 : 0.85}
+            >
+              <View style={s.cardBody}>
+                <View style={s.iconBg}>
+                  <Feather name="activity" size={22} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.cardTitle} numberOfLines={1}>{item.title}</Text>
+                  <Text style={s.cardMeta}>{item.sport} · {formatDate(item.uploadedAt)}</Text>
+                </View>
+                {isProcessing ? (
+                  <ActivityIndicator color={colors.primary} size="small" />
+                ) : item.status === "failed" ? (
+                  <Feather name="alert-circle" size={22} color={colors.destructive} />
+                ) : (
+                  <View style={[s.scoreCircle, { borderColor: scoreColor }]}>
+                    <Text style={[s.scoreText, { color: scoreColor }]}>{Math.round(score)}</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        }}
+        contentContainerStyle={{ paddingBottom: bottomPad }}
+      />
     </View>
   );
 }

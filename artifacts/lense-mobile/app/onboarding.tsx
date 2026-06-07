@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
 import { useColors } from "@/hooks/useColors";
+import { useAuth } from "@/lib/authContext";
 
 const SPORTS = [
   "Powerlifting", "Olympic Weightlifting", "Running", "Swimming",
@@ -50,6 +51,7 @@ export default function OnboardingScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { updateProfile } = useAuth();
   const [step, setStep] = useState(1);
   const [state, setState] = useState<OnboardingState>({
     sport: "",
@@ -69,11 +71,21 @@ export default function OnboardingScreen() {
     return true;
   }
 
-  function handleContinue() {
+  async function handleContinue() {
     if (step < TOTAL_STEPS) {
       setStep((s) => s + 1);
     } else {
-      router.replace("/(tabs)/");
+      try {
+        await updateProfile({
+          sport: state.sport.toLowerCase(),
+          level: (state.level.toLowerCase() as any) || "beginner",
+          goals: state.goals,
+          injuryConcerns: state.injuries,
+        });
+      } catch {
+        // non-critical — continue anyway
+      }
+      router.replace("/(tabs)" as any);
     }
   }
 

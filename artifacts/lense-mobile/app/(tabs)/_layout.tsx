@@ -23,6 +23,7 @@ export default function TabLayout() {
           borderTopWidth: 0,
           borderTopColor: "transparent",
           elevation: 0,
+          zIndex: 100,
           ...(isWeb ? { height: 84 } : {}),
         },
         tabBarBackground: () =>

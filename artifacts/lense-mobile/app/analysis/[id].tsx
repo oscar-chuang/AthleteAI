@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,26 +6,29 @@ import {
   ScrollView,
   TouchableOpacity,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
 import { useColors } from "@/hooks/useColors";
-import { useAnalyses } from "@/lib/analysesStore";
-import type { CoachingTip } from "@/lib/types";
+import { analyses as analysesApi, type AnalysisRecord, type TipRecord, type RiskRecord } from "@/lib/api";
 
 const SCORE_KEYS = ["technique", "power", "balance", "consistency", "mobility", "speed"] as const;
 
 const SEVERITY_CONFIG = {
-  info: { color: "#38bdf8", icon: "info" as const, label: "Info" },
-  warning: { color: "#f59e0b", icon: "alert-triangle" as const, label: "Warning" },
-  critical: { color: "#ef4444", icon: "alert-circle" as const, label: "Critical" },
+  info:     { color: "#38bdf8", icon: "info"          as const, label: "Info"     },
+  warning:  { color: "#f59e0b", icon: "alert-triangle" as const, label: "Warning"  },
+  critical: { color: "#ef4444", icon: "alert-circle"  as const, label: "Critical" },
 };
 
 function formatDate(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
+function scoreForKey(analysis: AnalysisRecord, key: typeof SCORE_KEYS[number]): number {
+  return (analysis as any)[`${key}Score`] ?? 0;
 }
 
 export default function AnalysisDetailScreen() {
@@ -33,24 +36,107 @@ export default function AnalysisDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [expandedTip, setExpandedTip] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"scores" | "tips" | "risks">("scores");
 
-  const { analyses } = useAnalyses();
-  const analysis = analyses.find((a) => a.id === id);
+  const [analysis, setAnalysis]     = useState<AnalysisRecord | null>(null);
+  const [tips, setTips]             = useState<TipRecord[]>([]);
+  const [risks, setRisks]           = useState<RiskRecord[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(false);
+  const [expandedTip, setExpanded]  = useState<string | null>(null);
+  const [activeTab, setActiveTab]   = useState<"scores" | "tips" | "risks">("scores");
+
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 20;
 
-  if (!analysis) {
+  const load = useCallback(async () => {
+    if (!id) return;
+    try {
+      const { analysis: a, tips: t, injuryRisks: r } = await analysesApi.get(id);
+      setAnalysis(a);
+      setTips(t);
+      setRisks(r);
+      setError(false);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Poll while processing
+  useEffect(() => {
+    if (!analysis || analysis.status === "complete" || analysis.status === "failed") return;
+    const timer = setInterval(load, 4000);
+    return () => clearInterval(timer);
+  }, [analysis, load]);
+
+  function getScoreColor(score: number) {
+    if (score >= 80) return colors.success;
+    if (score >= 65) return colors.primary;
+    return colors.warning;
+  }
+
+  function getRiskColor(pct: number) {
+    if (pct >= 50) return colors.destructive;
+    if (pct >= 30) return colors.warning;
+    return colors.success;
+  }
+
+  if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
-        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Analysis not found</Text>
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
   }
 
+  if (error || !analysis) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 12 }}>
+        <Feather name="alert-circle" size={32} color={colors.destructive} />
+        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Analysis not found</Text>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={{ color: colors.primary, fontFamily: "Inter_500Medium" }}>Go back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Still processing — show a waiting screen
+  if (analysis.status === "processing" || analysis.status === "pending") {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 16, paddingHorizontal: 32 }}>
+        <ActivityIndicator color={colors.primary} size="large" />
+        <Text style={{ fontSize: 17, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
+          Analyzing your video…
+        </Text>
+        <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }}>
+          Our AI is reviewing your movement. This usually takes 10–30 seconds.
+        </Text>
+      </View>
+    );
+  }
+
+  if (analysis.status === "failed") {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 32 }}>
+        <Feather name="x-circle" size={32} color={colors.destructive} />
+        <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>Analysis failed</Text>
+        <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }}>
+          Something went wrong processing your video. Please try uploading again.
+        </Text>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={{ color: colors.primary, fontFamily: "Inter_500Medium" }}>Go back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const overallScore = analysis.overallScore ?? 0;
+
   const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    scroll: { flex: 1 },
     heroCard: {
       margin: 20,
       backgroundColor: colors.card,
@@ -60,135 +146,70 @@ export default function AnalysisDetailScreen() {
       borderColor: colors.border,
     },
     heroTitle: { fontSize: 22, fontFamily: "Inter_700Bold", color: colors.foreground },
-    heroMeta: { fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 4, textTransform: "capitalize" },
-    scoreRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 16 },
+    heroMeta:  { fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 4, textTransform: "capitalize" },
+    scoreRow:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 16 },
     overallCircle: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      borderWidth: 3,
-      borderColor: colors.primary,
+      width: 72, height: 72, borderRadius: 36,
+      borderWidth: 3, borderColor: colors.primary,
       backgroundColor: colors.primary + "20",
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems: "center", justifyContent: "center",
     },
-    overallNum: { fontSize: 26, fontFamily: "Inter_700Bold", color: colors.primary },
+    overallNum:   { fontSize: 26, fontFamily: "Inter_700Bold", color: colors.primary },
     overallLabel: { fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-    scoresMini: { flex: 1, marginLeft: 16, gap: 6 },
+    scoresMini:   { flex: 1, marginLeft: 16, gap: 6 },
     scoreMiniRow: { flexDirection: "row", alignItems: "center", gap: 8 },
     scoreMiniLabel: { fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular", width: 78, textTransform: "capitalize" },
     scoreMiniBarBg: { flex: 1, height: 5, backgroundColor: colors.border, borderRadius: 2.5 },
     scoreMiniBarFill: { height: 5, borderRadius: 2.5 },
     scoreMiniNum: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: colors.foreground, width: 28, textAlign: "right" },
     tabRow: {
-      flexDirection: "row",
-      marginHorizontal: 20,
-      marginBottom: 16,
-      backgroundColor: colors.card,
-      borderRadius: 10,
-      padding: 4,
+      flexDirection: "row", marginHorizontal: 20, marginBottom: 16,
+      backgroundColor: colors.card, borderRadius: 10, padding: 4,
     },
-    tab: {
-      flex: 1,
-      paddingVertical: 8,
-      alignItems: "center",
-      borderRadius: 8,
-    },
+    tab:     { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 8 },
     tabText: { fontSize: 13, fontFamily: "Inter_500Medium" },
     section: { paddingHorizontal: 20, marginBottom: 16 },
-    listItem: {
-      flexDirection: "row",
-      gap: 10,
-      marginBottom: 10,
-      alignItems: "flex-start",
-    },
-    dot: {
-      width: 6,
-      height: 6,
-      borderRadius: 3,
-      marginTop: 7,
-    },
+    listItem: { flexDirection: "row", gap: 10, marginBottom: 10, alignItems: "flex-start" },
+    dot:      { width: 6, height: 6, borderRadius: 3, marginTop: 7 },
     listText: { fontSize: 14, color: colors.foreground, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 20 },
-    tipCard: {
-      backgroundColor: colors.card,
-      borderRadius: colors.radius,
-      marginBottom: 10,
-      borderWidth: 1,
-      overflow: "hidden",
-    },
-    tipHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      padding: 14,
-    },
-    tipTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground, flex: 1 },
-    tipBody: { paddingHorizontal: 14, paddingBottom: 14 },
-    tipDesc: { fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", lineHeight: 19 },
-    drillBox: {
-      marginTop: 10,
-      backgroundColor: colors.muted,
-      borderRadius: 8,
-      padding: 10,
-    },
-    drillLabel: { fontSize: 11, color: colors.primary, fontFamily: "Inter_600SemiBold", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },
+    tipCard:   { backgroundColor: colors.card, borderRadius: colors.radius, marginBottom: 10, borderWidth: 1, overflow: "hidden" },
+    tipHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
+    tipTitle:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground, flex: 1 },
+    tipBody:   { paddingHorizontal: 14, paddingBottom: 14 },
+    tipDesc:   { fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", lineHeight: 19 },
+    drillBox:  { marginTop: 10, backgroundColor: colors.muted, borderRadius: 8, padding: 10 },
+    drillLabel:{ fontSize: 11, color: colors.primary, fontFamily: "Inter_600SemiBold", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },
     drillText: { fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular", lineHeight: 17 },
-    riskCard: {
-      backgroundColor: colors.card,
-      borderRadius: colors.radius,
-      padding: 14,
-      marginBottom: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    riskRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+    riskCard:  { backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border },
+    riskRow:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
     riskJoint: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground },
-    riskPct: { fontSize: 16, fontFamily: "Inter_700Bold" },
+    riskPct:   { fontSize: 16, fontFamily: "Inter_700Bold" },
     riskBarBg: { height: 6, backgroundColor: colors.border, borderRadius: 3, marginBottom: 8 },
-    riskBarFill: { height: 6, borderRadius: 3 },
-    riskDesc: { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginBottom: 4 },
-    riskPrev: { fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular" },
+    riskBarFill:{ height: 6, borderRadius: 3 },
+    riskDesc:  { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginBottom: 4 },
+    riskPrev:  { fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular" },
     prevLabel: { color: colors.primary, fontFamily: "Inter_500Medium" },
   });
 
-  function getScoreColor(score: number) {
-    if (score >= 80) return colors.success;
-    if (score >= 65) return colors.primary;
-    return colors.warning;
-  }
-
-  function getRiskColor(risk: number) {
-    if (risk >= 50) return colors.destructive;
-    if (risk >= 30) return colors.warning;
-    return colors.success;
-  }
-
   return (
     <View style={s.container}>
-      <ScrollView style={s.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomPad }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomPad }}>
         <View style={s.heroCard}>
           <Text style={s.heroTitle}>{analysis.title}</Text>
           <Text style={s.heroMeta}>
-            {analysis.sport} · {analysis.duration}s · {formatDate(analysis.uploadedAt)}
+            {analysis.sport}
+            {analysis.duration ? ` · ${analysis.duration}s` : ""}
+            {" · "}{formatDate(analysis.uploadedAt)}
           </Text>
-
-          {analysis.comparedTo && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: colors.primary + "20", borderRadius: 20, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4 }}>
-              <Feather name="star" size={11} color={colors.primary} />
-              <Text style={{ fontSize: 11, color: colors.primary, fontFamily: "Inter_500Medium" }}>
-                {analysis.similarityScore}% match with {analysis.comparedTo}
-              </Text>
-            </View>
-          )}
 
           <View style={s.scoreRow}>
             <View style={s.overallCircle}>
-              <Text style={s.overallNum}>{analysis.scores.overall}</Text>
+              <Text style={s.overallNum}>{Math.round(overallScore)}</Text>
               <Text style={s.overallLabel}>SCORE</Text>
             </View>
             <View style={s.scoresMini}>
               {SCORE_KEYS.map((key) => {
-                const score = analysis.scores[key];
+                const score = scoreForKey(analysis, key);
                 const clr = getScoreColor(score);
                 return (
                   <View key={key} style={s.scoreMiniRow}>
@@ -196,7 +217,7 @@ export default function AnalysisDetailScreen() {
                     <View style={s.scoreMiniBarBg}>
                       <View style={[s.scoreMiniBarFill, { width: `${score}%` as any, backgroundColor: clr }]} />
                     </View>
-                    <Text style={s.scoreMiniNum}>{score}</Text>
+                    <Text style={s.scoreMiniNum}>{Math.round(score)}</Text>
                   </View>
                 );
               })}
@@ -205,16 +226,9 @@ export default function AnalysisDetailScreen() {
 
           <TouchableOpacity
             style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              marginTop: 16,
-              backgroundColor: colors.primary + "18",
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: colors.primary + "55",
-              paddingVertical: 12,
+              flexDirection: "row", alignItems: "center", justifyContent: "center",
+              gap: 8, marginTop: 16, backgroundColor: colors.primary + "18",
+              borderRadius: 12, borderWidth: 1, borderColor: colors.primary + "55", paddingVertical: 12,
             }}
             activeOpacity={0.75}
             onPress={() => router.push(`/analysis/skeleton/${id}`)}
@@ -250,7 +264,7 @@ export default function AnalysisDetailScreen() {
             <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.success, marginBottom: 10 }}>
               Strengths
             </Text>
-            {analysis.strengths.map((str, i) => (
+            {(analysis.strengths ?? []).map((str, i) => (
               <View key={i} style={s.listItem}>
                 <View style={[s.dot, { backgroundColor: colors.success }]} />
                 <Text style={s.listText}>{str}</Text>
@@ -259,7 +273,7 @@ export default function AnalysisDetailScreen() {
             <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.warning, marginBottom: 10, marginTop: 8 }}>
               Areas to Improve
             </Text>
-            {analysis.improvements.map((imp, i) => (
+            {(analysis.improvements ?? []).map((imp, i) => (
               <View key={i} style={s.listItem}>
                 <View style={[s.dot, { backgroundColor: colors.warning }]} />
                 <Text style={s.listText}>{imp}</Text>
@@ -270,15 +284,19 @@ export default function AnalysisDetailScreen() {
 
         {activeTab === "tips" && (
           <View style={s.section}>
-            {analysis.tips.map((tip) => {
-              const cfg = SEVERITY_CONFIG[tip.severity];
+            {tips.length === 0 ? (
+              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 24 }}>
+                No coaching tips available
+              </Text>
+            ) : tips.map((tip) => {
+              const cfg = SEVERITY_CONFIG[tip.severity as keyof typeof SEVERITY_CONFIG] ?? SEVERITY_CONFIG.info;
               const expanded = expandedTip === tip.id;
               return (
                 <TouchableOpacity
                   key={tip.id}
                   style={[s.tipCard, { borderColor: cfg.color + "44" }]}
                   activeOpacity={0.8}
-                  onPress={() => setExpandedTip(expanded ? null : tip.id)}
+                  onPress={() => setExpanded(expanded ? null : tip.id)}
                 >
                   <View style={s.tipHeader}>
                     <Feather name={cfg.icon} size={16} color={cfg.color} />
@@ -304,16 +322,20 @@ export default function AnalysisDetailScreen() {
 
         {activeTab === "risks" && (
           <View style={s.section}>
-            {analysis.injuryRisks.map((risk, i) => {
-              const clr = getRiskColor(risk.risk);
+            {risks.length === 0 ? (
+              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 24 }}>
+                No injury risks detected
+              </Text>
+            ) : risks.map((risk) => {
+              const clr = getRiskColor(risk.riskPercent);
               return (
-                <View key={i} style={s.riskCard}>
+                <View key={risk.id} style={s.riskCard}>
                   <View style={s.riskRow}>
                     <Text style={s.riskJoint}>{risk.joint}</Text>
-                    <Text style={[s.riskPct, { color: clr }]}>{risk.risk}%</Text>
+                    <Text style={[s.riskPct, { color: clr }]}>{risk.riskPercent}%</Text>
                   </View>
                   <View style={s.riskBarBg}>
-                    <View style={[s.riskBarFill, { width: `${risk.risk}%` as any, backgroundColor: clr }]} />
+                    <View style={[s.riskBarFill, { width: `${risk.riskPercent}%` as any, backgroundColor: clr }]} />
                   </View>
                   <Text style={s.riskDesc}>{risk.description}</Text>
                   <Text style={s.riskPrev}><Text style={s.prevLabel}>Prevention: </Text>{risk.prevention}</Text>

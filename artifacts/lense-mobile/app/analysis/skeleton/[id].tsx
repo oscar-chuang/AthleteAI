@@ -16,7 +16,8 @@ import { WebView } from "react-native-webview";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as FileSystem from "expo-file-system/legacy";
 
-import { useAnalyses } from "@/lib/analysesStore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { analyses as analysesApi } from "@/lib/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface JointAngles {
@@ -461,9 +462,14 @@ export default function SkeletonScreen() {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const webviewRef = useRef<WebView>(null);
 
-  const { analyses, videoUris } = useAnalyses();
-  const analysis  = analyses.find((a) => a.id === id);
-  const videoUri  = id ? videoUris[id] : undefined;
+  const [videoUri, setVideoUri] = useState<string | undefined>();
+  const [sport, setSport]       = useState("");
+
+  useEffect(() => {
+    if (!id) return;
+    AsyncStorage.getItem(`video_uri_${id}`).then((uri) => { if (uri) setVideoUri(uri); });
+    analysesApi.get(id).then(({ analysis }) => setSport(analysis.sport)).catch(() => {});
+  }, [id]);
 
   const isLandscape = screenW > screenH;
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -641,7 +647,7 @@ export default function SkeletonScreen() {
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={ss.headerTitle} numberOfLines={1}>
-              {analysis?.sport ?? "Pose"} · AI Tracking
+              {sport || "Pose"} · AI Tracking
             </Text>
             {modelReady && (
               <Text style={{ fontSize: 10, color: "#22c55e", fontFamily: "Inter_400Regular" }}>

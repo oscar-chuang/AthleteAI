@@ -1,0 +1,278 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const API_URL =
+  (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:5000") + "/api";
+
+const TOKEN_KEY = "auth_token";
+
+export async function getToken(): Promise<string | null> {
+  return AsyncStorage.getItem(TOKEN_KEY);
+}
+
+export async function setToken(token: string): Promise<void> {
+  await AsyncStorage.setItem(TOKEN_KEY, token);
+}
+
+export async function clearToken(): Promise<void> {
+  await AsyncStorage.removeItem(TOKEN_KEY);
+}
+
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  timeoutMs = 8000
+): Promise<T> {
+  const token = await getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: "Request failed" }));
+      throw new ApiError(body.error ?? "Request failed", res.status, body.code);
+    }
+
+    return res.json() as Promise<T>;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public code?: string
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+export const auth = {
+  signup: (email: string, password: string, name: string) =>
+    request<{ token: string; user: { id: string; email: string; name: string } }>(
+      "/auth/signup",
+      { method: "POST", body: JSON.stringify({ email, password, name }) }
+    ),
+
+  login: (email: string, password: string) =>
+    request<{ token: string; user: { id: string; email: string; name: string } }>(
+      "/auth/login",
+      { method: "POST", body: JSON.stringify({ email, password }) }
+    ),
+
+  me: () =>
+    request<{
+      user: { id: string; email: string };
+      profile: Profile | null;
+      subscription: SubscriptionRecord | null;
+    }>("/auth/me"),
+};
+
+// ─── Profile ─────────────────────────────────────────────────────────────────
+
+export interface Profile {
+  id: string;
+  userId: string;
+  name: string;
+  sport: string;
+  level: "beginner" | "intermediate" | "advanced" | "elite";
+  goals: string[];
+  injuryConcerns: string[];
+  weeklyGoal: number;
+  weeklyProgress: number;
+  streakDays: number;
+}
+
+export interface SubscriptionRecord {
+  id: string;
+  userId: string;
+  tier: "free" | "pro" | "elite";
+  status: string;
+  currentPeriodEnd?: string;
+}
+
+export const profile = {
+  get: () =>
+    request<{ profile: Profile; subscription: SubscriptionRecord }>("/profile"),
+
+  update: (data: Partial<Omit<Profile, "id" | "userId">>) =>
+    request<{ profile: Profile }>("/profile", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+};
+
+// ─── Analyses ─────────────────────────────────────────────────────────────────
+
+export interface AnalysisRecord {
+  id: string;
+  userId: string;
+  title: string;
+  sport: string;
+  status: "pending" | "processing" | "complete" | "failed";
+  videoUrl?: string;
+  thumbnailUrl?: string;
+  duration?: number;
+  overallScore?: number;
+  techniqueScore?: number;
+  powerScore?: number;
+  balanceScore?: number;
+  consistencyScore?: number;
+  mobilityScore?: number;
+  speedScore?: number;
+  strengths: string[];
+  improvements: string[];
+  uploadedAt: string;
+}
+
+export interface TipRecord {
+  id: string;
+  category: string;
+  severity: string;
+  title: string;
+  description: string;
+  drill?: string;
+}
+
+export interface RiskRecord {
+  id: string;
+  joint: string;
+  riskPercent: number;
+  description: string;
+  prevention: string;
+}
+
+export const analyses = {
+  list: () =>
+    request<{ analyses: AnalysisRecord[] }>("/analyses"),
+
+  create: (data: {
+    title: string;
+    sport: string;
+    videoUrl?: string;
+    duration?: number;
+    jointAngles?: Record<string, number>;
+  }) =>
+    request<{ analysis: AnalysisRecord }>("/analyses", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  get: (id: string) =>
+    request<{ analysis: AnalysisRecord; tips: TipRecord[]; injuryRisks: RiskRecord[] }>(
+      `/analyses/${id}`
+    ),
+
+  delete: (id: string) =>
+    request<{ success: boolean }>(`/analyses/${id}`, { method: "DELETE" }),
+};
+
+// ─── Chat ─────────────────────────────────────────────────────────────────────
+
+export interface ChatRecord {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  referencedAnalysisId?: string;
+  createdAt: string;
+}
+
+export const chat = {
+  history: () =>
+    request<{ messages: ChatRecord[] }>("/chat"),
+
+  send: (content: string, referencedAnalysisId?: string) =>
+    request<{ userMessage: ChatRecord; assistantMessage: ChatRecord }>("/chat", {
+      method: "POST",
+      body: JSON.stringify({ content, referencedAnalysisId }),
+    }),
+
+  clear: () => request<{ success: boolean }>("/chat", { method: "DELETE" }),
+};
+
+// ─── Progress ─────────────────────────────────────────────────────────────────
+
+export interface ProgressRecord {
+  id: string;
+  date: string;
+  overallScore: number;
+  techniqueScore?: number;
+  powerScore?: number;
+  balanceScore?: number;
+  consistencyScore?: number;
+  mobilityScore?: number;
+  speedScore?: number;
+}
+
+export const progress = {
+  list: () =>
+    request<{ entries: ProgressRecord[] }>("/progress"),
+};
+
+// ─── Achievements ──────────────────────────────────────────────────────────────
+
+export interface AchievementRecord {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  progress: number;
+  total: number;
+  unlocked: boolean;
+  unlockedAt?: string;
+}
+
+export const achievements = {
+  list: () =>
+    request<{ achievements: AchievementRecord[] }>("/achievements"),
+};
+
+// ─── Subscriptions ─────────────────────────────────────────────────────────────
+
+export interface Plan {
+  id: string;
+  name: string;
+  price: number;
+  period: string | null;
+  description: string;
+  popular?: boolean;
+  features: string[];
+  limits: {
+    analysesPerMonth: number;
+    aiChat: boolean;
+    proComparisons: boolean;
+    priorityProcessing: boolean;
+  };
+}
+
+export const subscriptions = {
+  plans: () =>
+    request<{ plans: Plan[] }>("/subscriptions/plans"),
+
+  current: () =>
+    request<{ subscription: SubscriptionRecord; plan: Plan }>(
+      "/subscriptions/current"
+    ),
+
+  update: (tier: "free" | "pro" | "elite", revenueCatCustomerId?: string) =>
+    request<{ subscription: SubscriptionRecord }>("/subscriptions/update", {
+      method: "POST",
+      body: JSON.stringify({ tier, revenueCatCustomerId }),
+    }),
+};
