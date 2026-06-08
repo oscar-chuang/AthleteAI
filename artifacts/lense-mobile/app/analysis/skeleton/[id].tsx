@@ -30,6 +30,72 @@ type RiskMap = Record<keyof JointAngles, number>;
 
 const RISK_COLORS = ["#22c55e", "#f59e0b", "#ef4444"];
 
+type OverlayMode = "safety" | "form" | "clean";
+
+const OVERLAY_MODES: { mode: OverlayMode; label: string; icon: "shield" | "bar-chart-2" | "eye" }[] = [
+  { mode: "safety", label: "Safety", icon: "shield" },
+  { mode: "form",   label: "Form",   icon: "bar-chart-2" },
+  { mode: "clean",  label: "Clean",  icon: "eye" },
+];
+
+// Ideal biomechanical ranges per joint (degrees). Angles outside these bounds
+// are flagged in Form mode. Separate from injury-risk thresholds — an angle
+// can be suboptimal without reaching injury territory.
+const IDEAL_RANGES: Record<keyof JointAngles, { min: number; max: number }> = {
+  leftKnee:   { min: 90,  max: 165 },
+  rightKnee:  { min: 90,  max: 165 },
+  leftHip:    { min: 70,  max: 170 },
+  rightHip:   { min: 70,  max: 170 },
+  leftElbow:  { min: 70,  max: 165 },
+  rightElbow: { min: 70,  max: 165 },
+};
+
+// Returns form feedback when the angle sits outside IDEAL_RANGES.
+function formInsight(key: string, deg: number): { title: string; body: string } | null {
+  const range = IDEAL_RANGES[key as keyof JointAngles];
+  if (!range || deg <= 0) return null;
+  if (deg >= range.min && deg <= range.max) return null;
+
+  const side = key.startsWith("left") ? "Left" : "Right";
+  const dist = Math.min(Math.abs(deg - range.min), Math.abs(deg - range.max));
+  const degree = dist > 20 ? "significantly" : "slightly";
+
+  if (key.includes("Knee")) {
+    if (deg < range.min)
+      return {
+        title: `${side} knee — excessive flex (${deg}°)`,
+        body: `The knee is ${degree} deeper than the ideal ${range.min}–${range.max}° range. Work on controlled descent and stopping at parallel.`,
+      };
+    return {
+      title: `${side} knee — near full extension (${deg}°)`,
+      body: `At ${deg}°, the knee is ${degree} past ideal range. Keep a soft bend to maintain active joint loading.`,
+    };
+  }
+  if (key.includes("Hip")) {
+    if (deg < range.min)
+      return {
+        title: `${side} hip — deep hinge (${deg}°)`,
+        body: `Hip flexion at ${deg}° is ${degree} beyond the ideal ${range.min}–${range.max}° range. Brace your core and maintain a neutral spine.`,
+      };
+    return {
+      title: `${side} hip — limited hinge (${deg}°)`,
+      body: `Hip angle at ${deg}° suggests restricted hip hinge mobility. Work on hip-flexor and hamstring flexibility.`,
+    };
+  }
+  if (key.includes("Elbow")) {
+    if (deg > range.max)
+      return {
+        title: `${side} elbow — near lock-out (${deg}°)`,
+        body: `Elbow at ${deg}°, ${degree} past ideal range. Maintain a slight bend to protect tendons and joint structures.`,
+      };
+    return {
+      title: `${side} elbow — limited extension (${deg}°)`,
+      body: `Elbow at ${deg}°, below the ideal ${range.min}–${range.max}° range. Check for shoulder-girdle mobility restrictions.`,
+    };
+  }
+  return null;
+}
+
 // Is angle `a` a more extreme (worse) pattern than `b` for this joint?
 // Knees fail at both ends (deep bend / hyperextension) so we measure distance
 // from a neutral mid-angle; hips fail on deep flexion (lower is worse); elbows
@@ -224,6 +290,10 @@ ${videoUri ? `
   const skelBtn = document.getElementById("skelBtn");
 
   let busy=false, playing=false, showSkel=true;
+  window.__mode='safety';
+
+  /* ── Ideal form ranges (mirrors React Native IDEAL_RANGES) ── */
+  const IDEAL={25:{min:90,max:165},26:{min:90,max:165},23:{min:70,max:170},24:{min:70,max:170},13:{min:70,max:165},14:{min:70,max:165}};
 
   /* ── Helpers ── */
   function fmt(t){const s=Math.floor(t);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")}
@@ -266,6 +336,14 @@ ${videoUri ? `
     return 0;
   }
 
+  /* ── Form-deviation level: 0 in-range, 1 slightly off, 2 significantly off ── */
+  function fLvl(idx,deg){
+    const r=IDEAL[idx];if(!r)return 0;
+    if(deg>=r.min&&deg<=r.max)return 0;
+    const d=Math.min(Math.abs(deg-r.min),Math.abs(deg-r.max));
+    return d>20?2:1;
+  }
+
   /* ── Draw results ── */
   function onResults(res){
     busy=false;
@@ -276,64 +354,79 @@ ${videoUri ? `
     if(!lm||!showSkel)return;
     const v=i=>(lm[i]?.visibility||0)>0.35;
     const p=i=>({x:lm[i].x*W,y:lm[i].y*H});
+    const mode=window.__mode||'safety';
 
-    /* ── Compute angle + injury risk for each key joint ──
-       Knee  : deep flexion (<70) or hyperextension (>178) = risk
-       Hip   : deep flexion (<55) = risk  (only low side matters)
-       Elbow : hyperextension (>172) = risk (only high side matters) */
-    const jr={}; // index -> {deg, lvl}
-    if(v(23)&&v(25)&&v(27)){const a=ang(p(23),p(25),p(27));jr[25]={deg:a,lvl:lvl(a,70,90,175,178)};}
-    if(v(24)&&v(26)&&v(28)){const a=ang(p(24),p(26),p(28));jr[26]={deg:a,lvl:lvl(a,70,90,175,178)};}
-    if(v(11)&&v(23)&&v(25)){const a=ang(p(11),p(23),p(25));jr[23]={deg:a,lvl:lvl(a,55,80,999,999)};}
-    if(v(12)&&v(24)&&v(26)){const a=ang(p(12),p(24),p(26));jr[24]={deg:a,lvl:lvl(a,55,80,999,999)};}
-    if(v(11)&&v(13)&&v(15)){const a=ang(p(11),p(13),p(15));jr[13]={deg:a,lvl:lvl(a,-1,-1,160,172)};}
-    if(v(12)&&v(14)&&v(16)){const a=ang(p(12),p(14),p(16));jr[14]={deg:a,lvl:lvl(a,-1,-1,160,172)};}
-    let maxLvl=0;Object.keys(jr).forEach(k=>{if(jr[k].lvl>maxLvl)maxLvl=jr[k].lvl;});
+    /* ── Compute joint data ── */
+    const jr={}; // safety: index -> {deg, lvl}
+    const jf={}; // form:   index -> {deg, lvl}
+    function computeJoint(a,b,c,idx,loRisk,loWarn,hiWarn,hiRisk){
+      if(!v(a)||!v(b)||!v(c))return;
+      const d=ang(p(a),p(b),p(c));
+      jr[idx]={deg:d,lvl:lvl(d,loRisk,loWarn,hiWarn,hiRisk)};
+      jf[idx]={deg:d,lvl:fLvl(idx,d)};
+    }
+    computeJoint(23,25,27,25,70,90,175,178);
+    computeJoint(24,26,28,26,70,90,175,178);
+    computeJoint(11,23,25,23,55,80,999,999);
+    computeJoint(12,24,26,24,55,80,999,999);
+    computeJoint(11,13,15,13,-1,-1,160,172);
+    computeJoint(12,14,16,14,-1,-1,160,172);
+    const jActive=mode==='form'?jf:mode==='safety'?jr:{};
+    let maxLvl=0;Object.keys(jActive).forEach(k=>{if(jActive[k].lvl>maxLvl)maxLvl=jActive[k].lvl;});
 
-    /* Bones — colored by risk if attached to a flagged joint, else L/R */
+    /* Bone color helper */
+    function boneCol(a,b){
+      if(mode==='clean')return LI.has(a)&&LI.has(b)?"rgba(34,211,238,.55)":RI.has(a)&&RI.has(b)?"rgba(167,139,250,.55)":"rgba(255,255,255,.3)";
+      const rm=Math.max(jActive[a]?jActive[a].lvl:-1,jActive[b]?jActive[b].lvl:-1);
+      if(rm>=1)return RL[rm];
+      return LI.has(a)&&LI.has(b)?"#22d3ee":RI.has(a)&&RI.has(b)?"#a78bfa":"rgba(255,255,255,.5)";
+    }
+
+    /* Bones */
     CONN.forEach(([a,b])=>{
       if(!v(a)||!v(b))return;
       const pA=p(a),pB=p(b);
-      const rm=Math.max(jr[a]?jr[a].lvl:-1, jr[b]?jr[b].lvl:-1);
-      const col=rm>=1?RL[rm]
-        :LI.has(a)&&LI.has(b)?"#22d3ee":RI.has(a)&&RI.has(b)?"#a78bfa":"rgba(255,255,255,.5)";
+      const col=boneCol(a,b);
+      const rm=mode!=='clean'?Math.max(jActive[a]?jActive[a].lvl:-1,jActive[b]?jActive[b].lvl:-1):-1;
       ctx.save();
       ctx.strokeStyle=col;ctx.lineWidth=rm>=1?4.5:3.5;ctx.lineCap="round";
-      ctx.shadowBlur=rm>=2?17:10;ctx.shadowColor=col;ctx.globalAlpha=.92;
+      ctx.shadowBlur=rm>=2?17:mode==='clean'?5:10;ctx.shadowColor=col;ctx.globalAlpha=.92;
       ctx.beginPath();ctx.moveTo(pA.x,pA.y);ctx.lineTo(pB.x,pB.y);ctx.stroke();
       ctx.restore();
     });
 
-    /* Joints — risk joints colored + pulse ring, others L/R */
+    /* Joints */
     let seen=0;
     KJ.forEach(i=>{
       if(!v(i))return;seen++;
       const pt=p(i);
-      const risk=jr[i];
-      const col=risk?RL[risk.lvl]:(LI.has(i)?"#22d3ee":RI.has(i)?"#a78bfa":"#fff");
-      const r=risk&&risk.lvl===2?9:risk&&risk.lvl===1?7.5:6.5;
+      const jd=jActive[i];
+      let col;
+      if(mode==='clean') col=LI.has(i)?"rgba(34,211,238,.7)":RI.has(i)?"rgba(167,139,250,.7)":"rgba(255,255,255,.6)";
+      else col=jd?RL[jd.lvl]:(LI.has(i)?"#22d3ee":RI.has(i)?"#a78bfa":"#fff");
+      const r=jd&&jd.lvl===2?9:jd&&jd.lvl===1?7.5:6.5;
       ctx.save();
-      if(risk&&risk.lvl===2){
+      if(jd&&jd.lvl===2&&mode!=='clean'){
         ctx.strokeStyle=col;ctx.globalAlpha=.45;ctx.lineWidth=2;
         ctx.beginPath();ctx.arc(pt.x,pt.y,r+5,0,Math.PI*2);ctx.stroke();
         ctx.globalAlpha=1;
       }
-      ctx.shadowBlur=risk&&risk.lvl===2?18:14;ctx.shadowColor=col;
+      ctx.shadowBlur=jd&&jd.lvl===2?18:mode==='clean'?5:14;ctx.shadowColor=col;
       ctx.fillStyle=col;ctx.beginPath();ctx.arc(pt.x,pt.y,r,0,Math.PI*2);ctx.fill();
       ctx.fillStyle="#07070f";ctx.beginPath();ctx.arc(pt.x,pt.y,3,0,Math.PI*2);ctx.fill();
       ctx.restore();
     });
     btxt.textContent=seen>0?seen+" joints tracked":"Pose active";
 
-    /* Angle labels — colored by risk */
-    function angLabel(i,dx,dy){const j=jr[i];if(!j)return;label(p(i).x+dx,p(i).y+dy,j.deg+"°",RL[j.lvl]);}
-    angLabel(25,34,0);
-    angLabel(26,-34,0);
-    angLabel(23,38,-12);
-    angLabel(24,-38,-12);
+    /* Angle labels: only safety + form modes */
+    if(mode!=='clean'){
+      function angLabel(i,dx,dy){const j=jActive[i];if(!j)return;label(p(i).x+dx,p(i).y+dy,j.deg+"\u00b0",RL[j.lvl]);}
+      angLabel(25,34,0);angLabel(26,-34,0);
+      angLabel(23,38,-12);angLabel(24,-38,-12);
+    }
 
-    /* Injury-risk banner */
-    if(maxLvl===2){
+    /* Mode-specific banners */
+    if(mode==='safety'&&maxLvl===2){
       ctx.save();
       ctx.font="bold 16px -apple-system,sans-serif";
       const t="\u26A0 INJURY RISK";
@@ -343,6 +436,16 @@ ${videoUri ? `
       ctx.fillStyle="#fff";ctx.textAlign="center";ctx.textBaseline="middle";
       ctx.fillText(t,W/2,29);
       ctx.restore();
+    } else if(mode==='form'&&maxLvl>=1){
+      ctx.save();
+      ctx.font="bold 15px -apple-system,sans-serif";
+      const t=maxLvl===2?"\u25b2 Outside ideal range":"\u2022 Minor form deviation";
+      const w=ctx.measureText(t).width+24;
+      ctx.fillStyle=maxLvl===2?"rgba(239,68,68,.88)":"rgba(245,158,11,.88)";
+      ctx.beginPath();ctx.roundRect(W/2-w/2,12,w,30,9);ctx.fill();
+      ctx.fillStyle="#fff";ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.fillText(t,W/2,28);
+      ctx.restore();
     }
 
     /* Post angles + risk to React Native */
@@ -350,20 +453,19 @@ ${videoUri ? `
       try{
         window.ReactNativeWebView.postMessage(JSON.stringify({type:"angles",
           data:{
-            leftKnee:  jr[25]?jr[25].deg:0,
-            rightKnee: jr[26]?jr[26].deg:0,
-            leftHip:   jr[23]?jr[23].deg:0,
-            rightHip:  jr[24]?jr[24].deg:0,
-            leftElbow: jr[13]?jr[13].deg:0,
-            rightElbow:jr[14]?jr[14].deg:0,
+            leftKnee:  jr[25]?jr[25].deg:0,rightKnee:jr[26]?jr[26].deg:0,
+            leftHip:   jr[23]?jr[23].deg:0,rightHip: jr[24]?jr[24].deg:0,
+            leftElbow: jr[13]?jr[13].deg:0,rightElbow:jr[14]?jr[14].deg:0,
           },
           risk:{
-            leftKnee:  jr[25]?jr[25].lvl:0,
-            rightKnee: jr[26]?jr[26].lvl:0,
-            leftHip:   jr[23]?jr[23].lvl:0,
-            rightHip:  jr[24]?jr[24].lvl:0,
-            leftElbow: jr[13]?jr[13].lvl:0,
-            rightElbow:jr[14]?jr[14].lvl:0,
+            leftKnee:  jr[25]?jr[25].lvl:0,rightKnee:jr[26]?jr[26].lvl:0,
+            leftHip:   jr[23]?jr[23].lvl:0,rightHip: jr[24]?jr[24].lvl:0,
+            leftElbow: jr[13]?jr[13].lvl:0,rightElbow:jr[14]?jr[14].lvl:0,
+          },
+          form:{
+            leftKnee:  jf[25]?jf[25].lvl:0,rightKnee:jf[26]?jf[26].lvl:0,
+            leftHip:   jf[23]?jf[23].lvl:0,rightHip: jf[24]?jf[24].lvl:0,
+            leftElbow: jf[13]?jf[13].lvl:0,rightElbow:jf[14]?jf[14].lvl:0,
           },
           maxLvl}));
       }catch(e){}
@@ -468,13 +570,20 @@ export default function SkeletonScreen() {
   const isLandscape = screenW > screenH;
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const [angles,     setAngles]     = useState<JointAngles | null>(null);
-  const [risk,       setRisk]       = useState<RiskMap | null>(null);
-  const [maxLvl,     setMaxLvl]     = useState(0);
-  const [peak,       setPeak]       = useState<Record<string, { lvl: number; deg: number }>>({});
+  const [angles,      setAngles]      = useState<JointAngles | null>(null);
+  const [risk,        setRisk]        = useState<RiskMap | null>(null);
+  const [formRisk,    setFormRisk]    = useState<RiskMap | null>(null);
+  const [maxLvl,      setMaxLvl]      = useState(0);
+  const [peak,        setPeak]        = useState<Record<string, { lvl: number; deg: number }>>({});
   const [videoAspect, setVideoAspect] = useState(16 / 9);
-  const [modelReady, setModelReady] = useState(false);
-  const [preparing,  setPreparing]  = useState(true);
+  const [modelReady,  setModelReady]  = useState(false);
+  const [preparing,   setPreparing]   = useState(true);
+  const [overlayMode, setOverlayMode] = useState<OverlayMode>("safety");
+
+  // ── Sync overlay mode to WebView ───────────────────────────────────────────
+  useEffect(() => {
+    webviewRef.current?.injectJavaScript(`window.__mode='${overlayMode}';true;`);
+  }, [overlayMode]);
 
   // ── Orientation ────────────────────────────────────────────────────────────
   async function toggleOrientation() {
@@ -496,6 +605,7 @@ export default function SkeletonScreen() {
       if (msg.type === "angles") {
         const data = msg.data as JointAngles;
         setAngles(data);
+        if (msg.form) setFormRisk(msg.form as RiskMap);
         if (msg.risk) {
           const r = msg.risk as RiskMap;
           setRisk(r);
@@ -594,6 +704,34 @@ export default function SkeletonScreen() {
     .sort((a, b) => b[1].lvl - a[1].lvl)
     .map(([key, v]) => ({ key, lvl: v.lvl, ...jointInsight(key, v.deg) }));
 
+  // ── Form insights: joints currently outside ideal ranges ──────────────────
+  const formInsights = angles
+    ? (Object.keys(IDEAL_RANGES) as (keyof JointAngles)[])
+        .map((k) => ({ k, ins: formInsight(k, angles[k]) }))
+        .filter((x): x is { k: keyof JointAngles; ins: NonNullable<ReturnType<typeof formInsight>> } => x.ins !== null)
+    : [];
+
+  // ── Status card content driven by overlay mode ────────────────────────────
+  const statusCard = (() => {
+    if (!modelReady) return null;
+    if (overlayMode === "safety") {
+      const label = maxLvl === 2 ? "Injury risk detected" : maxLvl === 1 ? "Caution — watch these joints" : "All joints safe";
+      const color = RISK_COLORS[maxLvl];
+      const icon = maxLvl === 2 ? "alert-triangle" : maxLvl === 1 ? "alert-circle" : "check-circle";
+      return { label, color, icon } as const;
+    }
+    if (overlayMode === "form") {
+      const off = formInsights.length;
+      const label = off === 0 ? "All joints in ideal range" : `${off} joint${off > 1 ? "s" : ""} outside ideal range`;
+      const color = off === 0 ? "#22c55e" : off >= 3 ? "#ef4444" : "#f59e0b";
+      const icon = off === 0 ? "check-circle" : "bar-chart-2";
+      return { label, color, icon } as const;
+    }
+    // clean
+    const tracked = angleCards.filter((c) => c.deg > 0).length;
+    return { label: `${tracked} joints tracked`, color: "#22d3ee", icon: "eye" } as const;
+  })();
+
   // ── Adaptive video height ──────────────────────────────────────────────────
   // Match the WebView height to the video's aspect ratio so portrait, square,
   // and wide clips all display without awkward letterboxing. The internal
@@ -635,31 +773,75 @@ export default function SkeletonScreen() {
     <View style={ss.root}>
       {/* ── Header ── */}
       {!isLandscape && (
-        <View style={[ss.header, { paddingTop: topPad + 8 }]}>
-          <TouchableOpacity style={ss.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-            <Feather name="chevron-left" size={18} color="#8888aa" />
-          </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={ss.headerTitle} numberOfLines={1}>
-              {analysis?.sport ?? "Pose"} · AI Tracking
-            </Text>
-            {modelReady && (
-              <Text style={{ fontSize: 10, color: "#22c55e", fontFamily: "Inter_400Regular" }}>
-                ● MediaPipe active
+        <View style={{ borderBottomWidth: 1, borderBottomColor: "#18182a" }}>
+          <View style={[ss.header, { paddingTop: topPad + 8, borderBottomWidth: 0 }]}>
+            <TouchableOpacity style={ss.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+              <Feather name="chevron-left" size={18} color="#8888aa" />
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={ss.headerTitle} numberOfLines={1}>
+                {analysis?.sport ?? "Pose"} · AI Tracking
               </Text>
-            )}
+              {modelReady && (
+                <Text style={{ fontSize: 10, color: "#22c55e", fontFamily: "Inter_400Regular" }}>
+                  ● MediaPipe active
+                </Text>
+              )}
+            </View>
+            <TouchableOpacity style={ss.rotateBtn} onPress={toggleOrientation} activeOpacity={0.8}>
+              <Feather name="maximize" size={13} color="#fff" />
+              <Text style={ss.rotateBtnText}>Fullscreen</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={ss.rotateBtn} onPress={toggleOrientation} activeOpacity={0.8}>
-            <Feather name="maximize" size={13} color="#fff" />
-            <Text style={ss.rotateBtnText}>Fullscreen</Text>
-          </TouchableOpacity>
+
+          {/* ── Mode toggle pills ── */}
+          <View style={ss.modePills}>
+            {OVERLAY_MODES.map(({ mode, label, icon }) => {
+              const active = overlayMode === mode;
+              return (
+                <TouchableOpacity
+                  key={mode}
+                  style={[ss.modePill, active && ss.modePillActive]}
+                  onPress={() => setOverlayMode(mode)}
+                  activeOpacity={0.75}
+                >
+                  <Feather name={icon} size={12} color={active ? "#fff" : "#8888aa"} />
+                  <Text style={[ss.modePillText, { color: active ? "#fff" : "#8888aa" }]}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* ── Status card ── */}
+          {statusCard && (
+            <View style={[ss.statusCard, { borderColor: statusCard.color + "44" }]}>
+              <Feather name={statusCard.icon} size={13} color={statusCard.color} />
+              <Text style={[ss.statusCardText, { color: statusCard.color }]}>{statusCard.label}</Text>
+            </View>
+          )}
         </View>
       )}
 
       {isLandscape ? (
-        /* ── Landscape: full-bleed video + Portrait button ── */
+        /* ── Landscape: full-bleed video + floating controls ── */
         <>
           {mediaBlock}
+          {/* Floating mode pills in landscape */}
+          <View style={ss.landscapePills}>
+            {OVERLAY_MODES.map(({ mode, label }) => {
+              const active = overlayMode === mode;
+              return (
+                <TouchableOpacity
+                  key={mode}
+                  style={[ss.modePill, active && ss.modePillActive, { paddingHorizontal: 10, paddingVertical: 5 }]}
+                  onPress={() => setOverlayMode(mode)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[ss.modePillText, { color: active ? "#fff" : "#8888aa" }]}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
           <TouchableOpacity onPress={toggleOrientation} style={ss.portraitBtn} activeOpacity={0.8}>
             <Feather name="smartphone" size={13} color="#fff" />
             <Text style={ss.rotateBtnText}>Portrait</Text>
@@ -712,33 +894,65 @@ export default function SkeletonScreen() {
           )}
 
           {/* Injury-risk summary + coaching advice */}
-          {modelReady && videoUri && (
+          {modelReady && videoUri && overlayMode !== "clean" && (
             <View style={ss.summarySection}>
-              <Text style={ss.sectionLabel}>INJURY RISK SUMMARY</Text>
-              {insights.length === 0 ? (
-                <View style={ss.okCard}>
-                  <Feather name="check-circle" size={18} color="#22c55e" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={ss.okTitle}>No injury-risk patterns detected</Text>
-                    <Text style={ss.okBody}>Your joint angles stayed within safe ranges so far. Keep playing the clip to analyze the full movement.</Text>
-                  </View>
-                </View>
-              ) : (
-                insights.map(({ key, lvl, title, body }) => {
-                  const c = RISK_COLORS[lvl];
-                  return (
-                    <View key={key} style={[ss.insightCard, { borderLeftColor: c }]}>
-                      <View style={ss.insightHead}>
-                        <Feather name={lvl === 2 ? "alert-triangle" : "alert-circle"} size={14} color={c} />
-                        <Text style={[ss.insightTitle, { color: c }]}>{title}</Text>
-                        <Text style={[ss.insightTag, { color: c, borderColor: c + "55" }]}>
-                          {lvl === 2 ? "RISK" : "CAUTION"}
-                        </Text>
+              {overlayMode === "safety" ? (
+                <>
+                  <Text style={ss.sectionLabel}>INJURY RISK SUMMARY</Text>
+                  {insights.length === 0 ? (
+                    <View style={ss.okCard}>
+                      <Feather name="check-circle" size={18} color="#22c55e" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={ss.okTitle}>No injury-risk patterns detected</Text>
+                        <Text style={ss.okBody}>Your joint angles stayed within safe ranges so far. Keep playing the clip to analyze the full movement.</Text>
                       </View>
-                      <Text style={ss.insightBody}>{body}</Text>
                     </View>
-                  );
-                })
+                  ) : (
+                    insights.map(({ key, lvl, title, body }) => {
+                      const c = RISK_COLORS[lvl];
+                      return (
+                        <View key={key} style={[ss.insightCard, { borderLeftColor: c }]}>
+                          <View style={ss.insightHead}>
+                            <Feather name={lvl === 2 ? "alert-triangle" : "alert-circle"} size={14} color={c} />
+                            <Text style={[ss.insightTitle, { color: c }]}>{title}</Text>
+                            <Text style={[ss.insightTag, { color: c, borderColor: c + "55" }]}>
+                              {lvl === 2 ? "RISK" : "CAUTION"}
+                            </Text>
+                          </View>
+                          <Text style={ss.insightBody}>{body}</Text>
+                        </View>
+                      );
+                    })
+                  )}
+                </>
+              ) : (
+                <>
+                  <Text style={ss.sectionLabel}>FORM ANALYSIS</Text>
+                  {formInsights.length === 0 ? (
+                    <View style={ss.okCard}>
+                      <Feather name="check-circle" size={18} color="#22c55e" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={ss.okTitle}>All joints within ideal ranges</Text>
+                        <Text style={ss.okBody}>Your joint angles are tracking within optimal form ranges. Keep playing to analyze the full movement.</Text>
+                      </View>
+                    </View>
+                  ) : (
+                    formInsights.map(({ k, ins }) => {
+                      const lvl = formRisk ? Math.max(0, Math.min(2, formRisk[k] ?? 0)) : 1;
+                      const c = RISK_COLORS[lvl];
+                      return (
+                        <View key={k} style={[ss.insightCard, { borderLeftColor: c }]}>
+                          <View style={ss.insightHead}>
+                            <Feather name="bar-chart-2" size={14} color={c} />
+                            <Text style={[ss.insightTitle, { color: c }]}>{ins.title}</Text>
+                            <Text style={[ss.insightTag, { color: c, borderColor: c + "55" }]}>FORM</Text>
+                          </View>
+                          <Text style={ss.insightBody}>{ins.body}</Text>
+                        </View>
+                      );
+                    })
+                  )}
+                </>
               )}
               <Text style={ss.disclaimer}>
                 Automated movement guidance — not a medical diagnosis. Consult a coach or physio for persistent pain.
@@ -786,10 +1000,17 @@ const ss = StyleSheet.create({
   okCard:        { flexDirection: "row", gap: 12, alignItems: "center", backgroundColor: "#0f1c12", borderWidth: 1, borderColor: "#22c55e33", borderRadius: 14, padding: 14 },
   okTitle:       { fontSize: 13, color: "#d8f5e0", fontFamily: "Inter_600SemiBold" },
   okBody:        { fontSize: 12, color: "#7a9a82", fontFamily: "Inter_400Regular", marginTop: 3, lineHeight: 17 },
-  insightCard:   { backgroundColor: "#0f0f1c", borderRadius: 12, borderLeftWidth: 3, padding: 14, gap: 7 },
-  insightHead:   { flexDirection: "row", alignItems: "center", gap: 7 },
-  insightTitle:  { flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  insightTag:    { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.8, borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, overflow: "hidden" },
-  insightBody:   { fontSize: 12, color: "#a0a0bc", fontFamily: "Inter_400Regular", lineHeight: 18 },
-  disclaimer:    { fontSize: 10, color: "#55556e", fontFamily: "Inter_400Regular", lineHeight: 14, marginTop: 4, fontStyle: "italic" },
+  insightCard:    { backgroundColor: "#0f0f1c", borderRadius: 12, borderLeftWidth: 3, padding: 14, gap: 7 },
+  insightHead:    { flexDirection: "row", alignItems: "center", gap: 7 },
+  insightTitle:   { flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  insightTag:     { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.8, borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, overflow: "hidden" },
+  insightBody:    { fontSize: 12, color: "#a0a0bc", fontFamily: "Inter_400Regular", lineHeight: 18 },
+  disclaimer:     { fontSize: 10, color: "#55556e", fontFamily: "Inter_400Regular", lineHeight: 14, marginTop: 4, fontStyle: "italic" },
+  modePills:      { flexDirection: "row", gap: 6, paddingHorizontal: 20, paddingBottom: 10 },
+  modePill:       { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: "#1c1c2e", borderWidth: 1, borderColor: "#2a2a3c" },
+  modePillActive: { backgroundColor: "#6c63ff", borderColor: "#6c63ff" },
+  modePillText:   { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  statusCard:     { flexDirection: "row", alignItems: "center", gap: 7, marginHorizontal: 20, marginBottom: 10, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: "#0f0f1c", borderWidth: 1 },
+  statusCardText: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  landscapePills: { position: "absolute", top: 14, left: 14, flexDirection: "row", gap: 6 },
 });

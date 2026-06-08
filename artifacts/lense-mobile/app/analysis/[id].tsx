@@ -23,6 +23,14 @@ const SEVERITY_CONFIG = {
   critical: { color: "#ef4444", icon: "alert-circle" as const, label: "Critical" },
 };
 
+const CATEGORY_CONFIG: Record<string, { color: string; label: string }> = {
+  technique:    { color: "#6c63ff", label: "Technique" },
+  "injury-risk": { color: "#ef4444", label: "Injury Risk" },
+  strength:     { color: "#f59e0b", label: "Strength" },
+  mobility:     { color: "#22d3ee", label: "Mobility" },
+  timing:       { color: "#a78bfa", label: "Timing" },
+};
+
 function formatDate(iso: string) {
   const d = new Date(iso);
   return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
@@ -33,7 +41,6 @@ export default function AnalysisDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [expandedTip, setExpandedTip] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"scores" | "tips" | "risks">("scores");
 
   const { analyses } = useAnalyses();
@@ -133,6 +140,24 @@ export default function AnalysisDetailScreen() {
     },
     drillLabel: { fontSize: 11, color: colors.primary, fontFamily: "Inter_600SemiBold", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },
     drillText: { fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular", lineHeight: 17 },
+    tipMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+    categoryBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 20,
+      borderWidth: 1,
+      alignSelf: "flex-start",
+    },
+    categoryBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.4 },
+    prevBox: {
+      marginTop: 10,
+      backgroundColor: colors.muted,
+      borderRadius: 8,
+      padding: 10,
+      borderLeftWidth: 3,
+    },
+    prevBoxLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },
+    prevBoxText: { fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular", lineHeight: 17 },
     riskCard: {
       backgroundColor: colors.card,
       borderRadius: colors.radius,
@@ -146,8 +171,7 @@ export default function AnalysisDetailScreen() {
     riskPct: { fontSize: 16, fontFamily: "Inter_700Bold" },
     riskBarBg: { height: 6, backgroundColor: colors.border, borderRadius: 3, marginBottom: 8 },
     riskBarFill: { height: 6, borderRadius: 3 },
-    riskDesc: { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginBottom: 4 },
-    riskPrev: { fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular" },
+    riskDesc: { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginBottom: 8 },
     prevLabel: { color: colors.primary, fontFamily: "Inter_500Medium" },
   });
 
@@ -272,31 +296,34 @@ export default function AnalysisDetailScreen() {
           <View style={s.section}>
             {analysis.tips.map((tip) => {
               const cfg = SEVERITY_CONFIG[tip.severity];
-              const expanded = expandedTip === tip.id;
+              const cat = CATEGORY_CONFIG[tip.category] ?? { color: "#8888aa", label: tip.category };
               return (
-                <TouchableOpacity
+                <View
                   key={tip.id}
                   style={[s.tipCard, { borderColor: cfg.color + "44" }]}
-                  activeOpacity={0.8}
-                  onPress={() => setExpandedTip(expanded ? null : tip.id)}
                 >
                   <View style={s.tipHeader}>
                     <Feather name={cfg.icon} size={16} color={cfg.color} />
                     <Text style={s.tipTitle}>{tip.title}</Text>
-                    <Feather name={expanded ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
                   </View>
-                  {expanded && (
-                    <View style={s.tipBody}>
-                      <Text style={s.tipDesc}>{tip.description}</Text>
-                      {tip.drill && (
-                        <View style={s.drillBox}>
-                          <Text style={s.drillLabel}>Drill</Text>
-                          <Text style={s.drillText}>{tip.drill}</Text>
-                        </View>
-                      )}
+                  <View style={s.tipBody}>
+                    <View style={s.tipMeta}>
+                      <View style={[s.categoryBadge, { borderColor: cat.color + "55", backgroundColor: cat.color + "18" }]}>
+                        <Text style={[s.categoryBadgeText, { color: cat.color }]}>{cat.label}</Text>
+                      </View>
+                      <View style={[s.categoryBadge, { borderColor: cfg.color + "55", backgroundColor: cfg.color + "18" }]}>
+                        <Text style={[s.categoryBadgeText, { color: cfg.color }]}>{cfg.label}</Text>
+                      </View>
                     </View>
-                  )}
-                </TouchableOpacity>
+                    <Text style={s.tipDesc}>{tip.description}</Text>
+                    {tip.drill && (
+                      <View style={s.drillBox}>
+                        <Text style={s.drillLabel}>Try This Drill</Text>
+                        <Text style={s.drillText}>{tip.drill}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
               );
             })}
           </View>
@@ -316,7 +343,10 @@ export default function AnalysisDetailScreen() {
                     <View style={[s.riskBarFill, { width: `${risk.risk}%` as any, backgroundColor: clr }]} />
                   </View>
                   <Text style={s.riskDesc}>{risk.description}</Text>
-                  <Text style={s.riskPrev}><Text style={s.prevLabel}>Prevention: </Text>{risk.prevention}</Text>
+                  <View style={[s.prevBox, { borderLeftColor: clr }]}>
+                    <Text style={[s.prevBoxLabel, { color: clr }]}>Prevention Strategy</Text>
+                    <Text style={s.prevBoxText}>{risk.prevention}</Text>
+                  </View>
                 </View>
               );
             })}
