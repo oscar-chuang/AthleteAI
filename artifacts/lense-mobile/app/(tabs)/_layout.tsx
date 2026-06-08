@@ -5,9 +5,19 @@ import { Platform, StyleSheet, View } from "react-native";
 import { BlurView } from "expo-blur";
 
 import { useColors } from "@/hooks/useColors";
+import { useAuth } from "@/lib/authContext";
+import { useRouter } from "expo-router";
 
 export default function TabLayout() {
   const colors = useColors();
+  const { isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
+
+  React.useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/");
+    }
+  }, [isLoading, isAuthenticated]);
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
