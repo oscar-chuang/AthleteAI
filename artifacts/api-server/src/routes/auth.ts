@@ -133,4 +133,18 @@ router.get("/auth/me", async (req: Request, res: Response) => {
   res.json({ user, profile: null, subscription: null });
 });
 
+// ─── Middleware ───────────────────────────────────────────────────────────────
+export function requireAuth(req: Request, res: Response, next: Function): void {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) { res.status(401).json({ error: "No token provided" }); return; }
+  try {
+    const payload = jwt.verify(token, JWT_SECRET!) as { userId: number; email: string };
+    (req as any).userId = payload.userId;
+    next();
+  } catch {
+    res.status(401).json({ error: "Invalid or expired token" });
+  }
+}
+
 export default router;
