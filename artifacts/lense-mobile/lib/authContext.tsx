@@ -5,7 +5,7 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import { auth, profile as profileApi, setToken, clearToken, getToken, ApiError, type Profile, type SubscriptionRecord } from "./api";
+import { auth, profile as profileApi, setToken, clearToken, getToken, ApiError, registerUnauthorizedHandler, type Profile, type SubscriptionRecord } from "./api";
 
 interface AuthUser {
   id: string;
@@ -53,6 +53,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     restoreSession();
+    // Auto-logout when any API call gets a 401 (expired/invalid token)
+    registerUnauthorizedHandler(() => {
+      setHasStoredToken(false);
+      setUser(null);
+      setUserProfile(null);
+      setSubscription(null);
+    });
   }, []);
 
   async function restoreSession() {

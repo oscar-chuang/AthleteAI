@@ -21,6 +21,13 @@ export async function clearToken(): Promise<void> {
   await AsyncStorage.removeItem(TOKEN_KEY);
 }
 
+// Global 401 handler — registered by AuthProvider so any expired token
+// anywhere in the app triggers an automatic logout.
+let _onUnauthorized: (() => void) | null = null;
+export function registerUnauthorizedHandler(fn: () => void) {
+  _onUnauthorized = fn;
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -45,6 +52,11 @@ async function request<T>(
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({ error: "Request failed" }));
+      // If the token is rejected on a protected route, auto-logout everywhere.
+      if (res.status === 401 && !path.startsWith("/auth/")) {
+        await clearToken();
+        _onUnauthorized?.();
+      }
       throw new ApiError(body.error ?? "Request failed", res.status, body.code);
     }
 
