@@ -15,6 +15,7 @@ if (!JWT_SECRET) {
 const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
+  name: z.string().optional(),
 });
 
 const loginSchema = z.object({
@@ -22,7 +23,22 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-router.post("/auth/register", async (req: Request, res: Response) => {
+async function createAndReturnUser(email: string, password: string, res: Response, statusCode = 200) {
+  const passwordHash = await bcrypt.hash(password, 12);
+  const [user] = await db
+    .insert(usersTable)
+    .values({ email, passwordHash })
+    .returning({ id: usersTable.id, email: usersTable.email, createdAt: usersTable.createdAt });
+
+  const token = jwt.sign({ userId: user!.id, email: user!.email }, JWT_SECRET!, {
+    expiresIn: "30d",
+  });
+
+  res.status(statusCode).json({ token, user });
+}
+
+// POST /auth/signup (and alias /auth/register)
+async function handleSignup(req: Request, res: Response) {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
@@ -42,20 +58,13 @@ router.post("/auth/register", async (req: Request, res: Response) => {
     return;
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  await createAndReturnUser(email, password, res, 201);
+}
 
-  const [user] = await db
-    .insert(usersTable)
-    .values({ email, passwordHash })
-    .returning({ id: usersTable.id, email: usersTable.email, createdAt: usersTable.createdAt });
+router.post("/auth/signup", handleSignup);
+router.post("/auth/register", handleSignup);
 
-  const token = jwt.sign({ userId: user!.id, email: user!.email }, JWT_SECRET, {
-    expiresIn: "30d",
-  });
-
-  res.status(201).json({ token, user });
-});
-
+// POST /auth/login
 router.post("/auth/login", async (req: Request, res: Response) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -82,7 +91,7 @@ router.post("/auth/login", async (req: Request, res: Response) => {
     return;
   }
 
-  const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
+  const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET!, {
     expiresIn: "30d",
   });
 
@@ -90,6 +99,38 @@ router.post("/auth/login", async (req: Request, res: Response) => {
     token,
     user: { id: user.id, email: user.email, createdAt: user.createdAt },
   });
+});
+
+// GET /auth/me — returns the current user from the JWT token
+router.get("/auth/me", async (req: Request, res: Response) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  if (!token) {
+    res.status(401).json({ error: "No token provided" });
+    return;
+  }
+
+  let payload: { userId: number; email: string };
+  try {
+    payload = jwt.verify(token, JWT_SECRET!) as { userId: number; email: string };
+  } catch {
+    res.status(401).json({ error: "Invalid or expired token" });
+    return;
+  }
+
+  const [user] = await db
+    .select({ id: usersTable.id, email: usersTable.email, createdAt: usersTable.createdAt })
+    .from(usersTable)
+    .where(eq(usersTable.id, payload.userId))
+    .limit(1);
+
+  if (!user) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+
+  res.json({ user, profile: null, subscription: null });
 });
 
 export default router;

@@ -1,7 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_URL =
-  (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:5000") + "/api";
+const _base =
+  process.env.EXPO_PUBLIC_API_URL ??
+  (process.env.EXPO_PUBLIC_DOMAIN
+    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+    : "http://localhost:8080");
+const API_URL = `${_base}/api`;
 
 const TOKEN_KEY = "auth_token";
 
