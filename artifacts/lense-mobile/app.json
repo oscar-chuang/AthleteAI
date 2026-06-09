@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "AthleteAI",
-    "slug": "lense-mobile",
+    "slug": "athleteai",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "lense-mobile",
+    "scheme": "athleteai",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
@@ -15,10 +15,23 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.athleteai.lensemobile"
+      "bundleIdentifier": "com.athleteai.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "AthleteAI needs access to your photo library to select training videos for analysis.",
+        "NSCameraUsageDescription": "AthleteAI needs camera access to record your training sessions.",
+        "NSMicrophoneUsageDescription": "AthleteAI needs microphone access when recording training videos."
+      }
     },
     "android": {
-      "package": "com.athleteai.lensemobile"
+      "package": "com.athleteai.app",
+      "versionCode": 1,
+      "permissions": [
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
+        "CAMERA",
+        "RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -31,11 +44,23 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "AthleteAI needs access to your photo library to select training videos.",
+          "cameraPermission": "AthleteAI needs camera access to record training sessions."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
     }
   }
 }

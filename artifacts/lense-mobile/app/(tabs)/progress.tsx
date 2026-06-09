@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import Svg, { Line, Path, Polyline, Circle } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -199,25 +200,25 @@ export default function ProgressScreen() {
               </View>
 
               <View style={s.chartContainer}>
-                <svg viewBox={`0 0 ${chartWidth} ${CHART_H}`} width={chartWidth} height={CHART_H} style={{ display: "block" }}>
+                <Svg viewBox={`0 0 ${chartWidth} ${CHART_H}`} width={chartWidth} height={CHART_H}>
                   {/* Grid lines */}
                   {[0, 25, 50, 75, 100].map((pct) => {
                     const y = (CHART_H * pct) / 100;
                     return (
-                      <line
+                      <Line
                         key={pct}
-                        x1="0"
+                        x1={0}
                         y1={y}
                         x2={chartWidth}
                         y2={y}
                         stroke={colors.border}
-                        strokeWidth="1"
+                        strokeWidth={1}
                       />
                     );
                   })}
                   {/* Area fill */}
                   {values.length > 1 && (
-                    <path
+                    <Path
                       d={[
                         `M 0 ${toY(values[0]!)}`,
                         ...values.slice(1).map((v, i) => `L ${(i + 1) * pointWidth} ${toY(v)}`),
@@ -230,20 +231,20 @@ export default function ProgressScreen() {
                   )}
                   {/* Line */}
                   {values.length > 1 && (
-                    <polyline
+                    <Polyline
                       points={values.map((v, i) => `${i * pointWidth},${toY(v)}`).join(" ")}
                       fill="none"
                       stroke={lineColor}
-                      strokeWidth="2.5"
+                      strokeWidth={2.5}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
                   )}
                   {/* Dots */}
                   {values.map((v, i) => (
-                    <circle key={i} cx={i * pointWidth} cy={toY(v)} r="4" fill={lineColor} />
+                    <Circle key={i} cx={i * pointWidth} cy={toY(v)} r={4} fill={lineColor} />
                   ))}
-                </svg>
+                </Svg>
 
                 <View style={s.chartLabels}>
                   {entries
