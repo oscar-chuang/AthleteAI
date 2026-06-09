@@ -75,15 +75,11 @@ router.get("/storage/objects/*filePath", requireAuth, async (req: Request, res: 
     const filePath = Array.isArray(raw) ? raw.join("/") : raw;
     const userId = String((req as any).userId);
 
-    // Enforce ownership: paths are scoped as uploads/{userId}/{uuid}
-    // Reject any request where the userId segment doesn't match the requester
-    const pathSegments = filePath.replace(/^\//, "").split("/");
-    const ownerSegmentIndex = pathSegments.indexOf("uploads") + 1;
-    if (
-      ownerSegmentIndex > 0 &&
-      ownerSegmentIndex < pathSegments.length &&
-      pathSegments[ownerSegmentIndex] !== userId
-    ) {
+    // Strict ownership: ONLY allow paths in the exact format uploads/{userId}/{objectId}.
+    // Anything else — including paths without this prefix — is rejected with 403.
+    const normalized = filePath.replace(/^\/+/, "");
+    const match = normalized.match(/^uploads\/([^/]+)\/[^/]+$/);
+    if (!match || match[1] !== userId) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
