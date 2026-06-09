@@ -26,8 +26,9 @@ router.post("/storage/uploads/request-url", requireAuth, async (req: Request, re
   }
 
   try {
+    const userId = String((req as any).userId);
     const { name, size, contentType } = parsed.data;
-    const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+    const uploadURL = await objectStorageService.getObjectEntityUploadURL(userId);
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
 
     res.json({ uploadURL, objectPath, metadata: { name, size, contentType } });
@@ -72,6 +73,21 @@ router.get("/storage/objects/*filePath", requireAuth, async (req: Request, res: 
   try {
     const raw = req.params.filePath;
     const filePath = Array.isArray(raw) ? raw.join("/") : raw;
+    const userId = String((req as any).userId);
+
+    // Enforce ownership: paths are scoped as uploads/{userId}/{uuid}
+    // Reject any request where the userId segment doesn't match the requester
+    const pathSegments = filePath.replace(/^\//, "").split("/");
+    const ownerSegmentIndex = pathSegments.indexOf("uploads") + 1;
+    if (
+      ownerSegmentIndex > 0 &&
+      ownerSegmentIndex < pathSegments.length &&
+      pathSegments[ownerSegmentIndex] !== userId
+    ) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
     const file = await objectStorageService.getObjectEntityFile(filePath);
     const [metadata] = await file.getMetadata();
     res.setHeader("Content-Type", (metadata.contentType as string) ?? "application/octet-stream");
