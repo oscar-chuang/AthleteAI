@@ -266,7 +266,7 @@ export default function ProgressScreen() {
           <View style={s.achGrid}>
             {achievements.map((a) => (
               <View key={a.id} style={[s.achCard, !a.unlocked && s.achCardLocked]}>
-                <Text style={s.achIcon}>{a.icon}</Text>
+                <Feather name={a.icon as any} size={28} color={a.unlocked ? colors.primary : colors.mutedForeground} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.achTitle}>{a.title}</Text>
                   <Text style={s.achDesc}>{a.description}</Text>
