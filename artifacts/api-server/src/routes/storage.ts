@@ -72,7 +72,7 @@ router.get("/storage/objects/*filePath", requireAuth, async (req: Request, res: 
   try {
     const raw = req.params.filePath;
     const filePath = Array.isArray(raw) ? raw.join("/") : raw;
-    const file = await objectStorageService.getObjectEntity(filePath);
+    const file = await objectStorageService.getObjectEntityFile(filePath);
     const [metadata] = await file.getMetadata();
     res.setHeader("Content-Type", (metadata.contentType as string) ?? "application/octet-stream");
     const stream = file.createReadStream();
