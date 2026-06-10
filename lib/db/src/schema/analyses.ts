@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, real } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, real, jsonb } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
 export const analysesTable = pgTable("analyses", {
@@ -19,6 +19,8 @@ export const analysesTable = pgTable("analyses", {
   speedScore: real("speed_score"),
   strengths: text("strengths").array().notNull().default([]),
   improvements: text("improvements").array().notNull().default([]),
+  tips: jsonb("tips").$type<object[]>().default([]),
+  injuryRisks: jsonb("injury_risks").$type<object[]>().default([]),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
 });
 
