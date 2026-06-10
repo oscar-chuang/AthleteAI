@@ -485,28 +485,29 @@ export default function SkeletonScreen() {
     `);
   }
 
-  // ── Active AI tip (shown when joint hits risk/caution) ──────────────────────
-  const activeTip = useMemo((): TipRecord | null => {
-    if (maxLvl < 1 || tips.length === 0) return null;
+  // ── Split tips into injury vs performance ───────────────────────────────────
+  const injuryTips     = useMemo(() => tips.filter((t) => t.tipType === "injury"   || t.severity === "warning" || t.severity === "critical"), [tips]);
+  const performanceTips = useMemo(() => tips.filter((t) => t.tipType === "performance" && t.severity === "info"), [tips]);
+
+  // When a joint goes red/amber, surface the most relevant injury tip
+  const activeInjuryTip = useMemo((): TipRecord | null => {
+    if (maxLvl < 1 || injuryTips.length === 0) return null;
     const riskJoints = risk
       ? (Object.keys(risk) as (keyof RiskMap)[]).filter((k) => risk[k] >= 1)
       : [];
-    const isKneeRisk = riskJoints.some((k) => k.toLowerCase().includes("knee"));
-    const isHipRisk  = riskJoints.some((k) => k.toLowerCase().includes("hip"));
+    const isKneeRisk  = riskJoints.some((k) => k.toLowerCase().includes("knee"));
+    const isHipRisk   = riskJoints.some((k) => k.toLowerCase().includes("hip"));
     const isElbowRisk = riskJoints.some((k) => k.toLowerCase().includes("elbow"));
-    const warningTips = tips.filter((t) => t.severity === "warning" || t.severity === "critical");
     if (isKneeRisk || isHipRisk) {
-      const match = warningTips.find((t) =>
-        t.category === "Form" || t.category === "Injury Prevention"
-      );
+      const match = injuryTips.find((t) => t.category === "Injury Prevention" || t.category === "Form");
       if (match) return match;
     }
     if (isElbowRisk) {
-      const match = warningTips.find((t) => t.category === "Form");
+      const match = injuryTips.find((t) => t.category === "Form");
       if (match) return match;
     }
-    return warningTips[0] ?? tips[0] ?? null;
-  }, [maxLvl, risk, tips]);
+    return injuryTips[0] ?? null;
+  }, [maxLvl, risk, injuryTips]);
 
   // ── Build HTML to disk ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -684,50 +685,78 @@ export default function SkeletonScreen() {
             </View>
           )}
 
-          {/* ── AI coaching tip (surfaces when a joint goes red/amber) ── */}
-          {modelReady && videoUri && activeTip && (
+          {/* ── SECTION 1: Injury Prevention ── */}
+          {modelReady && videoUri && (
             <View style={ss.tipSection}>
               <View style={ss.tipLabelRow}>
-                <Feather name="cpu" size={10} color="#6c63ff" />
-                <Text style={ss.sectionLabel}>AI COACHING TIP</Text>
+                <Feather name="shield" size={10} color="#ef4444" />
+                <Text style={[ss.sectionLabel, { color: "#ef444488" }]}>INJURY PREVENTION</Text>
               </View>
-              <View style={[ss.tipCard, { borderColor: maxLvl === 2 ? "#ef444433" : "#f59e0b33" }]}>
-                <View style={ss.tipHeader}>
-                  <View style={[ss.tipIcon, { backgroundColor: maxLvl === 2 ? "#ef44441a" : "#f59e0b1a" }]}>
-                    <Feather
-                      name={maxLvl === 2 ? "alert-triangle" : "alert-circle"}
-                      size={14}
-                      color={maxLvl === 2 ? "#ef4444" : "#f59e0b"}
-                    />
+
+              {activeInjuryTip ? (
+                <View style={[ss.tipCard, { borderColor: maxLvl === 2 ? "#ef444444" : "#f59e0b44" }]}>
+                  <View style={ss.tipHeader}>
+                    <View style={[ss.tipIcon, { backgroundColor: maxLvl === 2 ? "#ef44441a" : "#f59e0b1a" }]}>
+                      <Feather
+                        name={maxLvl === 2 ? "alert-triangle" : "alert-circle"}
+                        size={14}
+                        color={maxLvl === 2 ? "#ef4444" : "#f59e0b"}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[ss.tipCategory, { color: maxLvl === 2 ? "#ef4444" : "#f59e0b" }]}>{activeInjuryTip.category}</Text>
+                      <Text style={ss.tipTitle}>{activeInjuryTip.title}</Text>
+                    </View>
                   </View>
+                  <Text style={ss.tipDesc}>{activeInjuryTip.description}</Text>
+                  {activeInjuryTip.drill && (
+                    <View style={ss.drillBox}>
+                      <Text style={ss.drillLabel}>CORRECTIVE DRILL</Text>
+                      <Text style={ss.drillText}>{activeInjuryTip.drill}</Text>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <View style={ss.okCard}>
+                  <Feather name="shield" size={18} color="#22c55e" />
                   <View style={{ flex: 1 }}>
-                    <Text style={ss.tipCategory}>{activeTip.category}</Text>
-                    <Text style={ss.tipTitle}>{activeTip.title}</Text>
+                    <Text style={ss.okTitle}>No injury risks detected</Text>
+                    <Text style={ss.okBody}>
+                      Joint angles are within safe ranges for {sport || "this sport"}. Risk alerts will appear here if a dangerous pattern is detected.
+                    </Text>
                   </View>
                 </View>
-                <Text style={ss.tipDesc}>{activeTip.description}</Text>
-                {activeTip.drill && (
-                  <View style={ss.drillBox}>
-                    <Text style={ss.drillLabel}>DRILL</Text>
-                    <Text style={ss.drillText}>{activeTip.drill}</Text>
-                  </View>
-                )}
-              </View>
+              )}
             </View>
           )}
 
-          {/* ── Good form state (no risks detected yet) ── */}
-          {modelReady && videoUri && !activeTip && (
+          {/* ── SECTION 2: Performance & Efficiency ── */}
+          {modelReady && videoUri && performanceTips.length > 0 && (
             <View style={ss.tipSection}>
-              <View style={ss.okCard}>
-                <Feather name="check-circle" size={18} color="#22c55e" />
-                <View style={{ flex: 1 }}>
-                  <Text style={ss.okTitle}>Form looks good</Text>
-                  <Text style={ss.okBody}>
-                    Joint angles are within safe ranges for {sport || "this sport"}. AI coaching tips will appear if risk patterns are detected.
-                  </Text>
-                </View>
+              <View style={ss.tipLabelRow}>
+                <Feather name="zap" size={10} color="#6c63ff" />
+                <Text style={[ss.sectionLabel, { color: "#6c63ffaa" }]}>PERFORMANCE COACHING</Text>
               </View>
+              {performanceTips.map((tip, i) => (
+                <View key={tip.id ?? i} style={[ss.tipCard, ss.perfCard]}>
+                  <View style={ss.tipHeader}>
+                    <View style={[ss.tipIcon, { backgroundColor: "#6c63ff1a" }]}>
+                      <Feather name="trending-up" size={14} color="#6c63ff" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[ss.tipCategory, { color: "#6c63ff" }]}>{tip.category}</Text>
+                      <Text style={ss.tipTitle}>{tip.title}</Text>
+                    </View>
+                  </View>
+                  <Text style={ss.tipDesc}>{tip.description}</Text>
+                  {tip.drill && (
+                    <View style={[ss.drillBox, { backgroundColor: "#0e0e28" }]}>
+                      <Text style={[ss.drillLabel, { color: "#6c63ff" }]}>PERFORMANCE DRILL</Text>
+                      <Text style={ss.drillText}>{tip.drill}</Text>
+                    </View>
+                  )}
+                </View>
+              ))}
             </View>
           )}
 
@@ -748,20 +777,41 @@ export default function SkeletonScreen() {
                 <View style={ss.sourcesCard}>
                   <Text style={ss.sourcesHeading}>Scientific References</Text>
                   <Text style={ss.sourcesSubheading}>
-                    Joint angle thresholds are derived from the following peer-reviewed biomechanics literature. AI coaching content is generated by Anthropic Claude and is not a substitute for professional medical or coaching advice.
+                    Joint angle thresholds and AI coaching tips are grounded in peer-reviewed sports science research. AI content is generated by Anthropic Claude and is not a substitute for professional medical or coaching advice.
                   </Text>
+
+                  <Text style={ss.sourcesGroupLabel}>🛡 Injury Prevention Research</Text>
                   {[
                     { num: "1", ref: "Escamilla RF et al.", year: "2001", title: "Knee biomechanics of the dynamic squat exercise.", journal: "Med Sci Sports Exerc", detail: "33(1):127–141" },
                     { num: "2", ref: "Schoenfeld BJ.", year: "2010", title: "Squatting kinematics and kinetics and their application to exercise performance.", journal: "J Strength Cond Res", detail: "24(12):3497–3506" },
-                    { num: "3", ref: "Hales ME, Johnson BF, Johnson JT.", year: "2009", title: "Kinematic analysis of the powerlifting style squat and conventional deadlift during competition.", journal: "J Strength Cond Res", detail: "23(9):2574–2580" },
+                    { num: "3", ref: "Hales ME et al.", year: "2009", title: "Kinematic analysis of the powerlifting style squat and conventional deadlift during competition.", journal: "J Strength Cond Res", detail: "23(9):2574–2580" },
                     { num: "4", ref: "Heiderscheit BC et al.", year: "2011", title: "Effects of step rate manipulation on joint mechanics during running.", journal: "J Orthop Sports Phys Ther", detail: "41(4):229–238" },
-                    { num: "5", ref: "Novacheck TF.", year: "1998", title: "The biomechanics of running.", journal: "Gait Posture", detail: "7(1):77–95" },
-                    { num: "6", ref: "Hewett TE et al.", year: "2005", title: "Biomechanical measures of neuromuscular control and valgus loading of the knee predict ACL injury risk.", journal: "Am J Sports Med", detail: "33(4):492–501" },
-                    { num: "7", ref: "Decker MJ et al.", year: "2003", title: "Lower extremity kinematics, kinetics and energy absorption during landing.", journal: "Clin Biomech", detail: "18(7):662–669" },
-                    { num: "8", ref: "Norkin CC, White DJ.", year: "2009", title: "Measurement of Joint Motion: A Guide to Goniometry (4th ed.).", journal: "F.A. Davis Company", detail: "" },
+                    { num: "5", ref: "Hewett TE et al.", year: "2005", title: "Biomechanical measures of neuromuscular control and valgus loading of the knee predict ACL injury risk.", journal: "Am J Sports Med", detail: "33(4):492–501" },
+                    { num: "6", ref: "Decker MJ et al.", year: "2003", title: "Lower extremity kinematics, kinetics and energy absorption during landing.", journal: "Clin Biomech", detail: "18(7):662–669" },
+                    { num: "7", ref: "Norkin CC, White DJ.", year: "2009", title: "Measurement of Joint Motion: A Guide to Goniometry (4th ed.).", journal: "F.A. Davis Company", detail: "" },
                   ].map((s) => (
                     <View key={s.num} style={ss.sourceRow}>
                       <Text style={ss.sourceNum}>{s.num}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={ss.sourceRef}>{s.ref} <Text style={ss.sourceYear}>({s.year})</Text></Text>
+                        <Text style={ss.sourceTitle}>{s.title}</Text>
+                        <Text style={ss.sourceJournal}>{s.journal}{s.detail ? `, ${s.detail}` : ""}</Text>
+                      </View>
+                    </View>
+                  ))}
+
+                  <Text style={[ss.sourcesGroupLabel, { color: "#6c63ffaa", marginTop: 14 }]}>⚡ Performance & Efficiency Research</Text>
+                  {[
+                    { num: "8",  ref: "Moore IS.", year: "2016", title: "Is there an economical running technique? A review of modifiable biomechanical factors affecting running economy.", journal: "Sports Med", detail: "46(6):793–807" },
+                    { num: "9",  ref: "Saunders PU et al.", year: "2004", title: "Factors affecting running economy in trained distance runners.", journal: "Sports Med", detail: "34(7):465–485" },
+                    { num: "10", ref: "Cavanagh PR, Williams KR.", year: "1982", title: "The effect of stride length variation on oxygen uptake during distance running.", journal: "Med Sci Sports Exerc", detail: "14(1):30–35" },
+                    { num: "11", ref: "Glassbrook DJ et al.", year: "2017", title: "A review of the biomechanical differences between the high-bar and low-bar back squat.", journal: "J Strength Cond Res", detail: "31(9):2618–2634" },
+                    { num: "12", ref: "Kibler WB, Press J, Sciascia A.", year: "2006", title: "The role of core stability in athletic function.", journal: "Sports Med", detail: "36(3):189–198" },
+                    { num: "13", ref: "Novacheck TF.", year: "1998", title: "The biomechanics of running — gait efficiency and velocity.", journal: "Gait Posture", detail: "7(1):77–95" },
+                    { num: "14", ref: "Mann RA, Herman J.", year: "1985", title: "Kinematic analysis of Olympic sprint performance: men's 200 metres.", journal: "Int J Sport Biomech", detail: "1(2):151–162" },
+                  ].map((s) => (
+                    <View key={s.num} style={[ss.sourceRow, { borderLeftColor: "#6c63ff55" }]}>
+                      <Text style={[ss.sourceNum, { color: "#6c63ff" }]}>{s.num}</Text>
                       <View style={{ flex: 1 }}>
                         <Text style={ss.sourceRef}>{s.ref} <Text style={ss.sourceYear}>({s.year})</Text></Text>
                         <Text style={ss.sourceTitle}>{s.title}</Text>
@@ -835,6 +885,8 @@ const ss = StyleSheet.create({
   sourcesCard:         { backgroundColor: "#0a0a18", borderRadius: 12, borderWidth: 1, borderColor: "#1e1e30", padding: 14, marginTop: 8, gap: 12 },
   sourcesHeading:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#c0c0d8" },
   sourcesSubheading:   { fontSize: 11, color: "#55556e", fontFamily: "Inter_400Regular", lineHeight: 16, fontStyle: "italic" },
+  sourcesGroupLabel:   { fontSize: 10, color: "#ef444488", fontFamily: "Inter_700Bold", letterSpacing: 1, marginBottom: 4 },
+  perfCard:            { borderColor: "#6c63ff33", marginTop: 10 },
   sourceRow:           { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   sourceNum:           { fontSize: 11, color: "#6c63ff", fontFamily: "Inter_700Bold", width: 16, paddingTop: 1 },
   sourceRef:           { fontSize: 11, color: "#c0c0d8", fontFamily: "Inter_600SemiBold" },

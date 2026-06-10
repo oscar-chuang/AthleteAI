@@ -159,6 +159,7 @@ export interface AnalysisRecord {
 
 export interface TipRecord {
   id: string;
+  tipType: "injury" | "performance";
   category: string;
   severity: string;
   title: string;

@@ -13,6 +13,7 @@ export interface AIAnalysisResult {
   strengths: string[];
   improvements: string[];
   tips: Array<{
+    tipType: "injury" | "performance";
     category: string;
     severity: "info" | "warning" | "critical";
     title: string;
@@ -32,9 +33,13 @@ export async function analyzeAthletePerformance(
   title: string,
   videoUrl?: string | null
 ): Promise<AIAnalysisResult> {
-  const prompt = `You are an elite sports performance analyst and certified strength & conditioning coach. Analyze this ${sport} training session titled "${title}"${videoUrl ? ` (video: ${videoUrl})` : ""}.
+  const prompt = `You are an elite sports performance analyst and certified strength & conditioning coach with expertise in ${sport} biomechanics. Analyze this training session titled "${title}"${videoUrl ? ` (video: ${videoUrl})` : ""}.
 
-Generate a detailed, specific, actionable analysis for this athlete. Base your analysis on expert knowledge of ${sport} biomechanics, common form issues, and sport-specific injury patterns.
+Generate a highly specific, research-informed analysis in two distinct categories:
+
+INJURY PREVENTION — based on biomechanics research (Escamilla et al. 2001, Hewett et al. 2005, Heiderscheit et al. 2011, Decker et al. 2003): identify movement patterns that increase injury risk and how to correct them.
+
+PERFORMANCE & EFFICIENCY — based on sports science research (Moore 2016 on running economy, Saunders et al. 2004, Glassbrook et al. 2017 on squat mechanics, Kibler et al. 2006 on core stability, Cavanagh & Williams 1982 on stride optimization): identify biomechanical improvements that will directly improve ${sport} performance, power output, and movement efficiency.
 
 Respond ONLY with a valid JSON object in this exact shape (no markdown, no explanation):
 {
@@ -49,11 +54,44 @@ Respond ONLY with a valid JSON object in this exact shape (no markdown, no expla
   "improvements": [<3 specific improvement areas as strings>],
   "tips": [
     {
-      "category": <"Form"|"Injury Prevention"|"Recovery"|"Mobility"|"Strength"|"Explosiveness">,
-      "severity": <"info"|"warning"|"critical">,
-      "title": <short tip title>,
+      "tipType": "injury",
+      "category": <"Injury Prevention"|"Recovery">,
+      "severity": <"warning"|"critical">,
+      "title": <short specific title>,
+      "description": <2-3 sentence coaching cue with the specific mechanism and risk>,
+      "drill": <specific corrective drill with sets/reps/duration>
+    },
+    {
+      "tipType": "injury",
+      "category": <"Injury Prevention"|"Recovery">,
+      "severity": <"warning"|"critical">,
+      "title": <short specific title>,
       "description": <2-3 sentence coaching cue>,
-      "drill": <specific drill with sets/reps>
+      "drill": <specific corrective drill with sets/reps/duration>
+    },
+    {
+      "tipType": "performance",
+      "category": <"Form"|"Strength"|"Mobility"|"Explosiveness"|"Speed"|"Efficiency">,
+      "severity": "info",
+      "title": <short specific title focused on performance gain>,
+      "description": <2-3 sentence coaching cue explaining the performance benefit and how it applies to ${sport}>,
+      "drill": <specific performance drill with sets/reps/duration and expected adaptation>
+    },
+    {
+      "tipType": "performance",
+      "category": <"Form"|"Strength"|"Mobility"|"Explosiveness"|"Speed"|"Efficiency">,
+      "severity": "info",
+      "title": <short specific title>,
+      "description": <2-3 sentence coaching cue>,
+      "drill": <specific performance drill with sets/reps/duration>
+    },
+    {
+      "tipType": "performance",
+      "category": <"Form"|"Strength"|"Mobility"|"Explosiveness"|"Speed"|"Efficiency">,
+      "severity": "info",
+      "title": <short specific title>,
+      "description": <2-3 sentence coaching cue>,
+      "drill": <specific performance drill>
     }
   ],
   "injuryRisks": [
@@ -67,11 +105,13 @@ Respond ONLY with a valid JSON object in this exact shape (no markdown, no expla
 }
 
 Rules:
-- Provide exactly 3 tips and 2-3 injury risks
-- Make everything specific to ${sport} — no generic advice
-- Scores should be realistic and vary meaningfully (not all the same)
+- Provide exactly 2 injury tips and 3 performance tips (5 total)
+- Provide 2-3 injury risks
+- Make EVERYTHING specific to ${sport} — no generic advice
+- Performance tips must explain the direct performance benefit (more power, faster times, better economy, etc.)
+- Injury tips must name the specific mechanism and joint
 - Drills must be specific with sets/reps/duration
-- Injury risks must name the specific joint and mechanism`;
+- Scores should vary meaningfully from each other`;
 
   const message = await client.messages.create({
     model: "claude-opus-4-5",
