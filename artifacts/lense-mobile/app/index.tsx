@@ -30,7 +30,6 @@ const FEATURES = [
 
 const HIGHLIGHTS = [
   { icon: "layers" as const,  color: "#6c63ff", label: "13 Sports", sub: "Supported" },
-  { icon: "cpu" as const,     color: "#06b6d4", label: "Claude AI", sub: "Powered by Anthropic" },
   { icon: "book-open" as const, color: "#22c55e", label: "Peer-reviewed", sub: "Research-backed tips" },
 ];
 
