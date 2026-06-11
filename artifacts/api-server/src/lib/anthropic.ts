@@ -169,7 +169,6 @@ const SYSTEM_PROMPT = `You are a friendly sports coach helping everyday athletes
 
 The JSON shape is exactly:
 {
-  "overallScore": <integer 55-95>,
   "techniqueScore": <integer 50-100>,
   "powerScore": <integer 50-100>,
   "balanceScore": <integer 50-100>,
@@ -217,7 +216,8 @@ Requirements:
 - Drills must include sets/reps/duration and be written as clear step-by-step instructions
 - Score using these bands: 80–100 = Strong · 65–79 = On Track · below 65 = Focus Here
 - Scores MUST reflect the sport profile above — a fencer and a runner should get very different scores across metrics
-- Scores must vary meaningfully — do NOT cluster everything in the 70s
+- Scores must vary meaningfully across the six metrics — do NOT cluster everything in the 70s
+- Do NOT include an overallScore field — it will be computed separately
 - Respond with ONLY the JSON object, nothing else`;
 
   const message = await client.messages.create({
@@ -241,5 +241,18 @@ Requirements:
   }
 
   const parsed = JSON.parse(jsonMatch[0]) as AIAnalysisResult;
+
+  // Compute overall from sub-scores so it always reflects the real breakdown.
+  // Claude's self-reported overall clusters at ~72 regardless of sport.
+  // Weights: technique 25%, balance 20%, power 15%, consistency 15%, mobility 15%, speed 10%
+  parsed.overallScore = Math.round(
+    parsed.techniqueScore    * 0.25 +
+    parsed.balanceScore      * 0.20 +
+    parsed.powerScore        * 0.15 +
+    parsed.consistencyScore  * 0.15 +
+    parsed.mobilityScore     * 0.15 +
+    parsed.speedScore        * 0.10
+  );
+
   return parsed;
 }
