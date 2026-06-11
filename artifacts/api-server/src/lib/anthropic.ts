@@ -90,26 +90,9 @@ const getResearch = (sport: string) =>
     performance: "Kibler et al. (2006, Sports Med) on core stability in athletic function; Moore (2016, Sports Med) on movement economy; Glassbrook et al. (2017, J Strength Cond Res) on functional movement mechanics",
   };
 
-export async function analyzeAthletePerformance(
-  sport: string,
-  title: string,
-  videoUrl?: string | null
-): Promise<AIAnalysisResult> {
-  const research = getResearch(sport);
+const SYSTEM_PROMPT = `You are an elite sports performance analyst and certified strength & conditioning coach. You MUST respond with ONLY a raw JSON object — no markdown, no code fences, no explanation, no text before or after. Your entire response must be parseable by JSON.parse().
 
-  const prompt = `You are an elite sports performance analyst and certified strength & conditioning coach with deep expertise in ${sport} biomechanics. Analyze this training session titled "${title}"${videoUrl ? ` (video: ${videoUrl})` : ""}.
-
-Generate a highly specific, research-informed analysis split into two distinct categories:
-
-INJURY PREVENTION — grounded in:
-${research.injury}
-Identify movement patterns that increase injury risk and how to correct them.
-
-PERFORMANCE & EFFICIENCY — grounded in:
-${research.performance}
-Identify biomechanical improvements that will directly improve ${sport} performance, power output, technique efficiency, and movement economy.
-
-Respond ONLY with a valid JSON object in this exact shape (no markdown, no explanation):
+The JSON shape is exactly:
 {
   "overallScore": <integer 55-95>,
   "techniqueScore": <integer 50-100>,
@@ -118,72 +101,48 @@ Respond ONLY with a valid JSON object in this exact shape (no markdown, no expla
   "consistencyScore": <integer 50-100>,
   "mobilityScore": <integer 45-100>,
   "speedScore": <integer 50-100>,
-  "strengths": [<3 specific strength observations for a ${sport} athlete>],
-  "improvements": [<3 specific improvement areas for a ${sport} athlete>],
+  "strengths": ["string", "string", "string"],
+  "improvements": ["string", "string", "string"],
   "tips": [
-    {
-      "tipType": "injury",
-      "category": "Injury Prevention",
-      "severity": <"warning"|"critical">,
-      "title": <specific title naming the risk and joint>,
-      "description": <2-3 sentences: what the risk mechanism is and why it matters in ${sport}>,
-      "drill": <specific corrective drill with sets/reps/duration>
-    },
-    {
-      "tipType": "injury",
-      "category": "Injury Prevention",
-      "severity": <"warning"|"critical">,
-      "title": <specific title>,
-      "description": <2-3 sentences>,
-      "drill": <specific corrective drill>
-    },
-    {
-      "tipType": "performance",
-      "category": <"Form"|"Strength"|"Mobility"|"Explosiveness"|"Speed"|"Efficiency"|"Technique">,
-      "severity": "info",
-      "title": <specific title naming the performance gain>,
-      "description": <2-3 sentences: what to do, how it applies to ${sport}, and what performance benefit it delivers (e.g. more power, faster splits, better economy)>,
-      "drill": <specific ${sport} performance drill with sets/reps/duration and expected adaptation>
-    },
-    {
-      "tipType": "performance",
-      "category": <"Form"|"Strength"|"Mobility"|"Explosiveness"|"Speed"|"Efficiency"|"Technique">,
-      "severity": "info",
-      "title": <specific title>,
-      "description": <2-3 sentences>,
-      "drill": <specific drill>
-    },
-    {
-      "tipType": "performance",
-      "category": <"Form"|"Strength"|"Mobility"|"Explosiveness"|"Speed"|"Efficiency"|"Technique">,
-      "severity": "info",
-      "title": <specific title>,
-      "description": <2-3 sentences>,
-      "drill": <specific drill>
-    }
+    { "tipType": "injury", "category": "Injury Prevention", "severity": "warning", "title": "string", "description": "string", "drill": "string" },
+    { "tipType": "injury", "category": "Injury Prevention", "severity": "warning", "title": "string", "description": "string", "drill": "string" },
+    { "tipType": "performance", "category": "Efficiency", "severity": "info", "title": "string", "description": "string", "drill": "string" },
+    { "tipType": "performance", "category": "Form", "severity": "info", "title": "string", "description": "string", "drill": "string" },
+    { "tipType": "performance", "category": "Strength", "severity": "info", "title": "string", "description": "string", "drill": "string" }
   ],
   "injuryRisks": [
-    {
-      "joint": <joint name>,
-      "riskPercent": <integer 8-45>,
-      "description": <specific risk observation for ${sport}>,
-      "prevention": <concrete prevention protocol>
-    }
+    { "joint": "string", "riskPercent": <8-45>, "description": "string", "prevention": "string" },
+    { "joint": "string", "riskPercent": <8-45>, "description": "string", "prevention": "string" }
   ]
-}
+}`;
 
-Rules:
-- Provide exactly 2 injury tips and 3 performance tips (5 total)
-- Provide 2-3 injury risks
-- Every tip and risk must be SPECIFIC to ${sport} — no generic advice
-- Performance tips must name the direct performance benefit (e.g. "increases serve velocity", "improves stroke efficiency", "reduces ground contact time")
-- Drills must be specific with sets/reps/duration
-- Scores should vary meaningfully from each other`;
+export async function analyzeAthletePerformance(
+  sport: string,
+  title: string,
+  videoUrl?: string | null
+): Promise<AIAnalysisResult> {
+  const research = getResearch(sport);
+
+  const userPrompt = `Analyze this ${sport} training session titled "${title}"${videoUrl ? ` (video: ${videoUrl})` : ""}.
+
+Use these research sources to ground your analysis:
+Injury prevention: ${research.injury}
+Performance/efficiency: ${research.performance}
+
+Requirements:
+- All tips and risks must be SPECIFIC to ${sport} — no generic advice
+- 2 injury tips (tipType "injury", severity "warning" or "critical")
+- 3 performance tips (tipType "performance", severity "info") — each must name the direct performance benefit
+- 2-3 injury risks naming the specific joint and mechanism
+- Drills must include sets/reps/duration
+- Scores must vary meaningfully from each other
+- Respond with ONLY the JSON object, nothing else`;
 
   const message = await client.messages.create({
     model: "claude-opus-4-5",
     max_tokens: 4096,
-    messages: [{ role: "user", content: prompt }],
+    system: SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userPrompt }],
   });
 
   const text = message.content
@@ -191,8 +150,13 @@ Rules:
     .map((b) => (b as { type: "text"; text: string }).text)
     .join("");
 
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("No JSON in Anthropic response");
+  // Strip any accidental markdown fences
+  const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  const jsonMatch = stripped.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    console.error("Anthropic raw response (no JSON found):", text.slice(0, 500));
+    throw new Error("No JSON in Anthropic response");
+  }
 
   const parsed = JSON.parse(jsonMatch[0]) as AIAnalysisResult;
   return parsed;
