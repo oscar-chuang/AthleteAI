@@ -19,12 +19,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { analyses as analysesApi, type TipRecord } from "@/lib/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-interface JointAngles {
-  leftKnee: number; rightKnee: number;
-  leftHip: number;  rightHip: number;
-  leftElbow: number; rightElbow: number;
-}
-type RiskMap = Record<keyof JointAngles, number>;
+type JointKey = "leftKnee" | "rightKnee" | "leftHip" | "rightHip" | "leftElbow" | "rightElbow";
+type RiskMap = Record<JointKey, number>;
+type AngleMap = Record<JointKey, number>;
 
 const RISK_COLORS = ["#22c55e", "#f59e0b", "#ef4444"];
 
@@ -231,17 +228,6 @@ ${videoUri ? `
     return Math.round(Math.atan2(Math.abs(ab.x*cb.y-ab.y*cb.x),ab.x*cb.x+ab.y*cb.y)*180/Math.PI);
   }
 
-  function label(x,y,txt,col){
-    ctx.save();
-    ctx.font="bold 15px -apple-system,sans-serif";
-    const w=ctx.measureText(txt).width+16;
-    ctx.fillStyle="rgba(4,4,12,.9)";
-    ctx.beginPath();ctx.roundRect(x-w/2,y-15,w,28,7);ctx.fill();
-    ctx.fillStyle=col;ctx.textAlign="center";ctx.textBaseline="middle";
-    ctx.fillText(txt,x,y);
-    ctx.restore();
-  }
-
   const RL=["#22c55e","#f59e0b","#ef4444"];
 
   function onResults(res){
@@ -294,9 +280,6 @@ ${videoUri ? `
       ctx.restore();
     });
     btxt.textContent=seen>0?seen+" joints tracked":"Pose active";
-
-    function angLabel(i,dx,dy){const j=jr[i];if(!j)return;label(p(i).x+dx,p(i).y+dy,j.deg+"°",RL[j.lvl]);}
-    angLabel(25,34,0);angLabel(26,-34,0);angLabel(23,38,-12);angLabel(24,-38,-12);
 
     if(maxLvl===2){
       ctx.save();
@@ -358,6 +341,9 @@ ${videoUri ? `
   function play(){video.play();playing=true;playBtn.innerHTML="&#9646;&#9646;";loop();}
   function pause(){video.pause();playing=false;playBtn.innerHTML="&#9654;";cancelAnimationFrame(raf);}
 
+  // Exposed so React Native can seek via injectJavaScript
+  window.__seekTo=function(t){pause();video.currentTime=Math.max(0,Math.min(t,video.duration||t));};
+
   playBtn.onclick=()=>playing?pause():play();
   document.getElementById("bk").onclick=()=>{pause();video.currentTime=Math.max(0,video.currentTime-1/30);};
   document.getElementById("fw").onclick=()=>{pause();video.currentTime=Math.min(video.duration||99,video.currentTime+1/30);};
@@ -393,7 +379,6 @@ export default function SkeletonScreen() {
   const [tips, setTips]           = useState<TipRecord[]>([]);
   const [showSources, setShowSources] = useState(false);
 
-  const [angles,      setAngles]      = useState<JointAngles | null>(null);
   const [risk,        setRisk]        = useState<RiskMap | null>(null);
   const [maxLvl,      setMaxLvl]      = useState(0);
   const [peak,        setPeak]        = useState<Record<string, { lvl: number; deg: number }>>({});
@@ -442,15 +427,14 @@ export default function SkeletonScreen() {
         return;
       }
       if (msg.type === "angles") {
-        const data = msg.data as JointAngles;
-        setAngles(data);
+        const data = msg.data as AngleMap;
         if (msg.risk) {
           const r = msg.risk as RiskMap;
           setRisk(r);
           setPeak((prev) => {
             let changed = false;
             const next = { ...prev };
-            (Object.keys(r) as (keyof RiskMap)[]).forEach((k) => {
+            (Object.keys(r) as JointKey[]).forEach((k) => {
               const lvlVal = r[k];
               const deg = data[k];
               if (lvlVal < 1) return;
@@ -472,17 +456,11 @@ export default function SkeletonScreen() {
   // ── Jump to worst moment ────────────────────────────────────────────────────
   function jumpToWorst() {
     if (worstTime === null) return;
-    webviewRef.current?.injectJavaScript(`
-      (function(){
-        var v = document.getElementById('v');
-        var btn = document.getElementById('playBtn');
-        if (v) {
-          v.pause();
-          v.currentTime = ${worstTime};
-          if (btn) btn.innerHTML = '&#9654;';
-        }
-      })(); true;
-    `);
+    // __seekTo is exposed inside the IIFE so it has access to the internal
+    // playing/pause state — much more reliable than manipulating the video directly.
+    webviewRef.current?.injectJavaScript(
+      `if(typeof window.__seekTo==='function'){window.__seekTo(${worstTime});}else{var v=document.getElementById('v');if(v){v.pause();v.currentTime=${worstTime};}} true;`
+    );
   }
 
   // ── Split tips into injury vs performance ───────────────────────────────────
@@ -514,7 +492,6 @@ export default function SkeletonScreen() {
     let cancelled = false;
     setPreparing(true);
     setHtmlFileUri(null);
-    setAngles(null);
     setRisk(null);
     setMaxLvl(0);
     setPeak({});
@@ -550,16 +527,6 @@ export default function SkeletonScreen() {
 
     return () => { cancelled = true; };
   }, [videoUri, sport]);
-
-  // ── Angle display ───────────────────────────────────────────────────────────
-  const angleCards = angles ? ([
-    { label: "L Knee",  deg: angles.leftKnee,   key: "leftKnee"   },
-    { label: "R Knee",  deg: angles.rightKnee,  key: "rightKnee"  },
-    { label: "L Hip",   deg: angles.leftHip,    key: "leftHip"    },
-    { label: "R Hip",   deg: angles.rightHip,   key: "rightHip"   },
-    { label: "L Elbow", deg: angles.leftElbow,  key: "leftElbow"  },
-    { label: "R Elbow", deg: angles.rightElbow, key: "rightElbow" },
-  ] as const) : [];
 
   // ── Adaptive video height ───────────────────────────────────────────────────
   const CTRL_H = 112;
@@ -630,43 +597,6 @@ export default function SkeletonScreen() {
           showsVerticalScrollIndicator={false}
         >
           {mediaBlock}
-
-          {/* ── Angle cards ── */}
-          {angleCards.length > 0 && (
-            <View style={ss.angleSection}>
-              <View style={ss.angleHeaderRow}>
-                <Text style={ss.sectionLabel}>LIVE JOINT ANGLES</Text>
-                {maxLvl === 2 ? (
-                  <View style={[ss.statusPill, { backgroundColor: "#ef444422", borderColor: "#ef444455" }]}>
-                    <Feather name="alert-triangle" size={11} color="#ef4444" />
-                    <Text style={[ss.statusPillText, { color: "#ef4444" }]}>Injury risk</Text>
-                  </View>
-                ) : maxLvl === 1 ? (
-                  <View style={[ss.statusPill, { backgroundColor: "#f59e0b22", borderColor: "#f59e0b55" }]}>
-                    <Feather name="alert-circle" size={11} color="#f59e0b" />
-                    <Text style={[ss.statusPillText, { color: "#f59e0b" }]}>Caution</Text>
-                  </View>
-                ) : modelReady ? (
-                  <View style={[ss.statusPill, { backgroundColor: "#22c55e22", borderColor: "#22c55e55" }]}>
-                    <Feather name="check-circle" size={11} color="#22c55e" />
-                    <Text style={[ss.statusPillText, { color: "#22c55e" }]}>Good form</Text>
-                  </View>
-                ) : null}
-              </View>
-              <View style={ss.angleGrid}>
-                {angleCards.filter(a => a.deg > 0).map(({ label, deg, key }) => {
-                  const lvlVal = Math.max(0, Math.min(2, risk ? (risk[key] ?? 0) : 0));
-                  const c = RISK_COLORS[lvlVal];
-                  return (
-                    <View key={label} style={[ss.angleCard, { borderColor: c + "55", backgroundColor: lvlVal === 2 ? "#ef44440f" : "#0f0f1c" }]}>
-                      <Text style={[ss.angleDeg, { color: c }]}>{deg}°</Text>
-                      <Text style={ss.angleLabel}>{label}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          )}
 
           {/* ── Jump to worst moment button ── */}
           {modelReady && videoUri && worstTime !== null && (
@@ -960,15 +890,9 @@ const ss = StyleSheet.create({
   rotateBtn:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#6c63ff", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
   rotateBtnText: { fontSize: 12, color: "#fff", fontFamily: "Inter_600SemiBold" },
   portraitBtn:   { position: "absolute", top: 14, right: 14, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#6c63ff", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
-  angleSection:  { paddingHorizontal: 18, paddingTop: 16 },
-  angleHeaderRow:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   sectionLabel:  { fontSize: 10, color: "#8888aa", fontFamily: "Inter_600SemiBold", letterSpacing: 1.5 },
   statusPill:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
   statusPillText:{ fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  angleGrid:     { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  angleCard:     { width: "30%", flexGrow: 1, backgroundColor: "#0f0f1c", borderRadius: 12, padding: 12, alignItems: "center", borderWidth: 1 },
-  angleDeg:      { fontSize: 22, fontFamily: "Inter_700Bold" },
-  angleLabel:    { fontSize: 10, color: "#8888aa", fontFamily: "Inter_400Regular", marginTop: 3 },
   worstSection:  { paddingHorizontal: 18, paddingTop: 14 },
   worstBtn:      { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#1a0a0a", borderRadius: 14, borderWidth: 1.5, borderColor: "#ef444455", padding: 14, overflow: "hidden" },
   worstBtnGlow:  { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "#ef44440a" },
