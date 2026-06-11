@@ -354,14 +354,26 @@ ${videoUri ? `
     }
   }
 
+  // Gate scan start on BOTH video loaded AND pose model ready
+  let videoDataReady=false, poseModelReady=false;
+  function maybeScan(){
+    if(!videoDataReady||!poseModelReady||scanning||playing)return;
+    // Small delay so the model settles after init
+    setTimeout(()=>{
+      if(scanning||playing||!video.duration)return;
+      scanning=true; scanPos=0; video.currentTime=0;
+    },200);
+  }
+
   const BASE="${MEDIAPIPE_BASE}";
   const pose=new Pose({locateFile:f=>BASE+"/"+f});
   pose.setOptions({modelComplexity:1,smoothLandmarks:true,enableSegmentation:false,minDetectionConfidence:.5,minTrackingConfidence:.5});
   pose.onResults(onResults);
   pose.initialize().then(()=>{
+    poseModelReady=true;
     loading.classList.add("hide");
     sizeWrap();
-    setTimeout(detect,100);
+    maybeScan();
   }).catch(()=>loading.classList.add("hide"));
 
   function detect(){if(busy||!video.readyState)return;busy=true;pose.send({image:video}).catch(()=>{busy=false;});}
@@ -378,11 +390,8 @@ ${videoUri ? `
     try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"meta",vw:video.videoWidth,vh:video.videoHeight,dur:video.duration}));}catch(e){}
   });
   video.addEventListener("loadeddata",()=>{
-    // Start silent auto-scan so worst frame is found before user touches anything
-    setTimeout(()=>{
-      if(!video.duration)return;
-      scanning=true;scanPos=0;video.currentTime=0;
-    },150);
+    videoDataReady=true;
+    maybeScan();
   });
   video.addEventListener("seeked",detect);
   video.addEventListener("timeupdate",()=>{timeL.textContent=fmt(video.currentTime);scrub.value=video.currentTime;});
