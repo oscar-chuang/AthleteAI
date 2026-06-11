@@ -60,6 +60,16 @@ const SPORT_THRESHOLD_DB: Record<string, number[]> = {
   swimming:      [100,120, 172, 178,  44, 59, 999, 999,  -1, -1, 158, 170],
   gymnastics:    [55,  68, 175, 180,  35, 45, 999, 999,  -1, -1, 172, 180],
   cycling:       [68,  80, 152, 163,  44, 57, 999, 999,  -1, -1, 152, 165],
+  fencing:       [78,  92, 165, 174,  38, 52, 999, 999,  -1, -1, 155, 168],
+  hockey:        [82, 100, 162, 172,  40, 55, 999, 999,  -1, -1, 999, 999],
+  lacrosse:      [88, 108, 162, 172,  42, 57, 999, 999,  -1, -1, 162, 172],
+  rugby:         [78,  95, 162, 172,  40, 55, 999, 999,  -1, -1, 999, 999],
+  rowing:        [75,  90, 162, 172,  38, 52, 999, 999,  -1, -1, 155, 168],
+  boxing:        [85, 105, 160, 170,  40, 55, 999, 999,  -1, -1, 145, 160],
+  wrestling:     [70,  85, 158, 170,  38, 52, 999, 999,  -1, -1, 148, 162],
+  badminton:     [80, 100, 162, 172,  40, 55, 999, 999,  -1, -1, 155, 168],
+  golf:          [95, 115, 162, 172,  42, 57, 999, 999,  -1, -1, 155, 168],
+  skiing:        [65,  80, 158, 170,  38, 52, 999, 999,  -1, -1, 999, 999],
   default:       [65,  80, 165, 175,  40, 55, 999, 999,  -1, -1, 158, 170],
 };
 
@@ -210,6 +220,26 @@ ${videoUri ? `
   let busy=false, playing=false, showSkel=true;
   let worstScore=0, worstSeenTime=0;
 
+  // Auto-scan: step through video at load time so worst frame is always found
+  // regardless of whether the user plays through the whole clip.
+  let scanning=false, scanPos=0;
+  const SCAN_STEP=0.5; // seconds between scan positions
+
+  function advanceScan(){
+    scanPos+=SCAN_STEP;
+    if(!video.duration||scanPos>video.duration){
+      scanning=false;
+      // Send final worst to React Native after full scan
+      if(worstSeenTime>0){
+        try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,score:worstScore}));}catch(e){}
+      }
+      // Return video to start so user sees the first frame
+      video.currentTime=0;
+      return;
+    }
+    video.currentTime=scanPos;
+  }
+
   function fmt(t){const s=Math.floor(t);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")}
 
   function sizeWrap(){
@@ -233,25 +263,46 @@ ${videoUri ? `
   function onResults(res){
     busy=false;
     const W=video.videoWidth||640,H=video.videoHeight||360;
-    canvas.width=W;canvas.height=H;
-    ctx.clearRect(0,0,W,H);
     const lm=res.poseLandmarks;
-    if(!lm||!showSkel)return;
-    const v=i=>(lm[i]?.visibility||0)>0.35;
-    const p=i=>({x:lm[i].x*W,y:lm[i].y*H});
 
+    // ── Phase 1: always compute joint risks ─────────────────────────────────
     const jr={};
-    if(v(23)&&v(25)&&v(27)){const a=ang(p(23),p(25),p(27));jr[25]={deg:a,lvl:lvl(a,...KN)};}
-    if(v(24)&&v(26)&&v(28)){const a=ang(p(24),p(26),p(28));jr[26]={deg:a,lvl:lvl(a,...KN)};}
-    if(v(11)&&v(23)&&v(25)){const a=ang(p(11),p(23),p(25));jr[23]={deg:a,lvl:lvl(a,...HIP)};}
-    if(v(12)&&v(24)&&v(26)){const a=ang(p(12),p(24),p(26));jr[24]={deg:a,lvl:lvl(a,...HIP)};}
-    if(v(11)&&v(13)&&v(15)){const a=ang(p(11),p(13),p(15));jr[13]={deg:a,lvl:lvl(a,...ELB)};}
-    if(v(12)&&v(14)&&v(16)){const a=ang(p(12),p(14),p(16));jr[14]={deg:a,lvl:lvl(a,...ELB)};}
+    if(lm){
+      const v=i=>(lm[i]?.visibility||0)>0.35;
+      const p=i=>({x:lm[i].x*W,y:lm[i].y*H});
+      if(v(23)&&v(25)&&v(27)){const a=ang(p(23),p(25),p(27));jr[25]={deg:a,lvl:lvl(a,...KN)};}
+      if(v(24)&&v(26)&&v(28)){const a=ang(p(24),p(26),p(28));jr[26]={deg:a,lvl:lvl(a,...KN)};}
+      if(v(11)&&v(23)&&v(25)){const a=ang(p(11),p(23),p(25));jr[23]={deg:a,lvl:lvl(a,...HIP)};}
+      if(v(12)&&v(24)&&v(26)){const a=ang(p(12),p(24),p(26));jr[24]={deg:a,lvl:lvl(a,...HIP)};}
+      if(v(11)&&v(13)&&v(15)){const a=ang(p(11),p(13),p(15));jr[13]={deg:a,lvl:lvl(a,...ELB)};}
+      if(v(12)&&v(14)&&v(16)){const a=ang(p(12),p(14),p(16));jr[14]={deg:a,lvl:lvl(a,...ELB)};}
+    }
     let maxLvl=0;Object.keys(jr).forEach(k=>{if(jr[k].lvl>maxLvl)maxLvl=jr[k].lvl;});
 
+    // ── Phase 2: track worst frame (always, including during scan) ──────────
+    const frameScore=Object.values(jr).reduce((s,j)=>s+(j.lvl===2?3:j.lvl===1?1:0),0);
+    if(frameScore>0&&frameScore>worstScore){
+      worstScore=frameScore;
+      worstSeenTime=video.currentTime;
+      // Only post live updates during normal playback, not during silent scan
+      if(!scanning){
+        try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,score:worstScore}));}catch(e){}
+      }
+    }
+
+    // ── Phase 3: if scanning, advance to next position — no drawing ─────────
+    if(scanning){advanceScan();return;}
+
+    // ── Phase 4: normal playback — draw skeleton ────────────────────────────
+    canvas.width=W;canvas.height=H;
+    ctx.clearRect(0,0,W,H);
+    if(!lm||!showSkel)return;
+    const v2=i=>(lm[i]?.visibility||0)>0.35;
+    const p2=i=>({x:lm[i].x*W,y:lm[i].y*H});
+
     CONN.forEach(([a,b])=>{
-      if(!v(a)||!v(b))return;
-      const pA=p(a),pB=p(b);
+      if(!v2(a)||!v2(b))return;
+      const pA=p2(a),pB=p2(b);
       const rm=Math.max(jr[a]?jr[a].lvl:-1, jr[b]?jr[b].lvl:-1);
       const col=rm>=1?RL[rm]:LI.has(a)&&LI.has(b)?"#22d3ee":RI.has(a)&&RI.has(b)?"#a78bfa":"rgba(255,255,255,.5)";
       ctx.save();
@@ -263,8 +314,8 @@ ${videoUri ? `
 
     let seen=0;
     KJ.forEach(i=>{
-      if(!v(i))return;seen++;
-      const pt=p(i);
+      if(!v2(i))return;seen++;
+      const pt=p2(i);
       const risk=jr[i];
       const col=risk?RL[risk.lvl]:(LI.has(i)?"#22d3ee":RI.has(i)?"#a78bfa":"#fff");
       const r=risk&&risk.lvl===2?9:risk&&risk.lvl===1?7.5:6.5;
@@ -291,15 +342,6 @@ ${videoUri ? `
       ctx.fillStyle="#fff";ctx.textAlign="center";ctx.textBaseline="middle";
       ctx.fillText(t,W/2,29);
       ctx.restore();
-    }
-
-    // Track worst moment: score = sum of risk levels across all joints
-    // (lvl=2 counts as 3, lvl=1 counts as 1). Only update when strictly worse.
-    const frameScore=Object.values(jr).reduce((s,j)=>s+(j.lvl===2?3:j.lvl===1?1:0),0);
-    if(frameScore>0 && frameScore>worstScore){
-      worstScore=frameScore;
-      worstSeenTime=video.currentTime;
-      try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,score:frameScore}));}catch(e){}
     }
 
     if(Object.keys(jr).length){
@@ -335,12 +377,27 @@ ${videoUri ? `
     sizeWrap();
     try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"meta",vw:video.videoWidth,vh:video.videoHeight,dur:video.duration}));}catch(e){}
   });
-  video.addEventListener("loadeddata",()=>setTimeout(detect,80));
+  video.addEventListener("loadeddata",()=>{
+    // Start silent auto-scan so worst frame is found before user touches anything
+    setTimeout(()=>{
+      if(!video.duration)return;
+      scanning=true;scanPos=0;video.currentTime=0;
+    },150);
+  });
   video.addEventListener("seeked",detect);
   video.addEventListener("timeupdate",()=>{timeL.textContent=fmt(video.currentTime);scrub.value=video.currentTime;});
   video.addEventListener("ended",()=>{playing=false;playBtn.innerHTML="&#9654;";cancelAnimationFrame(raf);});
 
-  function play(){video.play();playing=true;playBtn.innerHTML="&#9646;&#9646;";loop();}
+  function play(){
+    // If scan is still running, stop it and post whatever worst we have so far
+    if(scanning){
+      scanning=false;
+      if(worstSeenTime>0){
+        try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,score:worstScore}));}catch(e){}
+      }
+    }
+    video.play();playing=true;playBtn.innerHTML="&#9646;&#9646;";loop();
+  }
   function pause(){video.pause();playing=false;playBtn.innerHTML="&#9654;";cancelAnimationFrame(raf);}
 
   // Exposed so React Native can seek via injectJavaScript
@@ -421,11 +478,8 @@ export default function SkeletonScreen() {
         return;
       }
       if (msg.type === "worst") {
-        setWorstTime((prev) => {
-          // Keep the worst-risk time; at equal severity, prefer the latest occurrence
-          if (prev === null || msg.lvl > (peak ? 0 : 0)) return msg.time as number;
-          return msg.time as number;
-        });
+        // JS already guarantees this is the highest-scoring frame seen so far
+        setWorstTime(msg.time as number);
         return;
       }
       if (msg.type === "angles") {
