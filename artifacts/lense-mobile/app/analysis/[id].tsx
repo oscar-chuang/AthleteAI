@@ -17,6 +17,25 @@ import { analyses as analysesApi, type AnalysisRecord, type TipRecord, type Risk
 
 const SCORE_KEYS = ["technique", "power", "balance", "consistency", "mobility", "speed"] as const;
 
+const SCORE_META: Record<typeof SCORE_KEYS[number], { icon: React.ComponentProps<typeof Feather>["name"]; desc: string }> = {
+  technique:   { icon: "target",      desc: "How closely your form matches ideal movement patterns for your sport" },
+  power:       { icon: "zap",         desc: "The strength and explosiveness behind your movements" },
+  balance:     { icon: "activity",    desc: "How stable and controlled you are through each movement" },
+  consistency: { icon: "refresh-cw",  desc: "How repeatable your technique is from rep to rep" },
+  mobility:    { icon: "maximize-2",  desc: "Your range of motion and flexibility in key joints" },
+  speed:       { icon: "wind",        desc: "How quickly and efficiently you execute movements" },
+};
+
+const SCORE_BANDS = [
+  { min: 80, label: "Strong",     color: "#22c55e", note: "You're doing this well — keep it up" },
+  { min: 65, label: "On Track",   color: "#6c63ff", note: "Solid foundation, room to grow" },
+  { min: 0,  label: "Focus Here", color: "#f59e0b", note: "Prioritise improving this area" },
+];
+
+function getScoreBand(score: number) {
+  return SCORE_BANDS.find((b) => score >= b.min) ?? SCORE_BANDS[2];
+}
+
 const SEVERITY_CONFIG = {
   info:     { color: "#38bdf8", icon: "info"          as const, label: "Info"     },
   warning:  { color: "#f59e0b", icon: "alert-triangle" as const, label: "Warning"  },
@@ -44,6 +63,7 @@ export default function AnalysisDetailScreen() {
   const [error, setError]           = useState(false);
   const [expandedTip, setExpanded]  = useState<string | null>(null);
   const [activeTab, setActiveTab]   = useState<"scores" | "tips" | "risks">("scores");
+  const [showGuide, setShowGuide]   = useState(false);
 
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 20;
 
@@ -210,19 +230,63 @@ export default function AnalysisDetailScreen() {
             <View style={s.scoresMini}>
               {SCORE_KEYS.map((key) => {
                 const score = scoreForKey(analysis, key);
-                const clr = getScoreColor(score);
+                const band = getScoreBand(score);
                 return (
                   <View key={key} style={s.scoreMiniRow}>
                     <Text style={s.scoreMiniLabel}>{key}</Text>
                     <View style={s.scoreMiniBarBg}>
-                      <View style={[s.scoreMiniBarFill, { width: `${score}%` as any, backgroundColor: clr }]} />
+                      <View style={[s.scoreMiniBarFill, { width: `${score}%` as any, backgroundColor: band.color }]} />
                     </View>
-                    <Text style={s.scoreMiniNum}>{Math.round(score)}</Text>
+                    <Text style={[s.scoreMiniNum, { color: band.color }]}>{Math.round(score)}</Text>
                   </View>
                 );
               })}
             </View>
           </View>
+
+          {/* Score guide toggle */}
+          <TouchableOpacity
+            onPress={() => setShowGuide((v) => !v)}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12, alignSelf: "flex-end" }}
+            activeOpacity={0.7}
+          >
+            <Feather name="info" size={13} color={colors.mutedForeground} />
+            <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+              What do these scores mean?
+            </Text>
+            <Feather name={showGuide ? "chevron-up" : "chevron-down"} size={12} color={colors.mutedForeground} />
+          </TouchableOpacity>
+
+          {showGuide && (
+            <View style={{ marginTop: 12, backgroundColor: colors.muted, borderRadius: 10, padding: 14, gap: 10 }}>
+              {/* Score band key */}
+              <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Score bands</Text>
+              <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                {SCORE_BANDS.map((b) => (
+                  <View key={b.label} style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: b.color }} />
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: b.color }}>{b.label}</Text>
+                    <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>({b.min === 0 ? "<65" : b.min === 65 ? "65–79" : "80–100"}) — {b.note}</Text>
+                  </View>
+                ))}
+              </View>
+              {/* Per-metric explanations */}
+              <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2, marginTop: 4 }}>What each score measures</Text>
+              {SCORE_KEYS.map((key) => {
+                const meta = SCORE_META[key];
+                const band = getScoreBand(scoreForKey(analysis, key));
+                return (
+                  <View key={key} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+                    <Feather name={meta.icon} size={13} color={band.color} style={{ marginTop: 2 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.foreground, textTransform: "capitalize" }}>{key}</Text>
+                      <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular", lineHeight: 16 }}>{meta.desc}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
 
           <TouchableOpacity
             style={{

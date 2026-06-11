@@ -136,7 +136,11 @@ Requirements:
 - 3 performance tips (tipType "performance", severity "info") — each must name the direct performance benefit in everyday terms (e.g. "run faster", "hit harder", "jump higher")
 - 2-3 injury risks naming the specific joint and what could go wrong in plain terms
 - Drills must include sets/reps/duration and be written as clear step-by-step instructions
-- Scores must vary meaningfully from each other
+- Score each metric honestly using these bands:
+  80–100 = Strong (athlete excels here)
+  65–79  = On Track (solid but room to grow)
+  below 65 = Focus Here (needs meaningful work)
+- Scores must vary meaningfully — do NOT cluster everything in the 70s
 - Respond with ONLY the JSON object, nothing else`;
 
   const message = await client.messages.create({
