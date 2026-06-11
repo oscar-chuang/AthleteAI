@@ -208,7 +208,7 @@ ${videoUri ? `
   const skelBtn = document.getElementById("skelBtn");
 
   let busy=false, playing=false, showSkel=true;
-  let worstSeenLvl=0, worstSeenTime=0;
+  let worstScore=0, worstSeenTime=0;
 
   function fmt(t){const s=Math.floor(t);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")}
 
@@ -293,11 +293,13 @@ ${videoUri ? `
       ctx.restore();
     }
 
-    // Track worst moment timestamp
-    if(maxLvl > 0 && (maxLvl > worstSeenLvl || (maxLvl === worstSeenLvl && maxLvl === 2))){
-      if(maxLvl > worstSeenLvl) worstSeenLvl = maxLvl;
-      worstSeenTime = video.currentTime;
-      try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,lvl:maxLvl}));}catch(e){}
+    // Track worst moment: score = sum of risk levels across all joints
+    // (lvl=2 counts as 3, lvl=1 counts as 1). Only update when strictly worse.
+    const frameScore=Object.values(jr).reduce((s,j)=>s+(j.lvl===2?3:j.lvl===1?1:0),0);
+    if(frameScore>0 && frameScore>worstScore){
+      worstScore=frameScore;
+      worstSeenTime=video.currentTime;
+      try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,score:frameScore}));}catch(e){}
     }
 
     if(Object.keys(jr).length){
