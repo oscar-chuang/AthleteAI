@@ -127,6 +127,18 @@ canvas{pointer-events:none}
   background:rgba(4,4,12,.82);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:8px 11px}
 .lg{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:700;color:#c0c0d0;letter-spacing:.3px}
 .ld{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+#personBtn{padding:6px 11px;font-size:11px;font-weight:700;border-radius:9px;cursor:pointer;
+  border:1px solid transparent;transition:all .15s;white-space:nowrap}
+.p-off{background:#1c1c2e;color:#8888aa}
+.p-sel{background:rgba(251,191,36,.18);color:#fbbf24;border-color:rgba(251,191,36,.5);
+  animation:pls .9s ease-in-out infinite}
+@keyframes pls{0%,100%{opacity:1}50%{opacity:.55}}
+.p-lock{background:rgba(251,191,36,.12);color:#fbbf24;border-color:rgba(251,191,36,.32)}
+#selHint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:rgba(4,4,12,.88);border:1px solid rgba(251,191,36,.4);border-radius:14px;
+  padding:12px 20px;text-align:center;pointer-events:none;display:none;z-index:10}
+#selHint p{font-size:13px;font-weight:700;color:#fbbf24;margin-bottom:3px}
+#selHint small{font-size:11px;color:#8888aa}
 </style>
 </head>
 <body>
@@ -139,7 +151,8 @@ canvas{pointer-events:none}
          <div class="lg"><span class="ld" style="background:#22c55e"></span>SAFE</div>
          <div class="lg"><span class="ld" style="background:#f59e0b"></span>CAUTION</div>
          <div class="lg"><span class="ld" style="background:#ef4444"></span>RISK</div>
-       </div>`
+       </div>
+       <div id="selHint"><p>👆 Tap the person to track</p><small>Tap again to cancel</small></div>`
     : `<div id="empty">
          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#3a3a5c" stroke-width="1.5" stroke-linecap="round">
            <rect x="2" y="6" width="20" height="12" rx="2"/><path d="m9 10 5 2-5 2z"/>
@@ -170,6 +183,7 @@ ${videoUri ? `
         <button class="spd on" data-s="1">1×</button>
       </div>
       <button class="tbtn on" id="skelBtn">Skeleton</button>
+      <button class="tbtn p-off" id="personBtn">👤 Select</button>
     </div>
   </div>
 </div>
@@ -206,34 +220,66 @@ ${videoUri ? `
     return 0;
   }
 
-  const video   = document.getElementById("v");
-  const canvas  = document.getElementById("c");
-  const ctx     = canvas.getContext("2d");
-  const loading = document.getElementById("loading");
-  const btxt    = document.getElementById("btxt");
-  const scrub   = document.getElementById("scrub");
-  const timeL   = document.getElementById("timeL");
-  const timeR   = document.getElementById("timeR");
-  const playBtn = document.getElementById("playBtn");
-  const skelBtn = document.getElementById("skelBtn");
+  const video     = document.getElementById("v");
+  const canvas    = document.getElementById("c");
+  const ctx       = canvas.getContext("2d");
+  const loading   = document.getElementById("loading");
+  const btxt      = document.getElementById("btxt");
+  const scrub     = document.getElementById("scrub");
+  const timeL     = document.getElementById("timeL");
+  const timeR     = document.getElementById("timeR");
+  const playBtn   = document.getElementById("playBtn");
+  const skelBtn   = document.getElementById("skelBtn");
+  const personBtn = document.getElementById("personBtn");
+  const selHint   = document.getElementById("selHint");
+  const wrap      = document.getElementById("wrap");
 
   let busy=false, playing=false, showSkel=true;
   let worstScore=0, worstSeenTime=0;
 
-  // Auto-scan: step through video at load time so worst frame is always found
-  // regardless of whether the user plays through the whole clip.
+  // ── Person-select state ───────────────────────────────────────────────────
+  // When personLocked, each frame is cropped to a region around focusNX/focusNY
+  // (normalised 0-1 in video space) before being sent to MediaPipe.
+  // Landmarks are remapped back to full-frame coords so the overlay draws correctly.
+  const CROP_HALF = 0.38;
+  let selectMode=false, personLocked=false;
+  let focusNX=0.5, focusNY=0.5;
+  let cropX0=0, cropY0=0, cropW=0, cropH=0;
+  const offCanvas=document.createElement("canvas");
+  const offCtx=offCanvas.getContext("2d");
+
+  function computeCrop(W,H){
+    const halfW=CROP_HALF*W, halfH=CROP_HALF*H;
+    cropX0=Math.max(0,focusNX*W-halfW);
+    cropY0=Math.max(0,focusNY*H-halfH);
+    const x1=Math.min(W,focusNX*W+halfW);
+    const y1=Math.min(H,focusNY*H+halfH);
+    cropW=x1-cropX0; cropH=y1-cropY0;
+  }
+
+  // Remap landmark coords from cropped-frame space back to full-frame space
+  function remapLm(lm,W,H){
+    if(!personLocked||cropW===0)return lm;
+    return lm.map(p=>({...p,x:(p.x*cropW+cropX0)/W,y:(p.y*cropH+cropY0)/H}));
+  }
+
+  // ── Auto-scan ─────────────────────────────────────────────────────────────
   let scanning=false, scanPos=0;
-  const SCAN_STEP=0.5; // seconds between scan positions
+  const SCAN_STEP=0.5;
+
+  function startScan(){
+    if(scanning||playing||!video.duration)return;
+    worstScore=0; worstSeenTime=0;
+    scanning=true; scanPos=0; video.currentTime=0;
+  }
 
   function advanceScan(){
     scanPos+=SCAN_STEP;
     if(!video.duration||scanPos>video.duration){
       scanning=false;
-      // Send final worst to React Native after full scan
       if(worstSeenTime>0){
         try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,score:worstScore}));}catch(e){}
       }
-      // Return video to start so user sees the first frame
       video.currentTime=0;
       return;
     }
@@ -243,8 +289,8 @@ ${videoUri ? `
   function fmt(t){const s=Math.floor(t);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")}
 
   function sizeWrap(){
-    const ctrlH = document.getElementById("ctrl")?.offsetHeight || 110;
-    document.getElementById("wrap").style.height=(window.innerHeight-ctrlH)+"px";
+    const ctrlH=document.getElementById("ctrl")?.offsetHeight||110;
+    wrap.style.height=(window.innerHeight-ctrlH)+"px";
   }
   window.addEventListener("resize",sizeWrap);
 
@@ -263,7 +309,8 @@ ${videoUri ? `
   function onResults(res){
     busy=false;
     const W=video.videoWidth||640,H=video.videoHeight||360;
-    const lm=res.poseLandmarks;
+    const rawLm=res.poseLandmarks;
+    const lm=rawLm?remapLm(rawLm,W,H):null;
 
     // ── Phase 1: always compute joint risks ─────────────────────────────────
     const jr={};
@@ -279,22 +326,20 @@ ${videoUri ? `
     }
     let maxLvl=0;Object.keys(jr).forEach(k=>{if(jr[k].lvl>maxLvl)maxLvl=jr[k].lvl;});
 
-    // ── Phase 2: track worst frame (always, including during scan) ──────────
+    // ── Phase 2: track worst frame ───────────────────────────────────────────
     const frameScore=Object.values(jr).reduce((s,j)=>s+(j.lvl===2?3:j.lvl===1?1:0),0);
     if(frameScore>0&&frameScore>worstScore){
-      worstScore=frameScore;
-      worstSeenTime=video.currentTime;
-      // Only post live updates during normal playback, not during silent scan
+      worstScore=frameScore; worstSeenTime=video.currentTime;
       if(!scanning){
         try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,score:worstScore}));}catch(e){}
       }
     }
 
-    // ── Phase 3: if scanning, advance to next position — no drawing ─────────
+    // ── Phase 3: if scanning, advance — no drawing ───────────────────────────
     if(scanning){advanceScan();return;}
 
-    // ── Phase 4: normal playback — draw skeleton ────────────────────────────
-    canvas.width=W;canvas.height=H;
+    // ── Phase 4: draw skeleton ───────────────────────────────────────────────
+    canvas.width=W; canvas.height=H;
     ctx.clearRect(0,0,W,H);
     if(!lm||!showSkel)return;
     const v2=i=>(lm[i]?.visibility||0)>0.35;
@@ -303,7 +348,7 @@ ${videoUri ? `
     CONN.forEach(([a,b])=>{
       if(!v2(a)||!v2(b))return;
       const pA=p2(a),pB=p2(b);
-      const rm=Math.max(jr[a]?jr[a].lvl:-1, jr[b]?jr[b].lvl:-1);
+      const rm=Math.max(jr[a]?jr[a].lvl:-1,jr[b]?jr[b].lvl:-1);
       const col=rm>=1?RL[rm]:LI.has(a)&&LI.has(b)?"#22d3ee":RI.has(a)&&RI.has(b)?"#a78bfa":"rgba(255,255,255,.5)";
       ctx.save();
       ctx.strokeStyle=col;ctx.lineWidth=rm>=1?4.5:3.5;ctx.lineCap="round";
@@ -344,6 +389,22 @@ ${videoUri ? `
       ctx.restore();
     }
 
+    // ── Person-lock crop indicator ───────────────────────────────────────────
+    if(personLocked){
+      ctx.save();
+      ctx.strokeStyle="rgba(251,191,36,.7)";
+      ctx.lineWidth=2;
+      ctx.setLineDash([8,4]);
+      ctx.shadowBlur=10;
+      ctx.shadowColor="rgba(251,191,36,.35)";
+      ctx.strokeRect(cropX0+3,cropY0+3,cropW-6,cropH-6);
+      ctx.setLineDash([]);
+      ctx.font="bold 10px -apple-system,sans-serif";
+      ctx.fillStyle="rgba(251,191,36,.85)";
+      ctx.fillText("TRACKING",cropX0+10,cropY0+18);
+      ctx.restore();
+    }
+
     if(Object.keys(jr).length){
       try{
         window.ReactNativeWebView.postMessage(JSON.stringify({type:"angles",
@@ -358,11 +419,7 @@ ${videoUri ? `
   let videoDataReady=false, poseModelReady=false;
   function maybeScan(){
     if(!videoDataReady||!poseModelReady||scanning||playing)return;
-    // Small delay so the model settles after init
-    setTimeout(()=>{
-      if(scanning||playing||!video.duration)return;
-      scanning=true; scanPos=0; video.currentTime=0;
-    },200);
+    setTimeout(()=>{if(!scanning&&!playing&&video.duration)startScan();},200);
   }
 
   const BASE="${MEDIAPIPE_BASE}";
@@ -376,7 +433,20 @@ ${videoUri ? `
     maybeScan();
   }).catch(()=>loading.classList.add("hide"));
 
-  function detect(){if(busy||!video.readyState)return;busy=true;pose.send({image:video}).catch(()=>{busy=false;});}
+  function detect(){
+    if(busy||!video.readyState)return;
+    busy=true;
+    const W=video.videoWidth||640,H=video.videoHeight||360;
+    if(personLocked){
+      computeCrop(W,H);
+      offCanvas.width=cropW; offCanvas.height=cropH;
+      offCtx.drawImage(video,cropX0,cropY0,cropW,cropH,0,0,cropW,cropH);
+      pose.send({image:offCanvas}).catch(()=>{busy=false;});
+    } else {
+      cropX0=0; cropY0=0; cropW=W; cropH=H;
+      pose.send({image:video}).catch(()=>{busy=false;});
+    }
+  }
 
   let raf=0;
   function loop(){if(!playing||video.paused||video.ended)return;detect();raf=requestAnimationFrame(loop);}
@@ -389,28 +459,86 @@ ${videoUri ? `
     sizeWrap();
     try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"meta",vw:video.videoWidth,vh:video.videoHeight,dur:video.duration}));}catch(e){}
   });
-  video.addEventListener("loadeddata",()=>{
-    videoDataReady=true;
-    maybeScan();
-  });
+  video.addEventListener("loadeddata",()=>{videoDataReady=true;maybeScan();});
   video.addEventListener("seeked",detect);
   video.addEventListener("timeupdate",()=>{timeL.textContent=fmt(video.currentTime);scrub.value=video.currentTime;});
   video.addEventListener("ended",()=>{playing=false;playBtn.innerHTML="&#9654;";cancelAnimationFrame(raf);});
 
   function play(){
-    // If scan is still running, stop it and post whatever worst we have so far
     if(scanning){
       scanning=false;
-      if(worstSeenTime>0){
-        try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,score:worstScore}));}catch(e){}
-      }
+      if(worstSeenTime>0){try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,score:worstScore}));}catch(e){}}
     }
     video.play();playing=true;playBtn.innerHTML="&#9646;&#9646;";loop();
   }
   function pause(){video.pause();playing=false;playBtn.innerHTML="&#9654;";cancelAnimationFrame(raf);}
 
-  // Exposed so React Native can seek via injectJavaScript
   window.__seekTo=function(t){pause();video.currentTime=Math.max(0,Math.min(t,video.duration||t));};
+
+  // ── Tap-to-select handler on the video area ──────────────────────────────
+  wrap.addEventListener("click",function(e){
+    if(!selectMode)return;
+    e.stopPropagation();
+
+    // Calculate where in the video (0-1) the tap landed,
+    // accounting for object-fit:contain letterboxing/pillarboxing.
+    const wRect=wrap.getBoundingClientRect();
+    const vAR=(video.videoWidth||640)/(video.videoHeight||360);
+    const cAR=wRect.width/wRect.height;
+    let vLeft,vTop,vWidth,vHeight;
+    if(vAR>cAR){
+      vWidth=wRect.width; vHeight=wRect.width/vAR;
+      vLeft=0; vTop=(wRect.height-vHeight)/2;
+    } else {
+      vHeight=wRect.height; vWidth=wRect.height*vAR;
+      vLeft=(wRect.width-vWidth)/2; vTop=0;
+    }
+    const nx=(e.clientX-wRect.left-vLeft)/vWidth;
+    const ny=(e.clientY-wRect.top -vTop )/vHeight;
+
+    // Clamp so the crop region stays fully inside the frame
+    focusNX=Math.max(CROP_HALF,Math.min(1-CROP_HALF,nx));
+    focusNY=Math.max(CROP_HALF,Math.min(1-CROP_HALF,ny));
+
+    personLocked=true;
+    selectMode=false;
+    wrap.style.cursor="default";
+    selHint.style.display="none";
+    personBtn.textContent="👤 Locked";
+    personBtn.className="tbtn p-lock";
+
+    // Re-scan from the start so worst-frame tracking uses the selected person
+    if(!playing){setTimeout(()=>{if(!scanning)startScan();},100);}
+    // Immediate skeleton update
+    setTimeout(detect,50);
+  });
+
+  // ── Person button ────────────────────────────────────────────────────────
+  personBtn.onclick=()=>{
+    if(personLocked){
+      // Unlock — back to full-frame
+      personLocked=false; selectMode=false;
+      wrap.style.cursor="default";
+      selHint.style.display="none";
+      personBtn.textContent="👤 Select";
+      personBtn.className="tbtn p-off";
+    } else if(selectMode){
+      // Cancel select mode
+      selectMode=false;
+      wrap.style.cursor="default";
+      selHint.style.display="none";
+      personBtn.textContent="👤 Select";
+      personBtn.className="tbtn p-off";
+    } else {
+      // Enter select mode — pause so user can aim
+      if(playing)pause();
+      selectMode=true;
+      wrap.style.cursor="crosshair";
+      selHint.style.display="block";
+      personBtn.textContent="✕ Cancel";
+      personBtn.className="tbtn p-sel";
+    }
+  };
 
   playBtn.onclick=()=>playing?pause():play();
   document.getElementById("bk").onclick=()=>{pause();video.currentTime=Math.max(0,video.currentTime-1/30);};
