@@ -441,6 +441,23 @@ ${videoUri ? `
     const rawLm=res.poseLandmarks;
     const lm=rawLm?remapLm(rawLm,W,H):null;
 
+    // ── Dynamic tracking: shift the crop window to follow the person ──────
+    // After each frame MediaPipe returns landmarks already in full-frame
+    // normalised space (0-1). We compute the torso center and use an
+    // exponential moving average to smoothly chase the person.
+    if(personLocked&&lm){
+      const tj=[11,12,23,24]; // shoulders + hips
+      let sx=0,sy=0,n=0;
+      tj.forEach(i=>{if((lm[i]?.visibility||0)>0.35){sx+=lm[i].x;sy+=lm[i].y;n++;}});
+      // Fall back to any visible joint if torso not visible
+      if(!n) lm.forEach(p=>{if((p.visibility||0)>0.35){sx+=p.x;sy+=p.y;n++;}});
+      if(n){
+        // 55/45 EMA: responsive enough to track fast movement, smooth enough to avoid jitter
+        focusNX=focusNX*0.55+(sx/n)*0.45;
+        focusNY=focusNY*0.55+(sy/n)*0.45;
+      }
+    }
+
     // ── Phase 1: always compute joint risks ───────────────────────────────
     const jr={};
     if(lm){
