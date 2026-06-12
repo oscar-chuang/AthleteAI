@@ -190,16 +190,36 @@ The JSON shape is exactly:
   ]
 }`;
 
+export interface AthleteProfile {
+  name?: string;
+  level?: string;
+  goals?: string[];
+  injuryConcerns?: string[];
+}
+
 export async function analyzeAthletePerformance(
   sport: string,
   title: string,
-  videoUrl?: string | null
+  videoUrl?: string | null,
+  athleteProfile?: AthleteProfile | null
 ): Promise<AIAnalysisResult> {
   const research = getResearch(sport);
   const scoreProfile = getScoreProfile(sport);
 
-  const userPrompt = `Analyze this ${sport} training session titled "${title}"${videoUrl ? ` (video: ${videoUrl})` : ""}.
+  const athleteCtx = athleteProfile
+    ? [
+        athleteProfile.level ? `Athlete level: ${athleteProfile.level}` : null,
+        athleteProfile.goals?.length ? `Goals: ${athleteProfile.goals.join(", ")}` : null,
+        athleteProfile.injuryConcerns?.filter(i => i !== "No current injuries").length
+          ? `Injury concerns: ${athleteProfile.injuryConcerns!.filter(i => i !== "No current injuries").join(", ")}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : null;
 
+  const userPrompt = `Analyze this ${sport} training session titled "${title}"${videoUrl ? ` (video: ${videoUrl})` : ""}.
+${athleteCtx ? `\nAthlete context:\n${athleteCtx}\n` : ""}
 Use these research sources to ground your analysis:
 Injury prevention: ${research.injury}
 Performance/efficiency: ${research.performance}
@@ -208,9 +228,9 @@ Sport-specific scoring profile — use this to produce DIFFERENTIATED scores tha
 ${scoreProfile}
 
 Requirements:
-- Write like a coach talking to an athlete — plain English, short sentences, no jargon
+- Write like a coach talking to this specific athlete — use their level and goals to frame feedback
 - All tips and risks must be SPECIFIC to ${sport} — no generic advice
-- 2 injury tips (tipType "injury", severity "warning" or "critical")
+- 2 injury tips (tipType "injury", severity "warning" or "critical") — prioritize any stated injury concerns
 - 3 performance tips (tipType "performance", severity "info") — each must name the direct performance benefit in everyday terms
 - 2-3 injury risks naming the specific joint and what could go wrong in plain terms
 - Drills must include sets/reps/duration and be written as clear step-by-step instructions

@@ -1,1 +1,2 @@
 - [Expo + Replit routing / preview](expo-replit-routing.md) — Expo Go uses the separate expo-domain (indep. of previewPath/BASE_PATH); Expo dev web assets are root-absolute so it only renders at "/".
+- [API architecture](api-arch.md) — chat route, profile storage, analysis personalization: key decisions worth being consistent with.

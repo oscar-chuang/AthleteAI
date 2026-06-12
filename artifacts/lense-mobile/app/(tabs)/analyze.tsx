@@ -126,6 +126,38 @@ export default function AnalyzeScreen() {
     }
   }
 
+  async function handleRecord() {
+    if (Platform.OS === "web") {
+      Alert.alert("Not available", "Video recording is only available on the mobile app.");
+      return;
+    }
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Allow camera access in Settings to record a clip.");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: "videos",
+        allowsEditing: false,
+        videoMaxDuration: 60,
+        quality: 0.8,
+      });
+
+      if (result.canceled) return;
+      const uri = result.assets[0]?.uri ?? "";
+      if (!uri) return;
+
+      setPendingUri(uri);
+      setPendingTitle("");
+      setSelectedSport(profile?.sport ?? "");
+      setShowSportPicker(true);
+    } catch {
+      Alert.alert("Couldn't record video", "Something went wrong. Please try again.");
+    }
+  }
+
   async function submitAnalysis() {
     if (!selectedSport || !pendingUri) return;
     setShowSportPicker(false);
@@ -177,8 +209,11 @@ export default function AnalyzeScreen() {
     header: { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 20 },
     title: { fontSize: 28, fontFamily: "Inter_700Bold", color: colors.foreground },
     subtitle: { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 4 },
-    uploadBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.primary, borderRadius: colors.radius, paddingVertical: 14, paddingHorizontal: 20, marginHorizontal: 20, marginBottom: 20, justifyContent: "center" },
-    uploadBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+    actionRow: { flexDirection: "row", gap: 10, marginHorizontal: 20, marginBottom: 20 },
+    uploadBtn: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.primary, borderRadius: colors.radius, paddingVertical: 14, paddingHorizontal: 16, justifyContent: "center" },
+    uploadBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
+    recordBtn: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.card, borderRadius: colors.radius, paddingVertical: 14, paddingHorizontal: 16, justifyContent: "center", borderWidth: 1.5, borderColor: colors.primary },
+    recordBtnText: { color: colors.primary, fontSize: 14, fontFamily: "Inter_600SemiBold" },
     card: { backgroundColor: colors.card, borderRadius: colors.radius, marginHorizontal: 20, marginBottom: 12, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
     cardBody: { padding: 16, flexDirection: "row", alignItems: "center", gap: 14 },
     iconBg: { width: 48, height: 48, borderRadius: 12, backgroundColor: colors.primary + "20", alignItems: "center", justifyContent: "center" },
@@ -287,10 +322,16 @@ export default function AnalyzeScreen() {
                 {canUnlimited ? "Unlimited" : `${analysisList.length}/3`} analyses used
               </Text>
             </View>
-            <TouchableOpacity style={s.uploadBtn} onPress={handleUpload} activeOpacity={0.85}>
-              <Feather name="upload" size={18} color="#fff" />
-              <Text style={s.uploadBtnText}>Upload Training Video</Text>
-            </TouchableOpacity>
+            <View style={s.actionRow}>
+              <TouchableOpacity style={s.recordBtn} onPress={handleRecord} activeOpacity={0.85}>
+                <Feather name="video" size={16} color={colors.primary} />
+                <Text style={s.recordBtnText}>Record</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.uploadBtn} onPress={handleUpload} activeOpacity={0.85}>
+                <Feather name="upload" size={16} color="#fff" />
+                <Text style={s.uploadBtnText}>Upload</Text>
+              </TouchableOpacity>
+            </View>
           </>
         }
         ListEmptyComponent={

@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, analysesTable } from "@workspace/db";
+import { db, analysesTable, profilesTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "./auth";
 import { analyzeAthletePerformance, type AIAnalysisResult } from "../lib/anthropic";
@@ -61,7 +61,7 @@ router.post("/analyses", requireAuth, async (req: Request, res: Response) => {
 
   res.status(201).json({ analysis: formatAnalysis(row!) });
 
-  runAIAnalysis(row!.id, sport, title, videoUrl).catch((err) => {
+  runAIAnalysis(row!.id, userId, sport, title, videoUrl).catch((err) => {
     console.error(`AI analysis failed for id=${row!.id}:`, err);
     db.update(analysesTable)
       .set({ status: "failed" })
@@ -72,11 +72,22 @@ router.post("/analyses", requireAuth, async (req: Request, res: Response) => {
 
 async function runAIAnalysis(
   id: number,
+  userId: number,
   sport: string,
   title: string,
   videoUrl?: string
 ) {
-  const result: AIAnalysisResult = await analyzeAthletePerformance(sport, title, videoUrl);
+  const [profileRow] = await db
+    .select()
+    .from(profilesTable)
+    .where(eq(profilesTable.userId, userId))
+    .limit(1);
+
+  const athleteProfile = profileRow
+    ? { name: profileRow.name, level: profileRow.level, goals: profileRow.goals ?? [], injuryConcerns: profileRow.injuryConcerns ?? [] }
+    : null;
+
+  const result: AIAnalysisResult = await analyzeAthletePerformance(sport, title, videoUrl, athleteProfile);
 
   await db.update(analysesTable)
     .set({

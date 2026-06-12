@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { eq } from "drizzle-orm";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, profilesTable } from "@workspace/db";
 import { z } from "zod";
 
 const router: IRouter = Router();
@@ -130,7 +130,28 @@ router.get("/auth/me", async (req: Request, res: Response) => {
     return;
   }
 
-  res.json({ user, profile: null, subscription: null });
+  const [profileRow] = await db
+    .select()
+    .from(profilesTable)
+    .where(eq(profilesTable.userId, user.id))
+    .limit(1);
+
+  const formattedProfile = profileRow
+    ? {
+        id: String(profileRow.id),
+        userId: String(profileRow.userId),
+        name: profileRow.name,
+        sport: profileRow.sport,
+        level: profileRow.level,
+        goals: profileRow.goals ?? [],
+        injuryConcerns: profileRow.injuryConcerns ?? [],
+        weeklyGoal: profileRow.weeklyGoal,
+        weeklyProgress: 0,
+        streakDays: 0,
+      }
+    : null;
+
+  res.json({ user, profile: formattedProfile, subscription: { id: "free", userId: String(user.id), tier: "free", status: "active" } });
 });
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
