@@ -105,7 +105,7 @@ canvas{pointer-events:none}
 .load-text{font-size:14px;font-weight:600}
 .load-sub{font-size:11px;color:#8888aa}
 #ctrl{position:fixed;bottom:0;left:0;right:0;background:rgba(4,4,12,.96);
-  padding:10px 14px 14px;display:flex;flex-direction:column;gap:9px}
+  padding:10px 14px 14px;display:flex;flex-direction:column;gap:8px}
 .row{display:flex;align-items:center;gap:8px}
 #timeL,#timeR{font-size:11px;color:#8888aa;font-variant-numeric:tabular-nums;min-width:32px}
 #timeR{text-align:right}
@@ -117,28 +117,27 @@ canvas{pointer-events:none}
 .step{width:34px;height:34px;font-size:16px}
 #speeds{display:flex;gap:2px;background:#1c1c2e;padding:4px;border-radius:10px}
 .spd{border:none;background:transparent;color:#8888aa;font-size:11px;font-weight:700;
-  padding:4px 9px;border-radius:7px;cursor:pointer;transition:all .15s}
+  padding:4px 8px;border-radius:7px;cursor:pointer;transition:all .15s}
 .spd.on{background:#6c63ff;color:#fff}
-#skelBtn{padding:6px 11px;font-size:11px;font-weight:700;border-radius:9px;cursor:pointer;
-  border:1px solid transparent;transition:all .15s}
+#skelBtn,#personBtn{padding:6px 13px;font-size:12px;font-weight:700;border-radius:9px;
+  cursor:pointer;border:1px solid transparent;transition:all .15s;white-space:nowrap;flex:1}
 #skelBtn.on{background:rgba(34,211,238,.12);color:#22d3ee;border-color:rgba(34,211,238,.28)}
 #skelBtn.off{background:#1c1c2e;color:#8888aa}
 #legend{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:5px;
   background:rgba(4,4,12,.82);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:8px 11px}
 .lg{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:700;color:#c0c0d0;letter-spacing:.3px}
 .ld{width:9px;height:9px;border-radius:50%;flex-shrink:0}
-#personBtn{padding:6px 11px;font-size:11px;font-weight:700;border-radius:9px;cursor:pointer;
-  border:1px solid transparent;transition:all .15s;white-space:nowrap}
 .p-off{background:#1c1c2e;color:#8888aa}
 .p-sel{background:rgba(251,191,36,.18);color:#fbbf24;border-color:rgba(251,191,36,.5);
   animation:pls .9s ease-in-out infinite}
 @keyframes pls{0%,100%{opacity:1}50%{opacity:.55}}
-.p-lock{background:rgba(251,191,36,.12);color:#fbbf24;border-color:rgba(251,191,36,.32)}
-#selHint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  background:rgba(4,4,12,.88);border:1px solid rgba(251,191,36,.4);border-radius:14px;
-  padding:12px 20px;text-align:center;pointer-events:none;display:none;z-index:10}
-#selHint p{font-size:13px;font-weight:700;color:#fbbf24;margin-bottom:3px}
-#selHint small{font-size:11px;color:#8888aa}
+.p-lock{background:rgba(251,191,36,.1);color:#fbbf24;border-color:rgba(251,191,36,.35)}
+#selHint{position:absolute;top:14px;left:50%;transform:translateX(-50%);
+  background:rgba(4,4,12,.9);border:1px solid rgba(251,191,36,.45);border-radius:12px;
+  padding:9px 18px;text-align:center;pointer-events:none;display:none;z-index:10;
+  white-space:nowrap}
+#selHint p{font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:2px}
+#selHint small{font-size:10px;color:#8888aa}
 </style>
 </head>
 <body>
@@ -152,7 +151,7 @@ canvas{pointer-events:none}
          <div class="lg"><span class="ld" style="background:#f59e0b"></span>CAUTION</div>
          <div class="lg"><span class="ld" style="background:#ef4444"></span>RISK</div>
        </div>
-       <div id="selHint"><p>👆 Tap the person to track</p><small>Tap again to cancel</small></div>`
+       <div id="selHint"><p id="shTitle">🔍 Detecting people…</p><small id="shSub">First use downloads ~3 MB</small></div>`
     : `<div id="empty">
          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#3a3a5c" stroke-width="1.5" stroke-linecap="round">
            <rect x="2" y="6" width="20" height="12" rx="2"/><path d="m9 10 5 2-5 2z"/>
@@ -164,27 +163,30 @@ canvas{pointer-events:none}
 
 ${videoUri ? `
 <div id="ctrl">
+  <!-- Row 1: scrubber -->
   <div class="row">
     <span id="timeL">0:00</span>
     <input id="scrub" type="range" min="0" max="100" step="0.1" value="0">
     <span id="timeR">0:00</span>
   </div>
+  <!-- Row 2: playback controls + speed -->
   <div class="row" style="justify-content:space-between">
     <div class="row" style="gap:6px">
       <button class="tbtn step" id="bk">&#9664;</button>
       <button class="tbtn" id="playBtn">&#9654;</button>
       <button class="tbtn step" id="fw">&#9654;&#9654;</button>
     </div>
-    <div class="row" style="gap:6px">
-      <div id="speeds">
-        <button class="spd" data-s="0.1">0.1×</button>
-        <button class="spd" data-s="0.25">0.25×</button>
-        <button class="spd" data-s="0.5">0.5×</button>
-        <button class="spd on" data-s="1">1×</button>
-      </div>
-      <button class="tbtn on" id="skelBtn">Skeleton</button>
-      <button class="tbtn p-off" id="personBtn">👤 Select</button>
+    <div id="speeds">
+      <button class="spd" data-s="0.1">0.1×</button>
+      <button class="spd" data-s="0.25">0.25×</button>
+      <button class="spd" data-s="0.5">0.5×</button>
+      <button class="spd on" data-s="1">1×</button>
     </div>
+  </div>
+  <!-- Row 3: utility buttons — always visible on own row -->
+  <div class="row" style="gap:8px">
+    <button class="tbtn on" id="skelBtn">Skeleton</button>
+    <button class="tbtn p-off" id="personBtn">👤 Select Person</button>
   </div>
 </div>
 ` : ''}
@@ -237,19 +239,26 @@ ${videoUri ? `
   let busy=false, playing=false, showSkel=true;
   let worstScore=0, worstSeenTime=0;
 
-  // ── Person-select state ───────────────────────────────────────────────────
-  // When personLocked, each frame is cropped to a region around focusNX/focusNY
-  // (normalised 0-1 in video space) before being sent to MediaPipe.
-  // Landmarks are remapped back to full-frame coords so the overlay draws correctly.
-  const CROP_HALF = 0.38;
+  // ── Person-select state ────────────────────────────────────────────────────
+  // Strategy: lazy-load COCO-SSD on first tap of "Select Person".
+  // It detects every person in the current frame and draws a colored glow-box
+  // around each one. User taps a box → that person's bbox becomes the crop
+  // region sent to MediaPipe on every frame. Landmarks are remapped back to
+  // full-frame coords so the skeleton overlays correctly.
+  const BOX_COLORS=['#a78bfa','#22d3ee','#f59e0b','#22c55e','#f43f5e'];
   let selectMode=false, personLocked=false;
   let focusNX=0.5, focusNY=0.5;
+  let cropHalfX=0.38, cropHalfY=0.38;
   let cropX0=0, cropY0=0, cropW=0, cropH=0;
+  let lockedColor='#fbbf24';
+  let detectedBoxes=[];  // [{x,y,w,h,color}] in video-pixel space
+  let cocoModel=null, tfLoaded=false;
+
   const offCanvas=document.createElement("canvas");
   const offCtx=offCanvas.getContext("2d");
 
   function computeCrop(W,H){
-    const halfW=CROP_HALF*W, halfH=CROP_HALF*H;
+    const halfW=cropHalfX*W, halfH=cropHalfY*H;
     cropX0=Math.max(0,focusNX*W-halfW);
     cropY0=Math.max(0,focusNY*H-halfH);
     const x1=Math.min(W,focusNX*W+halfW);
@@ -257,13 +266,131 @@ ${videoUri ? `
     cropW=x1-cropX0; cropH=y1-cropY0;
   }
 
-  // Remap landmark coords from cropped-frame space back to full-frame space
   function remapLm(lm,W,H){
     if(!personLocked||cropW===0)return lm;
     return lm.map(p=>({...p,x:(p.x*cropW+cropX0)/W,y:(p.y*cropH+cropY0)/H}));
   }
 
-  // ── Auto-scan ─────────────────────────────────────────────────────────────
+  // Lazy-load TF.js + COCO-SSD scripts only when needed
+  function loadScript(src){
+    return new Promise((res,rej)=>{
+      const s=document.createElement("script");
+      s.src=src; s.crossOrigin="anonymous";
+      s.onload=res; s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  async function ensureTf(){
+    if(tfLoaded)return true;
+    try{
+      await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js");
+      await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
+      tfLoaded=true; return true;
+    }catch(e){return false;}
+  }
+
+  // Map a clientX/Y click to video-pixel coordinates (handles letterboxing)
+  function clickToVideoXY(cx,cy){
+    const wRect=wrap.getBoundingClientRect();
+    const vAR=(video.videoWidth||640)/(video.videoHeight||360);
+    const cAR=wRect.width/wRect.height;
+    let vLeft,vTop,vWidth,vHeight;
+    if(vAR>cAR){
+      vWidth=wRect.width; vHeight=wRect.width/vAR;
+      vLeft=0; vTop=(wRect.height-vHeight)/2;
+    } else {
+      vHeight=wRect.height; vWidth=wRect.height*vAR;
+      vLeft=(wRect.width-vWidth)/2; vTop=0;
+    }
+    return {
+      vx:((cx-wRect.left-vLeft)/vWidth)*(video.videoWidth||640),
+      vy:((cy-wRect.top -vTop )/vHeight)*(video.videoHeight||360)
+    };
+  }
+
+  // Draw colored glow boxes for detected people during select mode
+  function drawDetectionBoxes(){
+    const W=video.videoWidth||640,H=video.videoHeight||360;
+    canvas.width=W; canvas.height=H;
+    ctx.clearRect(0,0,W,H);
+    detectedBoxes.forEach((b,i)=>{
+      ctx.save();
+      ctx.shadowBlur=22; ctx.shadowColor=b.color;
+      ctx.strokeStyle=b.color; ctx.lineWidth=3.5;
+      ctx.globalAlpha=0.92;
+      ctx.strokeRect(b.x+2,b.y+2,b.w-4,b.h-4);
+      // label pill
+      ctx.globalAlpha=1;
+      ctx.fillStyle=b.color;
+      const label="Person "+(i+1);
+      ctx.font="bold 13px -apple-system,sans-serif";
+      const lw=ctx.measureText(label).width+18;
+      ctx.beginPath(); ctx.roundRect(b.x,b.y-30,lw,26,5); ctx.fill();
+      ctx.fillStyle="#07070f"; ctx.textBaseline="middle";
+      ctx.fillText(label,b.x+9,b.y-17);
+      ctx.restore();
+    });
+    if(detectedBoxes.length===0){
+      ctx.save();
+      ctx.font="bold 13px -apple-system,sans-serif";
+      ctx.fillStyle="rgba(251,191,36,.9)"; ctx.textAlign="center";
+      ctx.fillText("No people found — tap anywhere to set focus",W/2,H/2);
+      ctx.restore();
+    }
+  }
+
+  // Run COCO-SSD on the current video frame and show person outlines
+  async function runPersonDetection(){
+    document.getElementById("shTitle").textContent="🔍 Detecting people…";
+    document.getElementById("shSub").textContent="First use ~3 MB download";
+    selHint.style.display="block";
+    const ok=await ensureTf();
+    if(!ok){
+      // TF.js failed to load — fall back to free-tap mode
+      document.getElementById("shTitle").textContent="👆 Tap person to track";
+      document.getElementById("shSub").textContent="";
+      detectedBoxes=[];
+      drawDetectionBoxes();
+      return;
+    }
+    try{
+      if(!cocoModel) cocoModel=await cocoSsd.load({base:"lite_mobilenet_v2"});
+      // Snapshot current frame for detection
+      const snap=document.createElement("canvas");
+      snap.width=video.videoWidth||640; snap.height=video.videoHeight||360;
+      snap.getContext("2d").drawImage(video,0,0,snap.width,snap.height);
+      const preds=await cocoModel.detect(snap);
+      detectedBoxes=preds
+        .filter(p=>p.class==="person"&&p.score>0.35)
+        .map((p,i)=>({x:p.bbox[0],y:p.bbox[1],w:p.bbox[2],h:p.bbox[3],color:BOX_COLORS[i%BOX_COLORS.length]}));
+      drawDetectionBoxes();
+      if(detectedBoxes.length>0){
+        document.getElementById("shTitle").textContent="👆 Tap a person";
+        document.getElementById("shSub").textContent=detectedBoxes.length+" detected";
+      } else {
+        document.getElementById("shTitle").textContent="👆 Tap anywhere to focus";
+        document.getElementById("shSub").textContent="No people auto-detected";
+      }
+    }catch(e){
+      detectedBoxes=[];
+      drawDetectionBoxes();
+      document.getElementById("shTitle").textContent="👆 Tap person to track";
+      document.getElementById("shSub").textContent="";
+    }
+  }
+
+  function cancelSelect(){
+    selectMode=false;
+    detectedBoxes=[];
+    wrap.style.cursor="default";
+    selHint.style.display="none";
+    personBtn.textContent="👤 Select Person";
+    personBtn.className="tbtn p-off";
+    personBtn.style.color="";
+    personBtn.style.borderColor="";
+  }
+
+  // ── Auto-scan ──────────────────────────────────────────────────────────────
   let scanning=false, scanPos=0;
   const SCAN_STEP=0.5;
 
@@ -308,11 +435,13 @@ ${videoUri ? `
 
   function onResults(res){
     busy=false;
+    // If still in select mode, don't overwrite the detection boxes canvas
+    if(selectMode)return;
     const W=video.videoWidth||640,H=video.videoHeight||360;
     const rawLm=res.poseLandmarks;
     const lm=rawLm?remapLm(rawLm,W,H):null;
 
-    // ── Phase 1: always compute joint risks ─────────────────────────────────
+    // ── Phase 1: always compute joint risks ───────────────────────────────
     const jr={};
     if(lm){
       const v=i=>(lm[i]?.visibility||0)>0.35;
@@ -326,7 +455,7 @@ ${videoUri ? `
     }
     let maxLvl=0;Object.keys(jr).forEach(k=>{if(jr[k].lvl>maxLvl)maxLvl=jr[k].lvl;});
 
-    // ── Phase 2: track worst frame ───────────────────────────────────────────
+    // ── Phase 2: track worst frame ─────────────────────────────────────────
     const frameScore=Object.values(jr).reduce((s,j)=>s+(j.lvl===2?3:j.lvl===1?1:0),0);
     if(frameScore>0&&frameScore>worstScore){
       worstScore=frameScore; worstSeenTime=video.currentTime;
@@ -335,10 +464,10 @@ ${videoUri ? `
       }
     }
 
-    // ── Phase 3: if scanning, advance — no drawing ───────────────────────────
+    // ── Phase 3: if scanning, advance — no drawing ─────────────────────────
     if(scanning){advanceScan();return;}
 
-    // ── Phase 4: draw skeleton ───────────────────────────────────────────────
+    // ── Phase 4: draw skeleton ─────────────────────────────────────────────
     canvas.width=W; canvas.height=H;
     ctx.clearRect(0,0,W,H);
     if(!lm||!showSkel)return;
@@ -389,18 +518,16 @@ ${videoUri ? `
       ctx.restore();
     }
 
-    // ── Person-lock crop indicator ───────────────────────────────────────────
+    // ── Locked-person crop indicator ───────────────────────────────────────
     if(personLocked){
       ctx.save();
-      ctx.strokeStyle="rgba(251,191,36,.7)";
-      ctx.lineWidth=2;
-      ctx.setLineDash([8,4]);
-      ctx.shadowBlur=10;
-      ctx.shadowColor="rgba(251,191,36,.35)";
+      ctx.strokeStyle=lockedColor+"b3";
+      ctx.lineWidth=2; ctx.setLineDash([8,4]);
+      ctx.shadowBlur=10; ctx.shadowColor=lockedColor+"66";
       ctx.strokeRect(cropX0+3,cropY0+3,cropW-6,cropH-6);
       ctx.setLineDash([]);
       ctx.font="bold 10px -apple-system,sans-serif";
-      ctx.fillStyle="rgba(251,191,36,.85)";
+      ctx.fillStyle=lockedColor+"dd";
       ctx.fillText("TRACKING",cropX0+10,cropY0+18);
       ctx.restore();
     }
@@ -460,11 +587,12 @@ ${videoUri ? `
     try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"meta",vw:video.videoWidth,vh:video.videoHeight,dur:video.duration}));}catch(e){}
   });
   video.addEventListener("loadeddata",()=>{videoDataReady=true;maybeScan();});
-  video.addEventListener("seeked",detect);
+  video.addEventListener("seeked",()=>{if(!selectMode)detect();});
   video.addEventListener("timeupdate",()=>{timeL.textContent=fmt(video.currentTime);scrub.value=video.currentTime;});
   video.addEventListener("ended",()=>{playing=false;playBtn.innerHTML="&#9654;";cancelAnimationFrame(raf);});
 
   function play(){
+    if(selectMode)cancelSelect();
     if(scanning){
       scanning=false;
       if(worstSeenTime>0){try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,score:worstScore}));}catch(e){}}
@@ -475,75 +603,69 @@ ${videoUri ? `
 
   window.__seekTo=function(t){pause();video.currentTime=Math.max(0,Math.min(t,video.duration||t));};
 
-  // ── Tap-to-select handler on the video area ──────────────────────────────
+  // ── Tap handler: either lock onto a detected person or free-tap ───────────
   wrap.addEventListener("click",function(e){
     if(!selectMode)return;
     e.stopPropagation();
+    const {vx,vy}=clickToVideoXY(e.clientX,e.clientY);
+    const W=video.videoWidth||640,H=video.videoHeight||360;
 
-    // Calculate where in the video (0-1) the tap landed,
-    // accounting for object-fit:contain letterboxing/pillarboxing.
-    const wRect=wrap.getBoundingClientRect();
-    const vAR=(video.videoWidth||640)/(video.videoHeight||360);
-    const cAR=wRect.width/wRect.height;
-    let vLeft,vTop,vWidth,vHeight;
-    if(vAR>cAR){
-      vWidth=wRect.width; vHeight=wRect.width/vAR;
-      vLeft=0; vTop=(wRect.height-vHeight)/2;
+    // Check if tap hit a detected person box
+    const hit=detectedBoxes.find(b=>vx>=b.x&&vx<=b.x+b.w&&vy>=b.y&&vy<=b.y+b.h);
+
+    if(hit){
+      // Use the detected bounding box — crop is proportional to person size (+20% margin)
+      focusNX=(hit.x+hit.w/2)/W;
+      focusNY=(hit.y+hit.h/2)/H;
+      cropHalfX=Math.min(0.55,(hit.w/2/W)*1.25);
+      cropHalfY=Math.min(0.55,(hit.h/2/H)*1.25);
+      lockedColor=hit.color;
+    } else if(detectedBoxes.length===0){
+      // No detection — free-tap fallback
+      focusNX=Math.max(0.28,Math.min(0.72,vx/W));
+      focusNY=Math.max(0.28,Math.min(0.72,vy/H));
+      cropHalfX=0.38; cropHalfY=0.38;
+      lockedColor='#fbbf24';
     } else {
-      vHeight=wRect.height; vWidth=wRect.height*vAR;
-      vLeft=(wRect.width-vWidth)/2; vTop=0;
+      // Tap missed all boxes — ignore
+      return;
     }
-    const nx=(e.clientX-wRect.left-vLeft)/vWidth;
-    const ny=(e.clientY-wRect.top -vTop )/vHeight;
-
-    // Clamp so the crop region stays fully inside the frame
-    focusNX=Math.max(CROP_HALF,Math.min(1-CROP_HALF,nx));
-    focusNY=Math.max(CROP_HALF,Math.min(1-CROP_HALF,ny));
 
     personLocked=true;
     selectMode=false;
+    detectedBoxes=[];
     wrap.style.cursor="default";
     selHint.style.display="none";
     personBtn.textContent="👤 Locked";
     personBtn.className="tbtn p-lock";
+    personBtn.style.color=lockedColor;
+    personBtn.style.borderColor=lockedColor+"55";
 
-    // Re-scan from the start so worst-frame tracking uses the selected person
     if(!playing){setTimeout(()=>{if(!scanning)startScan();},100);}
-    // Immediate skeleton update
     setTimeout(detect,50);
   });
 
-  // ── Person button ────────────────────────────────────────────────────────
+  // ── Person button ──────────────────────────────────────────────────────────
   personBtn.onclick=()=>{
     if(personLocked){
-      // Unlock — back to full-frame
-      personLocked=false; selectMode=false;
-      wrap.style.cursor="default";
-      selHint.style.display="none";
-      personBtn.textContent="👤 Select";
-      personBtn.className="tbtn p-off";
+      personLocked=false; cropHalfX=0.38; cropHalfY=0.38;
+      cancelSelect();
     } else if(selectMode){
-      // Cancel select mode
-      selectMode=false;
-      wrap.style.cursor="default";
-      selHint.style.display="none";
-      personBtn.textContent="👤 Select";
-      personBtn.className="tbtn p-off";
+      cancelSelect();
     } else {
-      // Enter select mode — pause so user can aim
       if(playing)pause();
       selectMode=true;
-      wrap.style.cursor="crosshair";
-      selHint.style.display="block";
       personBtn.textContent="✕ Cancel";
       personBtn.className="tbtn p-sel";
+      personBtn.style.color=""; personBtn.style.borderColor="";
+      runPersonDetection();
     }
   };
 
   playBtn.onclick=()=>playing?pause():play();
   document.getElementById("bk").onclick=()=>{pause();video.currentTime=Math.max(0,video.currentTime-1/30);};
   document.getElementById("fw").onclick=()=>{pause();video.currentTime=Math.min(video.duration||99,video.currentTime+1/30);};
-  scrub.addEventListener("input",e=>{video.currentTime=parseFloat(e.target.value);setTimeout(detect,40);});
+  scrub.addEventListener("input",e=>{video.currentTime=parseFloat(e.target.value);if(!selectMode)setTimeout(detect,40);});
   document.querySelectorAll(".spd").forEach(btn=>{
     btn.onclick=()=>{
       video.playbackRate=parseFloat(btn.dataset.s);
