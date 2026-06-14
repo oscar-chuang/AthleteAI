@@ -26,7 +26,8 @@ import { useAuth, useCanAccessFeature } from "@/lib/authContext";
 const SPORTS = [
   "Weightlifting", "Running", "Basketball", "Golf", "Tennis",
   "Swimming", "CrossFit", "Boxing", "Soccer", "Gymnastics",
-  "Cycling", "Yoga", "Rowing", "Other",
+  "Cycling", "Fencing", "Rowing", "Volleyball", "Baseball",
+  "Wrestling", "Rugby", "Hockey", "Yoga", "Other",
 ];
 
 const SPORT_ACCENT: Record<string, string> = {
@@ -41,8 +42,14 @@ const SPORT_ACCENT: Record<string, string> = {
   soccer:        "#16a34a",
   gymnastics:    "#a855f7",
   cycling:       "#0ea5e9",
-  yoga:          "#ec4899",
+  fencing:       "#a78bfa",
   rowing:        "#14b8a6",
+  volleyball:    "#fbbf24",
+  baseball:      "#60a5fa",
+  wrestling:     "#fb923c",
+  rugby:         "#34d399",
+  hockey:        "#818cf8",
+  yoga:          "#ec4899",
   other:         "#6c63ff",
 };
 

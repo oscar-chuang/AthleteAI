@@ -483,6 +483,19 @@ export default function AnalysisDetailScreen() {
                   </View>
                   {expanded && (
                     <View style={s.tipBody}>
+                      {tip.videoObservation && (
+                        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: colors.primary + "12", borderRadius: 8, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: colors.primary + "33" }}>
+                          <Feather name="eye" size={13} color={colors.primary} style={{ marginTop: 1 }} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 9, color: colors.primary, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>
+                              Observed in your video
+                            </Text>
+                            <Text style={{ fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular", lineHeight: 17 }}>
+                              {tip.videoObservation}
+                            </Text>
+                          </View>
+                        </View>
+                      )}
                       <Text style={s.tipDesc}>{tip.description}</Text>
                       {tip.drill && (
                         <View style={s.drillBox}>

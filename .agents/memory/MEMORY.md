@@ -1,3 +1,2 @@
-- [Mobile tab refresh pattern](tab-refresh.md) — use useFocusEffect instead of useEffect for screens that need live data on every tab visit
-- [Auto-send pending chat](chat-auto-send.md) — setTimeout 500-600ms delay needed before calling sendMessage after focus so history loads first
-- [Pre-existing API TS errors](api-ts-errors.md) — @workspace/db export mismatches are pre-existing; esbuild compiles fine, only tsc typecheck fails
+- [Tips conditional on video data](tips-video-data.md) — tips must be empty [] when no frame AND no joint angles; each tip needs videoObservation field
+- [Expo file-system import](expo-quirks.md) — use expo-file-system/legacy for v19; allAnalyses state needed for 7-day dot activity tracking

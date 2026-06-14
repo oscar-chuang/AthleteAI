@@ -28,6 +28,7 @@ export interface AIAnalysisResult {
     category: string;
     severity: "info" | "warning" | "critical";
     title: string;
+    videoObservation?: string;
     description: string;
     drill?: string;
     source?: string;
@@ -190,11 +191,8 @@ The JSON shape is exactly:
   "strengths": ["string", "string", "string"],
   "improvements": ["string", "string", "string"],
   "tips": [
-    { "tipType": "injury", "category": "Injury Prevention", "severity": "warning", "title": "string", "description": "string", "drill": "string", "source": "Author et al. (Year, Journal Abbrev)" },
-    { "tipType": "injury", "category": "Injury Prevention", "severity": "warning", "title": "string", "description": "string", "drill": "string", "source": "Author et al. (Year, Journal Abbrev)" },
-    { "tipType": "performance", "category": "Efficiency", "severity": "info", "title": "string", "description": "string", "drill": "string", "source": "Author et al. (Year, Journal Abbrev)" },
-    { "tipType": "performance", "category": "Form", "severity": "info", "title": "string", "description": "string", "drill": "string", "source": "Author et al. (Year, Journal Abbrev)" },
-    { "tipType": "performance", "category": "Strength", "severity": "info", "title": "string", "description": "string", "drill": "string", "source": "Author et al. (Year, Journal Abbrev)" }
+    // VARIABLE LENGTH: 0 to 5 tips. Include a tip ONLY when you have a specific visual observation from the image OR a specific measured joint angle to reference. Generic sport advice with no personal observation is forbidden. An empty array [] is the correct output when no specific data is available.
+    // Format for each tip: { "tipType": "injury" or "performance", "category": "string", "severity": "info" or "warning" or "critical", "title": "string", "videoObservation": "EXACT thing you saw or measured — e.g. left knee at 138 deg HIGH RISK, or heel visibly raised at squat depth, or shoulder noticeably higher than contralateral side", "description": "plain-English explanation max 2 sentences", "drill": "step-by-step drill with sets, reps, duration", "source": "Author et al. (Year, Journal Abbrev)" }
   ],
   "injuryRisks": [
     { "joint": "string", "riskPercent": <8-45>, "description": "string", "prevention": "string" },
@@ -306,6 +304,8 @@ export async function analyzeAthletePerformance(
   const angleSection = jointAngles ? formatJointAngles(jointAngles, jointRisks ?? {}) : "";
 
   const hasFrame = !!frameBase64;
+  const hasJointAngles = !!(jointAngles && Object.values(jointAngles as Record<string, unknown>).some(v => v != null));
+  const hasData = hasFrame || hasJointAngles;
   const frameNote = hasFrame
     ? `The image above is the highest-risk frame captured during the biomechanics scan. Use what you SPECIFICALLY OBSERVE in this image — body position, alignment, posture, joint angles visible to the eye, symmetry — as the primary basis for your tips. Do not give generic ${sport} advice; every tip must reference something you can see or measure.`
     : `No video frame is available. Base your analysis on the joint angle measurements and sport context below.`;
@@ -334,10 +334,17 @@ ${hasFrame
 
 Requirements:
 - Write like a sharp, direct coach — plain language, no jargon, short sentences
-- 2 injury tips (tipType "injury", severity "warning" or "critical")
-- 3 performance tips (tipType "performance", severity "info")
-- Each tip must include a "source" field: pick the single most specific citation from the research list above (format: "Author et al. (Year, Abbrev Journal)"). Only cite authors listed in the research — do NOT invent citations
-- 2-3 injury risks: name the exact joint and describe the specific failure mode you see or measure
+${hasData
+  ? `- Tips: generate between 0 and 5 tips based ONLY on specific observations from ${hasFrame ? "the video frame above" : "the measured joint angles"}
+- CRITICAL: each tip MUST have "videoObservation" — state EXACTLY what you saw or measured (e.g. "left knee at 142°, HIGH RISK flag" or "right heel visibly elevated off ground at squat depth" or "shoulder line noticeably asymmetric — left 4cm higher"). Tips without this specific grounding must be omitted entirely
+- If you observe fewer than 5 legitimate issues, include fewer tips. Accuracy over quantity. An empty tips array is the correct response when you cannot ground a tip in a specific observation
+- Up to 2 injury tips (tipType "injury", severity "warning" or "critical") grounded in what you observed or measured
+- Up to 3 performance tips (tipType "performance", severity "info") grounded in what you observed or measured
+- Each tip MUST include "source": the most specific citation from the research list above. Do NOT invent authors or journals
+- 2-3 injury risks: name EXACT joints from what you observed or measured, describe the specific failure mode`
+  : `- "tips" MUST be an empty array — no video frame or joint angle measurements are available for this session, so no personal tips can be generated. Do not invent generic advice
+- 1 injury risk only: describe the single most common injury site in ${sport} at the recreational level. Keep riskPercent between 12-22% and note it is a general sport risk, not a personal observation`
+}
 - Drills: step-by-step, include sets/reps/duration
 - Score bands: 80–100 Strong · 65–79 On Track · <65 Focus Here
 - Scores must vary meaningfully — do NOT cluster in the 70s

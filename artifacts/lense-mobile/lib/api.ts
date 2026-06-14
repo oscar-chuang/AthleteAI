@@ -176,6 +176,7 @@ export interface TipRecord {
   category: string;
   severity: string;
   title: string;
+  videoObservation?: string;
   description: string;
   drill?: string;
   source?: string;
