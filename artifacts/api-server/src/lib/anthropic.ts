@@ -239,6 +239,34 @@ Use these ACTUAL measurements to drive your scoring — they are real numbers fr
 - If ANY joint is HIGH RISK, the overall injury risks section must name that joint specifically`;
 }
 
+export async function detectSportFromFrame(imageBase64: string): Promise<string> {
+  const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
+  const message = await client.messages.create({
+    model: "claude-opus-4-5",
+    max_tokens: 20,
+    messages: [{
+      role: "user",
+      content: [
+        {
+          type: "image",
+          source: { type: "base64", media_type: "image/jpeg", data: base64Data },
+        },
+        {
+          type: "text",
+          text: 'What sport is being performed in this image? Reply with ONLY a single sport name in lowercase (e.g. "fencing", "tennis", "basketball", "running", "weightlifting", "swimming", "gymnastics", "wrestling", "boxing", "golf", "cycling", "soccer", "volleyball", "baseball", "badminton", "rowing", "rugby", "lacrosse", "hockey"). If you cannot clearly identify a sport, reply "unknown". No other text.',
+        },
+      ],
+    }],
+  });
+  const raw = message.content
+    .filter((b) => b.type === "text")
+    .map((b) => (b as { type: "text"; text: string }).text)
+    .join("")
+    .trim()
+    .toLowerCase();
+  return raw.replace(/[^a-z\s]/g, "").trim() || "unknown";
+}
+
 export async function analyzeAthletePerformance(
   sport: string,
   title: string,

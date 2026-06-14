@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { db, analysesTable, profilesTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "./auth";
-import { analyzeAthletePerformance, type AIAnalysisResult } from "../lib/anthropic";
+import { analyzeAthletePerformance, detectSportFromFrame, type AIAnalysisResult } from "../lib/anthropic";
 
 const router: IRouter = Router();
 
@@ -110,6 +110,18 @@ async function runAIAnalysis(
 
   console.log(`AI analysis complete for id=${id} (${sport}: ${title})`);
 }
+
+router.post("/analyses/detect-sport", requireAuth, async (req: Request, res: Response) => {
+  const { imageBase64 } = req.body as { imageBase64?: string };
+  if (!imageBase64) { res.status(400).json({ error: "imageBase64 required" }); return; }
+  try {
+    const sport = await detectSportFromFrame(imageBase64);
+    res.json({ sport });
+  } catch (err) {
+    console.error("Sport detection failed:", err);
+    res.json({ sport: "unknown" });
+  }
+});
 
 router.get("/analyses/:id", requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).userId as number;

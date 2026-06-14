@@ -222,6 +222,12 @@ export const analyses = {
 
   delete: (id: string) =>
     request<{ success: boolean }>(`/analyses/${id}`, { method: "DELETE" }),
+
+  detectSport: (imageBase64: string) =>
+    request<{ sport: string }>("/analyses/detect-sport", {
+      method: "POST",
+      body: JSON.stringify({ imageBase64 }),
+    }),
 };
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────

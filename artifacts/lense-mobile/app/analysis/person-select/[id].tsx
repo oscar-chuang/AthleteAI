@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -16,39 +16,7 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 
-import { useColors } from "@/hooks/useColors";
 import { analyses as analysesApi } from "@/lib/api";
-
-// COCO-SSD equipment → sport slug. Only sports where COCO-SSD has class coverage.
-// Fencing, gymnastics, martial arts, wrestling etc. have NO detectable equipment.
-const EQUIPMENT_SPORT: Record<string, string> = {
-  "tennis racket": "tennis",
-  "baseball bat": "baseball",
-  "baseball glove": "baseball",
-  "skis": "skiing",
-  "snowboard": "skiing",
-  "surfboard": "swimming",
-  "skateboard": "other",
-  "bicycle": "cycling",
-};
-const EQUIPMENT_LABEL: Record<string, string> = {
-  "tennis racket": "tennis",
-  "baseball bat": "baseball",
-  "baseball glove": "baseball",
-  "skis": "skiing",
-  "snowboard": "snowboarding",
-  "surfboard": "surfing",
-  "skateboard": "skateboarding",
-  "bicycle": "cycling",
-};
-
-// Sports whose equipment COCO-SSD CAN detect (used to explain when it can't check)
-const DETECTABLE_SPORTS = new Set(Object.values(EQUIPMENT_SPORT));
-
-interface PersonBox {
-  nx: number; ny: number; nw: number; nh: number;
-  color: string;
-}
 
 function buildPersonSelectHtml(videoUri: string): string {
   return `<!DOCTYPE html>
@@ -83,7 +51,7 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
   const cv=document.getElementById('cv');
   const ctx=cv.getContext('2d');
   const st=document.getElementById('st');
-  let persons=[], equipment=[], tfLoaded=false, model=null;
+  let persons=[], tfLoaded=false, model=null;
   let vW=640,vH=360, selIdx=-1;
 
   function post(o){try{window.ReactNativeWebView.postMessage(JSON.stringify(o));}catch(e){}}
@@ -104,9 +72,6 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
     if(!persons.length)return;
     const r=videoRect();
     persons.forEach((p,i)=>{
-      const dx=r.l+p.nx*vW/vW*r.w, dy=r.t+p.ny*vH/vH*r.h;
-      const dw=p.nw*vW/vW*r.w, dh=p.nh*vH/vH*r.h;
-      // normalize: dx = r.l + p.nx * r.w
       const x=r.l+p.nx*r.w, y=r.t+p.ny*r.h, w=p.nw*r.w, h=p.nh*r.h;
       const sel=i===selIdx;
       ctx.save();
@@ -130,7 +95,6 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
     const rect=cv.getBoundingClientRect();
     const cx=e.clientX-rect.left, cy=e.clientY-rect.top;
     const r=videoRect();
-    // map canvas click → normalized coords
     const nx=(cx-r.l)/r.w, ny=(cy-r.t)/r.h;
     let hit=-1;
     for(let i=0;i<persons.length;i++){
@@ -161,24 +125,33 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
         tfLoaded=true;
       }
       if(!model) model=await cocoSsd.load({base:'lite_mobilenet_v2'});
+
+      // Capture frame for both person detection and sport identification
       const snap=document.createElement('canvas');
       snap.width=vW; snap.height=vH;
       snap.getContext('2d').drawImage(v,0,0,vW,vH);
+
+      // Send frame to React Native so Claude can identify the sport
+      try{
+        const frameData=snap.toDataURL('image/jpeg',0.5);
+        post({type:'frame',imageBase64:frameData});
+      }catch(e){}
+
       const preds=await model.detect(snap);
       persons=preds
         .filter(p=>p.class==='person'&&p.score>0.3)
         .map((p,i)=>({nx:p.bbox[0]/vW,ny:p.bbox[1]/vH,nw:p.bbox[2]/vW,nh:p.bbox[3]/vH,color:COLORS[i%COLORS.length]}));
-      equipment=preds.filter(p=>p.class!=='person'&&p.score>0.35).map(p=>p.class);
+
       draw();
       if(persons.length===1){
         selIdx=0; draw();
         post({type:'personSelected',nx:persons[0].nx,ny:persons[0].ny,nw:persons[0].nw,nh:persons[0].nh,index:0,autoSelected:true});
       }
-      post({type:'ready',personCount:persons.length,equipment});
+      post({type:'ready',personCount:persons.length});
       st.textContent=persons.length===0?'No people detected':persons.length===1?'1 person found ✓':persons.length+' people — tap one';
     }catch(e){
       st.textContent='Detection unavailable';
-      post({type:'ready',personCount:0,equipment:[],error:true});
+      post({type:'ready',personCount:0,error:true});
     }
   }
 
@@ -186,10 +159,10 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
     vW=v.videoWidth||640; vH=v.videoHeight||360;
     v.currentTime=Math.min(1.5,v.duration||1.5);
   });
-  v.addEventListener('seeked',function(){resize();detect();},{ once:true });
+  v.addEventListener('seeked',function(){resize();detect();},{once:true});
   v.addEventListener('error',function(){
     st.textContent='Video load error';
-    post({type:'ready',personCount:0,equipment:[],error:true});
+    post({type:'ready',personCount:0,error:true});
   });
   v.load();
 })();
@@ -200,14 +173,34 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
+// Normalize sport name for comparison (strip spaces, dashes, underscores)
+function normalizeSport(s: string): string {
+  return s.toLowerCase().replace(/[\s_\-]+/g, "").replace(/[^a-z]/g, "");
+}
+
+// Some sports Claude might name slightly differently than our stored slugs
+const SPORT_ALIASES: Record<string, string[]> = {
+  soccer: ["football"],
+  football: ["soccer"],
+  weightlifting: ["olympiclifting", "weightlifting"],
+  volleyball: ["beachvolleyball", "volleyballbeach"],
+};
+
+function sportsMatch(detected: string, selected: string): boolean {
+  const d = normalizeSport(detected);
+  const s = normalizeSport(selected);
+  if (d === s) return true;
+  const aliases = SPORT_ALIASES[d] ?? [];
+  return aliases.includes(s);
+}
+
 export default function PersonSelectScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
   const [videoUri, setVideoUri] = useState<string | null>(null);
-  const [videoChecked, setVideoChecked] = useState(false); // AsyncStorage lookup done?
+  const [videoChecked, setVideoChecked] = useState(false);
   const [sport, setSport] = useState("");
   const [htmlFileUri, setHtmlFileUri] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(true);
@@ -215,34 +208,34 @@ export default function PersonSelectScreen() {
   const [personCount, setPersonCount] = useState<number | null>(null);
   const [selected, setSelected] = useState<{ nx: number; ny: number; nw: number; nh: number } | null>(null);
   const [autoSelected, setAutoSelected] = useState(false);
+
+  // Claude sport detection
+  const [sportChecking, setSportChecking] = useState(false);
   const [mismatch, setMismatch] = useState<string | null>(null);
   const [mismatchDismissed, setMismatchDismissed] = useState(false);
-  const [detectionUnavailable, setDetectionUnavailable] = useState(false);
+
+  const [detectionError, setDetectionError] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  // Step 1: load the analysis + video URI from AsyncStorage
+  // Load video URI + analysis sport from AsyncStorage & API
   useEffect(() => {
     if (!id) return;
     Promise.all([
       AsyncStorage.getItem(`video_uri_${id}`),
       analysesApi.get(id).catch(() => null),
     ]).then(([uri, result]) => {
-      setVideoUri(uri); // null if not found
+      setVideoUri(uri);
       setVideoChecked(true);
       setSport(result?.analysis?.sport ?? "");
     });
   }, [id]);
 
-  // Step 2: once we know the video URI, build the detection HTML
+  // Build detection WebView HTML once video URI is known
   useEffect(() => {
-    if (!videoChecked) return; // still waiting for AsyncStorage
-    if (!videoUri) {
-      // No local video stored (older session) — skip detection
-      setPreparing(false);
-      return;
-    }
+    if (!videoChecked) return;
+    if (!videoUri) { setPreparing(false); return; }
 
     let cancelled = false;
     setPreparing(true);
@@ -253,11 +246,9 @@ export default function PersonSelectScreen() {
         const cacheDir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory ?? "";
         const ext = (videoUri.split(".").pop() ?? "mp4").split(/[?#]/)[0]!;
         const localVideo = cacheDir + "select-video." + ext;
-        try { await FileSystem.copyAsync({ from: videoUri, to: localVideo }); }
-        catch { /* content:// URIs may work directly */ }
-        const resolvedVideo = localVideo;
+        try { await FileSystem.copyAsync({ from: videoUri, to: localVideo }); } catch { /* use original */ }
         const htmlPath = cacheDir + "person-select.html";
-        await FileSystem.writeAsStringAsync(htmlPath, buildPersonSelectHtml(resolvedVideo), {
+        await FileSystem.writeAsStringAsync(htmlPath, buildPersonSelectHtml(localVideo || videoUri), {
           encoding: FileSystem.EncodingType.UTF8,
         });
         if (!cancelled) { setHtmlFileUri(htmlPath); setPreparing(false); }
@@ -269,52 +260,81 @@ export default function PersonSelectScreen() {
     return () => { cancelled = true; };
   }, [videoUri, videoChecked]);
 
+  // Handle messages from the WebView
   const handleMessage = useCallback((event: { nativeEvent: { data: string } }) => {
     try {
       const msg = JSON.parse(event.nativeEvent.data);
 
       if (msg.type === "ready") {
         setPersonCount(msg.personCount ?? 0);
-        if (msg.error) { setDetectionUnavailable(true); return; }
-
-        // Sport mismatch: only flag if COCO-SSD can detect this sport's equipment
-        const equipment: string[] = msg.equipment ?? [];
-        let detectedSport: string | null = null;
-        let matchingEquipment = "";
-        for (const eq of equipment) {
-          if (EQUIPMENT_SPORT[eq]) {
-            detectedSport = EQUIPMENT_SPORT[eq]!;
-            matchingEquipment = eq;
-            break;
-          }
-        }
-        if (detectedSport && sport && detectedSport !== sport.toLowerCase()) {
-          setMismatch(
-            `${EQUIPMENT_LABEL[matchingEquipment] ?? detectedSport} equipment detected, ` +
-            `but sport is set to "${sport}". Double-check your sport selection — it affects scoring.`
-          );
-        }
+        if (msg.error) setDetectionError(true);
         return;
       }
 
       if (msg.type === "personSelected") {
         setSelected({ nx: msg.nx, ny: msg.ny, nw: msg.nw, nh: msg.nh });
         if (msg.autoSelected) setAutoSelected(true);
+        return;
+      }
+
+      // Frame captured — ask Claude what sport this is
+      if (msg.type === "frame" && msg.imageBase64 && sport) {
+        setSportChecking(true);
+        analysesApi.detectSport(msg.imageBase64)
+          .then(({ sport: detected }) => {
+            setSportChecking(false);
+            if (!detected || detected === "unknown") return;
+            if (!sportsMatch(detected, sport)) {
+              setMismatch(
+                `Claude sees "${detected}" in your video, but this session is set to "${sport}". ` +
+                `If that's wrong, go back and update your sport — it affects how scores are calculated.`
+              );
+            }
+          })
+          .catch(() => setSportChecking(false));
       }
     } catch {}
   }, [sport]);
 
   function proceedToSkeleton(crop?: { nx: number; ny: number; nw: number; nh: number }) {
+    const base = `/analysis/skeleton/${id}`;
     if (crop) {
       router.replace(
-        `/analysis/skeleton/${id}?nx=${crop.nx.toFixed(4)}&ny=${crop.ny.toFixed(4)}&nw=${crop.nw.toFixed(4)}&nh=${crop.nh.toFixed(4)}` as any
+        `${base}?nx=${crop.nx.toFixed(4)}&ny=${crop.ny.toFixed(4)}&nw=${crop.nw.toFixed(4)}&nh=${crop.nh.toFixed(4)}` as any
       );
     } else {
-      router.replace(`/analysis/skeleton/${id}` as any);
+      router.replace(base as any);
     }
   }
 
   const videoH = Math.round(SCREEN_W / (16 / 9));
+  const noVideo = videoChecked && !videoUri;
+  const showWebView = !preparing && !!htmlFileUri;
+  const canProceed = videoChecked && (!videoUri || !preparing);
+
+  const statusDotColor =
+    personCount === null ? "#55556e" :
+    personCount === 0    ? "#f59e0b" :
+    "#22c55e";
+
+  const statusLabel =
+    personCount === null ? "Scanning frame…" :
+    personCount === 0    ? "No people detected — will auto-track" :
+    personCount === 1    ? "1 person found — ready" :
+    `${personCount} people — tap one to select`;
+
+  const helpText =
+    detectionError     ? "Detection failed (no network?). Tap Proceed to track manually in the overlay." :
+    personCount === null ? "COCO-SSD is scanning for people…" :
+    personCount === 0    ? "We'll focus on the most prominent person in frame." :
+    personCount === 1    ? "Tap Analyze to start. We'll track this person throughout." :
+    "Tap the person you want scored.";
+
+  const buttonLabel =
+    noVideo          ? "Open Skeleton Overlay" :
+    !selected        ? "Proceed (Auto-track)" :
+    autoSelected     ? "Analyze This Person" :
+    "Analyze Selected Person";
 
   const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: "#07070f" },
@@ -348,6 +368,20 @@ export default function PersonSelectScreen() {
       fontSize: 12, color: "#55556e", fontFamily: "Inter_400Regular",
       paddingHorizontal: 20, marginTop: 5, lineHeight: 17,
     },
+    claudeRow: {
+      flexDirection: "row", alignItems: "center", gap: 8,
+      marginHorizontal: 20, marginTop: 10, padding: 10,
+      backgroundColor: "rgba(108,99,255,.08)", borderRadius: 10,
+      borderWidth: 1, borderColor: "rgba(108,99,255,.15)",
+    },
+    claudeText: { fontSize: 12, color: "#8888aa", fontFamily: "Inter_400Regular" },
+    mismatchCard: {
+      flexDirection: "row", alignItems: "flex-start", gap: 8,
+      marginHorizontal: 20, marginTop: 10, padding: 12,
+      backgroundColor: "#f59e0b18", borderRadius: 10,
+      borderWidth: 1, borderColor: "#f59e0b44",
+    },
+    mismatchText: { flex: 1, fontSize: 12, color: "#f59e0b", fontFamily: "Inter_400Regular", lineHeight: 17 },
     noVideoCard: {
       margin: 20, padding: 20,
       backgroundColor: "rgba(255,255,255,.04)", borderRadius: 14,
@@ -356,20 +390,6 @@ export default function PersonSelectScreen() {
     },
     noVideoTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#e8e8f5", textAlign: "center" },
     noVideoBody: { fontSize: 13, color: "#55556e", fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18 },
-    noDetectNote: {
-      flexDirection: "row", alignItems: "flex-start", gap: 8,
-      marginHorizontal: 20, marginTop: 10,
-      backgroundColor: "rgba(108,99,255,.08)", borderRadius: 10, padding: 12,
-      borderWidth: 1, borderColor: "rgba(108,99,255,.2)",
-    },
-    noDetectText: { flex: 1, fontSize: 12, color: "#8888aa", fontFamily: "Inter_400Regular", lineHeight: 17 },
-    mismatchCard: {
-      flexDirection: "row", alignItems: "flex-start", gap: 8,
-      marginHorizontal: 20, marginTop: 10, padding: 12,
-      backgroundColor: "#f59e0b18", borderRadius: 10,
-      borderWidth: 1, borderColor: "#f59e0b44",
-    },
-    mismatchText: { flex: 1, fontSize: 12, color: "#f59e0b", fontFamily: "Inter_400Regular", lineHeight: 17 },
     buttons: { padding: 20, paddingTop: 14, gap: 10 },
     primaryBtn: {
       backgroundColor: "#6c63ff", borderRadius: 14,
@@ -380,37 +400,6 @@ export default function PersonSelectScreen() {
     skipBtn: { alignItems: "center", paddingVertical: 8 },
     skipText: { color: "#44445a", fontFamily: "Inter_400Regular", fontSize: 13 },
   });
-
-  const noVideo = videoChecked && !videoUri;
-  const showWebView = !preparing && !!htmlFileUri;
-
-  const statusDotColor =
-    personCount === null ? "#55556e" :
-    personCount === 0    ? "#f59e0b" :
-    "#22c55e";
-
-  const statusLabel =
-    personCount === null ? "Detecting people…" :
-    personCount === 0    ? "No people detected — will auto-track" :
-    personCount === 1    ? "1 person found — ready" :
-    `${personCount} people — tap one to select`;
-
-  const helpLabel =
-    detectionUnavailable ? "Detection failed (no network?). Tap Proceed to use the skeleton overlay manually." :
-    personCount === null  ? "COCO-SSD is scanning the frame…" :
-    personCount === 0     ? "We'll focus on whoever is most prominent in the frame." :
-    personCount === 1     ? "Tap Analyze to start. We'll track this person throughout the video." :
-    "Tap the person you want scored. Their joint angles will drive the AI scores.";
-
-  // Explain why sport mismatch can't be checked for this sport
-  const sportNotDetectable = sport && !DETECTABLE_SPORTS.has(sport.toLowerCase());
-
-  const buttonLabel =
-    !selected               ? "Proceed (Auto-track)" :
-    autoSelected            ? "Analyze This Person" :
-    "Analyze Selected Person";
-
-  const canProceed = videoChecked && (!videoUri || !preparing);
 
   return (
     <View style={s.root}>
@@ -442,7 +431,6 @@ export default function PersonSelectScreen() {
             </Text>
           </View>
         ) : noVideo ? (
-          /* No video stored — explain & let user proceed */
           <View style={s.videoSlot}>
             <Feather name="video-off" size={36} color="#33334a" />
           </View>
@@ -475,37 +463,32 @@ export default function PersonSelectScreen() {
             <Feather name="info" size={22} color="#55556e" />
             <Text style={s.noVideoTitle}>No video found for this session</Text>
             <Text style={s.noVideoBody}>
-              This session was analyzed without a locally stored video, so person detection
-              isn't available. You can still open the skeleton overlay manually — tap the
-              person once it's playing.
+              This session was analyzed without a locally stored video. You can still open
+              the skeleton overlay and tap the person once it's playing.
             </Text>
           </View>
         )}
 
-        {/* Detection status */}
+        {/* Person detection status */}
         {showWebView && (
           <>
             <View style={s.statusRow}>
               <View style={[s.statusDot, { backgroundColor: statusDotColor }]} />
               <Text style={s.statusText}>{statusLabel}</Text>
             </View>
-            <Text style={s.helpText}>{helpLabel}</Text>
+            <Text style={s.helpText}>{helpText}</Text>
           </>
         )}
 
-        {/* Sport can't be auto-checked note */}
-        {showWebView && sportNotDetectable && personCount !== null && !mismatch && (
-          <View style={s.noDetectNote}>
-            <Feather name="info" size={13} color="#8888aa" style={{ marginTop: 1 }} />
-            <Text style={s.noDetectText}>
-              Sport mismatch auto-detection only works for sports with visible equipment
-              (tennis, baseball, skiing, cycling, etc.). For <Text style={{ color: "#c0c0d8" }}>{sport}</Text>, make sure
-              you've selected the right sport before scoring.
-            </Text>
+        {/* Claude sport check — loading */}
+        {showWebView && sportChecking && (
+          <View style={s.claudeRow}>
+            <ActivityIndicator size="small" color="#a78bfa" />
+            <Text style={s.claudeText}>Claude is checking the sport in your video…</Text>
           </View>
         )}
 
-        {/* Sport mismatch warning */}
+        {/* Sport mismatch warning from Claude */}
         {mismatch && !mismatchDismissed && (
           <View style={s.mismatchCard}>
             <Feather name="alert-triangle" size={14} color="#f59e0b" style={{ marginTop: 2 }} />
@@ -525,7 +508,7 @@ export default function PersonSelectScreen() {
             disabled={!canProceed}
           >
             <Feather name="user-check" size={17} color="#fff" />
-            <Text style={s.primaryBtnText}>{noVideo ? "Open Skeleton Overlay" : buttonLabel}</Text>
+            <Text style={s.primaryBtnText}>{buttonLabel}</Text>
           </TouchableOpacity>
 
           {!noVideo && (
