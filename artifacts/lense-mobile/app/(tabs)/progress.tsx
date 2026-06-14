@@ -390,6 +390,10 @@ export default function ProgressScreen() {
               const score = entry.overallScore;
               const scoreColor = getScoreColor(score, colors);
               const iconName = (SPORT_ICONS[entry.sport] ?? SPORT_ICONS.default) as any;
+              const isPB = Boolean(
+                personalBests.overall &&
+                Math.round(score) >= Math.round(personalBests.overall)
+              );
 
               const subMetrics: { key: string; val?: number }[] = [
                 { key: "T", val: entry.techniqueScore },
@@ -429,6 +433,11 @@ export default function ProgressScreen() {
                   </View>
 
                   <View style={{ alignItems: "flex-end", gap: 4 }}>
+                    {isPB && (
+                      <View style={{ backgroundColor: "#f59e0b22", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#f59e0b" }}>
+                        <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#f59e0b" }}>🏆 PB</Text>
+                      </View>
+                    )}
                     <View style={[s.scoreCircle, { borderColor: scoreColor }]}>
                       <Text style={[s.scoreText, { color: scoreColor }]}>{Math.round(score)}</Text>
                     </View>

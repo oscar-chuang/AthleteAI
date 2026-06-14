@@ -94,7 +94,8 @@ export default function ChatScreen() {
     AsyncStorage.getItem(PENDING_KEY).then(async (pending) => {
       if (!pending || !canChat) return;
       await AsyncStorage.removeItem(PENDING_KEY);
-      setInput(pending);
+      // Auto-send after a delay so history has finished loading
+      setTimeout(() => sendMessage(pending), 600);
     });
   }, [canChat]));
 

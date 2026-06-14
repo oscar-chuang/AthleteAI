@@ -1,5 +1,5 @@
 import React from "react";
-import { Text, View } from "react-native";
+import { Text, View, TextStyle } from "react-native";
 import { useColors } from "@/hooks/useColors";
 
 interface Props {
@@ -8,10 +8,10 @@ interface Props {
   muted?: boolean;
 }
 
-type Segment = { bold: boolean; italic: boolean; text: string };
+type Seg = { bold: boolean; italic: boolean; text: string };
 
-function parseInline(raw: string): Segment[] {
-  const segs: Segment[] = [];
+function parseInline(raw: string): Seg[] {
+  const segs: Seg[] = [];
   const re = /(\*\*([^*]+)\*\*|\*([^*]+)\*)/g;
   let last = 0;
   let m: RegExpExecArray | null;
@@ -25,76 +25,119 @@ function parseInline(raw: string): Segment[] {
   return segs;
 }
 
+function InlineSegs({ segs, color, fontSize }: { segs: Seg[]; color: string; fontSize: number }) {
+  return (
+    <>
+      {segs.map((s, i) => (
+        <Text
+          key={i}
+          style={{
+            fontFamily: s.bold ? "Inter_700Bold" : "Inter_400Regular",
+            fontStyle: s.italic ? "italic" : "normal",
+            color,
+            fontSize,
+          }}
+        >
+          {s.text}
+        </Text>
+      ))}
+    </>
+  );
+}
+
 export function MarkdownText({ text, baseSize = 14, muted = false }: Props) {
   const colors = useColors();
-  const base = { fontSize: baseSize, lineHeight: baseSize * 1.55, fontFamily: "Inter_400Regular", color: muted ? colors.mutedForeground : colors.foreground };
+  const color = muted ? colors.mutedForeground : colors.foreground;
+  const lh = Math.round(baseSize * 1.55);
 
-  const lines = text.split("\n");
+  const base: TextStyle = {
+    fontSize: baseSize,
+    lineHeight: lh,
+    fontFamily: "Inter_400Regular",
+    color,
+  };
+
   const nodes: React.ReactNode[] = [];
+  const lines = text.split("\n");
 
   lines.forEach((raw, idx) => {
     const trimmed = raw.trim();
 
     if (trimmed === "") {
-      nodes.push(<View key={idx} style={{ height: 6 }} />);
+      nodes.push(<View key={idx} style={{ height: 5 }} />);
       return;
     }
 
-    if (/^#{1,2}\s/.test(trimmed)) {
-      const isH1 = trimmed.startsWith("# ");
-      const content = trimmed.replace(/^#{1,2}\s/, "");
+    // Headers
+    if (/^###\s/.test(trimmed)) {
       nodes.push(
-        <Text key={idx} style={[base, { fontFamily: "Inter_700Bold", fontSize: isH1 ? baseSize + 2 : baseSize + 1, marginTop: 8, marginBottom: 2 }]}>
-          {content}
+        <Text key={idx} style={[base, { fontFamily: "Inter_700Bold", fontSize: baseSize + 1, marginTop: 10, marginBottom: 2 }]}>
+          {trimmed.slice(4)}
+        </Text>
+      );
+      return;
+    }
+    if (/^##\s/.test(trimmed)) {
+      nodes.push(
+        <Text key={idx} style={[base, { fontFamily: "Inter_700Bold", fontSize: baseSize + 2, marginTop: 12, marginBottom: 2 }]}>
+          {trimmed.slice(3)}
+        </Text>
+      );
+      return;
+    }
+    if (/^#\s/.test(trimmed)) {
+      nodes.push(
+        <Text key={idx} style={[base, { fontFamily: "Inter_700Bold", fontSize: baseSize + 3, marginTop: 14, marginBottom: 4 }]}>
+          {trimmed.slice(2)}
         </Text>
       );
       return;
     }
 
+    // Bullet list
     const bulletMatch = trimmed.match(/^[-•*]\s(.+)/);
     if (bulletMatch) {
+      const segs = parseInline(bulletMatch[1]!);
       nodes.push(
-        <View key={idx} style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 2, paddingLeft: 4 }}>
-          <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.primary, marginTop: Math.floor(baseSize * 0.55), marginRight: 8, flexShrink: 0 }} />
-          <Text style={[base, { flex: 1 }]}>{renderSegs(parseInline(bulletMatch[1]!), base, colors)}</Text>
+        <View key={idx} style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 3, paddingLeft: 4 }}>
+          <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.primary, marginTop: Math.floor(baseSize * 0.5) + 1, marginRight: 8, flexShrink: 0 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={base}>
+              <InlineSegs segs={segs} color={color} fontSize={baseSize} />
+            </Text>
+          </View>
         </View>
       );
       return;
     }
 
+    // Numbered list
     const numMatch = trimmed.match(/^(\d+)\.\s(.+)/);
     if (numMatch) {
+      const segs = parseInline(numMatch[2]!);
       nodes.push(
-        <View key={idx} style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 2, paddingLeft: 4 }}>
-          <Text style={[base, { fontFamily: "Inter_600SemiBold", color: colors.primary, minWidth: 20, marginRight: 6 }]}>{numMatch[1]}.</Text>
-          <Text style={[base, { flex: 1 }]}>{renderSegs(parseInline(numMatch[2]!), base, colors)}</Text>
+        <View key={idx} style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 3, paddingLeft: 4 }}>
+          <Text style={[base, { fontFamily: "Inter_600SemiBold", color: colors.primary, minWidth: 22, marginRight: 4 }]}>
+            {numMatch[1]}.
+          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={base}>
+              <InlineSegs segs={segs} color={color} fontSize={baseSize} />
+            </Text>
+          </View>
         </View>
       );
       return;
     }
 
+    // Normal paragraph
+    const segs = parseInline(trimmed);
     nodes.push(
-      <Text key={idx} style={base}>
-        {renderSegs(parseInline(trimmed), base, colors)}
+      <Text key={idx} style={[base, { marginBottom: 1 }]}>
+        <InlineSegs segs={segs} color={color} fontSize={baseSize} />
       </Text>
     );
   });
 
-  return <>{nodes}</>;
-}
-
-function renderSegs(segs: Segment[], base: any, colors: any): React.ReactNode {
-  return segs.map((s, i) => (
-    <Text
-      key={i}
-      style={{
-        fontFamily: s.bold ? "Inter_700Bold" : s.italic ? "Inter_400Regular" : base.fontFamily,
-        fontStyle: s.italic ? "italic" : "normal",
-        color: base.color,
-        fontSize: base.fontSize,
-      }}
-    >
-      {s.text}
-    </Text>
-  ));
+  return <View>{nodes}</View>;
 }

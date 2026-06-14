@@ -8,6 +8,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -68,6 +69,15 @@ export default function AnalysisDetailScreen() {
   const [expandedTip, setExpanded]  = useState<string | null>(null);
   const [activeTab, setActiveTab]   = useState<"scores" | "tips" | "risks">("scores");
   const [showGuide, setShowGuide]   = useState(false);
+  const [note, setNote]             = useState("");
+
+  // Load persisted note from local storage
+  useEffect(() => {
+    if (!id) return;
+    AsyncStorage.getItem(`note_${id}`).then((saved) => {
+      if (saved) setNote(saved);
+    });
+  }, [id]);
 
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 20;
@@ -246,6 +256,25 @@ export default function AnalysisDetailScreen() {
     riskDesc:  { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginBottom: 4 },
     riskPrev:  { fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular" },
     prevLabel: { color: colors.primary, fontFamily: "Inter_500Medium" },
+    noteInput: {
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      color: colors.foreground,
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      lineHeight: 21,
+      minHeight: 110,
+    },
+    noteFooter: {
+      fontSize: 11,
+      color: colors.mutedForeground,
+      fontFamily: "Inter_400Regular",
+      marginTop: 6,
+      textAlign: "right" as const,
+    },
   });
 
   return (
@@ -493,6 +522,29 @@ export default function AnalysisDetailScreen() {
             })}
           </View>
         )}
+
+        {/* ── Session Notes ── */}
+        <View style={[s.section, { marginTop: 8, marginBottom: 32 }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <Feather name="edit-3" size={15} color={colors.mutedForeground} />
+            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
+              Session Notes
+            </Text>
+          </View>
+          <TextInput
+            style={s.noteInput}
+            value={note}
+            onChangeText={setNote}
+            onBlur={() => id && AsyncStorage.setItem(`note_${id}`, note)}
+            placeholder="Add personal notes — how you felt, what to focus on next time, any context about the session…"
+            placeholderTextColor={colors.mutedForeground}
+            multiline
+            textAlignVertical="top"
+          />
+          {note.length > 0 && (
+            <Text style={s.noteFooter}>{note.length} chars · saved locally</Text>
+          )}
+        </View>
       </ScrollView>
     </View>
   );

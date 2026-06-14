@@ -1,2 +1,3 @@
-- [Expo + Replit routing / preview](expo-replit-routing.md) — Expo Go uses the separate expo-domain (indep. of previewPath/BASE_PATH); Expo dev web assets are root-absolute so it only renders at "/".
-- [API architecture](api-arch.md) — chat route, profile storage, analysis personalization: key decisions worth being consistent with.
+- [Mobile tab refresh pattern](tab-refresh.md) — use useFocusEffect instead of useEffect for screens that need live data on every tab visit
+- [Auto-send pending chat](chat-auto-send.md) — setTimeout 500-600ms delay needed before calling sendMessage after focus so history loads first
+- [Pre-existing API TS errors](api-ts-errors.md) — @workspace/db export mismatches are pre-existing; esbuild compiles fine, only tsc typecheck fails
