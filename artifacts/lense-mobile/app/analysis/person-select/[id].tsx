@@ -7,19 +7,20 @@ import {
   Platform,
   ActivityIndicator,
   Dimensions,
+  ScrollView,
 } from "react-native";
 import { WebView } from "react-native-webview";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as FileSystemBase from "expo-file-system";
-const FileSystem = FileSystemBase as any;
+import * as FileSystem from "expo-file-system/legacy";
 
 import { useColors } from "@/hooks/useColors";
 import { analyses as analysesApi } from "@/lib/api";
 
-// Equipment class → sport slug mapping (COCO-SSD classes)
+// COCO-SSD equipment → sport slug. Only sports where COCO-SSD has class coverage.
+// Fencing, gymnastics, martial arts, wrestling etc. have NO detectable equipment.
 const EQUIPMENT_SPORT: Record<string, string> = {
   "tennis racket": "tennis",
   "baseball bat": "baseball",
@@ -28,12 +29,8 @@ const EQUIPMENT_SPORT: Record<string, string> = {
   "snowboard": "skiing",
   "surfboard": "swimming",
   "skateboard": "other",
-  "frisbee": "other",
   "bicycle": "cycling",
-  "horse": "other",
 };
-
-// Which sports does a given equipment class suggest? (for mismatch text)
 const EQUIPMENT_LABEL: Record<string, string> = {
   "tennis racket": "tennis",
   "baseball bat": "baseball",
@@ -45,201 +42,172 @@ const EQUIPMENT_LABEL: Record<string, string> = {
   "bicycle": "cycling",
 };
 
+// Sports whose equipment COCO-SSD CAN detect (used to explain when it can't check)
+const DETECTABLE_SPORTS = new Set(Object.values(EQUIPMENT_SPORT));
+
 interface PersonBox {
   nx: number; ny: number; nw: number; nh: number;
   color: string;
-  index: number;
 }
 
-function buildPersonSelectHtml(videoUri?: string): string {
-  const src = videoUri ?? "";
+function buildPersonSelectHtml(videoUri: string): string {
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-html,body{width:100%;height:100%;background:#07070f;overflow:hidden;}
-#container{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
+html,body{width:100%;height:100%;background:#000;overflow:hidden;}
+#wrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
 #v{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;pointer-events:none;}
-#overlay{position:absolute;top:0;left:0;width:100%;height:100%;}
-#status{
-  position:absolute;bottom:18px;left:50%;transform:translateX(-50%);
-  background:rgba(10,10,22,.82);color:#e0e0f0;
-  padding:7px 18px;border-radius:20px;
-  font-family:-apple-system,sans-serif;font-size:13px;white-space:nowrap;
-  border:1px solid rgba(255,255,255,.1);
+#cv{position:absolute;top:0;left:0;width:100%;height:100%;}
+#st{
+  position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
+  background:rgba(10,10,22,.85);color:#e0e0f0;
+  padding:6px 16px;border-radius:20px;
+  font:13px -apple-system,sans-serif;white-space:nowrap;
+  border:1px solid rgba(255,255,255,.1);pointer-events:none;
 }
 </style>
 </head>
 <body>
-<div id="container">
-  <video id="v" src="${src}" playsinline muted crossorigin="anonymous"></video>
-  <canvas id="overlay"></canvas>
-  <div id="status">Loading video…</div>
+<div id="wrap">
+  <video id="v" src="${videoUri}" playsinline muted crossorigin="anonymous"></video>
+  <canvas id="cv"></canvas>
+  <div id="st">Loading…</div>
 </div>
 <script>
 (function(){
-  const BOX_COLORS=['#a78bfa','#22d3ee','#f59e0b','#22c55e','#f43f5e'];
-  const video=document.getElementById("v");
-  const canvas=document.getElementById("overlay");
-  const ctx=canvas.getContext("2d");
-  const status=document.getElementById("status");
-  let detectedPersons=[];
-  let detectedEquipment=[];
-  let tfLoaded=false, cocoModel=null;
-  let selectedIndex=-1;
-  let videoW=640,videoH=360;
+  const COLORS=['#a78bfa','#22d3ee','#f59e0b','#22c55e','#f43f5e'];
+  const v=document.getElementById('v');
+  const cv=document.getElementById('cv');
+  const ctx=cv.getContext('2d');
+  const st=document.getElementById('st');
+  let persons=[], equipment=[], tfLoaded=false, model=null;
+  let vW=640,vH=360, selIdx=-1;
 
-  function post(obj){try{window.ReactNativeWebView.postMessage(JSON.stringify(obj));}catch(e){}}
+  function post(o){try{window.ReactNativeWebView.postMessage(JSON.stringify(o));}catch(e){}}
 
-  function resizeCanvas(){
-    canvas.width=canvas.offsetWidth;
-    canvas.height=canvas.offsetHeight;
-  }
-  window.addEventListener("resize",()=>{resizeCanvas();redraw();});
+  function resize(){cv.width=cv.offsetWidth||window.innerWidth;cv.height=cv.offsetHeight||window.innerHeight;}
+  window.addEventListener('resize',()=>{resize();draw();});
+  resize();
 
-  // Map canvas click → video coords → which box
-  function canvasToVideo(cx,cy){
-    const cW=canvas.width,cH=canvas.height;
-    const vAR=videoW/videoH, cAR=cW/cH;
-    let vLeft,vTop,vWidth,vHeight;
-    if(vAR>cAR){vWidth=cW;vHeight=cW/vAR;vLeft=0;vTop=(cH-vHeight)/2;}
-    else{vHeight=cH;vWidth=cH*vAR;vLeft=(cW-vWidth)/2;vTop=0;}
-    const vx=(cx-vLeft)/vWidth*videoW;
-    const vy=(cy-vTop)/vHeight*videoH;
-    return {vx,vy,vLeft,vTop,vWidth,vHeight};
+  function videoRect(){
+    const cW=cv.width,cH=cv.height;
+    const vAR=vW/vH,cAR=cW/cH;
+    if(vAR>cAR){const h=cW/vAR;return{l:0,t:(cH-h)/2,w:cW,h};}
+    else{const w=cH*vAR;return{l:(cW-w)/2,t:0,w,h:cH};}
   }
 
-  function redraw(){
-    const cW=canvas.width,cH=canvas.height;
-    ctx.clearRect(0,0,cW,cH);
-    if(detectedPersons.length===0)return;
-    const {vLeft,vTop,vWidth,vHeight}=canvasToVideo(0,0);
-    // re-derive display coords
-    detectedPersons.forEach((p,i)=>{
-      const px=p.nx*videoW,py=p.ny*videoH,pw=p.nw*videoW,ph=p.nh*videoH;
-      const dx=vLeft+px/videoW*vWidth,dy=vTop+py/videoH*vHeight;
-      const dw=pw/videoW*vWidth,dh=ph/videoH*vHeight;
-      const col=p.color;
-      const isSelected=(i===selectedIndex);
+  function draw(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    if(!persons.length)return;
+    const r=videoRect();
+    persons.forEach((p,i)=>{
+      const dx=r.l+p.nx*vW/vW*r.w, dy=r.t+p.ny*vH/vH*r.h;
+      const dw=p.nw*vW/vW*r.w, dh=p.nh*vH/vH*r.h;
+      // normalize: dx = r.l + p.nx * r.w
+      const x=r.l+p.nx*r.w, y=r.t+p.ny*r.h, w=p.nw*r.w, h=p.nh*r.h;
+      const sel=i===selIdx;
       ctx.save();
-      ctx.shadowBlur=isSelected?30:18;ctx.shadowColor=col;
-      ctx.strokeStyle=col;ctx.lineWidth=isSelected?4:2.5;ctx.globalAlpha=isSelected?1:0.8;
-      if(isSelected){ctx.fillStyle=col+"18";ctx.fillRect(dx,dy,dw,dh);}
-      ctx.strokeRect(dx+1,dy+1,dw-2,dh-2);
-      // label
-      const label="Person "+(i+1)+(isSelected?" ✓":"");
-      ctx.font="bold 12px -apple-system,sans-serif";
-      const lw=ctx.measureText(label).width+16;
-      ctx.globalAlpha=1;
-      ctx.fillStyle=col;
-      ctx.beginPath();ctx.roundRect(dx,dy-28,lw,24,5);ctx.fill();
-      ctx.fillStyle="#07070f";ctx.textBaseline="middle";
-      ctx.fillText(label,dx+8,dy-16);
+      ctx.shadowBlur=sel?30:16; ctx.shadowColor=p.color;
+      ctx.strokeStyle=p.color; ctx.lineWidth=sel?4:2.5; ctx.globalAlpha=sel?1:0.78;
+      if(sel){ctx.fillStyle=p.color+'22';ctx.fillRect(x,y,w,h);}
+      ctx.strokeRect(x+1,y+1,w-2,h-2);
+      const lbl='Person '+(i+1)+(sel?' ✓':'');
+      ctx.font='bold 12px -apple-system,sans-serif';
+      const lw=ctx.measureText(lbl).width+16;
+      ctx.globalAlpha=1; ctx.fillStyle=p.color;
+      ctx.beginPath(); ctx.roundRect(x,y-28,lw,24,5); ctx.fill();
+      ctx.fillStyle='#07070f'; ctx.textBaseline='middle';
+      ctx.fillText(lbl,x+8,y-16);
       ctx.restore();
     });
   }
 
-  canvas.addEventListener("click",function(e){
-    if(detectedPersons.length===0)return;
-    const rect=canvas.getBoundingClientRect();
+  cv.addEventListener('click',function(e){
+    if(!persons.length)return;
+    const rect=cv.getBoundingClientRect();
     const cx=e.clientX-rect.left, cy=e.clientY-rect.top;
-    const {vx,vy}=canvasToVideo(cx,cy);
-    let bestI=-1;
-    for(let i=0;i<detectedPersons.length;i++){
-      const p=detectedPersons[i];
-      const px=p.nx*videoW,py=p.ny*videoH,pw=p.nw*videoW,ph=p.nh*videoH;
-      if(vx>=px&&vx<=px+pw&&vy>=py&&vy<=py+ph){bestI=i;break;}
+    const r=videoRect();
+    // map canvas click → normalized coords
+    const nx=(cx-r.l)/r.w, ny=(cy-r.t)/r.h;
+    let hit=-1;
+    for(let i=0;i<persons.length;i++){
+      const p=persons[i];
+      if(nx>=p.nx&&nx<=p.nx+p.nw&&ny>=p.ny&&ny<=p.ny+p.nh){hit=i;break;}
     }
-    if(bestI>=0){
-      selectedIndex=bestI;
-      const p=detectedPersons[bestI];
-      redraw();
-      post({type:"personSelected",nx:p.nx,ny:p.ny,nw:p.nw,nh:p.nh,index:bestI});
-    }
+    if(hit<0)return;
+    selIdx=hit; draw();
+    const p=persons[hit];
+    post({type:'personSelected',nx:p.nx,ny:p.ny,nw:p.nw,nh:p.nh,index:hit});
   });
 
   function loadScript(src){
-    return new Promise((res,rej)=>{
-      const s=document.createElement("script");
-      s.src=src;s.crossOrigin="anonymous";
-      s.onload=res;s.onerror=rej;
+    return new Promise((ok,err)=>{
+      const s=document.createElement('script');
+      s.src=src; s.crossOrigin='anonymous';
+      s.onload=ok; s.onerror=err;
       document.head.appendChild(s);
     });
   }
 
-  async function runDetection(){
-    status.textContent="Detecting people… (~3s)";
+  async function detect(){
+    st.textContent='Detecting people…';
     try{
       if(!tfLoaded){
-        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js");
-        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
+        await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js');
+        await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js');
         tfLoaded=true;
       }
-      if(!cocoModel) cocoModel=await cocoSsd.load({base:"lite_mobilenet_v2"});
-      const snap=document.createElement("canvas");
-      snap.width=videoW;snap.height=videoH;
-      snap.getContext("2d").drawImage(video,0,0,videoW,videoH);
-      const preds=await cocoModel.detect(snap);
-      detectedPersons=preds
-        .filter(p=>p.class==="person"&&p.score>0.3)
-        .map((p,i)=>({
-          nx:p.bbox[0]/videoW,ny:p.bbox[1]/videoH,
-          nw:p.bbox[2]/videoW,nh:p.bbox[3]/videoH,
-          color:BOX_COLORS[i%BOX_COLORS.length],
-          index:i,
-        }));
-      detectedEquipment=preds
-        .filter(p=>p.class!=="person"&&p.score>0.35)
-        .map(p=>p.class);
-      redraw();
-      // Auto-select if only 1 person
-      if(detectedPersons.length===1){
-        selectedIndex=0;
-        redraw();
-        post({type:"personSelected",nx:detectedPersons[0].nx,ny:detectedPersons[0].ny,nw:detectedPersons[0].nw,nh:detectedPersons[0].nh,index:0,autoSelected:true});
+      if(!model) model=await cocoSsd.load({base:'lite_mobilenet_v2'});
+      const snap=document.createElement('canvas');
+      snap.width=vW; snap.height=vH;
+      snap.getContext('2d').drawImage(v,0,0,vW,vH);
+      const preds=await model.detect(snap);
+      persons=preds
+        .filter(p=>p.class==='person'&&p.score>0.3)
+        .map((p,i)=>({nx:p.bbox[0]/vW,ny:p.bbox[1]/vH,nw:p.bbox[2]/vW,nh:p.bbox[3]/vH,color:COLORS[i%COLORS.length]}));
+      equipment=preds.filter(p=>p.class!=='person'&&p.score>0.35).map(p=>p.class);
+      draw();
+      if(persons.length===1){
+        selIdx=0; draw();
+        post({type:'personSelected',nx:persons[0].nx,ny:persons[0].ny,nw:persons[0].nw,nh:persons[0].nh,index:0,autoSelected:true});
       }
-      post({type:"ready",personCount:detectedPersons.length,equipment:detectedEquipment});
-      if(detectedPersons.length===0){
-        status.textContent="No people detected — tracking most visible";
-      } else if(detectedPersons.length===1){
-        status.textContent="1 person found ✓";
-      } else {
-        status.textContent=detectedPersons.length+" people — tap one to select";
-      }
+      post({type:'ready',personCount:persons.length,equipment});
+      st.textContent=persons.length===0?'No people detected':persons.length===1?'1 person found ✓':persons.length+' people — tap one';
     }catch(e){
-      status.textContent="Tap below to choose";
-      post({type:"ready",personCount:0,equipment:[],error:true});
+      st.textContent='Detection unavailable';
+      post({type:'ready',personCount:0,equipment:[],error:true});
     }
   }
 
-  video.addEventListener("loadeddata",function(){
-    videoW=video.videoWidth||640;videoH=video.videoHeight||360;
-    // Seek to ~1.5 seconds for a representative frame
-    video.currentTime=Math.min(1.5,video.duration||1.5);
+  v.addEventListener('loadeddata',function(){
+    vW=v.videoWidth||640; vH=v.videoHeight||360;
+    v.currentTime=Math.min(1.5,v.duration||1.5);
   });
-  video.addEventListener("seeked",function(){
-    resizeCanvas();
-    runDetection();
+  v.addEventListener('seeked',function(){resize();detect();},{ once:true });
+  v.addEventListener('error',function(){
+    st.textContent='Video load error';
+    post({type:'ready',personCount:0,equipment:[],error:true});
   });
-  video.load();
+  v.load();
 })();
 </script>
 </body>
 </html>`;
 }
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
+const { width: SCREEN_W } = Dimensions.get("window");
 
 export default function PersonSelectScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const webviewRef = useRef<WebView>(null);
 
-  const [videoUri, setVideoUri] = useState<string | undefined>();
+  const [videoUri, setVideoUri] = useState<string | null>(null);
+  const [videoChecked, setVideoChecked] = useState(false); // AsyncStorage lookup done?
   const [sport, setSport] = useState("");
   const [htmlFileUri, setHtmlFileUri] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(true);
@@ -249,38 +217,45 @@ export default function PersonSelectScreen() {
   const [autoSelected, setAutoSelected] = useState(false);
   const [mismatch, setMismatch] = useState<string | null>(null);
   const [mismatchDismissed, setMismatchDismissed] = useState(false);
+  const [detectionUnavailable, setDetectionUnavailable] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  // Load analysis data
+  // Step 1: load the analysis + video URI from AsyncStorage
   useEffect(() => {
     if (!id) return;
-    AsyncStorage.getItem(`video_uri_${id}`).then((uri) => { if (uri) setVideoUri(uri); });
-    analysesApi.get(id).then(({ analysis }) => {
-      setSport(analysis.sport ?? "");
-    }).catch(() => {});
+    Promise.all([
+      AsyncStorage.getItem(`video_uri_${id}`),
+      analysesApi.get(id).catch(() => null),
+    ]).then(([uri, result]) => {
+      setVideoUri(uri); // null if not found
+      setVideoChecked(true);
+      setSport(result?.analysis?.sport ?? "");
+    });
   }, [id]);
 
-  // Build the detection WebView HTML and write to disk
+  // Step 2: once we know the video URI, build the detection HTML
   useEffect(() => {
+    if (!videoChecked) return; // still waiting for AsyncStorage
+    if (!videoUri) {
+      // No local video stored (older session) — skip detection
+      setPreparing(false);
+      return;
+    }
+
     let cancelled = false;
     setPreparing(true);
     setHtmlFileUri(null);
-    setPersonCount(null);
-    setSelected(null);
-    setMismatch(null);
 
     (async () => {
       try {
-        const cacheDir = FileSystem.cacheDirectory ?? "";
-        let resolvedVideo = videoUri;
-        if (videoUri) {
-          const ext = (videoUri.split(".").pop() ?? "mp4").split(/[?#]/)[0];
-          const localVideo = cacheDir + "select-video." + ext;
-          try { await FileSystem.copyAsync({ from: videoUri, to: localVideo }); resolvedVideo = localVideo; }
-          catch {}
-        }
+        const cacheDir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory ?? "";
+        const ext = (videoUri.split(".").pop() ?? "mp4").split(/[?#]/)[0]!;
+        const localVideo = cacheDir + "select-video." + ext;
+        try { await FileSystem.copyAsync({ from: videoUri, to: localVideo }); }
+        catch { /* content:// URIs may work directly */ }
+        const resolvedVideo = localVideo;
         const htmlPath = cacheDir + "person-select.html";
         await FileSystem.writeAsStringAsync(htmlPath, buildPersonSelectHtml(resolvedVideo), {
           encoding: FileSystem.EncodingType.UTF8,
@@ -292,26 +267,31 @@ export default function PersonSelectScreen() {
     })();
 
     return () => { cancelled = true; };
-  }, [videoUri]);
+  }, [videoUri, videoChecked]);
 
-  // Handle WebView messages
   const handleMessage = useCallback((event: { nativeEvent: { data: string } }) => {
     try {
       const msg = JSON.parse(event.nativeEvent.data);
 
       if (msg.type === "ready") {
         setPersonCount(msg.personCount ?? 0);
-        // Check for sport mismatch
+        if (msg.error) { setDetectionUnavailable(true); return; }
+
+        // Sport mismatch: only flag if COCO-SSD can detect this sport's equipment
         const equipment: string[] = msg.equipment ?? [];
         let detectedSport: string | null = null;
+        let matchingEquipment = "";
         for (const eq of equipment) {
-          if (EQUIPMENT_SPORT[eq]) { detectedSport = EQUIPMENT_SPORT[eq]; break; }
+          if (EQUIPMENT_SPORT[eq]) {
+            detectedSport = EQUIPMENT_SPORT[eq]!;
+            matchingEquipment = eq;
+            break;
+          }
         }
         if (detectedSport && sport && detectedSport !== sport.toLowerCase()) {
-          const eqName = equipment.find((e) => EQUIPMENT_SPORT[e]) ?? "";
           setMismatch(
-            `Looks like ${EQUIPMENT_LABEL[eqName] ?? detectedSport} equipment was detected, ` +
-            `but this session is set to "${sport}". Check your sport selection if scores seem off.`
+            `${EQUIPMENT_LABEL[matchingEquipment] ?? detectedSport} equipment detected, ` +
+            `but sport is set to "${sport}". Double-check your sport selection — it affects scoring.`
           );
         }
         return;
@@ -334,75 +314,103 @@ export default function PersonSelectScreen() {
     }
   }
 
-  const videoH = SCREEN_W / (16 / 9);
+  const videoH = Math.round(SCREEN_W / (16 / 9));
 
   const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: "#07070f" },
     header: {
       paddingTop: topPad + 8, paddingHorizontal: 20, paddingBottom: 14,
       flexDirection: "row", alignItems: "center", gap: 10,
-      backgroundColor: "#07070f",
     },
     backBtn: {
       width: 34, height: 34, borderRadius: 17,
       backgroundColor: "rgba(255,255,255,.07)", alignItems: "center", justifyContent: "center",
     },
     title: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#e8e8f5", flex: 1 },
-    subtitle: { fontSize: 11, color: "#55556e", fontFamily: "Inter_400Regular" },
-    webviewSlot: {
-      width: SCREEN_W, height: videoH,
-      backgroundColor: "#000", alignItems: "center", justifyContent: "center",
+    sportPill: {
+      flexDirection: "row", alignItems: "center", gap: 5,
+      backgroundColor: "rgba(108,99,255,.15)", borderRadius: 12,
+      paddingHorizontal: 10, paddingVertical: 4,
+      borderWidth: 1, borderColor: "rgba(108,99,255,.3)",
     },
-    infoBar: {
-      paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4,
+    sportText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#a78bfa", textTransform: "capitalize" },
+    videoSlot: {
+      width: SCREEN_W, height: videoH, backgroundColor: "#000",
+      alignItems: "center", justifyContent: "center",
     },
-    statusRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+    statusRow: {
+      flexDirection: "row", alignItems: "center", gap: 8,
+      paddingHorizontal: 20, paddingTop: 14,
+    },
     statusDot: { width: 7, height: 7, borderRadius: 4 },
     statusText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#c0c0d8" },
-    helpText: { fontSize: 12, color: "#55556e", fontFamily: "Inter_400Regular", marginTop: 6, lineHeight: 17 },
-    // Mismatch warning
+    helpText: {
+      fontSize: 12, color: "#55556e", fontFamily: "Inter_400Regular",
+      paddingHorizontal: 20, marginTop: 5, lineHeight: 17,
+    },
+    noVideoCard: {
+      margin: 20, padding: 20,
+      backgroundColor: "rgba(255,255,255,.04)", borderRadius: 14,
+      borderWidth: 1, borderColor: "rgba(255,255,255,.08)",
+      gap: 10, alignItems: "center",
+    },
+    noVideoTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#e8e8f5", textAlign: "center" },
+    noVideoBody: { fontSize: 13, color: "#55556e", fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18 },
+    noDetectNote: {
+      flexDirection: "row", alignItems: "flex-start", gap: 8,
+      marginHorizontal: 20, marginTop: 10,
+      backgroundColor: "rgba(108,99,255,.08)", borderRadius: 10, padding: 12,
+      borderWidth: 1, borderColor: "rgba(108,99,255,.2)",
+    },
+    noDetectText: { flex: 1, fontSize: 12, color: "#8888aa", fontFamily: "Inter_400Regular", lineHeight: 17 },
     mismatchCard: {
-      margin: 16, marginTop: 12, padding: 13,
+      flexDirection: "row", alignItems: "flex-start", gap: 8,
+      marginHorizontal: 20, marginTop: 10, padding: 12,
       backgroundColor: "#f59e0b18", borderRadius: 10,
       borderWidth: 1, borderColor: "#f59e0b44",
-      flexDirection: "row", alignItems: "flex-start", gap: 10,
     },
     mismatchText: { flex: 1, fontSize: 12, color: "#f59e0b", fontFamily: "Inter_400Regular", lineHeight: 17 },
-    // Buttons
-    buttonArea: { padding: 20, gap: 10 },
+    buttons: { padding: 20, paddingTop: 14, gap: 10 },
     primaryBtn: {
       backgroundColor: "#6c63ff", borderRadius: 14,
       paddingVertical: 14, alignItems: "center",
       flexDirection: "row", justifyContent: "center", gap: 8,
     },
     primaryBtnText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 },
-    skipBtn: { alignItems: "center", paddingVertical: 10 },
-    skipBtnText: { color: "#55556e", fontFamily: "Inter_400Regular", fontSize: 13 },
+    skipBtn: { alignItems: "center", paddingVertical: 8 },
+    skipText: { color: "#44445a", fontFamily: "Inter_400Regular", fontSize: 13 },
   });
+
+  const noVideo = videoChecked && !videoUri;
+  const showWebView = !preparing && !!htmlFileUri;
 
   const statusDotColor =
     personCount === null ? "#55556e" :
-    personCount === 0 ? "#f59e0b" :
+    personCount === 0    ? "#f59e0b" :
     "#22c55e";
 
-  const statusText =
+  const statusLabel =
     personCount === null ? "Detecting people…" :
-    personCount === 0 ? "No people detected — will track most visible" :
-    personCount === 1 ? "1 person found" :
-    `${personCount} people found${selected ? ` — Person ${(selected as any)._index ?? "?"} selected` : " — tap one to select"}`;
+    personCount === 0    ? "No people detected — will auto-track" :
+    personCount === 1    ? "1 person found — ready" :
+    `${personCount} people — tap one to select`;
 
-  const helpText =
-    personCount === null ? "COCO-SSD is scanning the video frame…" :
-    personCount === 0 ? "We'll automatically focus on whoever appears most prominent." :
-    personCount === 1 ? "Looks good! Tap Analyze to start tracking." :
-    "Tap the highlighted person you want to track. Their joint angles will drive the scores.";
+  const helpLabel =
+    detectionUnavailable ? "Detection failed (no network?). Tap Proceed to use the skeleton overlay manually." :
+    personCount === null  ? "COCO-SSD is scanning the frame…" :
+    personCount === 0     ? "We'll focus on whoever is most prominent in the frame." :
+    personCount === 1     ? "Tap Analyze to start. We'll track this person throughout the video." :
+    "Tap the person you want scored. Their joint angles will drive the AI scores.";
 
-  const canProceed = personCount !== null;
+  // Explain why sport mismatch can't be checked for this sport
+  const sportNotDetectable = sport && !DETECTABLE_SPORTS.has(sport.toLowerCase());
 
   const buttonLabel =
-    !selected ? "Analyze (Auto)" :
-    autoSelected ? "Analyze This Person" :
+    !selected               ? "Proceed (Auto-track)" :
+    autoSelected            ? "Analyze This Person" :
     "Analyze Selected Person";
+
+  const canProceed = videoChecked && (!videoUri || !preparing);
 
   return (
     <View style={s.root}>
@@ -411,85 +419,126 @@ export default function PersonSelectScreen() {
         <TouchableOpacity style={s.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
           <Feather name="chevron-left" size={18} color="#8888aa" />
         </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={s.title}>Who are we scoring?</Text>
-          {sport ? (
-            <Text style={s.subtitle}>{sport} · tap the person to track</Text>
-          ) : null}
-        </View>
+        <Text style={s.title}>Who are we scoring?</Text>
+        {sport ? (
+          <View style={s.sportPill}>
+            <Feather name="tag" size={11} color="#a78bfa" />
+            <Text style={s.sportText}>{sport}</Text>
+          </View>
+        ) : null}
       </View>
 
-      {/* Video detection WebView */}
-      {preparing ? (
-        <View style={s.webviewSlot}>
-          <ActivityIndicator color="#6c63ff" />
-          <Text style={{ color: "#55556e", fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 10 }}>
-            Preparing…
-          </Text>
-        </View>
-      ) : htmlFileUri ? (
-        <WebView
-          ref={webviewRef}
-          source={{ uri: htmlFileUri }}
-          style={{ width: SCREEN_W, height: videoH }}
-          allowFileAccess
-          allowFileAccessFromFileURLs
-          allowUniversalAccessFromFileURLs
-          allowingReadAccessToURL={FileSystem.cacheDirectory ?? "file:///"}
-          mixedContentMode="always"
-          allowsInlineMediaPlayback
-          mediaPlaybackRequiresUserAction={false}
-          javaScriptEnabled
-          domStorageEnabled
-          originWhitelist={["*", "file://*"]}
-          scrollEnabled={false}
-          onMessage={handleMessage}
-        />
-      ) : (
-        <View style={s.webviewSlot}>
-          <Feather name="video-off" size={28} color="#55556e" />
-          <Text style={{ color: "#55556e", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 8 }}>
-            No video available
-          </Text>
-        </View>
-      )}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: bottomPad + 20 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Video / detection area */}
+        {!videoChecked || (videoChecked && videoUri && preparing) ? (
+          <View style={s.videoSlot}>
+            <ActivityIndicator color="#6c63ff" size="large" />
+            <Text style={{ color: "#55556e", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 10 }}>
+              {!videoChecked ? "Loading…" : "Preparing video…"}
+            </Text>
+          </View>
+        ) : noVideo ? (
+          /* No video stored — explain & let user proceed */
+          <View style={s.videoSlot}>
+            <Feather name="video-off" size={36} color="#33334a" />
+          </View>
+        ) : showWebView ? (
+          <WebView
+            source={{ uri: htmlFileUri! }}
+            style={{ width: SCREEN_W, height: videoH }}
+            allowFileAccess
+            allowFileAccessFromFileURLs
+            allowUniversalAccessFromFileURLs
+            allowingReadAccessToURL={FileSystem.cacheDirectory ?? "file:///"}
+            mixedContentMode="always"
+            allowsInlineMediaPlayback
+            mediaPlaybackRequiresUserAction={false}
+            javaScriptEnabled
+            domStorageEnabled
+            originWhitelist={["*", "file://*"]}
+            scrollEnabled={false}
+            onMessage={handleMessage}
+          />
+        ) : (
+          <View style={s.videoSlot}>
+            <ActivityIndicator color="#6c63ff" />
+          </View>
+        )}
 
-      {/* Status */}
-      <View style={s.infoBar}>
-        <View style={s.statusRow}>
-          <View style={[s.statusDot, { backgroundColor: statusDotColor }]} />
-          <Text style={s.statusText}>{statusText}</Text>
-        </View>
-        <Text style={s.helpText}>{helpText}</Text>
-      </View>
+        {/* No video explanation */}
+        {noVideo && (
+          <View style={s.noVideoCard}>
+            <Feather name="info" size={22} color="#55556e" />
+            <Text style={s.noVideoTitle}>No video found for this session</Text>
+            <Text style={s.noVideoBody}>
+              This session was analyzed without a locally stored video, so person detection
+              isn't available. You can still open the skeleton overlay manually — tap the
+              person once it's playing.
+            </Text>
+          </View>
+        )}
 
-      {/* Sport mismatch warning */}
-      {mismatch && !mismatchDismissed && (
-        <View style={s.mismatchCard}>
-          <Feather name="alert-triangle" size={15} color="#f59e0b" style={{ marginTop: 1 }} />
-          <Text style={s.mismatchText}>{mismatch}</Text>
-          <TouchableOpacity onPress={() => setMismatchDismissed(true)} activeOpacity={0.7}>
-            <Feather name="x" size={14} color="#f59e0b" />
+        {/* Detection status */}
+        {showWebView && (
+          <>
+            <View style={s.statusRow}>
+              <View style={[s.statusDot, { backgroundColor: statusDotColor }]} />
+              <Text style={s.statusText}>{statusLabel}</Text>
+            </View>
+            <Text style={s.helpText}>{helpLabel}</Text>
+          </>
+        )}
+
+        {/* Sport can't be auto-checked note */}
+        {showWebView && sportNotDetectable && personCount !== null && !mismatch && (
+          <View style={s.noDetectNote}>
+            <Feather name="info" size={13} color="#8888aa" style={{ marginTop: 1 }} />
+            <Text style={s.noDetectText}>
+              Sport mismatch auto-detection only works for sports with visible equipment
+              (tennis, baseball, skiing, cycling, etc.). For <Text style={{ color: "#c0c0d8" }}>{sport}</Text>, make sure
+              you've selected the right sport before scoring.
+            </Text>
+          </View>
+        )}
+
+        {/* Sport mismatch warning */}
+        {mismatch && !mismatchDismissed && (
+          <View style={s.mismatchCard}>
+            <Feather name="alert-triangle" size={14} color="#f59e0b" style={{ marginTop: 2 }} />
+            <Text style={s.mismatchText}>{mismatch}</Text>
+            <TouchableOpacity onPress={() => setMismatchDismissed(true)} activeOpacity={0.7}>
+              <Feather name="x" size={14} color="#f59e0b" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Action buttons */}
+        <View style={s.buttons}>
+          <TouchableOpacity
+            style={[s.primaryBtn, !canProceed && { opacity: 0.4 }]}
+            onPress={() => canProceed && proceedToSkeleton(selected ?? undefined)}
+            activeOpacity={0.85}
+            disabled={!canProceed}
+          >
+            <Feather name="user-check" size={17} color="#fff" />
+            <Text style={s.primaryBtnText}>{noVideo ? "Open Skeleton Overlay" : buttonLabel}</Text>
           </TouchableOpacity>
+
+          {!noVideo && (
+            <TouchableOpacity
+              style={s.skipBtn}
+              onPress={() => proceedToSkeleton(undefined)}
+              activeOpacity={0.7}
+            >
+              <Text style={s.skipText}>Skip — go straight to skeleton overlay</Text>
+            </TouchableOpacity>
+          )}
         </View>
-      )}
-
-      {/* Action buttons */}
-      <View style={[s.buttonArea, { paddingBottom: bottomPad + 20 }]}>
-        <TouchableOpacity
-          style={[s.primaryBtn, !canProceed && { opacity: 0.45 }]}
-          onPress={() => canProceed && proceedToSkeleton(selected ?? undefined)}
-          activeOpacity={0.85}
-          disabled={!canProceed}
-        >
-          <Feather name="user-check" size={17} color="#fff" />
-          <Text style={s.primaryBtnText}>{buttonLabel}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={s.skipBtn} onPress={() => proceedToSkeleton(undefined)} activeOpacity={0.7}>
-          <Text style={s.skipBtnText}>Skip — go straight to skeleton overlay</Text>
-        </TouchableOpacity>
-      </View>
+      </ScrollView>
     </View>
   );
 }
