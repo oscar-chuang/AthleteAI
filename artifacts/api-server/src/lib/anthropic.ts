@@ -197,11 +197,55 @@ export interface AthleteProfile {
   injuryConcerns?: string[];
 }
 
+export interface JointAngles {
+  leftKnee?: number;
+  rightKnee?: number;
+  leftHip?: number;
+  rightHip?: number;
+  leftElbow?: number;
+  rightElbow?: number;
+}
+
+export interface JointRisks {
+  leftKnee?: number; // 0 = safe, 1 = caution, 2 = high risk
+  rightKnee?: number;
+  leftHip?: number;
+  rightHip?: number;
+  leftElbow?: number;
+  rightElbow?: number;
+}
+
+const RISK_LABEL = ["safe", "caution", "HIGH RISK"];
+
+function formatJointAngles(angles: JointAngles, risks: JointRisks): string {
+  const joints: { label: string; deg?: number; lvl?: number }[] = [
+    { label: "Left knee",  deg: angles.leftKnee,  lvl: risks.leftKnee  },
+    { label: "Right knee", deg: angles.rightKnee, lvl: risks.rightKnee },
+    { label: "Left hip",   deg: angles.leftHip,   lvl: risks.leftHip   },
+    { label: "Right hip",  deg: angles.rightHip,  lvl: risks.rightHip  },
+    { label: "Left elbow", deg: angles.leftElbow, lvl: risks.leftElbow },
+    { label: "Right elbow",deg: angles.rightElbow,lvl: risks.rightElbow},
+  ].filter((j) => j.deg != null);
+
+  if (joints.length === 0) return "";
+
+  return `\nMeasured joint angles from the highest-risk frame (MediaPipe biomechanics scan):
+${joints.map((j) => `  ${j.label}: ${Math.round(j.deg!)}° [${RISK_LABEL[j.lvl ?? 0]}]`).join("\n")}
+
+Use these ACTUAL measurements to drive your scoring — they are real numbers from the video, not estimates:
+- Joints flagged as HIGH RISK: the related score (technique, balance, or mobility) must be in the "Focus Here" band (below 65)
+- Joints flagged as caution: the related score should be in the "On Track" band (65–79)
+- Joints flagged as safe: those scores can be Strong (80+) if the sport profile supports it
+- If ANY joint is HIGH RISK, the overall injury risks section must name that joint specifically`;
+}
+
 export async function analyzeAthletePerformance(
   sport: string,
   title: string,
   videoUrl?: string | null,
-  athleteProfile?: AthleteProfile | null
+  athleteProfile?: AthleteProfile | null,
+  jointAngles?: JointAngles | null,
+  jointRisks?: JointRisks | null
 ): Promise<AIAnalysisResult> {
   const research = getResearch(sport);
   const scoreProfile = getScoreProfile(sport);
@@ -218,8 +262,10 @@ export async function analyzeAthletePerformance(
         .join("\n")
     : null;
 
+  const angleSection = jointAngles ? formatJointAngles(jointAngles, jointRisks ?? {}) : "";
+
   const userPrompt = `Analyze this ${sport} training session titled "${title}"${videoUrl ? ` (video: ${videoUrl})` : ""}.
-${athleteCtx ? `\nAthlete context:\n${athleteCtx}\n` : ""}
+${athleteCtx ? `\nAthlete context:\n${athleteCtx}\n` : ""}${angleSection}
 Use these research sources to ground your analysis:
 Injury prevention: ${research.injury}
 Performance/efficiency: ${research.performance}

@@ -75,7 +75,9 @@ async function runAIAnalysis(
   userId: number,
   sport: string,
   title: string,
-  videoUrl?: string
+  videoUrl?: string,
+  jointAngles?: Record<string, number> | null,
+  jointRisks?: Record<string, number> | null
 ) {
   const [profileRow] = await db
     .select()
@@ -87,7 +89,7 @@ async function runAIAnalysis(
     ? { name: profileRow.name, level: profileRow.level, goals: profileRow.goals ?? [], injuryConcerns: profileRow.injuryConcerns ?? [] }
     : null;
 
-  const result: AIAnalysisResult = await analyzeAthletePerformance(sport, title, videoUrl, athleteProfile);
+  const result: AIAnalysisResult = await analyzeAthletePerformance(sport, title, videoUrl, athleteProfile, jointAngles as any, jointRisks as any);
 
   await db.update(analysesTable)
     .set({
@@ -132,6 +134,32 @@ router.get("/analyses/:id", requireAuth, async (req: Request, res: Response) => 
   const injuryRisks = storedRisks.map((r, i) => ({ id: String(i + 1), ...r }));
 
   res.json({ analysis: formatAnalysis(row), tips, injuryRisks });
+});
+
+router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).userId as number;
+  const id = parseInt(req.params.id ?? "", 10);
+  if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
+
+  const [row] = await db
+    .select()
+    .from(analysesTable)
+    .where(and(eq(analysesTable.id, id), eq(analysesTable.userId, userId)));
+
+  if (!row) { res.status(404).json({ error: "Analysis not found" }); return; }
+
+  const { jointAngles, jointRisks } = req.body as {
+    jointAngles?: Record<string, number>;
+    jointRisks?: Record<string, number>;
+  };
+
+  res.json({ success: true });
+
+  // Re-run AI with actual measured joint angles — overrides the initial estimate
+  runAIAnalysis(row.id, userId, row.sport, row.title, row.videoUrl ?? undefined, jointAngles, jointRisks)
+    .catch((err) => {
+      console.error(`AI re-analysis failed for id=${id}:`, err);
+    });
 });
 
 router.delete("/analyses/:id", requireAuth, async (req: Request, res: Response) => {

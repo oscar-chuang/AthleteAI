@@ -237,7 +237,7 @@ ${videoUri ? `
   const wrap      = document.getElementById("wrap");
 
   let busy=false, playing=false, showSkel=true;
-  let worstScore=0, worstSeenTime=0;
+  let worstScore=0, worstSeenTime=0, worstJr={};
 
   // ── Person-select state ────────────────────────────────────────────────────
   // Strategy: lazy-load COCO-SSD on first tap of "Select Person".
@@ -400,13 +400,18 @@ ${videoUri ? `
     scanning=true; scanPos=0; video.currentTime=0;
   }
 
+  function postScanComplete(){
+    if(worstSeenTime<=0)return;
+    const angles={leftKnee:worstJr[25]?.deg,rightKnee:worstJr[26]?.deg,leftHip:worstJr[23]?.deg,rightHip:worstJr[24]?.deg,leftElbow:worstJr[13]?.deg,rightElbow:worstJr[14]?.deg};
+    const risks={leftKnee:worstJr[25]?.lvl??0,rightKnee:worstJr[26]?.lvl??0,leftHip:worstJr[23]?.lvl??0,rightHip:worstJr[24]?.lvl??0,leftElbow:worstJr[13]?.lvl??0,rightElbow:worstJr[14]?.lvl??0};
+    try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"scanComplete",time:worstSeenTime,score:worstScore,angles,risks}));}catch(e){}
+  }
+
   function advanceScan(){
     scanPos+=SCAN_STEP;
     if(!video.duration||scanPos>video.duration){
       scanning=false;
-      if(worstSeenTime>0){
-        try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,score:worstScore}));}catch(e){}
-      }
+      postScanComplete();
       video.currentTime=0;
       return;
     }
@@ -476,6 +481,7 @@ ${videoUri ? `
     const frameScore=Object.values(jr).reduce((s,j)=>s+(j.lvl===2?3:j.lvl===1?1:0),0);
     if(frameScore>0&&frameScore>worstScore){
       worstScore=frameScore; worstSeenTime=video.currentTime;
+      worstJr=Object.assign({},jr);
       if(!scanning){
         try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,score:worstScore}));}catch(e){}
       }
@@ -612,7 +618,7 @@ ${videoUri ? `
     if(selectMode)cancelSelect();
     if(scanning){
       scanning=false;
-      if(worstSeenTime>0){try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,score:worstScore}));}catch(e){}}
+      postScanComplete();
     }
     video.play();playing=true;playBtn.innerHTML="&#9646;&#9646;";loop();
   }
@@ -754,8 +760,14 @@ export default function SkeletonScreen() {
         return;
       }
       if (msg.type === "worst") {
-        // JS already guarantees this is the highest-scoring frame seen so far
         setWorstTime(msg.time as number);
+        return;
+      }
+      if (msg.type === "scanComplete") {
+        setWorstTime(msg.time as number);
+        if (id && msg.angles) {
+          analysesApi.update(id, { jointAngles: msg.angles, jointRisks: msg.risks }).catch(() => {});
+        }
         return;
       }
       if (msg.type === "angles") {

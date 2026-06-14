@@ -175,6 +175,24 @@ export interface RiskRecord {
   prevention: string;
 }
 
+export interface JointAngles {
+  leftKnee?: number;
+  rightKnee?: number;
+  leftHip?: number;
+  rightHip?: number;
+  leftElbow?: number;
+  rightElbow?: number;
+}
+
+export interface JointRisks {
+  leftKnee?: number;
+  rightKnee?: number;
+  leftHip?: number;
+  rightHip?: number;
+  leftElbow?: number;
+  rightElbow?: number;
+}
+
 export const analyses = {
   list: () =>
     request<{ analyses: AnalysisRecord[] }>("/analyses"),
@@ -195,6 +213,12 @@ export const analyses = {
     request<{ analysis: AnalysisRecord; tips: TipRecord[]; injuryRisks: RiskRecord[] }>(
       `/analyses/${id}`
     ),
+
+  update: (id: string, data: { jointAngles?: JointAngles; jointRisks?: JointRisks }) =>
+    request<{ success: boolean }>(`/analyses/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
 
   delete: (id: string) =>
     request<{ success: boolean }>(`/analyses/${id}`, { method: "DELETE" }),
