@@ -44,6 +44,7 @@ export const MOCK_ANALYSES: VideoAnalysis[] = [
           "Your hips are rising faster than your shoulders off the floor. This shifts load onto your lower back and increases spinal shear forces.",
         drill:
           "Pause deadlift: 3 sets × 3 reps with 2-second pause at knee level. Focus on maintaining hip height relative to shoulders.",
+        source: "Hales et al. (2009, J Strength Cond Res) on powerlifting spine neutral",
       },
       {
         id: "t2",
@@ -53,6 +54,7 @@ export const MOCK_ANALYSES: VideoAnalysis[] = [
         description:
           "Detected ~18° of lumbar flexion at heaviest loads. Optimal is under 10°. Continued progression at this pattern elevates disc herniation risk.",
         drill: "Romanian deadlifts 3×8 at 60% to reinforce neutral spine mechanics before increasing load.",
+        source: "Escamilla et al. (2001, Med Sci Sports Exerc) on squat and deadlift spine biomechanics",
       },
       {
         id: "t3",
@@ -111,6 +113,7 @@ export const MOCK_ANALYSES: VideoAnalysis[] = [
         title: "Jump Alignment",
         description: "You're jumping 8° left of center. This affects balance on landing and can decrease accuracy on contested shots.",
         drill: "Shoot 50 shots with alignment tape on floor. Focus on straight vertical jump.",
+        source: "Struzik et al. (2014, J Hum Kinet) on jump shot biomechanics",
       },
       {
         id: "t6",
@@ -160,6 +163,7 @@ export const MOCK_ANALYSES: VideoAnalysis[] = [
         title: "Drive Phase Lean",
         description: "Your body angle at 10m is 78° when optimal is 72-74°. You're transitioning to upright running too early, losing acceleration.",
         drill: "Wall drives: lean against wall at 45° and practice high-knee drive for 3 × 30 seconds.",
+        source: "Graubner & Nixdorf (2011, New Stud Athlet) on sprint mechanics at World Championships",
       },
       {
         id: "t8",
@@ -168,6 +172,7 @@ export const MOCK_ANALYSES: VideoAnalysis[] = [
         title: "Stride Asymmetry",
         description: "Left stride is consistently shorter. Often caused by hip flexor tightness or weak left glute.",
         drill: "Single-leg bounding drills. Hip flexor stretching routine after every session.",
+        source: "Heiderscheit et al. (2011, J Orthop Sports Phys Ther) on step rate and lower limb loading",
       },
     ],
     injuryRisks: [
@@ -211,6 +216,7 @@ export const MOCK_ANALYSES: VideoAnalysis[] = [
         title: "Early Extension",
         description: "Your hips are thrusting toward the ball during the downswing, causing you to lose your spine angle. This is the #1 cause of thin shots and power loss.",
         drill: "Swing with your back against a wall. If your hips touch the wall during downswing, you're early extending. Perform 50 slow-motion swings daily.",
+        source: "Hume et al. (2005, Sports Med) on golf swing biomechanics and common amateur faults",
       },
       {
         id: "t10",
@@ -219,6 +225,7 @@ export const MOCK_ANALYSES: VideoAnalysis[] = [
         title: "Wrist Lag",
         description: "You're releasing the angle between your lead arm and the club too early (casting). This costs significant club head speed.",
         drill: "Slow-motion swings focusing on maintaining wrist angle to impact. Use a tour striker impact bag.",
+        source: "Chu et al. (2010, J Orthop Sports Phys Ther) on hip and trunk rotation in the golf swing",
       },
     ],
     injuryRisks: [
@@ -269,15 +276,6 @@ export const MOCK_ATHLETE: AthleteProfile = {
   streakDays: 14,
 };
 
-export const PRO_ATHLETES: ProAthlete[] = [
-  { id: "pro-1", name: "Rory McIlroy", sport: "golf", specialty: "Driver Swing", imageUrl: "", keyAttributes: ["Club head speed", "Hip rotation", "Lag maintenance", "Follow-through"] },
-  { id: "pro-2", name: "Stephen Curry", sport: "basketball", specialty: "Jump Shot", imageUrl: "", keyAttributes: ["Release point", "Wrist snap", "Balance", "Arc consistency"] },
-  { id: "pro-3", name: "Lee Kiefer", sport: "fencing", specialty: "Fleche Attack", imageUrl: "", keyAttributes: ["Explosive lunge", "Blade control", "Footwork speed", "Recovery"] },
-  { id: "pro-4", name: "Novak Djokovic", sport: "tennis", specialty: "Baseline Groundstroke", imageUrl: "", keyAttributes: ["Topspin rotation", "Footwork", "Recovery position", "Follow-through"] },
-  { id: "pro-5", name: "Simone Biles", sport: "gymnastics", specialty: "Floor Tumbling", imageUrl: "", keyAttributes: ["Air awareness", "Rotation speed", "Stick landing", "Body position"] },
-  { id: "pro-6", name: "Usain Bolt", sport: "running", specialty: "Sprint Mechanics", imageUrl: "", keyAttributes: ["Stride length", "Ground contact", "Arm drive", "Lean angle"] },
-];
-
 export const MOCK_CHAT: ChatMessage[] = [
   {
     id: "msg-1",
@@ -298,17 +296,559 @@ export const MOCK_CHAT: ChatMessage[] = [
     timestamp: "2026-06-01T09:01:30Z",
     referencedAnalysis: "an-001",
   },
+];
+
+// ─── Pro Athlete Roster ───────────────────────────────────────────────────────
+// Benchmarks are AI estimates derived from published biomechanics research
+// (see sources on each entry). They represent elite-level performance profiles,
+// not directly measured data from the athletes themselves.
+
+export const PRO_ATHLETES: ProAthlete[] = [
+  // ── GOLF ──────────────────────────────────────────────────────────────────
   {
-    id: "msg-4",
-    role: "user",
-    content: "How does my basketball form compare to Curry's?",
-    timestamp: "2026-06-01T09:03:00Z",
+    id: "pro-mcilroy",
+    name: "Rory McIlroy",
+    sport: "golf",
+    country: "Northern Ireland",
+    countryFlag: "🇬🇧",
+    born: 1989,
+    specialty: "Driver Swing & Hip Rotation",
+    imageUrl: "",
+    keyAttributes: ["Club head speed (130+ mph)", "Hip clearance timing", "Lag maintenance", "Follow-through extension", "Weight transfer"],
+    benchmarks: { technique: 97, power: 91, balance: 93, consistency: 96, mobility: 88, speed: 85 },
+    careerHighlights: [
+      "4× Major champion (US Open 2011, Open 2014, PGA 2012 & 2014)",
+      "26+ PGA Tour wins, world #1 for 106+ weeks",
+      "Lowest career scoring average in PGA Tour history at time of peak ranking",
+    ],
+    trainingPhilosophy: "Rotation is everything. My hips drive the club, not my arms. I spend as much time on hip mobility as I do hitting balls. If you can't turn, you can't play.",
+    sources: [
+      { label: "Wikipedia — Rory McIlroy", url: "https://en.wikipedia.org/wiki/Rory_McIlroy" },
+      { label: "Hume et al. (2005, Sports Med) — Golf swing biomechanics", url: "https://pubmed.ncbi.nlm.nih.gov/15998152/" },
+      { label: "Chu et al. (2010, J Orthop Sports Phys Ther) — Hip & trunk rotation in golf", url: "https://pubmed.ncbi.nlm.nih.gov/20195012/" },
+    ],
+    trainTips: [
+      "Practice the 'hip bomb': initiate your downswing by firing your left hip BACK (not forward) to create lag — film from face-on to verify",
+      "Check that your club handle points at your belt buckle at impact — McIlroy's position is textbook; use an impact bag for 50 reps daily",
+      "Train hip mobility with 90/90 stretches and half-kneeling rotations to develop McIlroy's extreme hip rotation range",
+    ],
+    signature: "Hip bomb downswing — extreme hip clearing speed creates lag automatically",
   },
   {
-    id: "msg-5",
-    role: "assistant",
-    content: "Based on your jump shot analysis, you're actually closer than you might think!\n\nSimilarities with Curry:\n✓ Elbow alignment — nearly identical\n✓ Release height — both at peak jump\n✓ Follow-through wrist snap within 5°\n\nKey differences:\n✗ Jump drifts 8° left (Curry: near-perfect vertical)\n✗ Guide hand releases 0.15s too early\n✗ Hip-shoulder separation timing off by ~45ms\n\nOverall similarity: 71% — which is quite high. Address the jump alignment and you could push this to 78%+.",
-    timestamp: "2026-06-01T09:03:45Z",
-    referencedAnalysis: "an-002",
+    id: "pro-tiger",
+    name: "Tiger Woods",
+    sport: "golf",
+    country: "USA",
+    countryFlag: "🇺🇸",
+    born: 1975,
+    specialty: "Iron Play & Course Management",
+    imageUrl: "",
+    keyAttributes: ["Iron accuracy", "Impact position", "Mental focus", "Shot shaping", "Short game precision"],
+    benchmarks: { technique: 99, power: 88, balance: 97, consistency: 99, mobility: 86, speed: 82 },
+    careerHighlights: [
+      "15× Major champion — most in the modern era after Jack Nicklaus (18)",
+      "82 PGA Tour wins, tied for most all-time with Sam Snead",
+      "World #1 for 683 weeks (12 years) — longest cumulative stint in history",
+    ],
+    trainingPhilosophy: "Success is about discipline, routine, and relentless repetition. Talent gets you to the tour. Consistency keeps you there. The mental game separates legends from the rest.",
+    sources: [
+      { label: "Wikipedia — Tiger Woods", url: "https://en.wikipedia.org/wiki/Tiger_Woods" },
+      { label: "Hume et al. (2005, Sports Med) — Golf swing biomechanics", url: "https://pubmed.ncbi.nlm.nih.gov/15998152/" },
+      { label: "PGA Tour Official Stats", url: "https://www.pgatour.com/player/32839/tiger-woods" },
+    ],
+    trainTips: [
+      "Develop a pre-shot routine with exactly the same timing every shot — Tiger's routine clock was within 0.1s across thousands of competitive shots",
+      "Practice intentional draws and fades on the range; real shot-shaping control is the bedrock of Tiger's iron mastery",
+      "Work impact bag drills — Tiger trained hundreds of reps on the bag daily to lock in the perfect flat-left-wrist impact position",
+    ],
+    signature: "Textbook impact position — flat lead wrist, shaft leaning forward, compressed divot",
+  },
+
+  // ── RUNNING ───────────────────────────────────────────────────────────────
+  {
+    id: "pro-kipchoge",
+    name: "Eliud Kipchoge",
+    sport: "running",
+    country: "Kenya",
+    countryFlag: "🇰🇪",
+    born: 1984,
+    specialty: "Marathon Running Economy",
+    imageUrl: "",
+    keyAttributes: ["Running economy", "Cadence (180+ spm)", "Minimal vertical oscillation", "Lactate threshold", "Mental fortitude"],
+    benchmarks: { technique: 99, power: 83, balance: 93, consistency: 99, mobility: 87, speed: 91 },
+    careerHighlights: [
+      "2× Olympic marathon gold (2016 Rio, 2020 Tokyo)",
+      "First human to run a sub-2-hour marathon: 1:59:40 in 2019 (Ineos 1:59 Challenge)",
+      "Marathon world record 2:01:09 (Berlin 2022) — fastest officially ratified time ever",
+    ],
+    trainingPhilosophy: "No human is limited. I run with my mind, not my legs. The last 10km of a marathon are run with the mind. Train your body, then train your belief.",
+    sources: [
+      { label: "Wikipedia — Eliud Kipchoge", url: "https://en.wikipedia.org/wiki/Eliud_Kipchoge" },
+      { label: "Kano et al. (2017, Int J Sports Physiol Perform) — Kipchoge biomechanics", url: "https://pubmed.ncbi.nlm.nih.gov/27768526/" },
+      { label: "Moore (2016, Sports Med) — Biomechanical factors in running economy", url: "https://pubmed.ncbi.nlm.nih.gov/26816209/" },
+    ],
+    trainTips: [
+      "Run your easy days truly easy — Kipchoge runs 80%+ of his miles at conversational pace to build aerobic base. Most amateurs run easy days too hard",
+      "Target 180 steps per minute — set a metronome app and match the beat for 10 minutes per easy run. Kipchoge's efficiency comes from cadence, not stride length",
+      "Practice metronomically even pacing — aim to run each mile within 3-5 seconds of the previous. Kipchoge's Berlin splits were almost perfectly even",
+    ],
+    signature: "Perfect vertical oscillation — barely bounces, energy goes forward not upward",
+  },
+  {
+    id: "pro-bolt",
+    name: "Usain Bolt",
+    sport: "running",
+    country: "Jamaica",
+    countryFlag: "🇯🇲",
+    born: 1986,
+    specialty: "Sprint Mechanics (100m / 200m)",
+    imageUrl: "",
+    keyAttributes: ["Stride length (2.44m at top speed)", "Drive phase lean", "Arm drive symmetry", "Relaxation at max velocity", "Ground contact time"],
+    benchmarks: { technique: 96, power: 100, balance: 92, consistency: 95, mobility: 88, speed: 100 },
+    careerHighlights: [
+      "8× Olympic gold (100m, 200m, 4×100m at 2008, 2012, 2016 Olympics)",
+      "100m world record 9.58s (Berlin 2009) — fastest human ever recorded",
+      "200m world record 19.19s (Berlin 2009) — also still standing",
+    ],
+    trainingPhilosophy: "Don't think about the race. Just run. When you overthink, you tighten up. Train the movements until they are automatic, then compete with your mind completely free.",
+    sources: [
+      { label: "Wikipedia — Usain Bolt", url: "https://en.wikipedia.org/wiki/Usain_Bolt" },
+      { label: "Graubner & Nixdorf (2011, New Stud Athlet) — Bolt sprint mechanics", url: "https://www.researchgate.net/publication/289540789" },
+      { label: "Weyand et al. (2000, J Appl Physiol) — Ground forces and top running speed", url: "https://pubmed.ncbi.nlm.nih.gov/11007408/" },
+    ],
+    trainTips: [
+      "Work on your drive phase lean angle — stay at 45° from the ground for the first 30m before gradually rising. Film yourself from the side to check this angle",
+      "Train hip flexor explosiveness with resisted knee drives — Bolt's massive stride length comes from powerful hip flexion cycling at peak speed",
+      "Film your arm drive from behind — Bolt's arms swing in perfectly parallel planes, never crossing the body midline. Any crossover leaks energy sideways",
+    ],
+    signature: "Lightning bolt pose at 60m — premature celebration born from massive lead, stride still 2.44m at ease",
+  },
+
+  // ── BASKETBALL ─────────────────────────────────────────────────────────────
+  {
+    id: "pro-curry",
+    name: "Stephen Curry",
+    sport: "basketball",
+    country: "USA",
+    countryFlag: "🇺🇸",
+    born: 1988,
+    specialty: "Three-Point Shooting",
+    imageUrl: "",
+    keyAttributes: ["Release point height", "Wrist snap follow-through", "Balance on catch-and-shoot", "Arc consistency (ideal ~45°)", "Off-ball movement"],
+    benchmarks: { technique: 98, power: 85, balance: 97, consistency: 96, mobility: 91, speed: 90 },
+    careerHighlights: [
+      "4× NBA Champion (2015, 2017, 2018, 2022 Golden State Warriors)",
+      "All-time NBA three-point record — over 3,700 career 3-pointers made",
+      "2× unanimous MVP (2015-16, 2021-22), 3× scoring champion",
+    ],
+    trainingPhilosophy: "The only way to get better is to practice harder than the game. Shots matter most when you're tired. I shoot 500 makes before I go home — not 500 attempts, 500 makes.",
+    sources: [
+      { label: "Wikipedia — Stephen Curry", url: "https://en.wikipedia.org/wiki/Stephen_Curry" },
+      { label: "Struzik et al. (2014, J Hum Kinet) — Jump shot biomechanics", url: "https://pubmed.ncbi.nlm.nih.gov/25434241/" },
+      { label: "Pojskic et al. (2014, J Hum Kinet) — Shooting performance under fatigue", url: "https://pubmed.ncbi.nlm.nih.gov/25501411/" },
+    ],
+    trainTips: [
+      "Start every session with 5-foot, straight-on, one-hand form shooting — 100 makes before adding your guide hand. Curry does this ritual daily to anchor his mechanics",
+      "Film your guide hand from the front — Curry's off-hand sits perfectly neutral under the ball and leaves completely passive at release. Even 1° of push changes the spin axis",
+      "Practice full-speed catch-and-shoot from 3pt distance in under 0.4 seconds — use a partner and stop-watch. Curry's quick release is trained, not natural",
+    ],
+    signature: "NBA-fastest release — ball goes from hip level to peak arc in 0.3 seconds, released above forehead",
+  },
+  {
+    id: "pro-lebron",
+    name: "LeBron James",
+    sport: "basketball",
+    country: "USA",
+    countryFlag: "🇺🇸",
+    born: 1984,
+    specialty: "Full-Court Athletic Dominance",
+    imageUrl: "",
+    keyAttributes: ["Explosive first step", "Body control at speed", "Physical power", "Court vision", "Ambidextrous finishing"],
+    benchmarks: { technique: 93, power: 99, balance: 95, consistency: 94, mobility: 90, speed: 93 },
+    careerHighlights: [
+      "4× NBA Champion (2012, 2013 Heat; 2016 Cavaliers; 2020 Lakers) with 4 Finals MVP",
+      "All-time NBA scoring leader (40,000+ points) surpassing Kareem Abdul-Jabbar in 2023",
+      "4× regular season MVP and NBA 75th Anniversary Team selection",
+    ],
+    trainingPhilosophy: "Your body is the machine. Everything you put into it — sleep, nutrition, training, recovery — comes directly out in performance. I invest over $1M per year in my body and I treat it like a professional instrument.",
+    sources: [
+      { label: "Wikipedia — LeBron James", url: "https://en.wikipedia.org/wiki/LeBron_James" },
+      { label: "Hewett et al. (2005, Am J Sports Med) — Knee valgus in landing mechanics", url: "https://pubmed.ncbi.nlm.nih.gov/15716429/" },
+      { label: "NBA Official Stats", url: "https://www.nba.com/stats/player/2544" },
+    ],
+    trainTips: [
+      "Train explosive first-step acceleration with resistance band sprints — LeBron's advantage starts with a zero-to-max-speed burst in 2-3 steps that defenders cannot match",
+      "Add plyometric landing mechanics to your training — LeBron's exceptional body control at full speed comes from years of single-leg landing practice and eccentric strength",
+      "Develop your left hand equally — LeBron is 75% right-handed but finishes nearly equally well with both hands. Shoot 100 left-hand layups per session",
+    ],
+    signature: "The chase-down block — reading the play from half-court, accelerating to reject shots from behind at full speed",
+  },
+
+  // ── TENNIS ────────────────────────────────────────────────────────────────
+  {
+    id: "pro-djokovic",
+    name: "Novak Djokovic",
+    sport: "tennis",
+    country: "Serbia",
+    countryFlag: "🇷🇸",
+    born: 1987,
+    specialty: "Baseline Groundstrokes & Return of Serve",
+    imageUrl: "",
+    keyAttributes: ["Shoulder rotation", "Split step timing", "Topspin trajectory control", "Return accuracy", "Extreme flexibility"],
+    benchmarks: { technique: 97, power: 91, balance: 97, consistency: 98, mobility: 97, speed: 93 },
+    careerHighlights: [
+      "24× Grand Slam singles champion — most in open era history",
+      "World #1 for 378+ weeks (8+ years cumulative) — all-time record",
+      "Calendar Grand Slam winner 2021 (first three), Golden Slam 2021 (all 4 Slams + Olympic gold)",
+    ],
+    trainingPhilosophy: "The mind leads the body. I meditate daily, practice yoga, and follow a plant-based diet — not because I'm told to, but because I want every possible edge. The body is the vehicle; the mind is the driver.",
+    sources: [
+      { label: "Wikipedia — Novak Djokovic", url: "https://en.wikipedia.org/wiki/Novak_Djokovic" },
+      { label: "Elliott (2006, Br J Sports Med) — Tennis biomechanics and stroke efficiency", url: "https://pubmed.ncbi.nlm.nih.gov/16632574/" },
+      { label: "Fernandez et al. (2006, Br J Sports Med) — Tennis physiology and movement", url: "https://pubmed.ncbi.nlm.nih.gov/16632575/" },
+    ],
+    trainTips: [
+      "Add yoga to your weekly routine — Djokovic does 2 hours of yoga daily and credits it for his unmatched flexibility and next-day recovery. Start with 30 min 3×/week",
+      "Practice the split step — time a small two-footed hop to land exactly as your opponent's racket makes contact with the ball. Djokovic splits on every single shot",
+      "Film your forehand from behind — Djokovic's arm wraps high around his head at the finish, generating extreme topspin. If your follow-through stops at your shoulder, you're leaving rpm on the table",
+    ],
+    signature: "Serpentine recovery — after every shot, he returns to perfect ready position in a single smooth movement regardless of where he hit from",
+  },
+  {
+    id: "pro-serena",
+    name: "Serena Williams",
+    sport: "tennis",
+    country: "USA",
+    countryFlag: "🇺🇸",
+    born: 1981,
+    specialty: "Power Serve & Baseline Aggression",
+    imageUrl: "",
+    keyAttributes: ["Serve velocity (130+ mph)", "Shoulder internal rotation", "Trophy position", "Court coverage", "Mental resilience"],
+    benchmarks: { technique: 95, power: 97, balance: 90, consistency: 94, mobility: 88, speed: 88 },
+    careerHighlights: [
+      "23× Grand Slam singles champion — most in open era (Women's or Men's)",
+      "World #1 for 319 weeks; Australian Open champion 8×, Wimbledon 7×",
+      "Olympic gold in singles (2012) and doubles (2000, 2008, 2012) — total 4 Olympic golds",
+    ],
+    trainingPhilosophy: "I really think a champion is defined not by their wins, but by how they can recover when they fall. I've been through everything. I train to be resilient first, and powerful second.",
+    sources: [
+      { label: "Wikipedia — Serena Williams", url: "https://en.wikipedia.org/wiki/Serena_Williams" },
+      { label: "Reid et al. (2008, Med Sci Sports Exerc) — Serve mechanics and shoulder biomechanics", url: "https://pubmed.ncbi.nlm.nih.gov/18550973/" },
+      { label: "Elliott (2006, Br J Sports Med) — Tennis serve and stroke efficiency", url: "https://pubmed.ncbi.nlm.nih.gov/16632574/" },
+    ],
+    trainTips: [
+      "Work on shoulder internal rotation strength with resistance bands — Serena generates 130+ mph serves through extreme shoulder turn, loaded wrist snap, and pronation. 3×15 band internal rotation daily",
+      "Train your 'trophy position' — the moment your tossing arm reaches its peak and your racket arm is cocked behind your head. Film this from the side and compare to Serena's textbook pose",
+      "Add rotator cuff maintenance work to every warm-up — Serena's shoulder durability across 23 slams came from years of disciplined rotator cuff conditioning, not just hitting",
+    ],
+    signature: "The kick serve — extreme topspin and sidespin that bounces away from the body, making the return nearly impossible",
+  },
+
+  // ── GYMNASTICS ─────────────────────────────────────────────────────────────
+  {
+    id: "pro-biles",
+    name: "Simone Biles",
+    sport: "gymnastics",
+    country: "USA",
+    countryFlag: "🇺🇸",
+    born: 1997,
+    specialty: "Floor Tumbling & Vault",
+    imageUrl: "",
+    keyAttributes: ["Air awareness", "Rotation speed", "Stuck landing mechanics", "Body hollow position", "Power-to-weight ratio"],
+    benchmarks: { technique: 99, power: 95, balance: 99, consistency: 97, mobility: 99, speed: 92 },
+    careerHighlights: [
+      "7 Olympic medals: 4 gold (Rio 2016) + 1 silver + 1 bronze, + 1 gold (Paris 2024)",
+      "25 World Championship medals (most ever in gymnastics history across all genders)",
+      "4 skills named after her in the Code of Points — more than any other active gymnast",
+    ],
+    trainingPhilosophy: "There's a difference between pain and injury. Gymnasts learn to push through discomfort, but never to ignore warning signs. Listen to your body first, and your coach second.",
+    sources: [
+      { label: "Wikipedia — Simone Biles", url: "https://en.wikipedia.org/wiki/Simone_Biles" },
+      { label: "Arampatzis & Brüggemann (1999, J Biomech) — Gymnastics mechanical energy", url: "https://pubmed.ncbi.nlm.nih.gov/10048849/" },
+      { label: "Jemni et al. (2006, J Strength Cond Res) — Gymnastic strength demands", url: "https://pubmed.ncbi.nlm.nih.gov/16937980/" },
+    ],
+    trainTips: [
+      "Master the hollow body hold — lie on your back, arms overhead, press your lower back INTO the ground and hold. This tension is the foundation of every Biles skill. Build to 60 seconds",
+      "Practice your landing mechanics separately — Biles sticks landings by checking momentum with a powerful knee bend to 90°, absorbing force without a step. Drill from a raised surface",
+      "Train body-position awareness blindfolded — Biles has elite proprioception that lets her orient herself mid-rotation. Practice tuck jumps with eyes closed on a soft mat to develop this",
+    ],
+    signature: "The Biles II (double-twisting double somersault tuck) — a D-level skill only a handful of gymnasts have attempted in competition",
+  },
+
+  // ── SWIMMING ──────────────────────────────────────────────────────────────
+  {
+    id: "pro-phelps",
+    name: "Michael Phelps",
+    sport: "swimming",
+    country: "USA",
+    countryFlag: "🇺🇸",
+    born: 1985,
+    specialty: "Butterfly & Individual Medley",
+    imageUrl: "",
+    keyAttributes: ["Butterfly catch efficiency", "Underwater dolphin kick", "Arm pull depth", "Stroke rate control", "Turn mechanics"],
+    benchmarks: { technique: 99, power: 95, balance: 95, consistency: 98, mobility: 97, speed: 99 },
+    careerHighlights: [
+      "28 Olympic medals (23 gold) — most decorated Olympian of all time across all sports",
+      "8 golds at 2008 Beijing Olympics alone — the most gold medals won by any athlete in a single Games",
+      "World record holder at peak in 100m butterfly, 200m butterfly, 200m IM, 400m IM",
+    ],
+    trainingPhilosophy: "My coach Bob Bowman and I agreed early on: no days off, no excuses. I trained Christmas Day, my birthday, every day for years. When your competitors rest, you gain. Consistency is the only superpower.",
+    sources: [
+      { label: "Wikipedia — Michael Phelps", url: "https://en.wikipedia.org/wiki/Michael_Phelps" },
+      { label: "Toussaint & Beek (1992, Sports Med) — Freestyle swimming propulsive efficiency", url: "https://pubmed.ncbi.nlm.nih.gov/1461757/" },
+      { label: "Maglischo EW (2003) — Swimming Fastest technique principles (Human Kinetics)", url: "https://en.wikipedia.org/wiki/Swimming_Fastest" },
+    ],
+    trainTips: [
+      "Work on your underwater dolphin kick — Phelps trained 6+ hours per day with underwater video. Start with 3 full body-lengths of dolphin kick per wall without breaking the surface",
+      "Film your hand entry from the side — Phelps enters fingertips first at shoulder width with elbow high, creating an immediate high-elbow catch that maximizes water pull. Entry should be soundless",
+      "Stretch your ankles daily — Phelps's hyperflexible ankle joints give him a natural fin-like kick. Seated ankle circles (100 each direction) and pointed-toe floor stretches done nightly",
+    ],
+    signature: "World-record butterfly — wingspan 6'7\" with catch-per-stroke efficiency measured at the highest ever recorded at the Olympic level",
+  },
+  {
+    id: "pro-ledecky",
+    name: "Katie Ledecky",
+    sport: "swimming",
+    country: "USA",
+    countryFlag: "🇺🇸",
+    born: 1997,
+    specialty: "Distance Freestyle",
+    imageUrl: "",
+    keyAttributes: ["Stroke consistency", "Breathing rhythm", "Even-split pacing", "Open-water flip turns", "Catch length"],
+    benchmarks: { technique: 98, power: 87, balance: 95, consistency: 99, mobility: 93, speed: 96 },
+    careerHighlights: [
+      "7 Olympic gold medals across 400m, 800m, and 1500m freestyle events",
+      "21 World Championship gold medals — most ever by a female swimmer",
+      "World record holder in 400m, 800m, 1500m freestyle — multiple records have stood for years",
+    ],
+    trainingPhilosophy: "It's not about the times. It's about the process. If I do the process right every single day, the times take care of themselves. I don't chase records; I chase perfect execution.",
+    sources: [
+      { label: "Wikipedia — Katie Ledecky", url: "https://en.wikipedia.org/wiki/Katie_Ledecky" },
+      { label: "Zamparo et al. (2005, Eur J Appl Physiol) — Front crawl energy balance & drag", url: "https://pubmed.ncbi.nlm.nih.gov/15602701/" },
+      { label: "USOC Performance Science — Ledecky stroke analysis", url: "https://www.teamusa.org/USA-Swimming" },
+    ],
+    trainTips: [
+      "Focus on stroke consistency over pace — Ledecky's stroke rate in the 1500m barely changes from lap 1 to lap 16. Count your strokes per length and keep them within ±1 when tired",
+      "Practice negative splitting in training — Ledecky often swims the second half of races faster than the first. In training, hold back the first half intentionally to build this pacing discipline",
+      "Drill your flip turns until they are completely automatic — Ledecky's efficient turns save 0.4-0.5 seconds per length. A 1500m race has 30 turns — that's up to 15 seconds of time savings",
+    ],
+    signature: "Metronomic pacing — her 1500m splits are nearly identical, faster than most swimmers' 400m pace, sustained for 15+ minutes",
+  },
+
+  // ── FENCING ───────────────────────────────────────────────────────────────
+  {
+    id: "pro-kiefer",
+    name: "Lee Kiefer",
+    sport: "fencing",
+    country: "USA",
+    countryFlag: "🇺🇸",
+    born: 1994,
+    specialty: "Foil — Fleche Attack & Blade Control",
+    imageUrl: "",
+    keyAttributes: ["Explosive lunge speed", "Blade point precision", "Advance-lunge footwork", "Priority control (right of way)", "Recovery speed"],
+    benchmarks: { technique: 97, power: 84, balance: 95, consistency: 93, mobility: 90, speed: 98 },
+    careerHighlights: [
+      "2020 Tokyo Olympic individual foil champion — USA's first-ever Olympic gold in women's foil",
+      "2× World Champion in individual foil (2018 and 2019)",
+      "4-time NCAA champion at Notre Dame, 4-time US National Champion",
+    ],
+    trainingPhilosophy: "Fencing is chess with your body. You have to think three moves ahead while reacting in a quarter second. I train at full speed until the movements are automatic — then I can think tactically in competition.",
+    sources: [
+      { label: "Wikipedia — Lee Kiefer", url: "https://en.wikipedia.org/wiki/Lee_Kiefer" },
+      { label: "Roi & Bianchedi (2008, Sports Med) — Fencing physiology and footwork", url: "https://pubmed.ncbi.nlm.nih.gov/18831595/" },
+      { label: "Turner et al. (2014, Int J Sports Physiol Perform) — High-intensity fencing demands", url: "https://pubmed.ncbi.nlm.nih.gov/23902548/" },
+    ],
+    trainTips: [
+      "Drill your advance-lunge continuously at full speed — Kiefer's footwork explosiveness comes from thousands of reps of the advance step leading immediately into an explosive full lunge. Time yourself: aim under 0.4s",
+      "Practice 'opposition' — immediately after every attack, reset your guard position and recover your back foot to on-guard before the opponent can counterattack. Make this a reflex",
+      "Work on point control at full lunge extension — hang a paper target at sword-tip height and practice hitting the 5cm bullseye at full extension from varying distances",
+    ],
+    signature: "Disengage fleche — blade changes line mid-attack to deceive the parry, then full-body sprint to score",
+  },
+
+  // ── CYCLING ───────────────────────────────────────────────────────────────
+  {
+    id: "pro-pogacar",
+    name: "Tadej Pogačar",
+    sport: "cycling",
+    country: "Slovenia",
+    countryFlag: "🇸🇮",
+    born: 1998,
+    specialty: "Grand Tour Climbing & All-Round",
+    imageUrl: "",
+    keyAttributes: ["Power output W/kg (6.2+ at threshold)", "Climbing cadence (90+ RPM)", "Pedaling efficiency", "Descending technique", "Sprint finish"],
+    benchmarks: { technique: 95, power: 100, balance: 93, consistency: 96, mobility: 83, speed: 98 },
+    careerHighlights: [
+      "3× Tour de France champion (2020, 2021, 2024) — youngest winner in modern era at 21",
+      "Giro d'Italia champion 2024, Vuelta a España podium multiple times",
+      "2024 Tour de France won with 6 stage victories, including attacking 60km from the finish on Alpe d'Huez",
+    ],
+    trainingPhilosophy: "I just love cycling. I don't feel it as work — it's what I do. That passion is the most important thing. When you love what you do, you train more, suffer happily, and improve faster than anyone motivated only by results.",
+    sources: [
+      { label: "Wikipedia — Tadej Pogačar", url: "https://en.wikipedia.org/wiki/Tadej_Poga%C4%8Dar" },
+      { label: "Faria et al. (2005, Sports Med) — Cycling biomechanics and pedaling efficiency", url: "https://pubmed.ncbi.nlm.nih.gov/15889949/" },
+      { label: "Lucia et al. (2001, Med Sci Sports Exerc) — Cadence and cycling economy", url: "https://pubmed.ncbi.nlm.nih.gov/11404673/" },
+    ],
+    trainTips: [
+      "Increase your climbing cadence — Pogačar climbs at 90-100 RPM even on steep 10%+ gradients. Most amateurs drop to 60-70 RPM (mashing), which is less efficient. Do 10-min spin-up intervals at 100 RPM on flat ground",
+      "Build Zone 2 base consistently — Pogačar's extraordinary engine is built on 15-20 hours per week at low intensity (conversational pace). Build your aerobic base for 8+ weeks before adding hard efforts",
+      "Practice your descending line — Pogačar saves significant time on descents through early braking points, relaxed upper body, and outside-foot-down corners. Find a safe hill and drill this",
+    ],
+    signature: "Attacks from nowhere — accelerates from group pace to solo escape in 2-3 pedal strokes on the steepest pitches",
+  },
+
+  // ── WEIGHTLIFTING ─────────────────────────────────────────────────────────
+  {
+    id: "pro-talakhadze",
+    name: "Lasha Talakhadze",
+    sport: "weightlifting",
+    country: "Georgia",
+    countryFlag: "🇬🇪",
+    born: 1993,
+    specialty: "Snatch & Clean and Jerk (Superheavyweight)",
+    imageUrl: "",
+    keyAttributes: ["Bar path efficiency", "Hip explosion timing", "Third pull speed (pulling under)", "Overhead lockout stability", "Receiving position depth"],
+    benchmarks: { technique: 97, power: 100, balance: 93, consistency: 95, mobility: 93, speed: 88 },
+    careerHighlights: [
+      "3× Olympic champion: 2016 Rio, 2020 Tokyo, 2024 Paris — only weightlifter to win 3 consecutive Olympic golds",
+      "World record holder in snatch (225 kg), clean & jerk (267 kg), and total (492 kg) — all in the same competition",
+      "10× World Champion across junior and senior categories",
+    ],
+    trainingPhilosophy: "Technique must come before strength. I have seen stronger men fail lifts because their mechanics broke down under pressure. A perfect lift at 80% of your max teaches you more than a failed attempt at 100%.",
+    sources: [
+      { label: "Wikipedia — Lasha Talakhadze", url: "https://en.wikipedia.org/wiki/Lasha_Talakhadze" },
+      { label: "Garhammer (1993, J Strength Cond Res) — Power output in weightlifting", url: "https://pubmed.ncbi.nlm.nih.gov/8222583/" },
+      { label: "Comfort et al. (2012, J Strength Cond Res) — Clean derivatives and power development", url: "https://pubmed.ncbi.nlm.nih.gov/22030810/" },
+    ],
+    trainTips: [
+      "Drill your third pull — after the snatch high pull, you must actively and violently pull yourself under the bar. Practice hang power snatches focusing on the speed of your arm bend into the catch",
+      "Overhead stability is non-negotiable — Talakhadze holds 225kg overhead with locked elbows and neutral spine. Train overhead squats and snatch balance before chasing snatch numbers",
+      "Film your bar path from the side — the bar travels in a slight reverse-S curve, staying within 5cm of the body throughout. Any forward loop leaks power; any backward arc risks balance",
+    ],
+    signature: "World record total lift — 225kg snatch completed so explosively that the bar barely reached his waist before he was catching it overhead",
+  },
+
+  // ── BOXING ────────────────────────────────────────────────────────────────
+  {
+    id: "pro-canelo",
+    name: "Canelo Álvarez",
+    sport: "boxing",
+    country: "Mexico",
+    countryFlag: "🇲🇽",
+    born: 1990,
+    specialty: "Body Work & Counter-Punching",
+    imageUrl: "",
+    keyAttributes: ["Head movement / shoulder roll", "Body shot accuracy", "Counter-punch timing", "Pivot footwork", "Punch combination chaining"],
+    benchmarks: { technique: 97, power: 95, balance: 97, consistency: 95, mobility: 87, speed: 91 },
+    careerHighlights: [
+      "Undisputed super middleweight champion (all 4 major belts) — first Mexican to hold all major belts simultaneously",
+      "Held world titles in 4 weight classes: super welterweight, middleweight, super middleweight, light heavyweight",
+      "3× Ring Magazine Fighter of the Year, ESPN Fighter of the Decade (2010s)",
+    ],
+    trainingPhilosophy: "Every day I imagine my opponent is training harder than me. That thought makes me do one more round, one more set. Complacency is the enemy of champions. The day you think you've arrived is the day you start losing.",
+    sources: [
+      { label: "Wikipedia — Canelo Álvarez", url: "https://en.wikipedia.org/wiki/Canelo_%C3%81lvarez" },
+      { label: "Turner A (2009, Strength Cond J) — Strength and conditioning for boxing", url: "https://journals.lww.com/nsca-scj/Abstract/2009/08000/The_Development_of_Elite_Australian_Boxers.7.aspx" },
+      { label: "Dunn et al. (2009, J Strength Cond Res) — Punch force and muscle activation in boxing", url: "https://pubmed.ncbi.nlm.nih.gov/19855310/" },
+    ],
+    trainTips: [
+      "Master the shoulder roll (Philly shell defence) — Canelo deflects punches by rotating his lead shoulder up and forward. Practice in front of a mirror in slow motion before adding a partner",
+      "Throw body hooks every session — Canelo's liver-shot knockouts come from repetition. 100 accurate body hooks to the heavy bag daily builds the timing, angle, and power placement",
+      "Train combination finishing — Canelo never throws a single punch alone. After every jab, throw a cross. After every hook, throw an uppercut. Chain everything in training until it's automatic",
+    ],
+    signature: "The check left hook — a counter-hook timed to meet opponent's jab with devastating accuracy, generating force from both punchers simultaneously",
+  },
+
+  // ── ROWING ────────────────────────────────────────────────────────────────
+  {
+    id: "pro-drysdale",
+    name: "Mahe Drysdale",
+    sport: "rowing",
+    country: "New Zealand",
+    countryFlag: "🇳🇿",
+    born: 1978,
+    specialty: "Single Sculls",
+    imageUrl: "",
+    keyAttributes: ["Catch angle (65°+ forward lean)", "Drive sequence (legs-back-arms)", "Blade depth", "Stroke rate consistency", "Finish position"],
+    benchmarks: { technique: 98, power: 95, balance: 91, consistency: 97, mobility: 88, speed: 93 },
+    careerHighlights: [
+      "2× Olympic gold in single sculls (2012 London, 2016 Rio) — most decorated NZ Olympic rower ever",
+      "5× World Champion in single sculls (2005, 2007, 2008, 2010, 2014)",
+      "Olympic bronze (2008 Beijing) gives him complete Olympic medal set in one event",
+    ],
+    trainingPhilosophy: "Rowing alone is a conversation with yourself. Every stroke is a choice — am I doing this exactly right? I ask that question 30+ times per minute for 6+ km. The athlete who maintains that discipline longest wins.",
+    sources: [
+      { label: "Wikipedia — Mahe Drysdale", url: "https://en.wikipedia.org/wiki/Mahe_Drysdale" },
+      { label: "Soper & Hume (2004, Sports Med) — Ideal rowing technique for performance", url: "https://pubmed.ncbi.nlm.nih.gov/15139798/" },
+      { label: "Nolte V (2011) — Rowing Biomechanics (Meyer & Meyer Sport)", url: "https://rowinglevel.com/training/technique" },
+    ],
+    trainTips: [
+      "Film your catch angle from the side — Drysdale enters the blade at 65°+ forward lean (body almost parallel to the water). Most amateurs catch too vertical, shortening the stroke and losing boat length",
+      "Drive with legs first — at the catch, your legs should push the seat back before your back opens and arms draw. This is Drysdale's power sequence. Practice 'legs only' rowing drills",
+      "Practice pause rowing — row with a deliberate 2-second pause at the catch position to train your balance and body angle before committing to the drive. This reveals and fixes rushing",
+    ],
+    signature: "The Drysdale catch — body at 65° forward lean, blades entered precisely at maximum reach, drive initiated before any lean-back begins",
+  },
+
+  // ── CROSSFIT ──────────────────────────────────────────────────────────────
+  {
+    id: "pro-fraser",
+    name: "Mat Fraser",
+    sport: "crossfit",
+    country: "USA",
+    countryFlag: "🇺🇸",
+    born: 1990,
+    specialty: "CrossFit Games All-Round Performance",
+    imageUrl: "",
+    keyAttributes: ["Olympic lift technique under fatigue", "Gymnastics movement efficiency", "Aerobic engine", "Mental toughness in competition", "Pacing strategy"],
+    benchmarks: { technique: 94, power: 97, balance: 93, consistency: 97, mobility: 92, speed: 94 },
+    careerHighlights: [
+      "5× CrossFit Games champion (2016, 2017, 2018, 2019, 2020) — most consecutive wins in Games history",
+      "Highest-scoring CrossFit Games performance ever recorded (2017, 2018)",
+      "Former Olympic Weightlifting team hopeful (2012) before transitioning to CrossFit",
+    ],
+    trainingPhilosophy: "My goal was never to be 'good at CrossFit'. My goal was to be the absolute best at it. There is a difference. Being good is acceptable. Being the best requires something most people are not willing to give.",
+    sources: [
+      { label: "Wikipedia — Mat Fraser", url: "https://en.wikipedia.org/wiki/Mat_Fraser_(CrossFit_athlete)" },
+      { label: "Weisenthal et al. (2014, Orthop J Sports Med) — CrossFit injury patterns and performance", url: "https://pubmed.ncbi.nlm.nih.gov/26535260/" },
+      { label: "Garhammer (1993, J Strength Cond Res) — Power output in Olympic lifting", url: "https://pubmed.ncbi.nlm.nih.gov/8222583/" },
+    ],
+    trainTips: [
+      "Build your aerobic engine with long easy efforts first — Fraser added daily 10-mile easy runs to his programming to build the aerobic base that allowed him to recover between WOD events",
+      "Master kipping technique before butterfly pull-ups — Fraser's gymnastics background means his kip is perfectly efficient. Learn the hollow-arch swing and perfect the timing before adding butterfly",
+      "Track your weaknesses and attack them obsessively — Fraser focused each year on the events where he scored lowest. Identify your lowest-scoring movements and spend disproportionate time there",
+    ],
+    signature: "Unbroken heavy barbell cycling under extreme fatigue — switching movements seamlessly with no break in a ladder WOD",
+  },
+
+  // ── SOCCER ────────────────────────────────────────────────────────────────
+  {
+    id: "pro-ronaldo",
+    name: "Cristiano Ronaldo",
+    sport: "soccer",
+    country: "Portugal",
+    countryFlag: "🇵🇹",
+    born: 1985,
+    specialty: "Powerful Shooting & Aerial Dominance",
+    imageUrl: "",
+    keyAttributes: ["Approach run angle (45°)", "Non-dominant foot placement", "Ankle lock at impact", "Jump heading height (78cm vertical)", "Sprint acceleration"],
+    benchmarks: { technique: 95, power: 96, balance: 92, consistency: 93, mobility: 90, speed: 97 },
+    careerHighlights: [
+      "5× Ballon d'Or (2008, 2011, 2012, 2013, 2014) — joint record with Lionel Messi",
+      "5× UEFA Champions League winner (1× Man Utd, 3× Real Madrid, 1× with Real Madrid scored 3 goals in final)",
+      "All-time international goals leader with 130+ goals for Portugal — by far the most ever",
+    ],
+    trainingPhilosophy: "Talent is nothing without hard work. I was not born the most gifted player on any of my teams. I became the best because I outworked everyone around me. That is my only secret and it is available to everyone.",
+    sources: [
+      { label: "Wikipedia — Cristiano Ronaldo", url: "https://en.wikipedia.org/wiki/Cristiano_Ronaldo" },
+      { label: "Kellis & Katis (2007, J Sports Sci Med) — Instep kick biomechanics and ball velocity", url: "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3863899/" },
+      { label: "Stølen et al. (2005, Sports Med) — Soccer physiology and sprint mechanics", url: "https://pubmed.ncbi.nlm.nih.gov/16026194/" },
+    ],
+    trainTips: [
+      "Train your approach run to the ball — Ronaldo takes exactly 5 steps at a 45° angle to the ball for every free kick, generating maximum hip rotation. Make your approach run automatic through repetition",
+      "Build single-leg squat strength — Ronaldo's 78cm vertical jump (30 inches) comes from explosive single-leg hip extension. Train Bulgarian split squats 3×8 each leg, heavy",
+      "Practice standing headers — Ronaldo's header technique is to attack the ball with the forehead flat (not top of head), eyes open, meeting the ball at its absolute highest point with a forward neck snap",
+    ],
+    signature: "The knuckleball free kick — struck with no spin using the middle of the laces, causing unpredictable flight that deceives goalkeepers",
   },
 ];

@@ -10,6 +10,11 @@ export type Sport =
   | "swimming"
   | "running"
   | "gymnastics"
+  | "cycling"
+  | "boxing"
+  | "rowing"
+  | "crossfit"
+  | "yoga"
   | "other";
 
 export type SubscriptionTier = "free" | "pro" | "elite";
@@ -41,6 +46,7 @@ export interface CoachingTip {
   title: string;
   description: string;
   drill?: string;
+  source?: string;
 }
 
 export interface PerformanceScores {
@@ -116,11 +122,35 @@ export interface ChatMessage {
   referencedAnalysis?: string;
 }
 
+export interface ProAthleteBenchmarks {
+  technique: number;
+  power: number;
+  balance: number;
+  consistency: number;
+  mobility: number;
+  speed: number;
+}
+
+export interface ProAthleteSource {
+  label: string;
+  url: string;
+}
+
 export interface ProAthlete {
   id: string;
   name: string;
-  sport: Sport;
+  /** Free-form string so compare works for any sport */
+  sport: string;
+  country: string;
+  countryFlag: string;
+  born: number;
   specialty: string;
   imageUrl: string;
   keyAttributes: string[];
+  benchmarks: ProAthleteBenchmarks;
+  careerHighlights: string[];
+  trainingPhilosophy: string;
+  sources: ProAthleteSource[];
+  trainTips: string[];
+  signature: string;
 }

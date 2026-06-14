@@ -137,7 +137,8 @@ router.get("/analyses/:id", requireAuth, async (req: Request, res: Response) => 
   if (!row) { res.status(404).json({ error: "Analysis not found" }); return; }
 
   const storedTips = (row.tips ?? []) as Array<{
-    category: string; severity: string; title: string; description: string; drill?: string;
+    tipType?: string; category: string; severity: string; title: string;
+    description: string; drill?: string; source?: string;
   }>;
   const storedRisks = (row.injuryRisks ?? []) as Array<{
     joint: string; riskPercent: number; description: string; prevention: string;

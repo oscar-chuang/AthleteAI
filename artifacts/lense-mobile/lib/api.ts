@@ -178,6 +178,7 @@ export interface TipRecord {
   title: string;
   description: string;
   drill?: string;
+  source?: string;
 }
 
 export interface RiskRecord {

@@ -490,6 +490,14 @@ export default function AnalysisDetailScreen() {
                           <Text style={s.drillText}>{tip.drill}</Text>
                         </View>
                       )}
+                      {tip.source && (
+                        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+                          <Feather name="book-open" size={10} color={colors.mutedForeground} style={{ marginTop: 2 }} />
+                          <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", flex: 1, fontStyle: "italic", lineHeight: 14 }}>
+                            {tip.source}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                   )}
                 </TouchableOpacity>

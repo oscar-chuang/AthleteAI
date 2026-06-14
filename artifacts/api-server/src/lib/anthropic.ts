@@ -30,6 +30,7 @@ export interface AIAnalysisResult {
     title: string;
     description: string;
     drill?: string;
+    source?: string;
   }>;
   injuryRisks: Array<{
     joint: string;
@@ -189,11 +190,11 @@ The JSON shape is exactly:
   "strengths": ["string", "string", "string"],
   "improvements": ["string", "string", "string"],
   "tips": [
-    { "tipType": "injury", "category": "Injury Prevention", "severity": "warning", "title": "string", "description": "string", "drill": "string" },
-    { "tipType": "injury", "category": "Injury Prevention", "severity": "warning", "title": "string", "description": "string", "drill": "string" },
-    { "tipType": "performance", "category": "Efficiency", "severity": "info", "title": "string", "description": "string", "drill": "string" },
-    { "tipType": "performance", "category": "Form", "severity": "info", "title": "string", "description": "string", "drill": "string" },
-    { "tipType": "performance", "category": "Strength", "severity": "info", "title": "string", "description": "string", "drill": "string" }
+    { "tipType": "injury", "category": "Injury Prevention", "severity": "warning", "title": "string", "description": "string", "drill": "string", "source": "Author et al. (Year, Journal Abbrev)" },
+    { "tipType": "injury", "category": "Injury Prevention", "severity": "warning", "title": "string", "description": "string", "drill": "string", "source": "Author et al. (Year, Journal Abbrev)" },
+    { "tipType": "performance", "category": "Efficiency", "severity": "info", "title": "string", "description": "string", "drill": "string", "source": "Author et al. (Year, Journal Abbrev)" },
+    { "tipType": "performance", "category": "Form", "severity": "info", "title": "string", "description": "string", "drill": "string", "source": "Author et al. (Year, Journal Abbrev)" },
+    { "tipType": "performance", "category": "Strength", "severity": "info", "title": "string", "description": "string", "drill": "string", "source": "Author et al. (Year, Journal Abbrev)" }
   ],
   "injuryRisks": [
     { "joint": "string", "riskPercent": <8-45>, "description": "string", "prevention": "string" },
@@ -335,6 +336,7 @@ Requirements:
 - Write like a sharp, direct coach — plain language, no jargon, short sentences
 - 2 injury tips (tipType "injury", severity "warning" or "critical")
 - 3 performance tips (tipType "performance", severity "info")
+- Each tip must include a "source" field: pick the single most specific citation from the research list above (format: "Author et al. (Year, Abbrev Journal)"). Only cite authors listed in the research — do NOT invent citations
 - 2-3 injury risks: name the exact joint and describe the specific failure mode you see or measure
 - Drills: step-by-step, include sets/reps/duration
 - Score bands: 80–100 Strong · 65–79 On Track · <65 Focus Here
