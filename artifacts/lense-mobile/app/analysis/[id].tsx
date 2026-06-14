@@ -7,13 +7,17 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useColors } from "@/hooks/useColors";
 import { analyses as analysesApi, type AnalysisRecord, type TipRecord, type RiskRecord } from "@/lib/api";
+
+const PENDING_CHAT_KEY = "pendingChatMessage";
 
 const SCORE_KEYS = ["technique", "power", "balance", "consistency", "mobility", "speed"] as const;
 
@@ -65,7 +69,40 @@ export default function AnalysisDetailScreen() {
   const [activeTab, setActiveTab]   = useState<"scores" | "tips" | "risks">("scores");
   const [showGuide, setShowGuide]   = useState(false);
 
+  const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 20;
+
+  async function handleAskCoach() {
+    if (!analysis) return;
+    const worst = SCORE_KEYS
+      .map(k => ({ key: k, score: scoreForKey(analysis, k) }))
+      .sort((a, b) => a.score - b.score)[0];
+    const msg = `I just reviewed my "${analysis.title}" (${analysis.sport}) session. My overall score was ${Math.round(analysis.overallScore ?? 0)}/100. My weakest area is ${worst?.key ?? "technique"} (${Math.round(worst?.score ?? 0)}). What's the single most impactful thing I can do to improve?`;
+    await AsyncStorage.setItem(PENDING_CHAT_KEY, msg);
+    router.push("/(tabs)/chat" as any);
+  }
+
+  async function handleDelete() {
+    Alert.alert(
+      "Delete Analysis",
+      "This will permanently remove this session and all its data.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await analysesApi.delete(id!);
+              router.back();
+            } catch {
+              Alert.alert("Error", "Failed to delete. Please try again.");
+            }
+          },
+        },
+      ]
+    );
+  }
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -213,6 +250,38 @@ export default function AnalysisDetailScreen() {
 
   return (
     <View style={s.container}>
+      {/* ── Navigation header ── */}
+      <View style={{
+        paddingTop: topPad + 4,
+        paddingBottom: 10,
+        paddingHorizontal: 16,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+        backgroundColor: colors.background,
+      }}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+          style={{ flexDirection: "row", alignItems: "center", gap: 4, padding: 6 }}
+        >
+          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: colors.foreground }}>Back</Text>
+        </TouchableOpacity>
+        <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground }} numberOfLines={1}>
+          {analysis.sport.charAt(0).toUpperCase() + analysis.sport.slice(1)} · {Math.round(analysis.overallScore ?? 0)}
+        </Text>
+        <TouchableOpacity
+          onPress={handleDelete}
+          activeOpacity={0.7}
+          style={{ padding: 6 }}
+        >
+          <Feather name="trash-2" size={18} color={colors.destructive} />
+        </TouchableOpacity>
+      </View>
+
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomPad }}>
         <View style={s.heroCard}>
           <Text style={s.heroTitle}>{analysis.title}</Text>
@@ -288,21 +357,37 @@ export default function AnalysisDetailScreen() {
             </View>
           )}
 
-          <TouchableOpacity
-            style={{
-              flexDirection: "row", alignItems: "center", justifyContent: "center",
-              gap: 8, marginTop: 16, backgroundColor: colors.primary + "18",
-              borderRadius: 12, borderWidth: 1, borderColor: colors.primary + "55", paddingVertical: 12,
-            }}
-            activeOpacity={0.75}
-            onPress={() => router.push(`/analysis/person-select/${id}` as any)}
-          >
-            <Feather name="user" size={16} color={colors.primary} />
-            <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.primary }}>
-              View Skeleton Overlay
-            </Text>
-            <Feather name="chevron-right" size={14} color={colors.primary} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+            <TouchableOpacity
+              style={{
+                flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+                gap: 7, backgroundColor: colors.primary + "18",
+                borderRadius: 12, borderWidth: 1, borderColor: colors.primary + "55", paddingVertical: 12,
+              }}
+              activeOpacity={0.75}
+              onPress={() => router.push(`/analysis/person-select/${id}` as any)}
+            >
+              <Feather name="user" size={15} color={colors.primary} />
+              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.primary }}>
+                Skeleton
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+                gap: 7, backgroundColor: colors.success + "18",
+                borderRadius: 12, borderWidth: 1, borderColor: colors.success + "55", paddingVertical: 12,
+              }}
+              activeOpacity={0.75}
+              onPress={handleAskCoach}
+            >
+              <Feather name="message-circle" size={15} color={colors.success} />
+              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.success }}>
+                Ask Coach
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={s.tabRow}>

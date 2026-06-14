@@ -2,6 +2,17 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try { return await fn(); } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) await new Promise(r => setTimeout(r, (i + 1) * 1500));
+    }
+  }
+  throw lastErr;
+}
+
 export interface AIAnalysisResult {
   overallScore: number;
   techniqueScore: number;
@@ -241,7 +252,7 @@ Use these ACTUAL measurements to drive your scoring — they are real numbers fr
 
 export async function detectSportFromFrame(imageBase64: string): Promise<string> {
   const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
-  const message = await client.messages.create({
+  const message = await withRetry(() => client.messages.create({
     model: "claude-opus-4-5",
     max_tokens: 20,
     messages: [{
@@ -256,8 +267,8 @@ export async function detectSportFromFrame(imageBase64: string): Promise<string>
           text: 'What sport is being performed in this image? Reply with ONLY a single sport name in lowercase (e.g. "fencing", "tennis", "basketball", "running", "weightlifting", "swimming", "gymnastics", "wrestling", "boxing", "golf", "cycling", "soccer", "volleyball", "baseball", "badminton", "rowing", "rugby", "lacrosse", "hockey"). If you cannot clearly identify a sport, reply "unknown". No other text.',
         },
       ],
-    }],
-  });
+    }]
+  }));
   const raw = message.content
     .filter((b) => b.type === "text")
     .map((b) => (b as { type: "text"; text: string }).text)
@@ -346,12 +357,12 @@ Requirements:
       ]
     : userPrompt;
 
-  const message = await client.messages.create({
+  const message = await withRetry(() => client.messages.create({
     model: "claude-opus-4-5",
     max_tokens: 4096,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: userContent }],
-  });
+  }));
 
   const text = message.content
     .filter((b) => b.type === "text")

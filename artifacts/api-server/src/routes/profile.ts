@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq } from "drizzle-orm";
-import { db, profilesTable } from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
+import { db, profilesTable, analysesTable } from "@workspace/db";
 import { requireAuth } from "./auth";
 
 const router: IRouter = Router();
@@ -87,6 +87,65 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
       .returning();
     res.json({ profile: formatProfile(created!) });
   }
+});
+
+router.get("/profile/stats", requireAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).userId as number;
+
+  const rows = await db
+    .select()
+    .from(analysesTable)
+    .where(and(eq(analysesTable.userId, userId), eq(analysesTable.status, "complete")))
+    .orderBy(desc(analysesTable.uploadedAt));
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const dayKeys = new Set(rows.map(r => {
+    const d = new Date(r.uploadedAt);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }));
+
+  let streak = 0;
+  for (let i = 0; i < 365; i++) {
+    const check = new Date(today.getTime() - i * 86_400_000);
+    if (dayKeys.has(check.getTime())) {
+      streak++;
+    } else if (i > 0) {
+      break;
+    }
+  }
+
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay());
+  const lastWeekStart = new Date(weekStart.getTime() - 7 * 86_400_000);
+
+  const thisWeekCount = rows.filter(r => new Date(r.uploadedAt) >= weekStart).length;
+  const lastWeekCount = rows.filter(r => {
+    const d = new Date(r.uploadedAt);
+    return d >= lastWeekStart && d < weekStart;
+  }).length;
+
+  const pbNum = (key: keyof typeof rows[0]) =>
+    rows.length ? Math.max(0, ...rows.map(r => (r[key] as number | null) ?? 0)) : 0;
+
+  const personalBests = {
+    overall:     pbNum("overallScore"),
+    technique:   pbNum("techniqueScore"),
+    power:       pbNum("powerScore"),
+    balance:     pbNum("balanceScore"),
+    consistency: pbNum("consistencyScore"),
+    mobility:    pbNum("mobilityScore"),
+    speed:       pbNum("speedScore"),
+  };
+
+  const latestScore  = rows[0]?.overallScore ?? null;
+  const prevScore    = rows[1]?.overallScore ?? null;
+  const scoreDelta   = latestScore != null && prevScore != null
+    ? Math.round(latestScore - prevScore) : null;
+
+  res.json({ streak, totalAnalyses: rows.length, thisWeekCount, lastWeekCount, personalBests, latestScore, scoreDelta });
 });
 
 export default router;

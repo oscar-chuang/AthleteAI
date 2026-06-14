@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { db, chatMessagesTable, analysesTable, profilesTable } from "@workspace/db";
 import { requireAuth } from "./auth";
@@ -81,6 +81,48 @@ async function buildSystemPrompt(userId: number): Promise<string> {
 
   return systemPrompt;
 }
+
+function getWorstMetric(a: typeof analysesTable.$inferSelect): string {
+  const metrics: [string, number | null][] = [
+    ["technique",   a.techniqueScore],
+    ["power",       a.powerScore],
+    ["balance",     a.balanceScore],
+    ["consistency", a.consistencyScore],
+    ["mobility",    a.mobilityScore],
+    ["speed",       a.speedScore],
+  ];
+  const scored = metrics.filter((m): m is [string, number] => m[1] != null);
+  if (!scored.length) return "technique";
+  return scored.sort((x, y) => x[1] - y[1])[0]![0];
+}
+
+router.get("/chat/suggestions", requireAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).userId as number;
+
+  const [latest] = await db
+    .select()
+    .from(analysesTable)
+    .where(and(eq(analysesTable.userId, userId), eq(analysesTable.status, "complete")))
+    .orderBy(desc(analysesTable.uploadedAt))
+    .limit(1);
+
+  const sport = latest?.sport ?? "general";
+  const worst = latest ? getWorstMetric(latest) : null;
+
+  const suggestions = latest ? [
+    `How do I improve my ${worst ?? "technique"} score from ${Math.round((latest as any)[`${worst ?? "technique"}Score`] ?? 0)}?`,
+    `Give me a weekly drill plan for my ${sport} training`,
+    "What are my biggest injury risks right now?",
+    "How can I make my next session more effective?",
+  ] : [
+    "How do I start improving my athletic performance?",
+    "What should a beginner focus on first?",
+    "How often should I record and analyze my sessions?",
+    "What are the most impactful drills for any sport?",
+  ];
+
+  res.json({ suggestions });
+});
 
 router.get("/chat", requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).userId as number;

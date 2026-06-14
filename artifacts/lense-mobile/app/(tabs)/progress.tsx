@@ -16,7 +16,7 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 
 import { useColors } from "@/hooks/useColors";
-import { progress as progressApi, achievements as achievementsApi, type ProgressRecord, type AchievementRecord } from "@/lib/api";
+import { progress as progressApi, achievements as achievementsApi, profile as profileApi, type ProgressRecord, type AchievementRecord, type ProfileStats } from "@/lib/api";
 
 const METRICS = ["overall", "technique", "power", "balance", "consistency", "mobility", "speed"] as const;
 type MetricKey = typeof METRICS[number];
@@ -74,6 +74,7 @@ export default function ProgressScreen() {
   const [activeMetric, setActiveMetric] = useState<MetricKey>("overall");
   const [entries, setEntries] = useState<ProgressRecord[]>([]);
   const [achievements, setAchievements] = useState<AchievementRecord[]>([]);
+  const [stats, setStats] = useState<ProfileStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -84,12 +85,14 @@ export default function ProgressScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [{ entries: e }, { achievements: a }] = await Promise.all([
+      const [{ entries: e }, { achievements: a }, st] = await Promise.all([
         progressApi.list(),
         achievementsApi.list(),
+        profileApi.stats().catch(() => null),
       ]);
       setEntries(e);
       setAchievements(a);
+      if (st) setStats(st);
     } catch {
       // ignore network errors
     } finally {
@@ -116,6 +119,8 @@ export default function ProgressScreen() {
   }
 
   const pointSpacing = values.length > 1 ? chartWidth / (values.length - 1) : 0;
+
+  const personalBests = stats?.personalBests ?? {};
 
   // Summary stats
   const currentScore = values[values.length - 1] ?? 0;
@@ -210,6 +215,39 @@ export default function ProgressScreen() {
             {entries.length > 0 ? `${entries.length} session${entries.length === 1 ? "" : "s"} logged` : "Track your improvement over time"}
           </Text>
         </View>
+
+        {/* ── Streak & weekly pulse ── */}
+        {stats && (
+          <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 20, marginBottom: 20 }}>
+            {stats.streak > 0 && (
+              <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#ff6b3514", borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: "#ff6b3533" }}>
+                <Feather name="zap" size={20} color="#ff6b35" />
+                <View>
+                  <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#ff6b35" }}>{stats.streak}d</Text>
+                  <Text style={{ fontSize: 10, color: "#ff6b3588", fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5 }}>Streak</Text>
+                </View>
+              </View>
+            )}
+            <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.card, borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: colors.border }}>
+              <Feather name="calendar" size={18} color={colors.primary} />
+              <View>
+                <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: colors.foreground }}>{stats.thisWeekCount}</Text>
+                <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  This week{stats.lastWeekCount > 0 ? ` · ${stats.lastWeekCount} last` : ""}
+                </Text>
+              </View>
+            </View>
+            {stats.personalBests.overall > 0 && (
+              <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.success + "14", borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: colors.success + "33" }}>
+                <Feather name="award" size={18} color={colors.success} />
+                <View>
+                  <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: colors.success }}>{Math.round(stats.personalBests.overall)}</Text>
+                  <Text style={{ fontSize: 10, color: colors.success + "88", fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5 }}>Best score</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* ── Summary cards ── */}
         {entries.length > 0 && (

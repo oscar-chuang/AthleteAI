@@ -115,6 +115,16 @@ export interface Profile {
   streakDays: number;
 }
 
+export interface ProfileStats {
+  streak: number;
+  totalAnalyses: number;
+  thisWeekCount: number;
+  lastWeekCount: number;
+  personalBests: Record<string, number>;
+  latestScore: number | null;
+  scoreDelta: number | null;
+}
+
 export interface SubscriptionRecord {
   id: string;
   userId: string;
@@ -132,6 +142,9 @@ export const profile = {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
+
+  stats: () =>
+    request<ProfileStats>("/profile/stats"),
 };
 
 // ─── Analyses ─────────────────────────────────────────────────────────────────
@@ -248,9 +261,12 @@ export const chat = {
     request<{ userMessage: ChatRecord; assistantMessage: ChatRecord }>("/chat", {
       method: "POST",
       body: JSON.stringify({ content, referencedAnalysisId }),
-    }),
+    }, 30000),
 
   clear: () => request<{ success: boolean }>("/chat", { method: "DELETE" }),
+
+  suggestions: () =>
+    request<{ suggestions: string[] }>("/chat/suggestions"),
 };
 
 // ─── Progress ─────────────────────────────────────────────────────────────────
