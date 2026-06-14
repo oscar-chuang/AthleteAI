@@ -239,7 +239,7 @@ ${videoUri ? `
   const wrap      = document.getElementById("wrap");
 
   let busy=false, playing=false, showSkel=true;
-  let worstScore=0, worstSeenTime=0, worstJr={};
+  let worstScore=0, worstSeenTime=0, worstJr={}, worstFrameB64="";
 
   // ── Person-select state ────────────────────────────────────────────────────
   // Strategy: lazy-load COCO-SSD on first tap of "Select Person".
@@ -410,7 +410,7 @@ ${videoUri ? `
     if(worstSeenTime<=0)return;
     const angles={leftKnee:worstJr[25]?.deg,rightKnee:worstJr[26]?.deg,leftHip:worstJr[23]?.deg,rightHip:worstJr[24]?.deg,leftElbow:worstJr[13]?.deg,rightElbow:worstJr[14]?.deg};
     const risks={leftKnee:worstJr[25]?.lvl??0,rightKnee:worstJr[26]?.lvl??0,leftHip:worstJr[23]?.lvl??0,rightHip:worstJr[24]?.lvl??0,leftElbow:worstJr[13]?.lvl??0,rightElbow:worstJr[14]?.lvl??0};
-    try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"scanComplete",time:worstSeenTime,score:worstScore,angles,risks}));}catch(e){}
+    try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"scanComplete",time:worstSeenTime,score:worstScore,angles,risks,frame:worstFrameB64}));}catch(e){}
   }
 
   function advanceScan(){
@@ -488,6 +488,13 @@ ${videoUri ? `
     if(frameScore>0&&frameScore>worstScore){
       worstScore=frameScore; worstSeenTime=video.currentTime;
       worstJr=Object.assign({},jr);
+      // Capture this frame so Claude can see the actual movement
+      try{
+        const fsnap=document.createElement('canvas');
+        fsnap.width=Math.min(W,640); fsnap.height=Math.min(H,360);
+        fsnap.getContext('2d').drawImage(video,0,0,fsnap.width,fsnap.height);
+        worstFrameB64=fsnap.toDataURL('image/jpeg',0.45);
+      }catch(e){}
       if(!scanning){
         try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,score:worstScore}));}catch(e){}
       }
@@ -617,7 +624,20 @@ ${videoUri ? `
   });
   video.addEventListener("loadeddata",()=>{videoDataReady=true;maybeScan();});
   video.addEventListener("seeked",()=>{if(!selectMode)detect();});
-  video.addEventListener("timeupdate",()=>{timeL.textContent=fmt(video.currentTime);scrub.value=video.currentTime;});
+  let prevVideoTime=0;
+  video.addEventListener("timeupdate",()=>{
+    const ct=video.currentTime;
+    // Detect video loop (was near end, jumped back to near 0) and reset crop to initial selection
+    if(personLocked&&INIT_CROP&&prevVideoTime>(video.duration||999)*0.7&&ct<0.5){
+      focusNX=INIT_CROP.nx+INIT_CROP.nw/2;
+      focusNY=INIT_CROP.ny+INIT_CROP.nh/2;
+      cropHalfX=INIT_CROP.nw/2;
+      cropHalfY=INIT_CROP.nh/2;
+    }
+    prevVideoTime=ct;
+    timeL.textContent=fmt(ct);
+    scrub.value=ct;
+  });
   video.addEventListener("ended",()=>{playing=false;playBtn.innerHTML="&#9654;";cancelAnimationFrame(raf);});
 
   function play(){
@@ -774,7 +794,11 @@ export default function SkeletonScreen() {
       if (msg.type === "scanComplete") {
         setWorstTime(msg.time as number);
         if (id && msg.angles) {
-          analysesApi.update(id, { jointAngles: msg.angles, jointRisks: msg.risks }).catch(() => {});
+          analysesApi.update(id, {
+            jointAngles: msg.angles,
+            jointRisks: msg.risks,
+            frameBase64: msg.frame || undefined,
+          }).catch(() => {});
         }
         return;
       }

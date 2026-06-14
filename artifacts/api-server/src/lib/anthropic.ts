@@ -273,7 +273,8 @@ export async function analyzeAthletePerformance(
   videoUrl?: string | null,
   athleteProfile?: AthleteProfile | null,
   jointAngles?: JointAngles | null,
-  jointRisks?: JointRisks | null
+  jointRisks?: JointRisks | null,
+  frameBase64?: string | null
 ): Promise<AIAnalysisResult> {
   const research = getResearch(sport);
   const scoreProfile = getScoreProfile(sport);
@@ -292,33 +293,64 @@ export async function analyzeAthletePerformance(
 
   const angleSection = jointAngles ? formatJointAngles(jointAngles, jointRisks ?? {}) : "";
 
-  const userPrompt = `Analyze this ${sport} training session titled "${title}"${videoUrl ? ` (video: ${videoUrl})` : ""}.
-${athleteCtx ? `\nAthlete context:\n${athleteCtx}\n` : ""}${angleSection}
-Use these research sources to ground your analysis:
+  const hasFrame = !!frameBase64;
+  const frameNote = hasFrame
+    ? `The image above is the highest-risk frame captured during the biomechanics scan. Use what you SPECIFICALLY OBSERVE in this image — body position, alignment, posture, joint angles visible to the eye, symmetry — as the primary basis for your tips. Do not give generic ${sport} advice; every tip must reference something you can see or measure.`
+    : `No video frame is available. Base your analysis on the joint angle measurements and sport context below.`;
+
+  const userPrompt = `${sport.toUpperCase()} SESSION: "${title}"
+${athleteCtx ? `\nAthlete context:\n${athleteCtx}` : ""}
+
+${frameNote}
+${angleSection}
+
+Research grounding for ${sport}:
 Injury prevention: ${research.injury}
 Performance/efficiency: ${research.performance}
 
-Sport-specific scoring profile — use this to produce DIFFERENTIATED scores that reflect the real demands of ${sport}:
+Sport scoring context (use as a guide, not a straitjacket — let your observations override):
 ${scoreProfile}
 
+Your task:
+${hasFrame
+  ? `1. Look carefully at the image. Describe 2-3 specific things you observe about this athlete's body position, alignment, or movement mechanics.
+2. For EACH observation, explain WHY it matters for ${sport} performance or injury risk, citing the research above by author name.
+3. Write tips that name the EXACT thing you saw (e.g. "your front knee is caving inward" not "work on knee alignment").`
+  : `1. Use the measured joint angles to identify the highest-risk patterns.
+2. Explain WHY each pattern matters, citing the research above.
+3. Write tips that reference the specific measurements.`}
+
 Requirements:
-- Write like a coach talking to this specific athlete — use their level and goals to frame feedback
-- All tips and risks must be SPECIFIC to ${sport} — no generic advice
-- 2 injury tips (tipType "injury", severity "warning" or "critical") — prioritize any stated injury concerns
-- 3 performance tips (tipType "performance", severity "info") — each must name the direct performance benefit in everyday terms
-- 2-3 injury risks naming the specific joint and what could go wrong in plain terms
-- Drills must include sets/reps/duration and be written as clear step-by-step instructions
-- Score using these bands: 80–100 = Strong · 65–79 = On Track · below 65 = Focus Here
-- Scores MUST reflect the sport profile above — a fencer and a runner should get very different scores across metrics
-- Scores must vary meaningfully across the six metrics — do NOT cluster everything in the 70s
-- Do NOT include an overallScore field — it will be computed separately
-- Respond with ONLY the JSON object, nothing else`;
+- Write like a sharp, direct coach — plain language, no jargon, short sentences
+- 2 injury tips (tipType "injury", severity "warning" or "critical")
+- 3 performance tips (tipType "performance", severity "info")
+- 2-3 injury risks: name the exact joint and describe the specific failure mode you see or measure
+- Drills: step-by-step, include sets/reps/duration
+- Score bands: 80–100 Strong · 65–79 On Track · <65 Focus Here
+- Scores must vary meaningfully — do NOT cluster in the 70s
+- Do NOT include overallScore — it is computed separately
+- Respond with ONLY the JSON object`;
+
+  // Build message content — include image if we have the worst frame
+  const userContent: Anthropic.MessageParam["content"] = hasFrame
+    ? [
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: "image/jpeg",
+            data: frameBase64!.replace(/^data:image\/[a-z]+;base64,/, ""),
+          },
+        } as Anthropic.ImageBlockParam,
+        { type: "text", text: userPrompt } as Anthropic.TextBlockParam,
+      ]
+    : userPrompt;
 
   const message = await client.messages.create({
     model: "claude-opus-4-5",
     max_tokens: 4096,
     system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: userPrompt }],
+    messages: [{ role: "user", content: userContent }],
   });
 
   const text = message.content

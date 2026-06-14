@@ -77,7 +77,8 @@ async function runAIAnalysis(
   title: string,
   videoUrl?: string,
   jointAngles?: Record<string, number> | null,
-  jointRisks?: Record<string, number> | null
+  jointRisks?: Record<string, number> | null,
+  frameBase64?: string | null
 ) {
   const [profileRow] = await db
     .select()
@@ -89,7 +90,7 @@ async function runAIAnalysis(
     ? { name: profileRow.name, level: profileRow.level, goals: profileRow.goals ?? [], injuryConcerns: profileRow.injuryConcerns ?? [] }
     : null;
 
-  const result: AIAnalysisResult = await analyzeAthletePerformance(sport, title, videoUrl, athleteProfile, jointAngles as any, jointRisks as any);
+  const result: AIAnalysisResult = await analyzeAthletePerformance(sport, title, videoUrl, athleteProfile, jointAngles as any, jointRisks as any, frameBase64);
 
   await db.update(analysesTable)
     .set({
@@ -160,15 +161,16 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
 
   if (!row) { res.status(404).json({ error: "Analysis not found" }); return; }
 
-  const { jointAngles, jointRisks } = req.body as {
+  const { jointAngles, jointRisks, frameBase64 } = req.body as {
     jointAngles?: Record<string, number>;
     jointRisks?: Record<string, number>;
+    frameBase64?: string;
   };
 
   res.json({ success: true });
 
-  // Re-run AI with actual measured joint angles — overrides the initial estimate
-  runAIAnalysis(row.id, userId, row.sport, row.title, row.videoUrl ?? undefined, jointAngles, jointRisks)
+  // Re-run AI with actual measured joint angles + video frame — overrides the initial estimate
+  runAIAnalysis(row.id, userId, row.sport, row.title, row.videoUrl ?? undefined, jointAngles, jointRisks, frameBase64)
     .catch((err) => {
       console.error(`AI re-analysis failed for id=${id}:`, err);
     });
