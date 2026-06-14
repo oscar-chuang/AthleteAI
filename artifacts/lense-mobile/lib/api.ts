@@ -227,6 +227,8 @@ export const chat = {
 
 export interface ProgressRecord {
   id: string;
+  title: string;
+  sport: string;
   date: string;
   overallScore: number;
   techniqueScore?: number;

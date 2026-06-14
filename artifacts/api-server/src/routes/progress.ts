@@ -18,6 +18,8 @@ router.get("/progress", requireAuth, async (req: Request, res: Response) => {
     .filter((r) => r.overallScore != null)
     .map((r) => ({
       id: String(r.id),
+      title: r.title,
+      sport: r.sport,
       date: r.uploadedAt.toISOString(),
       overallScore: r.overallScore!,
       techniqueScore: r.techniqueScore ?? undefined,
