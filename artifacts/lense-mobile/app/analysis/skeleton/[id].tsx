@@ -74,7 +74,9 @@ const SPORT_THRESHOLD_DB: Record<string, number[]> = {
 };
 
 // ─── HTML builder ─────────────────────────────────────────────────────────────
-function buildHtml(videoUri: string | undefined, sport: string): string {
+interface InitCrop { nx: number; ny: number; nw: number; nh: number; }
+
+function buildHtml(videoUri: string | undefined, sport: string, initCrop?: InitCrop | null): string {
   const MEDIAPIPE_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404";
   const thresholds = SPORT_THRESHOLD_DB[sport.toLowerCase()] ?? SPORT_THRESHOLD_DB.default;
   const [knLR, knLW, knHW, knHR, hipLR, hipLW, hipHW, hipHR, elbLR, elbLW, elbHW, elbHR] = thresholds;
@@ -246,9 +248,13 @@ ${videoUri ? `
   // region sent to MediaPipe on every frame. Landmarks are remapped back to
   // full-frame coords so the skeleton overlays correctly.
   const BOX_COLORS=['#a78bfa','#22d3ee','#f59e0b','#22c55e','#f43f5e'];
-  let selectMode=false, personLocked=false;
-  let focusNX=0.5, focusNY=0.5;
-  let cropHalfX=0.38, cropHalfY=0.38;
+  const INIT_CROP=${initCrop ? JSON.stringify(initCrop) : "null"};
+  let selectMode=false;
+  let personLocked=INIT_CROP!=null;
+  let focusNX=INIT_CROP?INIT_CROP.nx+INIT_CROP.nw/2:0.5;
+  let focusNY=INIT_CROP?INIT_CROP.ny+INIT_CROP.nh/2:0.5;
+  let cropHalfX=INIT_CROP?INIT_CROP.nw/2:0.38;
+  let cropHalfY=INIT_CROP?INIT_CROP.nh/2:0.38;
   let cropX0=0, cropY0=0, cropW=0, cropH=0;
   let lockedColor='#fbbf24';
   let detectedBoxes=[];  // [{x,y,w,h,color}] in video-pixel space
@@ -709,7 +715,9 @@ ${videoUri ? `
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function SkeletonScreen() {
-  const { id }    = useLocalSearchParams<{ id: string }>();
+  const { id, nx: initNx, ny: initNy, nw: initNw, nh: initNh } = useLocalSearchParams<{
+    id: string; nx?: string; ny?: string; nw?: string; nh?: string;
+  }>();
   const insets    = useSafeAreaInsets();
   const router    = useRouter();
   const { width: screenW, height: screenH } = useWindowDimensions();
@@ -857,8 +865,11 @@ export default function SkeletonScreen() {
             // On Android content:// URIs may not need copying
           }
         }
+        const cropParam = (initNx && initNy && initNw && initNh)
+          ? { nx: parseFloat(initNx), ny: parseFloat(initNy), nw: parseFloat(initNw), nh: parseFloat(initNh) }
+          : null;
         const htmlPath = cacheDir + "pose-tracker.html";
-        await FileSystem.writeAsStringAsync(htmlPath, buildHtml(resolvedVideo, sport), {
+        await FileSystem.writeAsStringAsync(htmlPath, buildHtml(resolvedVideo, sport, cropParam), {
           encoding: FileSystem.EncodingType.UTF8,
         });
         if (!cancelled) setHtmlFileUri(htmlPath);
@@ -870,7 +881,7 @@ export default function SkeletonScreen() {
     })();
 
     return () => { cancelled = true; };
-  }, [videoUri, sport]);
+  }, [videoUri, sport, initNx, initNy, initNw, initNh]);
 
   // ── Adaptive video height ───────────────────────────────────────────────────
   const CTRL_H = 112;

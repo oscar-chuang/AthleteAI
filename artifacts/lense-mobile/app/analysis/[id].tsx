@@ -295,7 +295,7 @@ export default function AnalysisDetailScreen() {
               borderRadius: 12, borderWidth: 1, borderColor: colors.primary + "55", paddingVertical: 12,
             }}
             activeOpacity={0.75}
-            onPress={() => router.push(`/analysis/skeleton/${id}`)}
+            onPress={() => router.push(`/analysis/person-select/${id}` as any)}
           >
             <Feather name="user" size={16} color={colors.primary} />
             <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.primary }}>
