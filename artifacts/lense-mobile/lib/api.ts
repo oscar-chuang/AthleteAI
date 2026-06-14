@@ -227,7 +227,7 @@ export const analyses = {
     request<{ sport: string }>("/analyses/detect-sport", {
       method: "POST",
       body: JSON.stringify({ imageBase64 }),
-    }),
+    }, 25000),
 };
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────

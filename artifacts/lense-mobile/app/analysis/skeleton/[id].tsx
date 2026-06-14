@@ -638,7 +638,7 @@ ${videoUri ? `
     timeL.textContent=fmt(ct);
     scrub.value=ct;
   });
-  video.addEventListener("ended",()=>{playing=false;playBtn.textContent="&#9654;";cancelAnimationFrame(raf);});
+  video.addEventListener("ended",()=>{playing=false;playBtn.textContent="\u25B6";cancelAnimationFrame(raf);});
 
   function play(){
     if(selectMode)cancelSelect();
@@ -646,9 +646,9 @@ ${videoUri ? `
       scanning=false;
       postScanComplete();
     }
-    video.play();playing=true;playBtn.textContent="II";loop();
+    video.play();playing=true;playBtn.textContent="\u23F8";loop();
   }
-  function pause(){video.pause();playing=false;playBtn.textContent="&#9654;";cancelAnimationFrame(raf);}
+  function pause(){video.pause();playing=false;playBtn.textContent="\u25B6";cancelAnimationFrame(raf);}
 
   window.__seekTo=function(t){pause();video.currentTime=Math.max(0,Math.min(t,video.duration||t));};
 

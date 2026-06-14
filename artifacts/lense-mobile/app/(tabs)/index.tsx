@@ -34,6 +34,7 @@ export default function DashboardScreen() {
   const tier = useTier();
 
   const [recentAnalyses, setRecentAnalyses] = useState<AnalysisRecord[]>([]);
+  const [totalAnalyses, setTotalAnalyses] = useState(0);
   const [achievements, setAchievements] = useState<AchievementRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -47,6 +48,7 @@ export default function DashboardScreen() {
         analysesApi.list(),
         achievementsApi.list(),
       ]);
+      setTotalAnalyses(analyses.length);
       setRecentAnalyses(analyses.slice(0, 3));
       setAchievements(ach);
     } catch {
@@ -164,7 +166,7 @@ export default function DashboardScreen() {
             <Text style={s.statLabel}>Overall Score</Text>
           </View>
           <View style={s.statCard}>
-            <Text style={s.statValue}>{recentAnalyses.length}</Text>
+            <Text style={s.statValue}>{totalAnalyses}</Text>
             <Text style={s.statLabel}>Total Analyses</Text>
           </View>
           <View style={s.statCard}>
@@ -277,7 +279,7 @@ export default function DashboardScreen() {
               <View style={s.achRow}>
                 {achievements.filter((a) => a.unlocked).map((a) => (
                   <View key={a.id} style={s.achCard}>
-                    <Text style={s.achIcon}>{a.icon}</Text>
+                    <Feather name={a.icon as any} size={22} color={colors.primary} />
                     <Text style={s.achTitle}>{a.title}</Text>
                   </View>
                 ))}
