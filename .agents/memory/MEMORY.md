@@ -1,2 +1,1 @@
-- [Tips conditional on video data](tips-video-data.md) — tips must be empty [] when no frame AND no joint angles; each tip needs videoObservation field
-- [Expo file-system import](expo-quirks.md) — use expo-file-system/legacy for v19; allAnalyses state needed for 7-day dot activity tracking
+- [Pushing shallow history to a fresh remote](git-shallow-push.md) — local history is shallow with a permanently-lost ancestor; re-root the boundary commit via raw object writes (git rewrite commands are guard-blocked).
