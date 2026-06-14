@@ -153,7 +153,7 @@ canvas{pointer-events:none}
          <div class="lg"><span class="ld" style="background:#f59e0b"></span>CAUTION</div>
          <div class="lg"><span class="ld" style="background:#ef4444"></span>RISK</div>
        </div>
-       <div id="selHint"><p id="shTitle">🔍 Detecting people…</p><small id="shSub">First use downloads ~3 MB</small></div>`
+       <div id="selHint"><p id="shTitle">Detecting people…</p><small id="shSub">First use downloads ~3 MB</small></div>`
     : `<div id="empty">
          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#3a3a5c" stroke-width="1.5" stroke-linecap="round">
            <rect x="2" y="6" width="20" height="12" rx="2"/><path d="m9 10 5 2-5 2z"/>
@@ -174,9 +174,9 @@ ${videoUri ? `
   <!-- Row 2: playback controls + speed -->
   <div class="row" style="justify-content:space-between">
     <div class="row" style="gap:6px">
-      <button class="tbtn step" id="bk">&#9664;</button>
+      <button class="tbtn step" id="bk">&#8249;&#8249;</button>
       <button class="tbtn" id="playBtn">&#9654;</button>
-      <button class="tbtn step" id="fw">&#9654;&#9654;</button>
+      <button class="tbtn step" id="fw">&#8250;&#8250;</button>
     </div>
     <div id="speeds">
       <button class="spd" data-s="0.1">0.1×</button>
@@ -188,7 +188,7 @@ ${videoUri ? `
   <!-- Row 3: utility buttons — always visible on own row -->
   <div class="row" style="gap:8px">
     <button class="tbtn on" id="skelBtn">Skeleton</button>
-    <button class="tbtn p-off" id="personBtn">👤 Select Person</button>
+    <button class="tbtn p-off" id="personBtn">Select Person</button>
   </div>
 </div>
 ` : ''}
@@ -347,13 +347,13 @@ ${videoUri ? `
 
   // Run COCO-SSD on the current video frame and show person outlines
   async function runPersonDetection(){
-    document.getElementById("shTitle").textContent="🔍 Detecting people…";
+    document.getElementById("shTitle").textContent="Detecting people…";
     document.getElementById("shSub").textContent="First use ~3 MB download";
     selHint.style.display="block";
     const ok=await ensureTf();
     if(!ok){
       // TF.js failed to load — fall back to free-tap mode
-      document.getElementById("shTitle").textContent="👆 Tap person to track";
+      document.getElementById("shTitle").textContent="Tap person to track";
       document.getElementById("shSub").textContent="";
       detectedBoxes=[];
       drawDetectionBoxes();
@@ -371,16 +371,16 @@ ${videoUri ? `
         .map((p,i)=>({x:p.bbox[0],y:p.bbox[1],w:p.bbox[2],h:p.bbox[3],color:BOX_COLORS[i%BOX_COLORS.length]}));
       drawDetectionBoxes();
       if(detectedBoxes.length>0){
-        document.getElementById("shTitle").textContent="👆 Tap a person";
+        document.getElementById("shTitle").textContent="Tap a person";
         document.getElementById("shSub").textContent=detectedBoxes.length+" detected";
       } else {
-        document.getElementById("shTitle").textContent="👆 Tap anywhere to focus";
+        document.getElementById("shTitle").textContent="Tap anywhere to focus";
         document.getElementById("shSub").textContent="No people auto-detected";
       }
     }catch(e){
       detectedBoxes=[];
       drawDetectionBoxes();
-      document.getElementById("shTitle").textContent="👆 Tap person to track";
+      document.getElementById("shTitle").textContent="Tap person to track";
       document.getElementById("shSub").textContent="";
     }
   }
@@ -390,7 +390,7 @@ ${videoUri ? `
     detectedBoxes=[];
     wrap.style.cursor="default";
     selHint.style.display="none";
-    personBtn.textContent="👤 Select Person";
+    personBtn.textContent="Select Person";
     personBtn.className="tbtn p-off";
     personBtn.style.color="";
     personBtn.style.borderColor="";
@@ -638,7 +638,7 @@ ${videoUri ? `
     timeL.textContent=fmt(ct);
     scrub.value=ct;
   });
-  video.addEventListener("ended",()=>{playing=false;playBtn.innerHTML="&#9654;";cancelAnimationFrame(raf);});
+  video.addEventListener("ended",()=>{playing=false;playBtn.textContent="&#9654;";cancelAnimationFrame(raf);});
 
   function play(){
     if(selectMode)cancelSelect();
@@ -646,9 +646,9 @@ ${videoUri ? `
       scanning=false;
       postScanComplete();
     }
-    video.play();playing=true;playBtn.innerHTML="&#9646;&#9646;";loop();
+    video.play();playing=true;playBtn.textContent="II";loop();
   }
-  function pause(){video.pause();playing=false;playBtn.innerHTML="&#9654;";cancelAnimationFrame(raf);}
+  function pause(){video.pause();playing=false;playBtn.textContent="&#9654;";cancelAnimationFrame(raf);}
 
   window.__seekTo=function(t){pause();video.currentTime=Math.max(0,Math.min(t,video.duration||t));};
 
@@ -685,7 +685,7 @@ ${videoUri ? `
     detectedBoxes=[];
     wrap.style.cursor="default";
     selHint.style.display="none";
-    personBtn.textContent="👤 Locked";
+    personBtn.textContent="Locked";
     personBtn.className="tbtn p-lock";
     personBtn.style.color=lockedColor;
     personBtn.style.borderColor=lockedColor+"55";
