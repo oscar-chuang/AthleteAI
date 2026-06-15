@@ -63,11 +63,13 @@ export default function HomeScreen() {
   const [stats, setStats]                 = useState<ProfileStats | null>(null);
   const [loading, setLoading]             = useState(true);
   const [refreshing, setRefreshing]       = useState(false);
+  const [error, setError]                 = useState(false);
 
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
 
   const loadData = useCallback(async () => {
+    setError(false);
     try {
       const [{ analyses }, { achievements: ach }, statsResult] = await Promise.all([
         analysesApi.list(),
@@ -79,7 +81,7 @@ export default function HomeScreen() {
       setAchievements(ach);
       if (statsResult) setStats(statsResult);
     } catch {
-      // ignore
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -205,6 +207,7 @@ export default function HomeScreen() {
     achCard:        { backgroundColor: colors.primary + "08", borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: colors.primary + "44", alignItems: "center", width: 90 },
     achTitle:       { fontSize: 10, color: colors.foreground, fontFamily: "Inter_500Medium", marginTop: 6, textAlign: "center" },
 
+    errorBanner:    { marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.warning + "14", borderRadius: colors.radius, padding: 14, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: colors.warning + "44" },
     upgradeCard:    { backgroundColor: colors.primary + "14", borderRadius: colors.radius, padding: 16, borderWidth: 1, borderColor: colors.primary + "40", flexDirection: "row", alignItems: "center", gap: 14, marginHorizontal: 20, marginBottom: 24 },
     upgradeText:    { flex: 1 },
     upgradeTitle:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground },
@@ -290,6 +293,16 @@ export default function HomeScreen() {
             <Text style={s.statLabel}>{streakDays > 0 ? "Streak" : "Awards"}</Text>
           </View>
         </View>
+
+        {/* ── Error banner ── */}
+        {error && !loading && (
+          <View style={s.errorBanner}>
+            <Feather name="wifi-off" size={16} color={colors.warning} />
+            <Text style={{ flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: colors.foreground, lineHeight: 18 }}>
+              Couldn't load your data. Pull down to refresh.
+            </Text>
+          </View>
+        )}
 
         {/* ── Today's Focus ── */}
         {focusData && latestComplete && (

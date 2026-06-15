@@ -12,6 +12,7 @@ import {
   ScrollView,
   Animated,
   Easing,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -88,16 +89,15 @@ export default function ChatScreen() {
     }
   }, [canChat]);
 
-  useEffect(() => { loadHistory(); }, [loadHistory]);
-
   useFocusEffect(useCallback(() => {
+    loadHistory();
     AsyncStorage.getItem(PENDING_KEY).then(async (pending) => {
       if (!pending || !canChat) return;
       await AsyncStorage.removeItem(PENDING_KEY);
-      // Auto-send after a delay so history has finished loading
-      setTimeout(() => sendMessage(pending), 600);
+      // Auto-send after history has had time to load
+      setTimeout(() => sendMessage(pending), 800);
     });
-  }, [canChat]));
+  }, [canChat, loadHistory]));
 
   async function sendMessage(content?: string) {
     const text = (content ?? input).trim();
@@ -124,6 +124,8 @@ export default function ChatScreen() {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
       if (e instanceof ApiError && e.code === "UPGRADE_REQUIRED") {
         router.push("/pricing");
+      } else {
+        Alert.alert("Message failed", "Couldn't reach your AI coach. Check your connection and try again.");
       }
     } finally {
       setSending(false);
@@ -223,7 +225,23 @@ export default function ChatScreen() {
         </View>
         <TouchableOpacity
           style={s.clearBtn}
-          onPress={async () => { await chatApi.clear(); setMessages([]); }}
+          onPress={() => {
+            Alert.alert(
+              "Clear conversation",
+              "This will permanently delete your entire chat history with the AI coach. This can't be undone.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Clear",
+                  style: "destructive",
+                  onPress: async () => {
+                    await chatApi.clear();
+                    setMessages([]);
+                  },
+                },
+              ]
+            );
+          }}
           activeOpacity={0.7}
         >
           <Feather name="trash-2" size={18} color={colors.mutedForeground} />

@@ -2,10 +2,17 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, profilesTable, analysesTable } from "@workspace/db";
 import { requireAuth } from "./auth";
+import { computeProfileStats } from "../lib/stats";
 
 const router: IRouter = Router();
 
-function formatProfile(p: typeof profilesTable.$inferSelect) {
+const VALID_LEVELS = ["beginner", "intermediate", "advanced", "elite"] as const;
+
+function formatProfile(
+  p: typeof profilesTable.$inferSelect,
+  streakDays = 0,
+  weeklyProgress = 0,
+) {
   return {
     id: String(p.id),
     userId: String(p.userId),
@@ -15,8 +22,8 @@ function formatProfile(p: typeof profilesTable.$inferSelect) {
     goals: p.goals ?? [],
     injuryConcerns: p.injuryConcerns ?? [],
     weeklyGoal: p.weeklyGoal,
-    weeklyProgress: 0,
-    streakDays: 0,
+    weeklyProgress,
+    streakDays,
   };
 }
 
@@ -34,8 +41,9 @@ router.get("/profile", requireAuth, async (req: Request, res: Response) => {
     return;
   }
 
+  const { streak, weeklyProgress } = await computeProfileStats(userId);
   res.json({
-    profile: formatProfile(row),
+    profile: formatProfile(row, streak, weeklyProgress),
     subscription: { id: "free", userId: String(userId), tier: "free", status: "active" },
   });
 });
@@ -51,11 +59,18 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
     weeklyGoal?: number;
   };
 
+  if (level !== undefined && !VALID_LEVELS.includes(level as any)) {
+    res.status(400).json({ error: `level must be one of: ${VALID_LEVELS.join(", ")}` });
+    return;
+  }
+
   const [existing] = await db
     .select()
     .from(profilesTable)
     .where(eq(profilesTable.userId, userId))
     .limit(1);
+
+  let result: typeof profilesTable.$inferSelect;
 
   if (existing) {
     const [updated] = await db
@@ -71,7 +86,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
       })
       .where(eq(profilesTable.userId, userId))
       .returning();
-    res.json({ profile: formatProfile(updated!) });
+    result = updated!;
   } else {
     const [created] = await db
       .insert(profilesTable)
@@ -85,8 +100,11 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
         weeklyGoal: weeklyGoal ?? 3,
       })
       .returning();
-    res.json({ profile: formatProfile(created!) });
+    result = created!;
   }
+
+  const { streak, weeklyProgress } = await computeProfileStats(userId);
+  res.json({ profile: formatProfile(result, streak, weeklyProgress) });
 });
 
 router.get("/profile/stats", requireAuth, async (req: Request, res: Response) => {

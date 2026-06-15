@@ -8,6 +8,7 @@ const router: IRouter = Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const HISTORY_LIMIT = 40;
+const MAX_CONTENT_LENGTH = 4000;
 
 function formatMessage(m: typeof chatMessagesTable.$inferSelect) {
   return {
@@ -149,6 +150,25 @@ router.post("/chat", requireAuth, async (req: Request, res: Response) => {
     return;
   }
 
+  if (content.length > MAX_CONTENT_LENGTH) {
+    res.status(400).json({ error: `Message must be ${MAX_CONTENT_LENGTH} characters or fewer` });
+    return;
+  }
+
+  // Verify the referenced analysis belongs to this user before persisting.
+  let resolvedAnalysisId: number | null = null;
+  if (referencedAnalysisId) {
+    const analysisId = parseInt(referencedAnalysisId, 10);
+    if (!isNaN(analysisId)) {
+      const [owned] = await db
+        .select({ id: analysesTable.id })
+        .from(analysesTable)
+        .where(and(eq(analysesTable.id, analysisId), eq(analysesTable.userId, userId)))
+        .limit(1);
+      resolvedAnalysisId = owned?.id ?? null;
+    }
+  }
+
   // Save user message
   const [userMsg] = await db
     .insert(chatMessagesTable)
@@ -156,7 +176,7 @@ router.post("/chat", requireAuth, async (req: Request, res: Response) => {
       userId,
       role: "user",
       content: content.trim(),
-      referencedAnalysisId: referencedAnalysisId ? parseInt(referencedAnalysisId, 10) : null,
+      referencedAnalysisId: resolvedAnalysisId,
     })
     .returning();
 

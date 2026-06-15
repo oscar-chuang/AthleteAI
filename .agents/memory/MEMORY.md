@@ -1,3 +1,2 @@
-- [Pushing shallow history to a fresh remote](git-shallow-push.md) — local history is shallow with a permanently-lost ancestor; re-root the boundary commit via raw object writes (git rewrite commands are guard-blocked).
-- [Biomechanics tip grounding](biomechanics-grounding.md) — biomechanicsApplied + groundedReady gate keep coaching tips synced to the scanned skeleton; guard async writes with currentIdRef + cancelled flag (screen is reused across id changes).
-- [Test infra](test-infra.md) — two runners guard the grounding contract: vitest (api-server race + mobile pure-util) and jest-expo (mobile screen lifecycle); mobile `test` runs both, scope each runner's globs so they don't grab each other's files.
+- [weeklyProgress/streakDays pattern](stats-helper.md) — never hardcode these to 0; use computeProfileStats() from lib/stats.ts in both /auth/me and /profile.
+- [referencedAnalysisId ownership](chat-ownership.md) — always verify analysis belongs to requesting user before persisting in chat messages.

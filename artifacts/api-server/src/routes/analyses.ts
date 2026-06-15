@@ -10,6 +10,8 @@ const router: IRouter = Router();
 const JOINT_KEYS = ["leftKnee", "rightKnee", "leftHip", "rightHip", "leftElbow", "rightElbow"] as const;
 // A 640x360 JPEG data URL is ~30-60KB; cap well above that to reject abuse.
 const MAX_FRAME_CHARS = 3_000_000;
+const MAX_TITLE_LENGTH = 120;
+const MAX_SPORT_LENGTH = 60;
 
 function sanitizeJointAngles(raw: unknown): Record<string, number> | null {
   if (!raw || typeof raw !== "object") return null;
@@ -77,6 +79,14 @@ router.post("/analyses", requireAuth, async (req: Request, res: Response) => {
 
   if (!title || !sport) {
     res.status(400).json({ error: "title and sport are required" });
+    return;
+  }
+  if (title.length > MAX_TITLE_LENGTH) {
+    res.status(400).json({ error: `title must be ${MAX_TITLE_LENGTH} characters or fewer` });
+    return;
+  }
+  if (sport.length > MAX_SPORT_LENGTH) {
+    res.status(400).json({ error: `sport must be ${MAX_SPORT_LENGTH} characters or fewer` });
     return;
   }
 
@@ -249,9 +259,15 @@ router.delete("/analyses/:id", requireAuth, async (req: Request, res: Response) 
   const id = parseInt(String(req.params.id ?? ""), 10);
   if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
 
-  await db
+  const deleted = await db
     .delete(analysesTable)
-    .where(and(eq(analysesTable.id, id), eq(analysesTable.userId, userId)));
+    .where(and(eq(analysesTable.id, id), eq(analysesTable.userId, userId)))
+    .returning({ id: analysesTable.id });
+
+  if (!deleted.length) {
+    res.status(404).json({ error: "Analysis not found" });
+    return;
+  }
 
   res.json({ success: true });
 });

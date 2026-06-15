@@ -87,6 +87,7 @@ export default function AnalyzeScreen() {
   const [analysisList, setAnalysisList] = useState<AnalysisRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisStep, setAnalysisStep] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -102,11 +103,12 @@ export default function AnalyzeScreen() {
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
 
   const loadAnalyses = useCallback(async () => {
+    setLoadError(false);
     try {
       const { analyses } = await analysesApi.list();
       setAnalysisList(analyses);
     } catch {
-      // ignore
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -528,6 +530,23 @@ export default function AnalyzeScreen() {
             <View style={s.noResults}>
               <Feather name="search" size={24} color={colors.mutedForeground} />
               <Text style={[s.noResultsText, { marginTop: 10 }]}>No results for "{searchQuery}"</Text>
+            </View>
+          ) : loadError ? (
+            <View style={s.empty}>
+              <View style={[s.emptyIcon, { backgroundColor: colors.warning + "18" }]}>
+                <Feather name="wifi-off" size={30} color={colors.warning} />
+              </View>
+              <Text style={s.emptyTitle}>Couldn't load analyses</Text>
+              <Text style={s.emptyText}>
+                Check your connection and pull down to refresh.
+              </Text>
+              <TouchableOpacity
+                style={[s.emptyBtn, { backgroundColor: colors.warning }]}
+                onPress={() => { setRefreshing(true); loadAnalyses(); }}
+                activeOpacity={0.85}
+              >
+                <Text style={s.emptyBtnText}>Retry</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View style={s.empty}>

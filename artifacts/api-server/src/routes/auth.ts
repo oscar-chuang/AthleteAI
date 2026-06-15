@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { eq } from "drizzle-orm";
 import { db, usersTable, profilesTable } from "@workspace/db";
 import { z } from "zod";
+import { computeProfileStats } from "../lib/stats";
 
 const router: IRouter = Router();
 
@@ -136,20 +137,22 @@ router.get("/auth/me", async (req: Request, res: Response) => {
     .where(eq(profilesTable.userId, user.id))
     .limit(1);
 
-  const formattedProfile = profileRow
-    ? {
-        id: String(profileRow.id),
-        userId: String(profileRow.userId),
-        name: profileRow.name,
-        sport: profileRow.sport,
-        level: profileRow.level,
-        goals: profileRow.goals ?? [],
-        injuryConcerns: profileRow.injuryConcerns ?? [],
-        weeklyGoal: profileRow.weeklyGoal,
-        weeklyProgress: 0,
-        streakDays: 0,
-      }
-    : null;
+  let formattedProfile = null;
+  if (profileRow) {
+    const { streak, weeklyProgress } = await computeProfileStats(user.id);
+    formattedProfile = {
+      id: String(profileRow.id),
+      userId: String(profileRow.userId),
+      name: profileRow.name,
+      sport: profileRow.sport,
+      level: profileRow.level,
+      goals: profileRow.goals ?? [],
+      injuryConcerns: profileRow.injuryConcerns ?? [],
+      weeklyGoal: profileRow.weeklyGoal,
+      weeklyProgress,
+      streakDays: streak,
+    };
+  }
 
   res.json({ user, profile: formattedProfile, subscription: { id: "free", userId: String(user.id), tier: "free", status: "active" } });
 });
