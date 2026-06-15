@@ -30,3 +30,11 @@ from a previous analysis will write its tips onto the new screen unless guarded.
   flag (loads) AND a current-id token compared to the analysisId (polls). Reset
   grounded state in the id-scoped effect only — never in the broad video/sport effect,
   which would clobber an already-grounded load.
+
+## Lesson — currentIdRef does NOT protect re-scans of the SAME analysis
+Re-scanning the same analysis while a previous biomechanics poll is in flight shares the
+id, so the id guard passes and an older poll can clobber the newer scan. Clearing
+`pollRef`'s timeout can't stop an already-dispatched network request.
+- **How to apply:** add a monotonic per-scan run token (`runTokenRef`), capture it at the
+  start of each `runBiomechanics` call, and require token-still-latest in EVERY async
+  continuation (update.then, poll.then/.catch, outer .catch) alongside the mount+id checks.

@@ -804,6 +804,11 @@ export default function SkeletonScreen() {
   // Identifies the analysis currently loaded; an in-flight poll/GET from a previous
   // id must never write tips/groundedReady for the analysis the user navigated away from.
   const currentIdRef = useRef<string | undefined>(undefined);
+  // Monotonic per-scan token. currentIdRef only protects across *different* analyses;
+  // re-scanning the *same* analysis while a previous poll is still in flight shares the
+  // id, so an older poll could clobber the newer scan. Each runBiomechanics call captures
+  // a fresh token and only writes state while it is still the latest.
+  const runTokenRef = useRef(0);
 
   const [videoUri, setVideoUri]   = useState<string | undefined>();
   const [sport, setSport]         = useState("");
@@ -869,15 +874,21 @@ export default function SkeletonScreen() {
     jointAngles: Partial<AngleMap>; jointRisks: RiskMap; frameBase64?: string;
   }) => {
     if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
+    // Capture a fresh token for this scan. A previous scan's in-flight request (already
+    // dispatched, so clearing pollRef's timeout can't stop it) will see a stale token and
+    // bail before writing, so an older overlapping scan can never clobber this newer one.
+    const token = ++runTokenRef.current;
+    const isCurrent = () => mountedRef.current && currentIdRef.current === analysisId && runTokenRef.current === token;
     setRefining(true);
     analysesApi.update(analysisId, payload)
       .then(() => {
+        if (!isCurrent()) return;
         let attempts = 0;
         const poll = () => {
           attempts += 1;
           analysesApi.get(analysisId)
             .then(({ analysis, tips: t }) => {
-              if (!mountedRef.current || currentIdRef.current !== analysisId) return;
+              if (!isCurrent()) return;
               if (analysis.biomechanicsApplied) {
                 setTips(t ?? []);
                 setGroundedReady(true);
@@ -890,14 +901,14 @@ export default function SkeletonScreen() {
               }
             })
             .catch(() => {
-              if (!mountedRef.current || currentIdRef.current !== analysisId) return;
+              if (!isCurrent()) return;
               if (attempts < 20) pollRef.current = setTimeout(poll, 1800);
               else setRefining(false);
             });
         };
         pollRef.current = setTimeout(poll, 2000);
       })
-      .catch(() => { if (mountedRef.current && currentIdRef.current === analysisId) setRefining(false); });
+      .catch(() => { if (isCurrent()) setRefining(false); });
   }, []);
 
   // ── Messages from WebView ───────────────────────────────────────────────────
