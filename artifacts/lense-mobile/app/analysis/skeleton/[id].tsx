@@ -31,11 +31,6 @@ const JOINT_LABEL: Record<string, string> = {
   leftElbow:"L Elbow",rightElbow:"R Elbow",
 };
 
-function fmtTime(s: number): string {
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${m}:${sec.toString().padStart(2, "0")}`;
-}
 
 // ─── Research-backed sport thresholds ────────────────────────────────────────
 // Each entry: [kneeLoRisk, kneeLoWarn, kneeHiWarn, kneeHiRisk,
@@ -661,12 +656,10 @@ ${videoUri ? `
   }
   function pause(){video.pause();playing=false;playBtn.textContent="\u25B6";cancelAnimationFrame(raf);}
 
-  window.__seekTo=function(t){pause();video.currentTime=Math.max(0,Math.min(t,video.duration||t));};
-
   // ── Tip → skeleton highlight: spotlight the exact joints a coaching tip is about ──
   // RN calls window.__highlightJoints(["leftKnee",...]) when a tip is tapped. A
   // pulsing ring + label is drawn on a dedicated overlay canvas so it animates
-  // even while the video is paused on the worst-moment frame.
+  // while the video is playing or paused.
   const HL_IDX={leftKnee:25,rightKnee:26,leftHip:23,rightHip:24,leftElbow:13,rightElbow:14};
   const HL_LABEL={leftKnee:"L KNEE",rightKnee:"R KNEE",leftHip:"L HIP",rightHip:"R HIP",leftElbow:"L ELBOW",rightElbow:"R ELBOW"};
   let hlList=[], hlUntil=0, hlRaf=0;
@@ -817,7 +810,6 @@ export default function SkeletonScreen() {
   const [tips, setTips]           = useState<TipRecord[]>([]);
   const [showSources, setShowSources] = useState(false);
 
-  const [worstTime,   setWorstTime]   = useState<number | null>(null);
   const [scanResult,  setScanResult]  = useState<{ angles: Partial<AngleMap>; risks: RiskMap; worstTime: number } | null>(null);
   const [refining,    setRefining]    = useState(false);
   // True only when `tips` in state reflect a server biomechanicsApplied=true result.
@@ -916,13 +908,8 @@ export default function SkeletonScreen() {
         setVideoAspect(msg.vw / msg.vh);
         return;
       }
-      if (msg.type === "worst") {
-        setWorstTime(msg.time as number);
-        return;
-      }
       if (msg.type === "scanComplete") {
         const t = typeof msg.time === "number" ? msg.time : 0;
-        setWorstTime(t);
         if (msg.angles && msg.risks) {
           setScanResult({
             angles: msg.angles as Partial<AngleMap>,
@@ -949,23 +936,14 @@ export default function SkeletonScreen() {
   }
 
   // ── Spotlight a tip on the skeleton ─────────────────────────────────────────
-  // Scrolls the video into view, seeks to the worst-risk frame, and pulses a
-  // highlight ring on the tip's joints. This is the core tip ↔ skeleton link.
+  // Scrolls the video into view and pulses a highlight ring on the tip's joints.
   function focusTip(joints?: string[]) {
     const arr = (joints ?? []).filter((j) => j in JOINT_LABEL);
     scrollRef.current?.scrollTo({ y: 0, animated: true });
-    const seekPart = worstTime !== null
-      ? `if(typeof window.__seekTo==='function'){window.__seekTo(${worstTime});}else{var v=document.getElementById('v');if(v){v.pause();v.currentTime=${worstTime};}}`
-      : "";
     const hlPart = arr.length
       ? `if(typeof window.__highlightJoints==='function'){window.__highlightJoints(${JSON.stringify(arr)},6500);}`
       : `if(typeof window.__clearHighlights==='function'){window.__clearHighlights();}`;
-    webviewRef.current?.injectJavaScript(`${seekPart}${hlPart} true;`);
-  }
-
-  function jumpToWorst() {
-    if (worstTime === null) return;
-    focusTip(flaggedJoints);
+    webviewRef.current?.injectJavaScript(`${hlPart} true;`);
   }
 
   // ── Split tips into injury vs performance ───────────────────────────────────
@@ -1032,7 +1010,6 @@ export default function SkeletonScreen() {
     let cancelled = false;
     setPreparing(true);
     setHtmlFileUri(null);
-    setWorstTime(null);
     setScanResult(null);
     setRefining(false);
     if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
@@ -1142,23 +1119,6 @@ export default function SkeletonScreen() {
         >
           {mediaBlock}
 
-          {/* ── Jump to worst moment button ── */}
-          {modelReady && videoUri && worstTime !== null && (
-            <View style={ss.worstSection}>
-              <TouchableOpacity style={ss.worstBtn} onPress={jumpToWorst} activeOpacity={0.8}>
-                <View style={ss.worstBtnGlow} />
-                <Feather name="alert-triangle" size={16} color="#ef4444" />
-                <View style={{ flex: 1 }}>
-                  <Text style={ss.worstBtnTitle}>Jump to Worst Moment</Text>
-                  <Text style={ss.worstBtnSub}>
-                    Scrubs to the frame with highest injury risk
-                  </Text>
-                </View>
-                <Feather name="skip-forward" size={16} color="#ef4444" />
-              </TouchableOpacity>
-            </View>
-          )}
-
           {/* ── SECTION 1: Injury Prevention (grounded in the scan) ── */}
           {modelReady && videoUri && (
             <View style={ss.tipSection}>
@@ -1182,13 +1142,13 @@ export default function SkeletonScreen() {
                       <View style={ss.worstSummaryHead}>
                         <Feather name={worstLvl === 2 ? "alert-triangle" : "alert-circle"} size={13} color={RISK_COLORS[worstLvl]} />
                         <Text style={[ss.worstSummaryTitle, { color: RISK_COLORS[worstLvl] }]}>
-                          {RISK_WORD[worstLvl]} · worst frame at {fmtTime(scanResult.worstTime)}
+                          {RISK_WORD[worstLvl]} · highest-risk joints detected
                         </Text>
                       </View>
                       {renderJointChips(flaggedJoints)}
                       <View style={ss.tapHintRow}>
                         <Feather name="crosshair" size={10} color="#6c63ff" />
-                        <Text style={ss.tapHint}>Tap a joint or tip to spotlight it on the skeleton</Text>
+                        <Text style={ss.tapHint}>Tap a joint or tip to highlight it on the skeleton</Text>
                       </View>
                     </View>
                   )}
@@ -1581,11 +1541,6 @@ const ss = StyleSheet.create({
   sectionLabel:  { fontSize: 10, color: "#8888aa", fontFamily: "Inter_600SemiBold", letterSpacing: 1.5 },
   statusPill:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
   statusPillText:{ fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  worstSection:  { paddingHorizontal: 18, paddingTop: 14 },
-  worstBtn:      { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#1a0a0a", borderRadius: 14, borderWidth: 1.5, borderColor: "#ef444455", padding: 14, overflow: "hidden" },
-  worstBtnGlow:  { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "#ef44440a" },
-  worstBtnTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#ef4444" },
-  worstBtnSub:   { fontSize: 11, color: "#884444", fontFamily: "Inter_400Regular", marginTop: 1 },
   tipSection:    { paddingHorizontal: 18, paddingTop: 14 },
   tipLabelRow:   { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 8 },
   tipCard:       { backgroundColor: "#0f0f1c", borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
