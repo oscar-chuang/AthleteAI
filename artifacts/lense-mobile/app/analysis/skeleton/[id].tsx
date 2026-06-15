@@ -247,6 +247,9 @@ ${videoUri ? `
 
   let busy=false, playing=false, showSkel=true;
   let worstScore=0, worstSeenTime=0, worstJr={}, worstFrameB64="";
+  // Per-joint worst frame: { [landmarkIndex]: {time, lvl} } — lets a tapped joint
+  // chip seek to the exact moment that joint looked worst, not just the global worst.
+  let worstByJoint={};
 
   // ── Person-select state ────────────────────────────────────────────────────
   // Strategy: lazy-load COCO-SSD on first tap of "Select Person".
@@ -409,7 +412,7 @@ ${videoUri ? `
 
   function startScan(){
     if(scanning||playing||!video.duration)return;
-    worstScore=0; worstSeenTime=0;
+    worstScore=0; worstSeenTime=0; worstByJoint={};
     scanning=true; scanPos=0; video.currentTime=0;
   }
 
@@ -417,7 +420,11 @@ ${videoUri ? `
     if(worstSeenTime<=0)return;
     const angles={leftKnee:worstJr[25]?.deg,rightKnee:worstJr[26]?.deg,leftHip:worstJr[23]?.deg,rightHip:worstJr[24]?.deg,leftElbow:worstJr[13]?.deg,rightElbow:worstJr[14]?.deg};
     const risks={leftKnee:worstJr[25]?.lvl??0,rightKnee:worstJr[26]?.lvl??0,leftHip:worstJr[23]?.lvl??0,rightHip:worstJr[24]?.lvl??0,leftElbow:worstJr[13]?.lvl??0,rightElbow:worstJr[14]?.lvl??0};
-    try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"scanComplete",time:worstSeenTime,score:worstScore,angles,risks,frame:worstFrameB64}));}catch(e){}
+    // Map each joint's worst-frame time back to its named key so RN can seek per-joint.
+    const J2K={25:"leftKnee",26:"rightKnee",23:"leftHip",24:"rightHip",13:"leftElbow",14:"rightElbow"};
+    const jointTimes={};
+    Object.keys(worstByJoint).forEach(k=>{const key=J2K[k];if(key)jointTimes[key]=worstByJoint[k].time;});
+    try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"scanComplete",time:worstSeenTime,score:worstScore,angles,risks,jointTimes,frame:worstFrameB64}));}catch(e){}
   }
 
   function advanceScan(){
@@ -507,6 +514,15 @@ ${videoUri ? `
         try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"worst",time:worstSeenTime,score:worstScore}));}catch(e){}
       }
     }
+
+    // ── Per-joint worst frame ──────────────────────────────────────────────
+    // Remember the time each joint hit its highest risk level so a tapped chip
+    // can seek to the moment THAT joint looked worst (not just the global worst).
+    Object.keys(jr).forEach(k=>{
+      const lv=jr[k].lvl; if(lv<1)return;
+      const prev=worstByJoint[k];
+      if(!prev||lv>prev.lvl)worstByJoint[k]={time:video.currentTime,lvl:lv};
+    });
 
     // ── Phase 3: if scanning, advance — no drawing ─────────────────────────
     if(scanning){advanceScan();return;}
@@ -710,6 +726,19 @@ ${videoUri ? `
   };
   window.__clearHighlights=function(){clearHL();};
 
+  // Seek to a frame, then pulse the given joints once the new pose is detected.
+  // Used when a joint chip / tip is tapped from the analysis detail screen so the
+  // user lands on the exact frame where that joint looked worst.
+  window.__focusFrame=function(t,keys,ms){
+    const hl=()=>{ if(typeof window.__highlightJoints==="function") window.__highlightJoints(keys,ms||6500); };
+    if(typeof t==="number"&&!isNaN(t)&&Math.abs((video.currentTime||0)-t)>0.06){
+      if(playing)pause();
+      const onSeeked=()=>{video.removeEventListener("seeked",onSeeked);setTimeout(hl,200);};
+      video.addEventListener("seeked",onSeeked);
+      video.currentTime=Math.max(0,Math.min((video.duration||t),t));
+    } else { hl(); }
+  };
+
   // ── Tap handler: either lock onto a detected person or free-tap ───────────
   wrap.addEventListener("click",function(e){
     if(!selectMode)return;
@@ -817,7 +846,9 @@ export default function SkeletonScreen() {
   const [tips, setTips]           = useState<TipRecord[]>([]);
   const [showSources, setShowSources] = useState(false);
 
-  const [scanResult,  setScanResult]  = useState<{ angles: Partial<AngleMap>; risks: RiskMap; worstTime: number } | null>(null);
+  const [scanResult,  setScanResult]  = useState<{ angles: Partial<AngleMap>; risks: RiskMap; worstTime: number; jointTimes: Record<string, number> } | null>(null);
+  // Ensures a deep-linked joint highlight (from the detail screen) fires only once.
+  const didDeepLinkRef = useRef(false);
   const [refining,    setRefining]    = useState(false);
   // True only when `tips` in state reflect a server biomechanicsApplied=true result.
   // Gates injury/performance tip rendering so stale create-time tips never show.
@@ -928,6 +959,7 @@ export default function SkeletonScreen() {
             angles: msg.angles as Partial<AngleMap>,
             risks: msg.risks as RiskMap,
             worstTime: t,
+            jointTimes: (msg.jointTimes ?? {}) as Record<string, number>,
           });
         }
         if (id && msg.angles && msg.risks) {
@@ -942,29 +974,58 @@ export default function SkeletonScreen() {
       if (msg.type === "angles") {
         // Live frame-by-frame angles drive the WebView skeleton colouring; the RN
         // UI only needs to know the model has produced its first result.
-        if (!modelReady) {
-          setModelReady(true);
-          // If the detail screen tapped a specific joint chip, highlight it now that
-          // the WebView is ready to receive injected JS.
-          if (highlightJoint && highlightJoint in JOINT_LABEL) {
-            setTimeout(() => focusTip([highlightJoint]), 300);
-          }
-        }
+        if (!modelReady) setModelReady(true);
         return;
       }
     } catch {}
   }
 
+  // Best frame to seek to for a set of joints: the moment the highest-risk joint
+  // among them looked worst, falling back to the global worst frame.
+  function frameTimeForJoints(joints: string[]): number | undefined {
+    if (!scanResult) return undefined;
+    const jt = scanResult.jointTimes ?? {};
+    const timed = joints.filter((j) => typeof jt[j] === "number");
+    if (!timed.length) return scanResult.worstTime > 0 ? scanResult.worstTime : undefined;
+    let best = timed[0];
+    let bestLvl = scanResult.risks?.[timed[0] as JointKey] ?? 0;
+    for (const j of timed) {
+      const lvl = scanResult.risks?.[j as JointKey] ?? 0;
+      if (lvl > bestLvl) { bestLvl = lvl; best = j; }
+    }
+    return jt[best];
+  }
+
   // ── Spotlight a tip on the skeleton ─────────────────────────────────────────
-  // Scrolls the video into view and pulses a highlight ring on the tip's joints.
+  // Scrolls the video into view, seeks to the frame where the joints look worst,
+  // then pulses a highlight ring on them.
   function focusTip(joints?: string[]) {
     const arr = (joints ?? []).filter((j) => j in JOINT_LABEL);
     scrollRef.current?.scrollTo({ y: 0, animated: true });
-    const hlPart = arr.length
-      ? `if(typeof window.__highlightJoints==='function'){window.__highlightJoints(${JSON.stringify(arr)},6500);}`
-      : `if(typeof window.__clearHighlights==='function'){window.__clearHighlights();}`;
-    webviewRef.current?.injectJavaScript(`${hlPart} true;`);
+    if (!arr.length) {
+      webviewRef.current?.injectJavaScript(
+        `if(typeof window.__clearHighlights==='function'){window.__clearHighlights();} true;`,
+      );
+      return;
+    }
+    const t = frameTimeForJoints(arr);
+    const tArg = typeof t === "number" ? t.toFixed(3) : "null";
+    webviewRef.current?.injectJavaScript(
+      `if(typeof window.__focusFrame==='function'){window.__focusFrame(${tArg},${JSON.stringify(arr)},6500);}` +
+      `else if(typeof window.__highlightJoints==='function'){window.__highlightJoints(${JSON.stringify(arr)},6500);} true;`,
+    );
   }
+
+  // Deep link from the analysis detail screen: once the scan has measured the
+  // worst frames, seek to the tapped joint's worst moment and pulse it (once).
+  useEffect(() => {
+    if (didDeepLinkRef.current) return;
+    if (!scanResult) return;
+    if (!highlightJoint || !(highlightJoint in JOINT_LABEL)) return;
+    didDeepLinkRef.current = true;
+    const timer = setTimeout(() => focusTip([highlightJoint]), 350);
+    return () => clearTimeout(timer);
+  }, [scanResult, highlightJoint]);
 
   // ── Split tips into injury vs performance ───────────────────────────────────
   const injuryTips      = useMemo(() => tips.filter((t) => t.tipType === "injury" || t.severity === "warning" || t.severity === "critical"), [tips]);
