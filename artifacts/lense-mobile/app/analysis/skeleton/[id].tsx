@@ -17,11 +17,13 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { analyses as analysesApi, type TipRecord } from "@/lib/api";
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-type JointKey = "leftKnee" | "rightKnee" | "leftHip" | "rightHip" | "leftElbow" | "rightElbow";
-type RiskMap = Record<JointKey, number>;
-type AngleMap = Record<JointKey, number>;
+import {
+  computeFlaggedJoints,
+  computeWorstLvl,
+  type JointKey,
+  type RiskMap,
+  type AngleMap,
+} from "@/utils/analysisUtils";
 
 const RISK_COLORS = ["#22c55e", "#f59e0b", "#ef4444"];
 const RISK_WORD   = ["SAFE", "CAUTION", "HIGH RISK"];
@@ -791,8 +793,8 @@ ${videoUri ? `
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function SkeletonScreen() {
-  const { id, nx: initNx, ny: initNy, nw: initNw, nh: initNh } = useLocalSearchParams<{
-    id: string; nx?: string; ny?: string; nw?: string; nh?: string;
+  const { id, nx: initNx, ny: initNy, nw: initNw, nh: initNh, highlightJoint } = useLocalSearchParams<{
+    id: string; nx?: string; ny?: string; nw?: string; nh?: string; highlightJoint?: string;
   }>();
   const insets    = useSafeAreaInsets();
   const router    = useRouter();
@@ -940,7 +942,14 @@ export default function SkeletonScreen() {
       if (msg.type === "angles") {
         // Live frame-by-frame angles drive the WebView skeleton colouring; the RN
         // UI only needs to know the model has produced its first result.
-        if (!modelReady) setModelReady(true);
+        if (!modelReady) {
+          setModelReady(true);
+          // If the detail screen tapped a specific joint chip, highlight it now that
+          // the WebView is ready to receive injected JS.
+          if (highlightJoint && highlightJoint in JOINT_LABEL) {
+            setTimeout(() => focusTip([highlightJoint]), 300);
+          }
+        }
         return;
       }
     } catch {}
@@ -963,15 +972,13 @@ export default function SkeletonScreen() {
 
   // Joints the scan flagged (level ≥ 1) on the worst frame — the ground truth the
   // injury section and joint chips correspond to. Sorted worst-first.
-  const flaggedJoints = useMemo(() => {
-    if (!scanResult) return [] as JointKey[];
-    return (Object.keys(scanResult.risks) as JointKey[])
-      .filter((k) => (scanResult.risks[k] ?? 0) >= 1)
-      .sort((a, b) => (scanResult.risks[b] ?? 0) - (scanResult.risks[a] ?? 0));
-  }, [scanResult]);
+  const flaggedJoints = useMemo(
+    () => scanResult ? computeFlaggedJoints(scanResult.risks) : ([] as JointKey[]),
+    [scanResult],
+  );
 
   const worstLvl = useMemo(
-    () => flaggedJoints.reduce((m, k) => Math.max(m, scanResult?.risks[k] ?? 0), 0),
+    () => computeWorstLvl(flaggedJoints, scanResult?.risks ?? {} as RiskMap),
     [flaggedJoints, scanResult],
   );
 

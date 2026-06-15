@@ -510,10 +510,21 @@ export default function AnalysisDetailScreen() {
                       {(tip.joints?.length ?? 0) > 0 && (
                         <View style={s.chipRow}>
                           {tip.joints!.map((j) => (
-                            <View key={j} style={[s.chip, { borderColor: cfg.color + "55", backgroundColor: cfg.color + "12" }]}>
+                            <TouchableOpacity
+                              key={j}
+                              style={[s.chip, { borderColor: cfg.color + "55", backgroundColor: cfg.color + "12" }]}
+                              onPress={() =>
+                                router.push({
+                                  pathname: "/analysis/skeleton/[id]",
+                                  params: { id: id!, highlightJoint: j },
+                                } as any)
+                              }
+                              activeOpacity={0.7}
+                            >
                               <View style={[s.chipDot, { backgroundColor: cfg.color }]} />
                               <Text style={[s.chipText, { color: cfg.color }]}>{JOINT_LABEL[j] ?? j}</Text>
-                            </View>
+                              <Feather name="crosshair" size={9} color={cfg.color} style={{ opacity: 0.6 }} />
+                            </TouchableOpacity>
                           ))}
                         </View>
                       )}
