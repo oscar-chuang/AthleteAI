@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 pnpm install --frozen-lockfile
-pnpm --filter db push
+pnpm --filter @workspace/db run push-force
 
 git config --global core.hooksPath /home/runner/workspace/git-hooks
 
