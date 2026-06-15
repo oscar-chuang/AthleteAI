@@ -167,8 +167,20 @@ export interface AnalysisRecord {
   speedScore?: number;
   strengths: string[];
   improvements: string[];
+  biomechanicsApplied?: boolean;
   uploadedAt: string;
 }
+
+// The six joints the on-screen pose skeleton tracks. A tip's `joints` reference
+// these keys so the mobile app can highlight the exact joints a tip is about.
+export type JointKey =
+  | "leftKnee" | "rightKnee"
+  | "leftHip" | "rightHip"
+  | "leftElbow" | "rightElbow";
+
+export const JOINT_KEYS: JointKey[] = [
+  "leftKnee", "rightKnee", "leftHip", "rightHip", "leftElbow", "rightElbow",
+];
 
 export interface TipRecord {
   id: string;
@@ -180,6 +192,7 @@ export interface TipRecord {
   description: string;
   drill?: string;
   source?: string;
+  joints?: JointKey[];
 }
 
 export interface RiskRecord {

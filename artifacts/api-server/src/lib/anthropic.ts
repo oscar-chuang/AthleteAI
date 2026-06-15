@@ -13,6 +13,19 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
   throw lastErr;
 }
 
+// The six joints the on-screen pose skeleton tracks. Tips reference these so the
+// mobile app can highlight the exact joints a tip is about, in sync with the skeleton.
+export type JointKey =
+  | "leftKnee" | "rightKnee"
+  | "leftHip" | "rightHip"
+  | "leftElbow" | "rightElbow";
+
+export const JOINT_KEYS: JointKey[] = [
+  "leftKnee", "rightKnee", "leftHip", "rightHip", "leftElbow", "rightElbow",
+];
+
+const JOINT_KEY_SET = new Set<string>(JOINT_KEYS);
+
 export interface AIAnalysisResult {
   overallScore: number;
   techniqueScore: number;
@@ -32,6 +45,7 @@ export interface AIAnalysisResult {
     description: string;
     drill?: string;
     source?: string;
+    joints?: JointKey[];
   }>;
   injuryRisks: Array<{
     joint: string;
@@ -192,7 +206,8 @@ The JSON shape is exactly:
   "improvements": ["string", "string", "string"],
   "tips": [
     // VARIABLE LENGTH: 0 to 5 tips. Include a tip ONLY when you have a specific visual observation from the image OR a specific measured joint angle to reference. Generic sport advice with no personal observation is forbidden. An empty array [] is the correct output when no specific data is available.
-    // Format for each tip: { "tipType": "injury" or "performance", "category": "string", "severity": "info" or "warning" or "critical", "title": "string", "videoObservation": "EXACT thing you saw or measured — e.g. left knee at 138 deg HIGH RISK, or heel visibly raised at squat depth, or shoulder noticeably higher than contralateral side", "description": "plain-English explanation max 2 sentences", "drill": "step-by-step drill with sets, reps, duration", "source": "Author et al. (Year, Journal Abbrev)" }
+    // Format for each tip: { "tipType": "injury" or "performance", "category": "string", "severity": "info" or "warning" or "critical", "title": "string", "videoObservation": "EXACT thing you saw or measured — e.g. left knee at 138 deg HIGH RISK, or heel visibly raised at squat depth, or shoulder noticeably higher than contralateral side", "description": "plain-English explanation max 2 sentences", "drill": "step-by-step drill with sets, reps, duration", "source": "Author et al. (Year, Journal Abbrev)", "joints": ["leftKnee"] }
+    // "joints": the specific body joints this tip is about, so the app can highlight them on the live pose skeleton. MUST be a subset of EXACTLY these allowed values: "leftKnee", "rightKnee", "leftHip", "rightHip", "leftElbow", "rightElbow". Pick only joints your observation/measurement actually involves (1-3 typically). Use BOTH sides (e.g. ["leftKnee","rightKnee"]) only when the issue is genuinely bilateral. If the tip is not about any of these six joints, use an empty array [].
   ],
   "injuryRisks": [
     { "joint": "string", "riskPercent": <8-45>, "description": "string", "prevention": "string" },
@@ -277,6 +292,48 @@ export async function detectSportFromFrame(imageBase64: string): Promise<string>
   return raw.replace(/[^a-z\s]/g, "").trim() || "unknown";
 }
 
+// Keep only valid, de-duplicated joint keys the model returned.
+function sanitizeJoints(raw: unknown): JointKey[] {
+  if (!Array.isArray(raw)) return [];
+  const out: JointKey[] = [];
+  for (const j of raw) {
+    if (typeof j === "string" && JOINT_KEY_SET.has(j) && !out.includes(j as JointKey)) {
+      out.push(j as JointKey);
+    }
+  }
+  return out;
+}
+
+// Fallback: infer which tracked joints a tip is about from its free text.
+// A bare joint noun (e.g. "knee") with no side maps to BOTH sides.
+function deriveJointsFromText(text: string): JointKey[] {
+  const t = text.toLowerCase();
+  const found = new Set<JointKey>();
+  const nouns: Array<[string, JointKey, JointKey]> = [
+    ["knee", "leftKnee", "rightKnee"],
+    ["hip", "leftHip", "rightHip"],
+    ["elbow", "leftElbow", "rightElbow"],
+  ];
+  for (const [noun, left, right] of nouns) {
+    if (!t.includes(noun)) continue;
+    const hasLeft = new RegExp(`left[\\w\\s-]{0,14}${noun}|${noun}[\\w\\s-]{0,14}left`).test(t);
+    const hasRight = new RegExp(`right[\\w\\s-]{0,14}${noun}|${noun}[\\w\\s-]{0,14}right`).test(t);
+    if (hasLeft) found.add(left);
+    if (hasRight) found.add(right);
+    if (!hasLeft && !hasRight) { found.add(left); found.add(right); }
+  }
+  return JOINT_KEYS.filter((k) => found.has(k));
+}
+
+// Measured joints flagged caution/HIGH RISK, worst first — used as a last-resort
+// fallback so injury tips still highlight the joints the skeleton flagged red.
+function collectFlaggedJoints(risks?: JointRisks | null): JointKey[] {
+  if (!risks) return [];
+  return JOINT_KEYS
+    .filter((k) => (risks[k] ?? 0) >= 1)
+    .sort((a, b) => (risks[b] ?? 0) - (risks[a] ?? 0));
+}
+
 export async function analyzeAthletePerformance(
   sport: string,
   title: string,
@@ -341,6 +398,7 @@ ${hasData
 - Up to 2 injury tips (tipType "injury", severity "warning" or "critical") grounded in what you observed or measured
 - Up to 3 performance tips (tipType "performance", severity "info") grounded in what you observed or measured
 - Each tip MUST include "source": the most specific citation from the research list above. Do NOT invent authors or journals
+- Each tip MUST include "joints": the subset of [leftKnee, rightKnee, leftHip, rightHip, leftElbow, rightElbow] the tip is about, so the app highlights them on the live skeleton. ${hasJointAngles ? "When a measured joint is flagged HIGH RISK or caution, the tip about it MUST list that exact joint key. " : ""}Use [] only if the tip genuinely concerns none of these six joints
 - 2-3 injury risks: name EXACT joints from what you observed or measured, describe the specific failure mode`
   : `- "tips" MUST be an empty array — no video frame or joint angle measurements are available for this session, so no personal tips can be generated. Do not invent generic advice
 - 1 injury risk only: describe the single most common injury site in ${sport} at the recreational level. Keep riskPercent between 12-22% and note it is a general sport risk, not a personal observation`
@@ -387,6 +445,25 @@ ${hasData
   }
 
   const parsed = JSON.parse(jsonMatch[0]) as AIAnalysisResult;
+
+  // ── Ground each tip's "joints" so the app can highlight them on the skeleton ──
+  // Priority: (1) joints the model returned (whitelisted), (2) joints inferred from
+  // the tip text, (3) for injury tips only, the measured joints flagged red/amber.
+  const flaggedJoints = collectFlaggedJoints(jointRisks);
+  if (Array.isArray(parsed.tips)) {
+    parsed.tips = parsed.tips.map((tip) => {
+      let joints = sanitizeJoints(tip.joints);
+      if (joints.length === 0) {
+        joints = deriveJointsFromText(
+          `${tip.title ?? ""} ${tip.videoObservation ?? ""} ${tip.description ?? ""}`
+        );
+      }
+      if (joints.length === 0 && tip.tipType === "injury" && flaggedJoints.length > 0) {
+        joints = flaggedJoints.slice(0, 2);
+      }
+      return { ...tip, joints };
+    });
+  }
 
   // Compute overall from sub-scores so it always reflects the real breakdown.
   // Claude's self-reported overall clusters at ~72 regardless of sport.

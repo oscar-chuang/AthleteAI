@@ -18,9 +18,6 @@ Store as `allAnalyses` state; `uploadedAt.split("T")[0]` gives the date string f
 Entries come oldest-first from the API (needed for chart chronological order).
 `sessionLog = [...filteredEntries].reverse()` gives newest-first for the session log display.
 
-## Pre-existing TS error
-`app/auth/login.tsx` has a pre-existing route type error — not related to new changes, ignore.
-
 ## Sports list (20 sports)
 Weightlifting, Running, Basketball, Golf, Tennis, Swimming, CrossFit, Boxing, Soccer,
 Gymnastics, Cycling, Fencing, Rowing, Volleyball, Baseball, Wrestling, Rugby, Hockey, Yoga, Other

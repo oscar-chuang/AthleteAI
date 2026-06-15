@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from "react";
+import React, { useRef, useState, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -24,11 +24,17 @@ type RiskMap = Record<JointKey, number>;
 type AngleMap = Record<JointKey, number>;
 
 const RISK_COLORS = ["#22c55e", "#f59e0b", "#ef4444"];
+const RISK_WORD   = ["SAFE", "CAUTION", "HIGH RISK"];
+const JOINT_LABEL: Record<string, string> = {
+  leftKnee: "L Knee", rightKnee: "R Knee",
+  leftHip:  "L Hip",  rightHip:  "R Hip",
+  leftElbow:"L Elbow",rightElbow:"R Elbow",
+};
 
-function moreExtreme(key: string, a: number, b: number): boolean {
-  if (key.includes("Knee")) return Math.abs(a - 130) > Math.abs(b - 130);
-  if (key.includes("Hip")) return a < b;
-  return a > b;
+function fmtTime(s: number): string {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
 // ─── Research-backed sport thresholds ────────────────────────────────────────
@@ -147,6 +153,7 @@ canvas{pointer-events:none}
   ${videoUri
     ? `<video id="v" playsinline webkit-playsinline muted loop preload="auto"></video>
        <canvas id="c"></canvas>
+       <canvas id="hl"></canvas>
        <div id="badge"><div id="dot"></div><span id="btxt">Loading AI…</span></div>
        <div id="legend">
          <div class="lg"><span class="ld" style="background:#22c55e"></span>SAFE</div>
@@ -227,6 +234,9 @@ ${videoUri ? `
   const video     = document.getElementById("v");
   const canvas    = document.getElementById("c");
   const ctx       = canvas.getContext("2d");
+  const hlCanvas  = document.getElementById("hl");
+  const hlCtx     = hlCanvas.getContext("2d");
+  let   lastLm    = null; // most recent remapped landmarks — drives tip→joint highlight
   const loading   = document.getElementById("loading");
   const btxt      = document.getElementById("btxt");
   const scrub     = document.getElementById("scrub");
@@ -451,6 +461,7 @@ ${videoUri ? `
     const W=video.videoWidth||640,H=video.videoHeight||360;
     const rawLm=res.poseLandmarks;
     const lm=rawLm?remapLm(rawLm,W,H):null;
+    lastLm=lm; // keep newest landmarks so the tip→joint highlight tracks the body
 
     // ── Dynamic tracking: shift the crop window to follow the person ──────
     // After each frame MediaPipe returns landmarks already in full-frame
@@ -652,6 +663,58 @@ ${videoUri ? `
 
   window.__seekTo=function(t){pause();video.currentTime=Math.max(0,Math.min(t,video.duration||t));};
 
+  // ── Tip → skeleton highlight: spotlight the exact joints a coaching tip is about ──
+  // RN calls window.__highlightJoints(["leftKnee",...]) when a tip is tapped. A
+  // pulsing ring + label is drawn on a dedicated overlay canvas so it animates
+  // even while the video is paused on the worst-moment frame.
+  const HL_IDX={leftKnee:25,rightKnee:26,leftHip:23,rightHip:24,leftElbow:13,rightElbow:14};
+  const HL_LABEL={leftKnee:"L KNEE",rightKnee:"R KNEE",leftHip:"L HIP",rightHip:"R HIP",leftElbow:"L ELBOW",rightElbow:"R ELBOW"};
+  let hlList=[], hlUntil=0, hlRaf=0;
+  function clearHL(){hlList=[];hlUntil=0;if(hlRaf){cancelAnimationFrame(hlRaf);hlRaf=0;}hlCtx.clearRect(0,0,hlCanvas.width,hlCanvas.height);}
+  function drawHL(){
+    hlRaf=0;
+    const now=performance.now();
+    if(now>=hlUntil||!hlList.length){clearHL();return;}
+    const W=video.videoWidth||640,H=video.videoHeight||360;
+    if(hlCanvas.width!==W)hlCanvas.width=W;
+    if(hlCanvas.height!==H)hlCanvas.height=H;
+    hlCtx.clearRect(0,0,W,H);
+    if(lastLm){
+      const pulse=0.5+0.5*Math.sin(now/1000*4.2);
+      const fade=now>hlUntil-700?Math.max(0,(hlUntil-now)/700):1;
+      hlList.forEach(({idx,label})=>{
+        const pt=lastLm[idx]; if(!pt||(pt.visibility||0)<0.35)return;
+        const x=pt.x*W,y=pt.y*H;
+        const r=15+pulse*9;
+        hlCtx.save();
+        hlCtx.globalAlpha=(0.9-pulse*0.45)*fade;
+        hlCtx.strokeStyle="#fff";hlCtx.lineWidth=3;
+        hlCtx.shadowBlur=22;hlCtx.shadowColor="#6c63ff";
+        hlCtx.beginPath();hlCtx.arc(x,y,r,0,Math.PI*2);hlCtx.stroke();
+        hlCtx.globalAlpha=fade;hlCtx.lineWidth=2.5;
+        hlCtx.beginPath();hlCtx.arc(x,y,13,0,Math.PI*2);hlCtx.stroke();
+        hlCtx.font="bold 11px -apple-system,sans-serif";
+        const tw=hlCtx.measureText(label).width, cw=tw+14, ch=18;
+        const lx=Math.min(Math.max(x-cw/2,4),W-cw-4), ly=Math.max(y-r-ch-6,4);
+        hlCtx.shadowBlur=0;hlCtx.globalAlpha=fade;
+        hlCtx.fillStyle="#6c63ff";
+        hlCtx.beginPath();hlCtx.roundRect(lx,ly,cw,ch,7);hlCtx.fill();
+        hlCtx.fillStyle="#fff";hlCtx.textAlign="left";hlCtx.textBaseline="middle";
+        hlCtx.fillText(label,lx+7,ly+ch/2+0.5);
+        hlCtx.restore();
+      });
+    }
+    hlRaf=requestAnimationFrame(drawHL);
+  }
+  window.__highlightJoints=function(keys,ms){
+    const arr=Array.isArray(keys)?keys:[];
+    hlList=arr.map(k=>({idx:HL_IDX[k],label:HL_LABEL[k]||k})).filter(o=>o.idx!=null);
+    if(!hlList.length){clearHL();return;}
+    hlUntil=performance.now()+(ms||6000);
+    if(!hlRaf)hlRaf=requestAnimationFrame(drawHL);
+  };
+  window.__clearHighlights=function(){clearHL();};
+
   // ── Tap handler: either lock onto a detected person or free-tap ───────────
   wrap.addEventListener("click",function(e){
     if(!selectMode)return;
@@ -742,16 +805,24 @@ export default function SkeletonScreen() {
   const router    = useRouter();
   const { width: screenW, height: screenH } = useWindowDimensions();
   const webviewRef = useRef<WebView>(null);
+  const scrollRef  = useRef<ScrollView>(null);
+  const mountedRef = useRef(true);
+  const pollRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Identifies the analysis currently loaded; an in-flight poll/GET from a previous
+  // id must never write tips/groundedReady for the analysis the user navigated away from.
+  const currentIdRef = useRef<string | undefined>(undefined);
 
   const [videoUri, setVideoUri]   = useState<string | undefined>();
   const [sport, setSport]         = useState("");
   const [tips, setTips]           = useState<TipRecord[]>([]);
   const [showSources, setShowSources] = useState(false);
 
-  const [risk,        setRisk]        = useState<RiskMap | null>(null);
-  const [maxLvl,      setMaxLvl]      = useState(0);
-  const [peak,        setPeak]        = useState<Record<string, { lvl: number; deg: number }>>({});
   const [worstTime,   setWorstTime]   = useState<number | null>(null);
+  const [scanResult,  setScanResult]  = useState<{ angles: Partial<AngleMap>; risks: RiskMap; worstTime: number } | null>(null);
+  const [refining,    setRefining]    = useState(false);
+  // True only when `tips` in state reflect a server biomechanicsApplied=true result.
+  // Gates injury/performance tip rendering so stale create-time tips never show.
+  const [groundedReady, setGroundedReady] = useState(false);
   const [videoAspect, setVideoAspect] = useState(16 / 9);
   const [modelReady,  setModelReady]  = useState(false);
   const [preparing,   setPreparing]   = useState(true);
@@ -763,11 +834,25 @@ export default function SkeletonScreen() {
   // ── Load analysis data ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!id) return;
-    AsyncStorage.getItem(`video_uri_${id}`).then((uri) => { if (uri) setVideoUri(uri); });
+    let cancelled = false;
+    // id-scoped reset: a new analysis must never inherit the previous one's grounded
+    // tips or an in-flight poll. groundedReady is reset HERE (not in the HTML-rebuild
+    // effect, which is keyed on video/sport and would otherwise clobber a grounded load).
+    currentIdRef.current = id;
+    if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
+    setRefining(false);
+    setGroundedReady(false);
+    setTips([]);
+    AsyncStorage.getItem(`video_uri_${id}`).then((uri) => { if (!cancelled && uri) setVideoUri(uri); });
     analysesApi.get(id).then(({ analysis, tips: t }) => {
+      if (cancelled) return;
       setSport(analysis.sport ?? "");
       setTips(t ?? []);
+      // If this analysis was already grounded on a prior scan, the loaded tips are
+      // grounded — surface them immediately instead of waiting for a fresh scan.
+      if (analysis.biomechanicsApplied) setGroundedReady(true);
     }).catch(() => {});
+    return () => { cancelled = true; };
   }, [id]);
 
   // ── Orientation ─────────────────────────────────────────────────────────────
@@ -778,6 +863,50 @@ export default function SkeletonScreen() {
     } catch {}
   }
   useEffect(() => () => { ScreenOrientation.unlockAsync().catch(() => {}); }, []);
+
+  // Track mount so the biomechanics poll loop never calls setState after unmount.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; if (pollRef.current) clearTimeout(pollRef.current); };
+  }, []);
+
+  // After a scan we PATCH the measured worst-frame data, then poll the analysis
+  // until the server re-grounds the AI tips on that data (biomechanicsApplied).
+  // This is the race fix: tips only swap in once they reflect *this* scan.
+  const runBiomechanics = useCallback((analysisId: string, payload: {
+    jointAngles: Partial<AngleMap>; jointRisks: RiskMap; frameBase64?: string;
+  }) => {
+    if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
+    setRefining(true);
+    analysesApi.update(analysisId, payload)
+      .then(() => {
+        let attempts = 0;
+        const poll = () => {
+          attempts += 1;
+          analysesApi.get(analysisId)
+            .then(({ analysis, tips: t }) => {
+              if (!mountedRef.current || currentIdRef.current !== analysisId) return;
+              if (analysis.biomechanicsApplied) {
+                setTips(t ?? []);
+                setGroundedReady(true);
+                setRefining(false);
+                pollRef.current = null;
+              } else if (attempts < 20) {
+                pollRef.current = setTimeout(poll, 1800);
+              } else {
+                setRefining(false);
+              }
+            })
+            .catch(() => {
+              if (!mountedRef.current || currentIdRef.current !== analysisId) return;
+              if (attempts < 20) pollRef.current = setTimeout(poll, 1800);
+              else setRefining(false);
+            });
+        };
+        pollRef.current = setTimeout(poll, 2000);
+      })
+      .catch(() => { if (mountedRef.current && currentIdRef.current === analysisId) setRefining(false); });
+  }, []);
 
   // ── Messages from WebView ───────────────────────────────────────────────────
   function handleMessage(event: { nativeEvent: { data: string } }) {
@@ -792,86 +921,121 @@ export default function SkeletonScreen() {
         return;
       }
       if (msg.type === "scanComplete") {
-        setWorstTime(msg.time as number);
-        if (id && msg.angles) {
-          analysesApi.update(id, {
-            jointAngles: msg.angles,
-            jointRisks: msg.risks,
+        const t = typeof msg.time === "number" ? msg.time : 0;
+        setWorstTime(t);
+        if (msg.angles && msg.risks) {
+          setScanResult({
+            angles: msg.angles as Partial<AngleMap>,
+            risks: msg.risks as RiskMap,
+            worstTime: t,
+          });
+        }
+        if (id && msg.angles && msg.risks) {
+          runBiomechanics(id, {
+            jointAngles: msg.angles as Partial<AngleMap>,
+            jointRisks: msg.risks as RiskMap,
             frameBase64: msg.frame || undefined,
-          }).catch(() => {});
+          });
         }
         return;
       }
       if (msg.type === "angles") {
-        const data = msg.data as AngleMap;
-        if (msg.risk) {
-          const r = msg.risk as RiskMap;
-          setRisk(r);
-          setPeak((prev) => {
-            let changed = false;
-            const next = { ...prev };
-            (Object.keys(r) as JointKey[]).forEach((k) => {
-              const lvlVal = r[k];
-              const deg = data[k];
-              if (lvlVal < 1) return;
-              const cur = next[k];
-              if (!cur || lvlVal > cur.lvl || (lvlVal === cur.lvl && moreExtreme(k, deg, cur.deg))) {
-                next[k] = { lvl: lvlVal, deg };
-                changed = true;
-              }
-            });
-            return changed ? next : prev;
-          });
-        }
-        setMaxLvl(typeof msg.maxLvl === "number" ? msg.maxLvl : 0);
+        // Live frame-by-frame angles drive the WebView skeleton colouring; the RN
+        // UI only needs to know the model has produced its first result.
         if (!modelReady) setModelReady(true);
+        return;
       }
     } catch {}
   }
 
-  // ── Jump to worst moment ────────────────────────────────────────────────────
+  // ── Spotlight a tip on the skeleton ─────────────────────────────────────────
+  // Scrolls the video into view, seeks to the worst-risk frame, and pulses a
+  // highlight ring on the tip's joints. This is the core tip ↔ skeleton link.
+  function focusTip(joints?: string[]) {
+    const arr = (joints ?? []).filter((j) => j in JOINT_LABEL);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+    const seekPart = worstTime !== null
+      ? `if(typeof window.__seekTo==='function'){window.__seekTo(${worstTime});}else{var v=document.getElementById('v');if(v){v.pause();v.currentTime=${worstTime};}}`
+      : "";
+    const hlPart = arr.length
+      ? `if(typeof window.__highlightJoints==='function'){window.__highlightJoints(${JSON.stringify(arr)},6500);}`
+      : `if(typeof window.__clearHighlights==='function'){window.__clearHighlights();}`;
+    webviewRef.current?.injectJavaScript(`${seekPart}${hlPart} true;`);
+  }
+
   function jumpToWorst() {
     if (worstTime === null) return;
-    // __seekTo is exposed inside the IIFE so it has access to the internal
-    // playing/pause state — much more reliable than manipulating the video directly.
-    webviewRef.current?.injectJavaScript(
-      `if(typeof window.__seekTo==='function'){window.__seekTo(${worstTime});}else{var v=document.getElementById('v');if(v){v.pause();v.currentTime=${worstTime};}} true;`
-    );
+    focusTip(flaggedJoints);
   }
 
   // ── Split tips into injury vs performance ───────────────────────────────────
-  const injuryTips     = useMemo(() => tips.filter((t) => t.tipType === "injury"   || t.severity === "warning" || t.severity === "critical"), [tips]);
+  const injuryTips      = useMemo(() => tips.filter((t) => t.tipType === "injury" || t.severity === "warning" || t.severity === "critical"), [tips]);
   const performanceTips = useMemo(() => tips.filter((t) => t.tipType === "performance" && t.severity === "info"), [tips]);
 
-  // When a joint goes red/amber, surface the most relevant injury tip
-  const activeInjuryTip = useMemo((): TipRecord | null => {
-    if (maxLvl < 1 || injuryTips.length === 0) return null;
-    const riskJoints = risk
-      ? (Object.keys(risk) as (keyof RiskMap)[]).filter((k) => risk[k] >= 1)
-      : [];
-    const isKneeRisk  = riskJoints.some((k) => k.toLowerCase().includes("knee"));
-    const isHipRisk   = riskJoints.some((k) => k.toLowerCase().includes("hip"));
-    const isElbowRisk = riskJoints.some((k) => k.toLowerCase().includes("elbow"));
-    if (isKneeRisk || isHipRisk) {
-      const match = injuryTips.find((t) => t.category === "Injury Prevention" || t.category === "Form");
-      if (match) return match;
-    }
-    if (isElbowRisk) {
-      const match = injuryTips.find((t) => t.category === "Form");
-      if (match) return match;
-    }
-    return injuryTips[0] ?? null;
-  }, [maxLvl, risk, injuryTips]);
+  // Joints the scan flagged (level ≥ 1) on the worst frame — the ground truth the
+  // injury section and joint chips correspond to. Sorted worst-first.
+  const flaggedJoints = useMemo(() => {
+    if (!scanResult) return [] as JointKey[];
+    return (Object.keys(scanResult.risks) as JointKey[])
+      .filter((k) => (scanResult.risks[k] ?? 0) >= 1)
+      .sort((a, b) => (scanResult.risks[b] ?? 0) - (scanResult.risks[a] ?? 0));
+  }, [scanResult]);
+
+  const worstLvl = useMemo(
+    () => flaggedJoints.reduce((m, k) => Math.max(m, scanResult?.risks[k] ?? 0), 0),
+    [flaggedJoints, scanResult],
+  );
+
+  // Card accent colour from the worst measured risk among a tip's joints
+  // (falls back to its severity when those joints weren't scanned).
+  function tipColor(tip: TipRecord): string {
+    const lvls = (tip.joints ?? [])
+      .map((j) => scanResult?.risks?.[j as JointKey])
+      .filter((v): v is number => typeof v === "number");
+    const lvl = lvls.length
+      ? Math.max(...lvls)
+      : tip.severity === "critical" ? 2 : tip.severity === "warning" ? 1 : 0;
+    return RISK_COLORS[lvl] ?? "#f59e0b";
+  }
+
+  // Tappable joint chips: show the measured angle + risk colour and spotlight the
+  // joint on the skeleton when pressed.
+  function renderJointChips(joints?: string[]) {
+    const arr = (joints ?? []).filter((j) => j in JOINT_LABEL);
+    if (arr.length === 0) return null;
+    return (
+      <View style={ss.chipRow}>
+        {arr.map((j) => {
+          const lvl = scanResult?.risks?.[j as JointKey];
+          const deg = scanResult?.angles?.[j as JointKey];
+          const color = typeof lvl === "number" ? RISK_COLORS[lvl] : "#6c63ff";
+          return (
+            <TouchableOpacity
+              key={j}
+              style={[ss.chip, { borderColor: color + "66", backgroundColor: color + "14" }]}
+              onPress={() => focusTip([j])}
+              activeOpacity={0.7}
+            >
+              <View style={[ss.chipDot, { backgroundColor: color }]} />
+              <Text style={[ss.chipText, { color }]}>
+                {JOINT_LABEL[j]}{typeof deg === "number" ? ` · ${Math.round(deg)}°` : ""}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  }
 
   // ── Build HTML to disk ──────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     setPreparing(true);
     setHtmlFileUri(null);
-    setRisk(null);
-    setMaxLvl(0);
-    setPeak({});
     setWorstTime(null);
+    setScanResult(null);
+    setRefining(false);
+    if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
     setVideoAspect(16 / 9);
     setModelReady(false);
 
@@ -971,6 +1135,7 @@ export default function SkeletonScreen() {
         </>
       ) : (
         <ScrollView
+          ref={scrollRef}
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingBottom: insets.bottom + 28 }}
           showsVerticalScrollIndicator={false}
@@ -994,7 +1159,7 @@ export default function SkeletonScreen() {
             </View>
           )}
 
-          {/* ── SECTION 1: Injury Prevention ── */}
+          {/* ── SECTION 1: Injury Prevention (grounded in the scan) ── */}
           {modelReady && videoUri && (
             <View style={ss.tipSection}>
               <View style={ss.tipLabelRow}>
@@ -1002,70 +1167,148 @@ export default function SkeletonScreen() {
                 <Text style={[ss.sectionLabel, { color: "#ef444488" }]}>INJURY PREVENTION</Text>
               </View>
 
-              {activeInjuryTip ? (
-                <View style={[ss.tipCard, { borderColor: maxLvl === 2 ? "#ef444444" : "#f59e0b44" }]}>
-                  <View style={ss.tipHeader}>
-                    <View style={[ss.tipIcon, { backgroundColor: maxLvl === 2 ? "#ef44441a" : "#f59e0b1a" }]}>
-                      <Feather
-                        name={maxLvl === 2 ? "alert-triangle" : "alert-circle"}
-                        size={14}
-                        color={maxLvl === 2 ? "#ef4444" : "#f59e0b"}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[ss.tipCategory, { color: maxLvl === 2 ? "#ef4444" : "#f59e0b" }]}>{activeInjuryTip.category}</Text>
-                      <Text style={ss.tipTitle}>{activeInjuryTip.title}</Text>
-                    </View>
+              {!scanResult ? (
+                <View style={ss.refiningCard}>
+                  <ActivityIndicator size="small" color="#6c63ff" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={ss.refiningTitle}>Scanning every frame…</Text>
+                    <Text style={ss.refiningBody}>Measuring joint angles across the whole clip to find the highest-risk moment.</Text>
                   </View>
-                  <Text style={ss.tipDesc}>{activeInjuryTip.description}</Text>
-                  {activeInjuryTip.drill && (
-                    <View style={ss.drillBox}>
-                      <Text style={ss.drillLabel}>CORRECTIVE DRILL</Text>
-                      <Text style={ss.drillText}>{activeInjuryTip.drill}</Text>
-                    </View>
-                  )}
                 </View>
               ) : (
-                <View style={ss.okCard}>
-                  <Feather name="shield" size={18} color="#22c55e" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={ss.okTitle}>No injury risks detected</Text>
-                    <Text style={ss.okBody}>
-                      Joint angles are within safe ranges for {sport || "this sport"}. Risk alerts will appear here if a dangerous pattern is detected.
-                    </Text>
-                  </View>
-                </View>
+                <>
+                  {flaggedJoints.length > 0 && (
+                    <View style={[ss.worstSummary, { borderColor: RISK_COLORS[worstLvl] + "44" }]}>
+                      <View style={ss.worstSummaryHead}>
+                        <Feather name={worstLvl === 2 ? "alert-triangle" : "alert-circle"} size={13} color={RISK_COLORS[worstLvl]} />
+                        <Text style={[ss.worstSummaryTitle, { color: RISK_COLORS[worstLvl] }]}>
+                          {RISK_WORD[worstLvl]} · worst frame at {fmtTime(scanResult.worstTime)}
+                        </Text>
+                      </View>
+                      {renderJointChips(flaggedJoints)}
+                      <View style={ss.tapHintRow}>
+                        <Feather name="crosshair" size={10} color="#6c63ff" />
+                        <Text style={ss.tapHint}>Tap a joint or tip to spotlight it on the skeleton</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {refining ? (
+                    <View style={ss.refiningCard}>
+                      <ActivityIndicator size="small" color="#6c63ff" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={ss.refiningTitle}>Generating coaching from your scan…</Text>
+                        <Text style={ss.refiningBody}>Grounding AI tips in the joint angles measured from your video.</Text>
+                      </View>
+                    </View>
+                  ) : flaggedJoints.length === 0 ? (
+                    <View style={ss.okCard}>
+                      <Feather name="shield" size={18} color="#22c55e" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={ss.okTitle}>No injury risks detected across the scan</Text>
+                        <Text style={ss.okBody}>
+                          Every measured joint stayed within safe ranges for {sport || "this sport"} throughout the clip.
+                        </Text>
+                      </View>
+                    </View>
+                  ) : groundedReady && injuryTips.length > 0 ? (
+                    injuryTips.map((tip, i) => {
+                      const color = tipColor(tip);
+                      const hasJoints = (tip.joints?.length ?? 0) > 0;
+                      return (
+                        <TouchableOpacity
+                          key={tip.id ?? i}
+                          style={[ss.tipCard, { borderColor: color + "44" }]}
+                          onPress={() => focusTip(tip.joints)}
+                          activeOpacity={0.85}
+                        >
+                          <View style={ss.tipHeader}>
+                            <View style={[ss.tipIcon, { backgroundColor: color + "1a" }]}>
+                              <Feather name={color === "#ef4444" ? "alert-triangle" : "alert-circle"} size={14} color={color} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={[ss.tipCategory, { color }]}>{tip.category}</Text>
+                              <Text style={ss.tipTitle}>{tip.title}</Text>
+                            </View>
+                          </View>
+                          {tip.videoObservation ? <Text style={ss.tipObs}>“{tip.videoObservation}”</Text> : null}
+                          <Text style={ss.tipDesc}>{tip.description}</Text>
+                          {renderJointChips(tip.joints)}
+                          {tip.drill && (
+                            <View style={ss.drillBox}>
+                              <Text style={ss.drillLabel}>CORRECTIVE DRILL</Text>
+                              <Text style={ss.drillText}>{tip.drill}</Text>
+                            </View>
+                          )}
+                          {hasJoints && (
+                            <View style={ss.tapHintRow}>
+                              <Feather name="crosshair" size={10} color={color} />
+                              <Text style={[ss.tapHint, { color }]}>Tap to spotlight on skeleton</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })
+                  ) : (
+                    <View style={[ss.tipCard, { borderColor: RISK_COLORS[worstLvl] + "44" }]}>
+                      <View style={ss.tipHeader}>
+                        <View style={[ss.tipIcon, { backgroundColor: RISK_COLORS[worstLvl] + "1a" }]}>
+                          <Feather name={worstLvl === 2 ? "alert-triangle" : "alert-circle"} size={14} color={RISK_COLORS[worstLvl]} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[ss.tipCategory, { color: RISK_COLORS[worstLvl] }]}>Elevated joint load</Text>
+                          <Text style={ss.tipTitle}>Review the flagged joints</Text>
+                        </View>
+                      </View>
+                      <Text style={ss.tipDesc}>
+                        The scan measured {RISK_WORD[worstLvl].toLowerCase()} angles at the joints below. Tap one to see the exact moment on the skeleton.
+                      </Text>
+                      {renderJointChips(flaggedJoints)}
+                    </View>
+                  )}
+                </>
               )}
             </View>
           )}
 
-          {/* ── SECTION 2: Performance & Efficiency ── */}
-          {modelReady && videoUri && performanceTips.length > 0 && (
+          {/* ── SECTION 2: Performance & Efficiency (grounded tips only) ── */}
+          {modelReady && videoUri && groundedReady && !refining && performanceTips.length > 0 && (
             <View style={ss.tipSection}>
               <View style={ss.tipLabelRow}>
                 <Feather name="zap" size={10} color="#6c63ff" />
                 <Text style={[ss.sectionLabel, { color: "#6c63ffaa" }]}>PERFORMANCE COACHING</Text>
               </View>
-              {performanceTips.map((tip, i) => (
-                <View key={tip.id ?? i} style={[ss.tipCard, ss.perfCard]}>
-                  <View style={ss.tipHeader}>
-                    <View style={[ss.tipIcon, { backgroundColor: "#6c63ff1a" }]}>
-                      <Feather name="trending-up" size={14} color="#6c63ff" />
+              {performanceTips.map((tip, i) => {
+                const hasJoints = (tip.joints?.length ?? 0) > 0;
+                return (
+                  <TouchableOpacity key={tip.id ?? i} style={[ss.tipCard, ss.perfCard]} onPress={() => focusTip(tip.joints)} activeOpacity={0.85}>
+                    <View style={ss.tipHeader}>
+                      <View style={[ss.tipIcon, { backgroundColor: "#6c63ff1a" }]}>
+                        <Feather name="trending-up" size={14} color="#6c63ff" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[ss.tipCategory, { color: "#6c63ff" }]}>{tip.category}</Text>
+                        <Text style={ss.tipTitle}>{tip.title}</Text>
+                      </View>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[ss.tipCategory, { color: "#6c63ff" }]}>{tip.category}</Text>
-                      <Text style={ss.tipTitle}>{tip.title}</Text>
-                    </View>
-                  </View>
-                  <Text style={ss.tipDesc}>{tip.description}</Text>
-                  {tip.drill && (
-                    <View style={[ss.drillBox, { backgroundColor: "#0e0e28" }]}>
-                      <Text style={[ss.drillLabel, { color: "#6c63ff" }]}>PERFORMANCE DRILL</Text>
-                      <Text style={ss.drillText}>{tip.drill}</Text>
-                    </View>
-                  )}
-                </View>
-              ))}
+                    {tip.videoObservation ? <Text style={ss.tipObs}>“{tip.videoObservation}”</Text> : null}
+                    <Text style={ss.tipDesc}>{tip.description}</Text>
+                    {renderJointChips(tip.joints)}
+                    {tip.drill && (
+                      <View style={[ss.drillBox, { backgroundColor: "#0e0e28" }]}>
+                        <Text style={[ss.drillLabel, { color: "#6c63ff" }]}>PERFORMANCE DRILL</Text>
+                        <Text style={ss.drillText}>{tip.drill}</Text>
+                      </View>
+                    )}
+                    {hasJoints && (
+                      <View style={ss.tapHintRow}>
+                        <Feather name="crosshair" size={10} color="#6c63ff" />
+                        <Text style={ss.tapHint}>Tap to spotlight on skeleton</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
 
@@ -1357,6 +1600,19 @@ const ss = StyleSheet.create({
   okCard:        { flexDirection: "row", gap: 12, alignItems: "center", backgroundColor: "#0f1c12", borderWidth: 1, borderColor: "#22c55e33", borderRadius: 14, padding: 14 },
   okTitle:       { fontSize: 13, color: "#d8f5e0", fontFamily: "Inter_600SemiBold" },
   okBody:        { fontSize: 12, color: "#7a9a82", fontFamily: "Inter_400Regular", marginTop: 3, lineHeight: 17 },
+  tipObs:        { fontSize: 12, color: "#9a9ac4", fontFamily: "Inter_400Regular", fontStyle: "italic", lineHeight: 17 },
+  chipRow:       { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  chip:          { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4 },
+  chipDot:       { width: 6, height: 6, borderRadius: 3 },
+  chipText:      { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  tapHintRow:    { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1 },
+  tapHint:       { fontSize: 10, color: "#6c63ff", fontFamily: "Inter_600SemiBold" },
+  worstSummary:  { backgroundColor: "#12101f", borderRadius: 12, borderWidth: 1, borderColor: "#26203a", padding: 12, gap: 9, marginBottom: 10 },
+  worstSummaryHead:  { flexDirection: "row", alignItems: "center", gap: 7 },
+  worstSummaryTitle: { fontSize: 12, fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
+  refiningCard:  { flexDirection: "row", gap: 12, alignItems: "center", backgroundColor: "#0f0f1c", borderWidth: 1, borderColor: "#6c63ff33", borderRadius: 14, padding: 14 },
+  refiningTitle: { fontSize: 13, color: "#cfcdf2", fontFamily: "Inter_600SemiBold" },
+  refiningBody:  { fontSize: 11, color: "#8888aa", fontFamily: "Inter_400Regular", marginTop: 2, lineHeight: 16 },
   sourcesSection:      { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 4 },
   sourcesToggle:       { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6 },
   sourcesToggleText:   { fontSize: 11, color: "#55556e", fontFamily: "Inter_400Regular", flex: 1 },

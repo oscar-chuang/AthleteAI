@@ -11,7 +11,7 @@ import {
   TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -45,6 +45,12 @@ const SEVERITY_CONFIG = {
   info:     { color: "#38bdf8", icon: "info"          as const, label: "Info"     },
   warning:  { color: "#f59e0b", icon: "alert-triangle" as const, label: "Warning"  },
   critical: { color: "#ef4444", icon: "alert-circle"  as const, label: "Critical" },
+};
+
+const JOINT_LABEL: Record<string, string> = {
+  leftKnee: "Left Knee", rightKnee: "Right Knee",
+  leftHip: "Left Hip", rightHip: "Right Hip",
+  leftElbow: "Left Elbow", rightElbow: "Right Elbow",
 };
 
 function formatDate(iso: string) {
@@ -129,7 +135,7 @@ export default function AnalysisDetailScreen() {
     }
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   // Poll while processing
   useEffect(() => {
@@ -247,6 +253,10 @@ export default function AnalysisDetailScreen() {
     drillBox:  { marginTop: 10, backgroundColor: colors.muted, borderRadius: 8, padding: 10 },
     drillLabel:{ fontSize: 11, color: colors.primary, fontFamily: "Inter_600SemiBold", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },
     drillText: { fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular", lineHeight: 17 },
+    chipRow:   { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
+    chip:      { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4 },
+    chipDot:   { width: 6, height: 6, borderRadius: 3 },
+    chipText:  { fontSize: 11, fontFamily: "Inter_600SemiBold" },
     riskCard:  { backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border },
     riskRow:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
     riskJoint: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground },
@@ -497,6 +507,16 @@ export default function AnalysisDetailScreen() {
                         </View>
                       )}
                       <Text style={s.tipDesc}>{tip.description}</Text>
+                      {(tip.joints?.length ?? 0) > 0 && (
+                        <View style={s.chipRow}>
+                          {tip.joints!.map((j) => (
+                            <View key={j} style={[s.chip, { borderColor: cfg.color + "55", backgroundColor: cfg.color + "12" }]}>
+                              <View style={[s.chipDot, { backgroundColor: cfg.color }]} />
+                              <Text style={[s.chipText, { color: cfg.color }]}>{JOINT_LABEL[j] ?? j}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
                       {tip.drill && (
                         <View style={s.drillBox}>
                           <Text style={s.drillLabel}>Drill</Text>

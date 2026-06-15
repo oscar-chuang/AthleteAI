@@ -6,6 +6,35 @@ import { analyzeAthletePerformance, detectSportFromFrame, type AIAnalysisResult 
 
 const router: IRouter = Router();
 
+// The six joints the on-device pose skeleton measures.
+const JOINT_KEYS = ["leftKnee", "rightKnee", "leftHip", "rightHip", "leftElbow", "rightElbow"] as const;
+// A 640x360 JPEG data URL is ~30-60KB; cap well above that to reject abuse.
+const MAX_FRAME_CHARS = 3_000_000;
+
+function sanitizeJointAngles(raw: unknown): Record<string, number> | null {
+  if (!raw || typeof raw !== "object") return null;
+  const src = raw as Record<string, unknown>;
+  const out: Record<string, number> = {};
+  for (const k of JOINT_KEYS) {
+    const v = src[k];
+    if (typeof v === "number" && Number.isFinite(v)) {
+      out[k] = Math.max(0, Math.min(200, v));
+    }
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+function sanitizeJointRisks(raw: unknown): Record<string, number> | null {
+  if (!raw || typeof raw !== "object") return null;
+  const src = raw as Record<string, unknown>;
+  const out: Record<string, number> = {};
+  for (const k of JOINT_KEYS) {
+    const v = src[k];
+    if (typeof v === "number" && (v === 0 || v === 1 || v === 2)) out[k] = v;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 function formatAnalysis(a: typeof analysesTable.$inferSelect) {
   return {
     id: String(a.id),
@@ -25,6 +54,7 @@ function formatAnalysis(a: typeof analysesTable.$inferSelect) {
     speedScore: a.speedScore ?? undefined,
     strengths: a.strengths ?? [],
     improvements: a.improvements ?? [],
+    biomechanicsApplied: a.biomechanicsApplied,
     uploadedAt: a.uploadedAt.toISOString(),
   };
 }
@@ -63,9 +93,11 @@ router.post("/analyses", requireAuth, async (req: Request, res: Response) => {
 
   runAIAnalysis(row!.id, userId, sport, title, videoUrl).catch((err) => {
     console.error(`AI analysis failed for id=${row!.id}:`, err);
+    // Only mark failed if a grounded biomechanics run has NOT already landed —
+    // otherwise a slow create-time failure would clobber complete grounded results.
     db.update(analysesTable)
       .set({ status: "failed" })
-      .where(eq(analysesTable.id, row!.id))
+      .where(and(eq(analysesTable.id, row!.id), eq(analysesTable.biomechanicsApplied, false)))
       .catch(() => {});
   });
 });
@@ -78,7 +110,8 @@ async function runAIAnalysis(
   videoUrl?: string,
   jointAngles?: Record<string, number> | null,
   jointRisks?: Record<string, number> | null,
-  frameBase64?: string | null
+  frameBase64?: string | null,
+  isBiomechanics = false
 ) {
   const [profileRow] = await db
     .select()
@@ -92,24 +125,36 @@ async function runAIAnalysis(
 
   const result: AIAnalysisResult = await analyzeAthletePerformance(sport, title, videoUrl, athleteProfile, jointAngles as any, jointRisks as any, frameBase64);
 
-  await db.update(analysesTable)
-    .set({
-      status: "complete",
-      overallScore: result.overallScore,
-      techniqueScore: result.techniqueScore,
-      powerScore: result.powerScore,
-      balanceScore: result.balanceScore,
-      consistencyScore: result.consistencyScore,
-      mobilityScore: result.mobilityScore,
-      speedScore: result.speedScore,
-      strengths: result.strengths,
-      improvements: result.improvements,
-      tips: result.tips as unknown as object[],
-      injuryRisks: result.injuryRisks as unknown as object[],
-    })
-    .where(eq(analysesTable.id, id));
+  const values = {
+    status: "complete" as const,
+    overallScore: result.overallScore,
+    techniqueScore: result.techniqueScore,
+    powerScore: result.powerScore,
+    balanceScore: result.balanceScore,
+    consistencyScore: result.consistencyScore,
+    mobilityScore: result.mobilityScore,
+    speedScore: result.speedScore,
+    strengths: result.strengths,
+    improvements: result.improvements,
+    tips: result.tips as unknown as object[],
+    injuryRisks: result.injuryRisks as unknown as object[],
+  };
 
-  console.log(`AI analysis complete for id=${id} (${sport}: ${title})`);
+  if (isBiomechanics) {
+    // Grounded run from the on-device pose scan — always wins. Mark the row so a
+    // slower create-time run can never overwrite these results afterwards.
+    await db.update(analysesTable)
+      .set({ ...values, biomechanicsApplied: true })
+      .where(eq(analysesTable.id, id));
+  } else {
+    // Create-time run with no measured data — only write if a biomechanics run
+    // has not already landed (or is not in flight and finishing first).
+    await db.update(analysesTable)
+      .set(values)
+      .where(and(eq(analysesTable.id, id), eq(analysesTable.biomechanicsApplied, false)));
+  }
+
+  console.log(`AI analysis complete for id=${id} (${sport}: ${title})${isBiomechanics ? " [biomechanics]" : ""}`);
 }
 
 router.post("/analyses/detect-sport", requireAuth, async (req: Request, res: Response) => {
@@ -126,7 +171,7 @@ router.post("/analyses/detect-sport", requireAuth, async (req: Request, res: Res
 
 router.get("/analyses/:id", requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).userId as number;
-  const id = parseInt(req.params.id ?? "", 10);
+  const id = parseInt(String(req.params.id ?? ""), 10);
   if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
 
   const [row] = await db
@@ -139,6 +184,7 @@ router.get("/analyses/:id", requireAuth, async (req: Request, res: Response) => 
   const storedTips = (row.tips ?? []) as Array<{
     tipType?: string; category: string; severity: string; title: string;
     videoObservation?: string; description: string; drill?: string; source?: string;
+    joints?: string[];
   }>;
   const storedRisks = (row.injuryRisks ?? []) as Array<{
     joint: string; riskPercent: number; description: string; prevention: string;
@@ -152,7 +198,7 @@ router.get("/analyses/:id", requireAuth, async (req: Request, res: Response) => 
 
 router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).userId as number;
-  const id = parseInt(req.params.id ?? "", 10);
+  const id = parseInt(String(req.params.id ?? ""), 10);
   if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
 
   const [row] = await db
@@ -162,24 +208,45 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
 
   if (!row) { res.status(404).json({ error: "Analysis not found" }); return; }
 
-  const { jointAngles, jointRisks, frameBase64 } = req.body as {
-    jointAngles?: Record<string, number>;
-    jointRisks?: Record<string, number>;
-    frameBase64?: string;
+  const body = req.body as {
+    jointAngles?: Record<string, unknown>;
+    jointRisks?: Record<string, unknown>;
+    frameBase64?: unknown;
   };
+
+  // Validate the measured payload before trusting it. Only the six tracked joints
+  // are accepted; angles are clamped to a sane range and risks to {0,1,2}.
+  const jointAngles = sanitizeJointAngles(body.jointAngles);
+  const jointRisks = sanitizeJointRisks(body.jointRisks);
+  const frameBase64 =
+    typeof body.frameBase64 === "string" && body.frameBase64.length <= MAX_FRAME_CHARS
+      ? body.frameBase64
+      : undefined;
 
   res.json({ success: true });
 
-  // Re-run AI with actual measured joint angles + video frame — overrides the initial estimate
-  runAIAnalysis(row.id, userId, row.sport, row.title, row.videoUrl ?? undefined, jointAngles, jointRisks, frameBase64)
+  // Mark as processing so the detail screen's poll resumes and picks up the
+  // grounded results once the re-analysis finishes.
+  await db.update(analysesTable)
+    .set({ status: "processing" })
+    .where(eq(analysesTable.id, row.id))
+    .catch(() => {});
+
+  // Re-run AI with actual measured joint angles + video frame — this grounded run
+  // overrides the initial estimate and is protected from create-time overwrites.
+  runAIAnalysis(row.id, userId, row.sport, row.title, row.videoUrl ?? undefined, jointAngles, jointRisks, frameBase64, true)
     .catch((err) => {
       console.error(`AI re-analysis failed for id=${id}:`, err);
+      db.update(analysesTable)
+        .set({ status: "complete" })
+        .where(eq(analysesTable.id, row.id))
+        .catch(() => {});
     });
 });
 
 router.delete("/analyses/:id", requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).userId as number;
-  const id = parseInt(req.params.id ?? "", 10);
+  const id = parseInt(String(req.params.id ?? ""), 10);
   if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
 
   await db

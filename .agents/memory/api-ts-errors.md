@@ -1,8 +1,7 @@
 ---
-name: Pre-existing API TypeScript errors
-description: Known TS errors in api-server that do not affect runtime
+name: API server typecheck state
+description: Current state of api-server TypeScript checking
 ---
-Module '@workspace/db' has no exported member 'analysesTable' (and profilesTable, usersTable, chatMessagesTable) — these are pre-existing errors from a workspace package resolution issue in tsc. esbuild compiles correctly so the server runs fine. Do not try to fix these during feature work; they require a db package restructure.
+As of June 2026, `pnpm run typecheck` AND isolated `pnpm --filter @workspace/api-server exec tsc -p tsconfig.json --noEmit` are both FULLY CLEAN. The previously-noted `@workspace/db` "has no exported member" errors (analysesTable/profilesTable/usersTable/chatMessagesTable) no longer reproduce — the db package declarations now resolve under tsc.
 
-**Why:** @workspace/db type re-exports don't match what tsc resolves, but esbuild resolves them correctly at runtime.
-**How to apply:** Ignore tsc errors from `pnpm typecheck` on api-server — they are not caused by your changes.
+**How to apply:** Do NOT preemptively dismiss api-server tsc errors as "pre-existing and ignorable" — typecheck is green, so any error you see is real and likely yours. Investigate it.
