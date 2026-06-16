@@ -251,6 +251,18 @@ ${videoUri ? `
   // chip seek to the exact moment that joint looked worst, not just the global worst.
   let worstByJoint={};
 
+  // ── Auto-lock state ────────────────────────────────────────────────────────
+  // After the first reliable pose detection we compute a bounding box from the
+  // visible landmarks and lock the crop to that person. This prevents MediaPipe
+  // from switching to a different person when the video loops (which forces a
+  // re-detection from scratch).
+  let autoLockBox=null; // {nx,ny,nw,nh} — normalised full-frame coords
+
+  // ── Temporal landmark smoothing ────────────────────────────────────────────
+  // A separate EMA layer on top of MediaPipe's own smoothLandmarks to suppress
+  // residual jitter, especially visible on joint dots during slow-motion playback.
+  let smoothedLm=null;
+
   // ── Person-select state ────────────────────────────────────────────────────
   // Strategy: lazy-load COCO-SSD on first tap of "Select Person".
   // It detects every person in the current frame and draws a colored glow-box
@@ -464,8 +476,51 @@ ${videoUri ? `
     if(selectMode)return;
     const W=video.videoWidth||640,H=video.videoHeight||360;
     const rawLm=res.poseLandmarks;
-    const lm=rawLm?remapLm(rawLm,W,H):null;
+    let lm=rawLm?remapLm(rawLm,W,H):null;
+
+    // ── Temporal EMA smoothing over landmark positions ─────────────────────
+    // Suppresses residual jitter that MediaPipe's own smoothLandmarks leaves
+    // behind, especially visible on joint dots during 0.1× slow-motion.
+    if(lm&&smoothedLm&&smoothedLm.length===lm.length){
+      lm=lm.map((p,i)=>{
+        const s=smoothedLm[i];
+        if(!s||(p.visibility||0)<0.3)return p;
+        // 65% weight to prior smoothed position → 35% to new measurement
+        return {...p,x:s.x*0.65+p.x*0.35,y:s.y*0.65+p.y*0.35};
+      });
+    }
+    smoothedLm=lm;
     lastLm=lm; // keep newest landmarks so the tip→joint highlight tracks the body
+
+    // ── Auto-lock: lock onto the first reliably detected person ───────────
+    // When no crop region was passed from the person-select screen (INIT_CROP=null),
+    // MediaPipe processes the full frame and will re-detect from scratch on every
+    // video loop — often switching to a different person. Instead, the moment we
+    // get ≥ 8 visible landmarks we compute a bounding box and lock the crop
+    // to this person permanently, just as if the user had selected them.
+    if(lm&&!personLocked&&!autoLockBox){
+      const vis=lm.filter(p=>(p.visibility||0)>0.45);
+      if(vis.length>=8){
+        const xs=vis.map(p=>p.x), ys=vis.map(p=>p.y);
+        const minX=Math.min(...xs), maxX=Math.max(...xs);
+        const minY=Math.min(...ys), maxY=Math.max(...ys);
+        // 20% margin so fast limb movement doesn't leave the crop window
+        const mx=Math.max(0.06,(maxX-minX)*0.20);
+        const my=Math.max(0.06,(maxY-minY)*0.20);
+        const bx=Math.max(0,minX-mx), by=Math.max(0,minY-my);
+        const bw=Math.min(1,maxX+mx)-bx, bh=Math.min(1,maxY+my)-by;
+        if(bw>0.08&&bh>0.10){ // sanity: ignore tiny/degenerate detections
+          autoLockBox={nx:bx,ny:by,nw:bw,nh:bh};
+          focusNX=bx+bw/2; focusNY=by+bh/2;
+          cropHalfX=bw/2;  cropHalfY=bh/2;
+          personLocked=true; lockedColor='#6c63ff';
+          personBtn.textContent="Locked";
+          personBtn.className="tbtn p-lock";
+          personBtn.style.color=lockedColor;
+          personBtn.style.borderColor=lockedColor+"55";
+        }
+      }
+    }
 
     // ── Dynamic tracking: shift the crop window to follow the person ──────
     // After each frame MediaPipe returns landmarks already in full-frame
@@ -474,20 +529,21 @@ ${videoUri ? `
     if(personLocked&&lm){
       const tj=[11,12,23,24]; // shoulders + hips
       let sx=0,sy=0,n=0;
-      tj.forEach(i=>{if((lm[i]?.visibility||0)>0.35){sx+=lm[i].x;sy+=lm[i].y;n++;}});
+      tj.forEach(i=>{if((lm[i]?.visibility||0)>0.40){sx+=lm[i].x;sy+=lm[i].y;n++;}});
       // Fall back to any visible joint if torso not visible
-      if(!n) lm.forEach(p=>{if((p.visibility||0)>0.35){sx+=p.x;sy+=p.y;n++;}});
+      if(!n) lm.forEach(p=>{if((p.visibility||0)>0.40){sx+=p.x;sy+=p.y;n++;}});
       if(n){
-        // 55/45 EMA: responsive enough to track fast movement, smooth enough to avoid jitter
-        focusNX=focusNX*0.55+(sx/n)*0.45;
-        focusNY=focusNY*0.55+(sy/n)*0.45;
+        // 70/30 EMA: stable enough to avoid drifting to a background person while
+        // still responsive to genuine fast motion (sprint, jump).
+        focusNX=focusNX*0.70+(sx/n)*0.30;
+        focusNY=focusNY*0.70+(sy/n)*0.30;
       }
     }
 
     // ── Phase 1: always compute joint risks ───────────────────────────────
     const jr={};
     if(lm){
-      const v=i=>(lm[i]?.visibility||0)>0.35;
+      const v=i=>(lm[i]?.visibility||0)>0.40;
       const p=i=>({x:lm[i].x*W,y:lm[i].y*H});
       if(v(23)&&v(25)&&v(27)){const a=ang(p(23),p(25),p(27));jr[25]={deg:a,lvl:lvl(a,...KN)};}
       if(v(24)&&v(26)&&v(28)){const a=ang(p(24),p(26),p(28));jr[26]={deg:a,lvl:lvl(a,...KN)};}
@@ -531,37 +587,58 @@ ${videoUri ? `
     canvas.width=W; canvas.height=H;
     ctx.clearRect(0,0,W,H);
     if(!lm||!showSkel)return;
-    const v2=i=>(lm[i]?.visibility||0)>0.35;
+    // 0.45 threshold: only draw joints MediaPipe is confident about.
+    // Lower values (e.g. 0.35) let uncertain landmarks through and make
+    // limbs teleport or ghost when partially occluded.
+    const v2=i=>(lm[i]?.visibility||0)>0.45;
     const p2=i=>({x:lm[i].x*W,y:lm[i].y*H});
 
+    // Count visible keypoints — skip drawing if too few (e.g. no one detected)
+    const visCount=KJ.filter(i=>v2(i)).length;
+    if(visCount<4)return;
+
+    // ── Bones ────────────────────────────────────────────────────────────
     CONN.forEach(([a,b])=>{
       if(!v2(a)||!v2(b))return;
       const pA=p2(a),pB=p2(b);
       const rm=Math.max(jr[a]?jr[a].lvl:-1,jr[b]?jr[b].lvl:-1);
-      const col=rm>=1?RL[rm]:LI.has(a)&&LI.has(b)?"#22d3ee":RI.has(a)&&RI.has(b)?"#a78bfa":"rgba(255,255,255,.5)";
+      const col=rm>=1?RL[rm]:LI.has(a)&&LI.has(b)?"#22d3ee":RI.has(a)&&RI.has(b)?"#a78bfa":"rgba(255,255,255,.55)";
       ctx.save();
-      ctx.strokeStyle=col;ctx.lineWidth=rm>=1?4.5:3.5;ctx.lineCap="round";
-      ctx.shadowBlur=rm>=2?17:10;ctx.shadowColor=col;ctx.globalAlpha=.92;
+      ctx.strokeStyle=col;
+      ctx.lineWidth=rm>=1?5:4;
+      ctx.lineCap="round";ctx.lineJoin="round";
+      ctx.shadowBlur=rm>=2?20:12;
+      ctx.shadowColor=col;
+      ctx.globalAlpha=rm>=1?.95:.88;
       ctx.beginPath();ctx.moveTo(pA.x,pA.y);ctx.lineTo(pB.x,pB.y);ctx.stroke();
       ctx.restore();
     });
 
+    // ── Joint dots ────────────────────────────────────────────────────────
     let seen=0;
     KJ.forEach(i=>{
       if(!v2(i))return;seen++;
       const pt=p2(i);
       const risk=jr[i];
       const col=risk?RL[risk.lvl]:(LI.has(i)?"#22d3ee":RI.has(i)?"#a78bfa":"#fff");
-      const r=risk&&risk.lvl===2?9:risk&&risk.lvl===1?7.5:6.5;
+      const r=risk&&risk.lvl===2?10:risk&&risk.lvl===1?8:7;
       ctx.save();
+      // High-risk: outer pulsing ring
       if(risk&&risk.lvl===2){
-        ctx.strokeStyle=col;ctx.globalAlpha=.45;ctx.lineWidth=2;
-        ctx.beginPath();ctx.arc(pt.x,pt.y,r+5,0,Math.PI*2);ctx.stroke();
+        ctx.strokeStyle=col;ctx.globalAlpha=.38;ctx.lineWidth=2.5;
+        ctx.shadowBlur=22;ctx.shadowColor=col;
+        ctx.beginPath();ctx.arc(pt.x,pt.y,r+7,0,Math.PI*2);ctx.stroke();
         ctx.globalAlpha=1;
       }
-      ctx.shadowBlur=risk&&risk.lvl===2?18:14;ctx.shadowColor=col;
-      ctx.fillStyle=col;ctx.beginPath();ctx.arc(pt.x,pt.y,r,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle="#07070f";ctx.beginPath();ctx.arc(pt.x,pt.y,3,0,Math.PI*2);ctx.fill();
+      // Filled joint circle
+      ctx.shadowBlur=risk&&risk.lvl===2?22:16;
+      ctx.shadowColor=col;
+      ctx.fillStyle=col;
+      ctx.beginPath();ctx.arc(pt.x,pt.y,r,0,Math.PI*2);ctx.fill();
+      // Dark centre for depth/contrast
+      ctx.shadowBlur=0;
+      ctx.fillStyle="rgba(4,4,12,.85)";
+      ctx.beginPath();ctx.arc(pt.x,pt.y,3.5,0,Math.PI*2);ctx.fill();
       ctx.restore();
     });
     btxt.textContent=seen>0?seen+" joints tracked":"Pose active";
@@ -611,7 +688,11 @@ ${videoUri ? `
 
   const BASE="${MEDIAPIPE_BASE}";
   const pose=new Pose({locateFile:f=>BASE+"/"+f});
-  pose.setOptions({modelComplexity:1,smoothLandmarks:true,enableSegmentation:false,minDetectionConfidence:.5,minTrackingConfidence:.5});
+  // modelComplexity:1 = full model (~5 MB) — best accuracy/speed balance on mobile.
+  // minDetectionConfidence raised to 0.6 so MediaPipe waits until it is sure
+  // it has found a person before reporting landmarks (prevents false skeleton flashes).
+  // minTrackingConfidence stays at 0.5 — lower = re-detects more often if tracking falters.
+  pose.setOptions({modelComplexity:1,smoothLandmarks:true,enableSegmentation:false,minDetectionConfidence:.60,minTrackingConfidence:.50});
   pose.onResults(onResults);
   pose.initialize().then(()=>{
     poseModelReady=true;
@@ -647,16 +728,31 @@ ${videoUri ? `
     try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"meta",vw:video.videoWidth,vh:video.videoHeight,dur:video.duration}));}catch(e){}
   });
   video.addEventListener("loadeddata",()=>{videoDataReady=true;maybeScan();});
-  video.addEventListener("seeked",()=>{if(!selectMode)detect();});
+  video.addEventListener("seeked",()=>{
+    // Any seek (scrubbing, stepping, loop) is a temporal discontinuity —
+    // the next frame is not a continuation of the last, so EMA smoothing from
+    // the prior position would snap/ghost the skeleton. Reset the buffer.
+    smoothedLm=null;
+    if(!selectMode)detect();
+  });
   let prevVideoTime=0;
   video.addEventListener("timeupdate",()=>{
     const ct=video.currentTime;
-    // Detect video loop (was near end, jumped back to near 0) and reset crop to initial selection
-    if(personLocked&&INIT_CROP&&prevVideoTime>(video.duration||999)*0.7&&ct<0.5){
-      focusNX=INIT_CROP.nx+INIT_CROP.nw/2;
-      focusNY=INIT_CROP.ny+INIT_CROP.nh/2;
-      cropHalfX=INIT_CROP.nw/2;
-      cropHalfY=INIT_CROP.nh/2;
+    // Detect video loop (was near end, jumped back to near 0) and reset crop
+    // to the initial selection so the same person is tracked from frame 0.
+    // Works for both INIT_CROP (from person-select screen) and autoLockBox
+    // (auto-locked on first detection without person-select).
+    if(personLocked&&prevVideoTime>(video.duration||999)*0.7&&ct<0.5){
+      const box=INIT_CROP||autoLockBox;
+      if(box){
+        focusNX=box.nx+box.nw/2;
+        focusNY=box.ny+box.nh/2;
+        cropHalfX=box.nw/2;
+        cropHalfY=box.nh/2;
+        // Clear smoothed landmarks on loop — new frame 0 is not a continuation
+        // of the prior pose so EMA from the old position would snap the skeleton.
+        smoothedLm=null;
+      }
     }
     prevVideoTime=ct;
     timeL.textContent=fmt(ct);
