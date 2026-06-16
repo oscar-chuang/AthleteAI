@@ -504,11 +504,17 @@ ${videoUri ? `
         const xs=vis.map(p=>p.x), ys=vis.map(p=>p.y);
         const minX=Math.min(...xs), maxX=Math.max(...xs);
         const minY=Math.min(...ys), maxY=Math.max(...ys);
-        // 20% margin so fast limb movement doesn't leave the crop window
-        const mx=Math.max(0.06,(maxX-minX)*0.20);
-        const my=Math.max(0.06,(maxY-minY)*0.20);
+        // 35% margin + minimum size ensures fast-moving athletes rarely escape
+        // the crop window. A tighter crop risks losing the person on one frame
+        // and having MediaPipe snap to a background person on the next.
+        const mx=Math.max(0.10,(maxX-minX)*0.35);
+        const my=Math.max(0.10,(maxY-minY)*0.35);
         const bx=Math.max(0,minX-mx), by=Math.max(0,minY-my);
-        const bw=Math.min(1,maxX+mx)-bx, bh=Math.min(1,maxY+my)-by;
+        const rawBW=Math.min(1,maxX+mx)-bx, rawBH=Math.min(1,maxY+my)-by;
+        // Enforce minimum crop size: at least 50% frame width, 65% frame height.
+        // Small crops make tracking fragile; a larger crop costs nothing since we
+        // already have personLocked and MediaPipe only sees one person in the region.
+        const bw=Math.min(1,Math.max(rawBW,0.50)), bh=Math.min(1,Math.max(rawBH,0.65));
         if(bw>0.08&&bh>0.10){ // sanity: ignore tiny/degenerate detections
           autoLockBox={nx:bx,ny:by,nw:bw,nh:bh};
           focusNX=bx+bw/2; focusNY=by+bh/2;
@@ -533,10 +539,19 @@ ${videoUri ? `
       // Fall back to any visible joint if torso not visible
       if(!n) lm.forEach(p=>{if((p.visibility||0)>0.40){sx+=p.x;sy+=p.y;n++;}});
       if(n){
-        // 70/30 EMA: stable enough to avoid drifting to a background person while
-        // still responsive to genuine fast motion (sprint, jump).
-        focusNX=focusNX*0.70+(sx/n)*0.30;
-        focusNY=focusNY*0.70+(sy/n)*0.30;
+        const newCX=sx/n, newCY=sy/n;
+        // ── Jump guard ─────────────────────────────────────────────────────
+        // If the detected torso center jumps more than 30% of the frame in one
+        // step, MediaPipe almost certainly switched to a background person rather
+        // than the tracked athlete genuinely moving that far. Reject the update
+        // so the crop stays on the correct person.
+        const dx=Math.abs(newCX-focusNX), dy=Math.abs(newCY-focusNY);
+        if(dx<0.30&&dy<0.30){
+          // 70/30 EMA: stable crop window that still follows fast movement
+          focusNX=focusNX*0.70+newCX*0.30;
+          focusNY=focusNY*0.70+newCY*0.30;
+        }
+        // (if the jump is >30% we keep focusNX/focusNY where they were)
       }
     }
 
@@ -729,31 +744,31 @@ ${videoUri ? `
   });
   video.addEventListener("loadeddata",()=>{videoDataReady=true;maybeScan();});
   video.addEventListener("seeked",()=>{
-    // Any seek (scrubbing, stepping, loop) is a temporal discontinuity —
-    // the next frame is not a continuation of the last, so EMA smoothing from
-    // the prior position would snap/ghost the skeleton. Reset the buffer.
+    // Temporal discontinuity — reset EMA buffer so prior position doesn't ghost.
     smoothedLm=null;
-    if(!selectMode)detect();
-  });
-  let prevVideoTime=0;
-  video.addEventListener("timeupdate",()=>{
-    const ct=video.currentTime;
-    // Detect video loop (was near end, jumped back to near 0) and reset crop
-    // to the initial selection so the same person is tracked from frame 0.
-    // Works for both INIT_CROP (from person-select screen) and autoLockBox
-    // (auto-locked on first detection without person-select).
-    if(personLocked&&prevVideoTime>(video.duration||999)*0.7&&ct<0.5){
+    // ── Loop detection in seeked (not timeupdate) ───────────────────────────
+    // timeupdate fires every ~250 ms; seeked fires immediately when the seek
+    // completes. For a looping video the browser issues an internal seek from
+    // duration→0, which fires seeked *before* the next timeupdate. If we only
+    // reset the crop in timeupdate we always call detect() with the old, drifted
+    // crop first — which lets MediaPipe snap to a different person for one frame
+    // and sometimes corrupts the EMA for subsequent frames.
+    // Fix: any seek that lands in the first 1.5 s is treated as a loop and the
+    // crop is immediately restored to the initial selection.
+    if(personLocked&&video.currentTime<1.5){
       const box=INIT_CROP||autoLockBox;
       if(box){
         focusNX=box.nx+box.nw/2;
         focusNY=box.ny+box.nh/2;
         cropHalfX=box.nw/2;
         cropHalfY=box.nh/2;
-        // Clear smoothed landmarks on loop — new frame 0 is not a continuation
-        // of the prior pose so EMA from the old position would snap the skeleton.
-        smoothedLm=null;
       }
     }
+    if(!selectMode)detect();
+  });
+  let prevVideoTime=0;
+  video.addEventListener("timeupdate",()=>{
+    const ct=video.currentTime;
     prevVideoTime=ct;
     timeL.textContent=fmt(ct);
     scrub.value=ct;
