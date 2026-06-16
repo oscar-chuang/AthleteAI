@@ -31,6 +31,19 @@ from a previous analysis will write its tips onto the new screen unless guarded.
   grounded state in the id-scoped effect only — never in the broad video/sport effect,
   which would clobber an already-grounded load.
 
+## Decision 3 — PATCH /analyses/:id is overloaded; a sport-only correction must NOT re-run AI
+- The endpoint accepts either measured scan data (joint angles/risks/frame → grounded
+  re-run) OR a sport-only correction (just persists `sport`, no AI) OR rejects with 400.
+- A sport-only correction deliberately defers the re-run to the next skeleton scan, which
+  reads the corrected sport and does the single authoritative grounded run.
+- **Why:** there is NO guard protecting one biomechanics run from another (Decision 1 only
+  guards create-time vs biomechanics). If a sport switch kicked off its own biomechanics
+  re-run, it would race the skeleton's grounded run and could clobber the joint-grounded
+  result. Two biomechanics runs on the same row is the unprotected case — avoid creating it.
+- **How to apply:** never start a biomechanics run (isBiomechanics=true) with no joint/frame
+  data — it wrongly sets `biomechanicsApplied=true` with empty measurements. Keep the 400
+  guard for empty payloads.
+
 ## Lesson — currentIdRef does NOT protect re-scans of the SAME analysis
 Re-scanning the same analysis while a previous biomechanics poll is in flight shares the
 id, so the id guard passes and an older poll can clobber the newer scan. Clearing

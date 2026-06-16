@@ -213,6 +213,8 @@ export default function PersonSelectScreen() {
   const [sportChecking, setSportChecking] = useState(false);
   const [mismatch, setMismatch] = useState<string | null>(null);
   const [mismatchDismissed, setMismatchDismissed] = useState(false);
+  const [detectedSport, setDetectedSport] = useState<string | null>(null);
+  const [switching, setSwitching] = useState(false);
 
   const [detectionError, setDetectionError] = useState(false);
 
@@ -285,9 +287,10 @@ export default function PersonSelectScreen() {
             setSportChecking(false);
             if (!detected || detected === "unknown") return;
             if (!sportsMatch(detected, sport)) {
+              setDetectedSport(detected);
               setMismatch(
-                `Claude sees "${detected}" in your video, but this session is set to "${sport}". ` +
-                `If that's wrong, go back and update your sport — it affects how scores are calculated.`
+                `This looks like "${detected}", but the session is set to "${sport}". ` +
+                `Sport changes how your form is scored.`
               );
             }
           })
@@ -295,6 +298,24 @@ export default function PersonSelectScreen() {
       }
     } catch {}
   }, [sport]);
+
+  // One-tap fix for a detected sport mismatch. Persists the corrected sport on the
+  // analysis (no re-run yet — the skeleton scan does the authoritative grounded run
+  // with this corrected sport), updates the header pill, and clears the warning.
+  async function handleSwitchSport() {
+    if (!detectedSport || !id || switching) return;
+    setSwitching(true);
+    try {
+      await analysesApi.update(id, { sport: detectedSport });
+      setSport(detectedSport);
+      setMismatch(null);
+      setMismatchDismissed(true);
+    } catch {
+      /* leave the warning up so the user can retry or proceed anyway */
+    } finally {
+      setSwitching(false);
+    }
+  }
 
   function proceedToSkeleton(crop?: { nx: number; ny: number; nw: number; nh: number }) {
     const base = `/analysis/skeleton/${id}`;
@@ -381,7 +402,18 @@ export default function PersonSelectScreen() {
       backgroundColor: "#f59e0b18", borderRadius: 10,
       borderWidth: 1, borderColor: "#f59e0b44",
     },
-    mismatchText: { flex: 1, fontSize: 12, color: "#f59e0b", fontFamily: "Inter_400Regular", lineHeight: 17 },
+    mismatchText: { fontSize: 12, color: "#f59e0b", fontFamily: "Inter_400Regular", lineHeight: 17 },
+    mismatchActions: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
+    switchBtn: {
+      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5,
+      backgroundColor: "#f59e0b", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, minHeight: 30,
+    },
+    switchBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#07070f", textTransform: "capitalize" },
+    keepBtn: {
+      borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7,
+      borderWidth: 1, borderColor: "#f59e0b66", justifyContent: "center", minHeight: 30,
+    },
+    keepBtnText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#f59e0b", textTransform: "capitalize" },
     noVideoCard: {
       margin: 20, padding: 20,
       backgroundColor: "rgba(255,255,255,.04)", borderRadius: 14,
@@ -492,10 +524,40 @@ export default function PersonSelectScreen() {
         {mismatch && !mismatchDismissed && (
           <View style={s.mismatchCard}>
             <Feather name="alert-triangle" size={14} color="#f59e0b" style={{ marginTop: 2 }} />
-            <Text style={s.mismatchText}>{mismatch}</Text>
-            <TouchableOpacity onPress={() => setMismatchDismissed(true)} activeOpacity={0.7}>
-              <Feather name="x" size={14} color="#f59e0b" />
-            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={s.mismatchText}>{mismatch}</Text>
+              {detectedSport && (
+                <View style={s.mismatchActions}>
+                  <TouchableOpacity
+                    style={[s.switchBtn, switching && { opacity: 0.6 }]}
+                    onPress={handleSwitchSport}
+                    disabled={switching}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Switch sport to ${detectedSport}`}
+                  >
+                    {switching ? (
+                      <ActivityIndicator size="small" color="#07070f" />
+                    ) : (
+                      <>
+                        <Feather name="refresh-cw" size={12} color="#07070f" />
+                        <Text style={s.switchBtnText}>Switch to {detectedSport}</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.keepBtn}
+                    onPress={() => setMismatchDismissed(true)}
+                    disabled={switching}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Keep ${sport}`}
+                  >
+                    <Text style={s.keepBtnText}>Keep {sport}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           </View>
         )}
 

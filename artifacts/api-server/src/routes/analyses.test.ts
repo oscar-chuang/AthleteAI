@@ -143,6 +143,7 @@ vi.mock("@workspace/db", () => ({ db: h.fakeDb, analysesTable: h.analysesTable, 
 import express from "express";
 import request from "supertest";
 import analysesRouter from "./analyses";
+import { analyzeAthletePerformance } from "../lib/anthropic";
 
 function makeApp() {
   const app = express();
@@ -264,5 +265,80 @@ describe("analyses route — biomechanics grounding contract", () => {
     const got = await request(app).get(`/analyses/${id}`);
     expect(got.body.analysis.status).toBe("complete");
     expect(got.body.analysis.biomechanicsApplied).toBe(true);
+  });
+});
+
+describe("analyses route — sport correction", () => {
+  it("persists a sport-only correction without re-running AI or touching status", async () => {
+    const app = makeApp();
+
+    const created = await request(app).post("/analyses").send({ title: "Squat", sport: "weightlifting" });
+    const id = created.body.analysis.id;
+    await flush();
+    h.aiCalls.create[0]!.resolve(aiResult("createtime"));
+    await flush();
+
+    const patched = await request(app).patch(`/analyses/${id}`).send({ sport: "Running" });
+    expect(patched.status).toBe(200);
+    await flush();
+
+    // No second AI run — the grounded run is deferred to the skeleton scan.
+    expect(h.aiCalls.create.length).toBe(1);
+    expect(h.aiCalls.biomech.length).toBe(0);
+
+    const got = await request(app).get(`/analyses/${id}`);
+    expect(got.body.analysis.sport).toBe("running"); // lowercased server-side
+    expect(got.body.analysis.status).toBe("complete"); // not bumped back to processing
+  });
+
+  it("uses the corrected sport for the grounded run when sport is sent with measured data", async () => {
+    const app = makeApp();
+
+    const created = await request(app).post("/analyses").send({ title: "Squat", sport: "weightlifting" });
+    const id = created.body.analysis.id;
+    await flush();
+    h.aiCalls.create[0]!.resolve(aiResult("createtime"));
+    await flush();
+
+    await request(app)
+      .patch(`/analyses/${id}`)
+      .send({ sport: "running", jointAngles: { leftKnee: 90 }, jointRisks: { leftKnee: 2 } });
+    await flush();
+
+    expect(h.aiCalls.biomech.length).toBe(1);
+    // Sport is persisted immediately alongside the processing flip.
+    let got = await request(app).get(`/analyses/${id}`);
+    expect(got.body.analysis.sport).toBe("running");
+    expect(got.body.analysis.status).toBe("processing");
+
+    // The grounded run was invoked with the corrected sport, not the original.
+    const biomechCall = (analyzeAthletePerformance as any).mock.calls.find((c: any[]) => !!c[4]);
+    expect(biomechCall[0]).toBe("running");
+
+    h.aiCalls.biomech[0]!.resolve(aiResult("grounded"));
+    await flush();
+    got = await request(app).get(`/analyses/${id}`);
+    expect(got.body.analysis.status).toBe("complete");
+    expect(got.body.analysis.biomechanicsApplied).toBe(true);
+  });
+
+  it("rejects a PATCH with neither measured data nor a sport correction", async () => {
+    const app = makeApp();
+
+    const created = await request(app).post("/analyses").send({ title: "Squat", sport: "weightlifting" });
+    const id = created.body.analysis.id;
+    await flush();
+    h.aiCalls.create[0]!.resolve(aiResult("createtime"));
+    await flush();
+
+    const patched = await request(app).patch(`/analyses/${id}`).send({});
+    expect(patched.status).toBe(400);
+    await flush();
+
+    // No biomechanics run kicked off from an empty payload.
+    expect(h.aiCalls.biomech.length).toBe(0);
+    const got = await request(app).get(`/analyses/${id}`);
+    expect(got.body.analysis.status).toBe("complete");
+    expect(got.body.analysis.biomechanicsApplied).toBe(false);
   });
 });

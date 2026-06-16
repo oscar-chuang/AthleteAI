@@ -118,15 +118,21 @@ export default function AnalyzeScreen() {
   // Refresh every time this tab is focused
   useFocusEffect(useCallback(() => { loadAnalyses(); }, [loadAnalyses]));
 
-  // Poll if any analysis is still processing
+  // Poll if any analysis is still processing — capped at ~3 min to avoid battery drain.
+  const hasProcessing = useMemo(
+    () => analysisList.some((a) => a.status === "processing" || a.status === "pending"),
+    [analysisList]
+  );
   useEffect(() => {
-    const hasProcessing = analysisList.some(
-      (a) => a.status === "processing" || a.status === "pending"
-    );
     if (!hasProcessing) return;
-    const id = setInterval(loadAnalyses, 5000);
+    let count = 0;
+    const id = setInterval(() => {
+      count += 1;
+      if (count > 36) { clearInterval(id); return; }
+      loadAnalyses();
+    }, 5000);
     return () => clearInterval(id);
-  }, [analysisList, loadAnalyses]);
+  }, [hasProcessing, loadAnalyses]);
 
   // Stats computed from list
   const headerStats = useMemo(() => {
@@ -383,7 +389,7 @@ export default function AnalyzeScreen() {
           clearButtonMode="while-editing"
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Clear search">
             <Feather name="x" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
         )}
@@ -422,9 +428,9 @@ export default function AnalyzeScreen() {
         <View style={s.limitRow}>
           <Feather name="info" size={13} color={colors.mutedForeground} />
           <Text style={s.limitText}>
-            <Text style={s.limitBold}>{Math.min(headerStats.total, 3)}/3</Text> free analyses used
-            {headerStats.total >= 3 ? " — " : ""}
-            {headerStats.total >= 3 && (
+            <Text style={s.limitBold}>{Math.min(analysisList.length, 3)}/3</Text> free analyses used
+            {analysisList.length >= 3 ? " — " : ""}
+            {analysisList.length >= 3 && (
               <Text style={{ color: colors.primary }} onPress={() => router.push("/pricing")}>
                 Upgrade for unlimited
               </Text>
@@ -463,7 +469,7 @@ export default function AnalyzeScreen() {
       <Modal visible={showSportPicker} animationType="slide">
         <View style={s.pickerModal}>
           <View style={s.pickerHeader}>
-            <TouchableOpacity onPress={() => setShowSportPicker(false)}>
+            <TouchableOpacity onPress={() => setShowSportPicker(false)} accessibilityRole="button" accessibilityLabel="Close">
               <Feather name="x" size={22} color={colors.foreground} />
             </TouchableOpacity>
             <Text style={s.pickerTitle}>Analysis Details</Text>

@@ -242,7 +242,7 @@ export const analyses = {
       `/analyses/${id}`
     ),
 
-  update: (id: string, data: { jointAngles?: JointAngles; jointRisks?: JointRisks; frameBase64?: string }) =>
+  update: (id: string, data: { jointAngles?: JointAngles; jointRisks?: JointRisks; frameBase64?: string; sport?: string }) =>
     request<{ success: boolean }>(`/analyses/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),

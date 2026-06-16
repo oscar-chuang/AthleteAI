@@ -222,6 +222,7 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
     jointAngles?: Record<string, unknown>;
     jointRisks?: Record<string, unknown>;
     frameBase64?: unknown;
+    sport?: unknown;
   };
 
   // Validate the measured payload before trusting it. Only the six tracked joints
@@ -232,19 +233,55 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
     typeof body.frameBase64 === "string" && body.frameBase64.length <= MAX_FRAME_CHARS
       ? body.frameBase64
       : undefined;
+  const newSport =
+    typeof body.sport === "string" && body.sport.trim().length > 0 && body.sport.trim().length <= MAX_SPORT_LENGTH
+      ? body.sport.trim().toLowerCase()
+      : null;
+
+  const hasMeasuredData = !!jointAngles || !!jointRisks || !!frameBase64;
+
+  // Sport-only correction (no measured data): persist the corrected sport without
+  // re-running. The authoritative grounded run happens when the skeleton scan later
+  // PATCHes joint angles, and it will use this corrected sport. Re-running here as a
+  // second biomechanics run would race the skeleton run (neither is guarded against
+  // the other), so we deliberately defer it. Surface a real DB failure so the client
+  // doesn't clear its mismatch warning on a write that never landed.
+  if (newSport && !hasMeasuredData) {
+    try {
+      await db.update(analysesTable)
+        .set({ sport: newSport })
+        .where(eq(analysesTable.id, row.id));
+    } catch (err) {
+      console.error(`Sport correction failed for id=${id}:`, err);
+      res.status(500).json({ error: "Failed to update sport" });
+      return;
+    }
+    res.json({ success: true });
+    return;
+  }
+
+  // Nothing actionable: no measured scan data and no sport correction. Reject rather
+  // than kick off a "biomechanics" run with no joints/frame (which would wrongly set
+  // biomechanicsApplied=true).
+  if (!hasMeasuredData) {
+    res.status(400).json({ error: "No measured data or sport correction provided" });
+    return;
+  }
 
   res.json({ success: true });
 
   // Mark as processing so the detail screen's poll resumes and picks up the
-  // grounded results once the re-analysis finishes.
+  // grounded results once the re-analysis finishes. Persist a corrected sport too
+  // when one was sent alongside the measured data.
   await db.update(analysesTable)
-    .set({ status: "processing" })
+    .set({ status: "processing", ...(newSport ? { sport: newSport } : {}) })
     .where(eq(analysesTable.id, row.id))
     .catch(() => {});
 
   // Re-run AI with actual measured joint angles + video frame — this grounded run
   // overrides the initial estimate and is protected from create-time overwrites.
-  runAIAnalysis(row.id, userId, row.sport, row.title, row.videoUrl ?? undefined, jointAngles, jointRisks, frameBase64, true)
+  const effectiveSport = newSport ?? row.sport;
+  runAIAnalysis(row.id, userId, effectiveSport, row.title, row.videoUrl ?? undefined, jointAngles, jointRisks, frameBase64, true)
     .catch((err) => {
       console.error(`AI re-analysis failed for id=${id}:`, err);
       db.update(analysesTable)

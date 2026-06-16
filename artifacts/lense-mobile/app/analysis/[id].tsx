@@ -76,6 +76,8 @@ export default function AnalysisDetailScreen() {
   const [activeTab, setActiveTab]   = useState<"scores" | "tips" | "risks">("scores");
   const [showGuide, setShowGuide]   = useState(false);
   const [note, setNote]             = useState("");
+  const [deleting, setDeleting]     = useState(false);
+  const [pollExhausted, setPollExhausted] = useState(false);
 
   // Load persisted note from local storage
   useEffect(() => {
@@ -108,10 +110,13 @@ export default function AnalysisDetailScreen() {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
+            if (deleting) return;
+            setDeleting(true);
             try {
               await analysesApi.delete(id!);
               router.back();
             } catch {
+              setDeleting(false);
               Alert.alert("Error", "Failed to delete. Please try again.");
             }
           },
@@ -137,12 +142,23 @@ export default function AnalysisDetailScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // Poll while processing
+  // Poll while processing — capped at ~3 min so a stuck job can't drain the battery.
+  const isProcessing =
+    !!analysis && analysis.status !== "complete" && analysis.status !== "failed";
   useEffect(() => {
-    if (!analysis || analysis.status === "complete" || analysis.status === "failed") return;
-    const timer = setInterval(load, 4000);
+    if (!isProcessing || pollExhausted) return;
+    let count = 0;
+    const timer = setInterval(() => {
+      count += 1;
+      if (count > 45) {
+        clearInterval(timer);
+        setPollExhausted(true);
+        return;
+      }
+      load();
+    }, 4000);
     return () => clearInterval(timer);
-  }, [analysis, load]);
+  }, [isProcessing, pollExhausted, load]);
 
   function getScoreColor(score: number) {
     if (score >= 80) return colors.success;
@@ -178,6 +194,32 @@ export default function AnalysisDetailScreen() {
 
   // Still processing — show a waiting screen
   if (analysis.status === "processing" || analysis.status === "pending") {
+    if (pollExhausted) {
+      return (
+        <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 14, paddingHorizontal: 32 }}>
+          <Feather name="clock" size={32} color={colors.warning} />
+          <Text style={{ fontSize: 17, fontFamily: "Inter_600SemiBold", color: colors.foreground, textAlign: "center" }}>
+            This is taking longer than usual
+          </Text>
+          <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 19 }}>
+            Your analysis is still processing. You can keep waiting or check back in a moment.
+          </Text>
+          <TouchableOpacity
+            onPress={() => { setPollExhausted(false); load(); }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Check again"
+            style={{ flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 22, marginTop: 4 }}
+          >
+            <Feather name="refresh-cw" size={15} color="#fff" />
+            <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" }}>Check again</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Go back">
+            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 13 }}>Go back</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
     return (
       <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 16, paddingHorizontal: 32 }}>
         <ActivityIndicator color={colors.primary} size="large" />
@@ -315,9 +357,16 @@ export default function AnalysisDetailScreen() {
         <TouchableOpacity
           onPress={handleDelete}
           activeOpacity={0.7}
+          disabled={deleting}
+          accessibilityRole="button"
+          accessibilityLabel="Delete analysis"
           style={{ padding: 6 }}
         >
-          <Feather name="trash-2" size={18} color={colors.destructive} />
+          {deleting ? (
+            <ActivityIndicator size="small" color={colors.destructive} />
+          ) : (
+            <Feather name="trash-2" size={18} color={colors.destructive} />
+          )}
         </TouchableOpacity>
       </View>
 
