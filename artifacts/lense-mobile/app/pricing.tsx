@@ -10,10 +10,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useAuth, useTier } from "@/lib/authContext";
-import { subscriptions, type Plan } from "@/lib/api";
+import { stripeApi, type StripeTierInfo } from "@/lib/api";
 
 export default function PricingScreen() {
   const colors = useColors();
@@ -22,7 +23,7 @@ export default function PricingScreen() {
   const { refreshProfile } = useAuth();
   const currentTier = useTier();
 
-  const [plans, setPlans] = useState<Plan[]>([]);
+  const [tiers, setTiers] = useState<StripeTierInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState<string | null>(null);
 
@@ -30,33 +31,45 @@ export default function PricingScreen() {
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   useEffect(() => {
-    subscriptions.plans()
-      .then((r) => { setPlans(r.plans); })
+    stripeApi.getConfig()
+      .then((r) => { setTiers(r.tiers); })
       .catch(() => {})
       .finally(() => { setLoading(false); });
   }, []);
 
-  async function handleSelectPlan(plan: Plan) {
-    if (plan.id === currentTier) return;
-    if (plan.id === "free") {
-      setUpgrading("free");
-      try {
-        await subscriptions.update("free");
-        await refreshProfile();
-        router.back();
-      } finally {
-        setUpgrading(null);
-      }
+  async function handleSelectTier(tier: StripeTierInfo) {
+    if (tier.id === currentTier) return;
+
+    if (tier.id === "free") {
+      // Navigating away to free is handled by the portal or just go back
+      router.back();
       return;
     }
 
-    // In production: launch RevenueCat purchase flow here
-    // For now, simulate a successful upgrade
-    setUpgrading(plan.id);
+    setUpgrading(tier.id);
     try {
-      await subscriptions.update(plan.id as "pro" | "elite");
-      await refreshProfile();
-      router.back();
+      const { url } = await stripeApi.createCheckout(tier.id as "pro" | "elite");
+      const result = await WebBrowser.openBrowserAsync(url);
+
+      if (result.type === "success" || result.type === "dismiss") {
+        // Refresh subscription status after returning from checkout
+        await refreshProfile();
+        router.back();
+      }
+    } catch (err) {
+      console.error("Checkout failed:", err);
+    } finally {
+      setUpgrading(null);
+    }
+  }
+
+  async function handleManageSubscription() {
+    setUpgrading("manage");
+    try {
+      const { url } = await stripeApi.createPortal();
+      await WebBrowser.openBrowserAsync(url);
+    } catch (err) {
+      console.error("Portal failed:", err);
     } finally {
       setUpgrading(null);
     }
@@ -166,6 +179,17 @@ export default function PricingScreen() {
     selectBtnTextPrimary: { color: "#fff" },
     selectBtnTextOutline: { color: colors.foreground },
     selectBtnTextCurrent: { color: colors.success },
+    manageBtn: {
+      borderRadius: 12,
+      paddingVertical: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.card,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      marginTop: 4,
+    },
+    manageBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground },
     faq: {
       marginTop: 8,
       padding: 16,
@@ -188,6 +212,12 @@ export default function PricingScreen() {
     );
   }
 
+  // Mark Pro as popular
+  const tiersWithPopular = tiers.map((t) => ({
+    ...t,
+    isPopular: t.id === "pro",
+  }));
+
   return (
     <View style={s.container}>
       <View style={s.header}>
@@ -202,13 +232,14 @@ export default function PricingScreen() {
         <Text style={s.heroText}>Unlock Your{"\n"}Full Potential</Text>
         <Text style={s.heroSub}>Elite AI coaching, unlimited analyses,{"\n"}and injury prevention — all in one app.</Text>
 
-        {plans.map((plan) => {
-          const isCurrent = plan.id === currentTier;
-          const isPopular = !!plan.popular;
-          const isUpgrading = upgrading === plan.id;
+        {tiersWithPopular.map(({ ...tier }) => {
+          const isCurrent = tier.id === currentTier;
+          const isPopular = tier.isPopular;
+          const isUpgrading = upgrading === tier.id;
+          const price = tier.priceCents / 100;
 
           return (
-            <View key={plan.id} style={[s.planCard, isPopular && s.planCardPopular]}>
+            <View key={tier.id} style={[s.planCard, isPopular && !isCurrent && s.planCardPopular]}>
               {isPopular && !isCurrent && (
                 <View style={s.popularBadge}>
                   <Text style={s.popularBadgeText}>MOST POPULAR</Text>
@@ -220,49 +251,63 @@ export default function PricingScreen() {
                 </View>
               )}
 
-              <Text style={s.planName}>{plan.name}</Text>
-              <Text style={s.planDesc}>{plan.description}</Text>
+              <Text style={s.planName}>{tier.name}</Text>
 
               <View style={s.priceRow}>
-                {plan.price > 0 && <Text style={s.priceDollar}>$</Text>}
-                <Text style={s.priceAmount}>{plan.price === 0 ? "Free" : plan.price.toFixed(2)}</Text>
-                {plan.period && <Text style={s.pricePeriod}>/{plan.period}</Text>}
+                {price > 0 && <Text style={s.priceDollar}>$</Text>}
+                <Text style={s.priceAmount}>{price === 0 ? "Free" : price.toFixed(2)}</Text>
+                {price > 0 && <Text style={s.pricePeriod}>/month</Text>}
               </View>
 
               <View style={s.divider} />
 
-              {plan.features.map((f) => (
+              {tier.features.map((f: string) => (
                 <View key={f} style={s.featureRow}>
                   <Feather name="check-circle" size={15} color={colors.success} style={{ marginTop: 1 }} />
                   <Text style={s.featureText}>{f}</Text>
                 </View>
               ))}
 
-              <TouchableOpacity
-                style={[
-                  s.selectBtn,
-                  isCurrent ? s.selectBtnCurrent : isPopular ? s.selectBtnPrimary : s.selectBtnOutline,
-                ]}
-                onPress={() => handleSelectPlan(plan)}
-                disabled={isCurrent || !!upgrading}
-                activeOpacity={0.85}
-              >
-                {isUpgrading ? (
-                  <ActivityIndicator color={isPopular ? "#fff" : colors.primary} size="small" />
-                ) : (
-                  <>
-                    {isCurrent && <Feather name="check" size={16} color={colors.success} />}
-                    <Text
-                      style={[
-                        s.selectBtnText,
-                        isCurrent ? s.selectBtnTextCurrent : isPopular ? s.selectBtnTextPrimary : s.selectBtnTextOutline,
-                      ]}
-                    >
-                      {isCurrent ? "Current Plan" : plan.price === 0 ? "Downgrade to Free" : `Get ${plan.name}`}
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
+              {isCurrent && currentTier !== "free" ? (
+                <TouchableOpacity
+                  style={s.manageBtn}
+                  onPress={handleManageSubscription}
+                  disabled={!!upgrading}
+                  activeOpacity={0.85}
+                >
+                  {upgrading === "manage" ? (
+                    <ActivityIndicator color={colors.primary} size="small" />
+                  ) : (
+                    <Text style={s.manageBtnText}>Manage Subscription</Text>
+                  )}
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    s.selectBtn,
+                    isCurrent ? s.selectBtnCurrent : isPopular ? s.selectBtnPrimary : s.selectBtnOutline,
+                  ]}
+                  onPress={() => handleSelectTier(tier)}
+                  disabled={isCurrent || !!upgrading}
+                  activeOpacity={0.85}
+                >
+                  {isUpgrading ? (
+                    <ActivityIndicator color={isPopular ? "#fff" : colors.primary} size="small" />
+                  ) : (
+                    <>
+                      {isCurrent && <Feather name="check" size={16} color={colors.success} />}
+                      <Text
+                        style={[
+                          s.selectBtnText,
+                          isCurrent ? s.selectBtnTextCurrent : isPopular ? s.selectBtnTextPrimary : s.selectBtnTextOutline,
+                        ]}
+                      >
+                        {isCurrent ? "Current Plan" : tier.id === "free" ? "Free Plan" : `Get ${tier.name}`}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           );
         })}
@@ -272,11 +317,11 @@ export default function PricingScreen() {
           {[
             {
               q: "Can I cancel anytime?",
-              a: "Yes. Cancel anytime from the App Store or Google Play. Your plan stays active until the end of the billing period.",
+              a: "Yes. Cancel from the Stripe customer portal. Your plan stays active until the end of the billing period.",
             },
             {
               q: "Is my payment secure?",
-              a: "All payments are processed by Apple App Store or Google Play. We never store your card details.",
+              a: "All payments are processed securely by Stripe. We never store your card details on our servers.",
             },
             {
               q: "What happens to my analyses if I downgrade?",

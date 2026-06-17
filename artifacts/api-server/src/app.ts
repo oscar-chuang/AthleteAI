@@ -26,7 +26,16 @@ app.use(
   }),
 );
 app.use(cors());
-app.use(express.json({ limit: "15mb" }));
+
+// Capture raw body for Stripe webhook signature verification
+app.use(
+  express.json({
+    limit: "15mb",
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf.toString();
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
 app.use("/api", router);

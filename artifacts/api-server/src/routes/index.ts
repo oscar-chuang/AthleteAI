@@ -7,6 +7,7 @@ import achievementsRouter from "./achievements";
 import progressRouter from "./progress";
 import storageRouter from "./storage";
 import chatRouter from "./chat";
+import stripeRouter from "./stripe";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(achievementsRouter);
 router.use(progressRouter);
 router.use(storageRouter);
 router.use(chatRouter);
+router.use(stripeRouter);
 
 export default router;

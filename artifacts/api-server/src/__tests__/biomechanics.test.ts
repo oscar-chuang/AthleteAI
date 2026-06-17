@@ -17,53 +17,60 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
-import { db, pool, analysesTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
+
+const hasDatabase = !!(process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL);
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 let testUserId: number;
 let testAnalysisId: number;
+let db: any;
+let pool: any;
+let analysesTable: any;
 
-beforeAll(async () => {
-  // Reuse an existing user so we don't need to manage the users table.
-  const rows = await db.execute(sql`SELECT id FROM users ORDER BY id LIMIT 1`);
-  const first = (rows as any).rows?.[0] ?? (rows as any)[0];
-  testUserId = Number(first?.id);
-  if (!testUserId) {
-    throw new Error(
-      "No users found in the dev database. Log in at least once to create a user before running these tests.",
-    );
+describe.skipIf(!hasDatabase)("biomechanics write-guard (SQL WHERE semantics)", () => {
+  beforeAll(async () => {
+    const mod = await import("@workspace/db");
+    db = mod.db;
+    pool = mod.pool;
+    analysesTable = mod.analysesTable;
+
+    // Reuse an existing user so we don't need to manage the users table.
+    const rows = await db.execute(sql`SELECT id FROM users ORDER BY id LIMIT 1`);
+    const first = (rows as any).rows?.[0] ?? (rows as any)[0];
+    testUserId = Number(first?.id);
+    if (!testUserId) {
+      throw new Error(
+        "No users found in the dev database. Log in at least once to create a user before running these tests.",
+      );
+    }
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  async function createTestAnalysis(): Promise<number> {
+    const [row] = await db
+      .insert(analysesTable)
+      .values({
+        userId: testUserId,
+        title: "__vitest_biomechanics_guard__",
+        sport: "running",
+        status: "processing",
+        videoUrl: null,
+        duration: null,
+      })
+      .returning({ id: analysesTable.id });
+    return row.id;
   }
-});
 
-afterAll(async () => {
-  await pool.end();
-});
+  async function getAnalysis(id: number) {
+    const [row] = await db.select().from(analysesTable).where(eq(analysesTable.id, id));
+    return row;
+  }
 
-async function createTestAnalysis(): Promise<number> {
-  const [row] = await db
-    .insert(analysesTable)
-    .values({
-      userId: testUserId,
-      title: "__vitest_biomechanics_guard__",
-      sport: "running",
-      status: "processing",
-      videoUrl: null,
-      duration: null,
-    })
-    .returning({ id: analysesTable.id });
-  return row.id;
-}
-
-async function getAnalysis(id: number) {
-  const [row] = await db.select().from(analysesTable).where(eq(analysesTable.id, id));
-  return row;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe("biomechanics write-guard (SQL WHERE semantics)", () => {
   beforeEach(async () => {
     testAnalysisId = await createTestAnalysis();
   });
@@ -82,26 +89,24 @@ describe("biomechanics write-guard (SQL WHERE semantics)", () => {
       .where(eq(analysesTable.id, testAnalysisId));
 
     // Simulate: create-time AI response arrives late and tries to overwrite.
-    // The WHERE clause in runAIAnalysis (isBiomechanics=false) guards this.
     await db
       .update(analysesTable)
-      .set({ status: "processing" }) // would reset it if the guard were absent
+      .set({ status: "processing" })
       .where(
         and(
           eq(analysesTable.id, testAnalysisId),
-          eq(analysesTable.biomechanicsApplied, false), // the guard
+          eq(analysesTable.biomechanicsApplied, false),
         ),
       );
 
     const row = await getAnalysis(testAnalysisId);
-    expect(row.status).toBe("complete"); // guard prevented the overwrite
+    expect(row.status).toBe("complete");
     expect(row.biomechanicsApplied).toBe(true);
   });
 
   // ── Test 2 ─────────────────────────────────────────────────────────────────
 
   it("create-time conditional WHERE proceeds when biomechanicsApplied=false", async () => {
-    // Analysis has NOT been grounded yet — create-time write should succeed.
     await db
       .update(analysesTable)
       .set({ status: "complete" })
@@ -114,23 +119,21 @@ describe("biomechanics write-guard (SQL WHERE semantics)", () => {
 
     const row = await getAnalysis(testAnalysisId);
     expect(row.status).toBe("complete");
-    expect(row.biomechanicsApplied).toBe(false); // a create-time write never sets this flag
+    expect(row.biomechanicsApplied).toBe(false);
   });
 
   // ── Test 3 ─────────────────────────────────────────────────────────────────
 
   it("biomechanics unconditional WHERE always updates even if flag is already true", async () => {
-    // Pre-ground the row with biomechanicsApplied=true (previous scan).
     await db
       .update(analysesTable)
       .set({ biomechanicsApplied: true, status: "complete" })
       .where(eq(analysesTable.id, testAnalysisId));
 
-    // A re-scan runs the biomechanics write again — it should succeed unconditionally.
     await db
       .update(analysesTable)
-      .set({ biomechanicsApplied: true, status: "complete" }) // re-grounds
-      .where(eq(analysesTable.id, testAnalysisId));           // no biomechanicsApplied guard
+      .set({ biomechanicsApplied: true, status: "complete" })
+      .where(eq(analysesTable.id, testAnalysisId));
 
     const row = await getAnalysis(testAnalysisId);
     expect(row.status).toBe("complete");
@@ -140,26 +143,23 @@ describe("biomechanics write-guard (SQL WHERE semantics)", () => {
   // ── Test 4 ─────────────────────────────────────────────────────────────────
 
   it("create-time failure handler cannot demote a grounded analysis to failed", async () => {
-    // Biomechanics finishes first.
     await db
       .update(analysesTable)
       .set({ biomechanicsApplied: true, status: "complete" })
       .where(eq(analysesTable.id, testAnalysisId));
 
-    // Create-time AI call throws → the catch block tries status="failed" with the
-    // same conditional guard.  This mirrors the catch in routes/analyses.ts (POST).
     await db
       .update(analysesTable)
       .set({ status: "failed" })
       .where(
         and(
           eq(analysesTable.id, testAnalysisId),
-          eq(analysesTable.biomechanicsApplied, false), // guard prevents demotion
+          eq(analysesTable.biomechanicsApplied, false),
         ),
       );
 
     const row = await getAnalysis(testAnalysisId);
-    expect(row.status).toBe("complete"); // grounded result is preserved
+    expect(row.status).toBe("complete");
     expect(row.biomechanicsApplied).toBe(true);
   });
 });

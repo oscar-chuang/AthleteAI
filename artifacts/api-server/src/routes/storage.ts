@@ -1,11 +1,9 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { Readable } from "stream";
 import { z } from "zod";
-import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
+import { supabaseStorage } from "../lib/supabaseStorage";
 import { requireAuth } from "./auth";
 
 const router: IRouter = Router();
-const objectStorageService = new ObjectStorageService();
 
 const RequestUploadUrlBody = z.object({
   name: z.string(),
@@ -16,7 +14,7 @@ const RequestUploadUrlBody = z.object({
 /**
  * POST /storage/uploads/request-url
  * Auth-protected — only signed-in users can upload files.
- * Client sends JSON metadata; receives a presigned GCS URL to PUT the file directly.
+ * Returns a signed Supabase Storage upload URL.
  */
 router.post("/storage/uploads/request-url", requireAuth, async (req: Request, res: Response) => {
   const parsed = RequestUploadUrlBody.safeParse(req.body);
@@ -26,12 +24,11 @@ router.post("/storage/uploads/request-url", requireAuth, async (req: Request, re
   }
 
   try {
-    const userId = String((req as any).userId);
+    const userId = (req as any).userId as number;
     const { name, size, contentType } = parsed.data;
-    const uploadURL = await objectStorageService.getObjectEntityUploadURL(userId);
-    const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+    const { uploadUrl, objectPath } = await supabaseStorage.getUploadUrl(userId);
 
-    res.json({ uploadURL, objectPath, metadata: { name, size, contentType } });
+    res.json({ uploadUrl, objectPath, metadata: { name, size, contentType } });
   } catch (error) {
     console.error("Error generating upload URL", error);
     res.status(500).json({ error: "Failed to generate upload URL" });
@@ -39,62 +36,41 @@ router.post("/storage/uploads/request-url", requireAuth, async (req: Request, re
 });
 
 /**
- * GET /storage/public-objects/*
- * Unconditionally public — serves assets uploaded via the Object Storage tool pane.
- */
-router.get("/storage/public-objects/*filePath", async (req: Request, res: Response) => {
-  try {
-    const raw = req.params.filePath;
-    const filePath = Array.isArray(raw) ? raw.join("/") : raw;
-    const file = await objectStorageService.searchPublicObject(filePath);
-    if (!file) {
-      res.status(404).json({ error: "File not found" });
-      return;
-    }
-    const [metadata] = await file.getMetadata();
-    res.setHeader("Content-Type", (metadata.contentType as string) ?? "application/octet-stream");
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    const stream = file.createReadStream();
-    Readable.from(stream).pipe(res);
-  } catch (err) {
-    if (err instanceof ObjectNotFoundError) {
-      res.status(404).json({ error: "File not found" });
-    } else {
-      res.status(500).json({ error: "Failed to serve file" });
-    }
-  }
-});
-
-/**
  * GET /storage/objects/*
- * Auth-protected — serves private uploaded files (e.g. training videos).
+ * Auth-protected — returns a signed URL for private objects.
  */
-router.get("/storage/objects/*filePath", requireAuth, async (req: Request, res: Response) => {
+router.get("/storage/objects/*", requireAuth, async (req: Request, res: Response) => {
   try {
-    const raw = req.params.filePath;
+    const raw = req.params[0] as string;
     const filePath = Array.isArray(raw) ? raw.join("/") : raw;
-    const userId = String((req as any).userId);
+    const userId = (req as any).userId as number;
 
-    // Strict ownership: ONLY allow paths in the exact format uploads/{userId}/{objectId}.
-    // Anything else — including paths without this prefix — is rejected with 403.
-    const normalized = filePath.replace(/^\/+/, "");
-    const match = normalized.match(/^uploads\/([^/]+)\/[^/]+$/);
-    if (!match || match[1] !== userId) {
+    if (!supabaseStorage.isOwnedByUser(filePath, userId)) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
 
-    const file = await objectStorageService.getObjectEntityFile(filePath);
-    const [metadata] = await file.getMetadata();
-    res.setHeader("Content-Type", (metadata.contentType as string) ?? "application/octet-stream");
-    const stream = file.createReadStream();
-    Readable.from(stream).pipe(res);
+    const signedUrl = await supabaseStorage.getSignedUrl(filePath);
+    res.json({ url: signedUrl });
   } catch (err) {
-    if (err instanceof ObjectNotFoundError) {
-      res.status(404).json({ error: "File not found" });
-    } else {
-      res.status(500).json({ error: "Failed to serve file" });
-    }
+    console.error("Error serving file", err);
+    res.status(500).json({ error: "Failed to serve file" });
+  }
+});
+
+/**
+ * GET /storage/public/*
+ * Returns a public URL for non-sensitive files like thumbnails.
+ */
+router.get("/storage/public/*", async (req: Request, res: Response) => {
+  try {
+    const raw = req.params[0] as string;
+    const filePath = Array.isArray(raw) ? raw.join("/") : raw;
+    const publicUrl = supabaseStorage.getPublicUrl(filePath);
+    res.json({ url: publicUrl });
+  } catch (err) {
+    console.error("Error serving public file", err);
+    res.status(500).json({ error: "Failed to serve file" });
   }
 });
 

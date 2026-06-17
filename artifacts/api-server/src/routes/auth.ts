@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { eq } from "drizzle-orm";
-import { db, usersTable, profilesTable } from "@workspace/db";
+import { db, usersTable, profilesTable, subscriptionsTable } from "@workspace/db";
 import { z } from "zod";
 import { computeProfileStats } from "../lib/stats";
 
@@ -154,7 +154,23 @@ router.get("/auth/me", async (req: Request, res: Response) => {
     };
   }
 
-  res.json({ user, profile: formattedProfile, subscription: { id: "free", userId: String(user.id), tier: "free", status: "active" } });
+  const [sub] = await db
+    .select()
+    .from(subscriptionsTable)
+    .where(eq(subscriptionsTable.userId, user.id))
+    .limit(1);
+
+  const subscription = sub
+    ? {
+        id: sub.stripeSubscriptionId ?? `free_${sub.tier}`,
+        userId: String(sub.userId),
+        tier: sub.tier,
+        status: sub.status,
+        currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
+      }
+    : { id: "free", userId: String(user.id), tier: "free", status: "active" };
+
+  res.json({ user, profile: formattedProfile, subscription });
 });
 
 // ─── Middleware ───────────────────────────────────────────────────────────────

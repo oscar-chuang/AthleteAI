@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, and, desc } from "drizzle-orm";
-import { db, profilesTable, analysesTable } from "@workspace/db";
+import { db, profilesTable, analysesTable, subscriptionsTable } from "@workspace/db";
 import { requireAuth } from "./auth";
 import { computeProfileStats } from "../lib/stats";
 
@@ -36,15 +36,31 @@ router.get("/profile", requireAuth, async (req: Request, res: Response) => {
     .where(eq(profilesTable.userId, userId))
     .limit(1);
 
+  const [sub] = await db
+    .select()
+    .from(subscriptionsTable)
+    .where(eq(subscriptionsTable.userId, userId))
+    .limit(1);
+
+  const subscription = sub
+    ? {
+        id: sub.stripeSubscriptionId ?? `free_${sub.tier}`,
+        userId: String(sub.userId),
+        tier: sub.tier,
+        status: sub.status,
+        currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
+      }
+    : { id: "free", userId: String(userId), tier: "free", status: "active" };
+
   if (!row) {
-    res.json({ profile: null, subscription: { id: "free", userId: String(userId), tier: "free", status: "active" } });
+    res.json({ profile: null, subscription });
     return;
   }
 
   const { streak, weeklyProgress } = await computeProfileStats(userId);
   res.json({
     profile: formatProfile(row, streak, weeklyProgress),
-    subscription: { id: "free", userId: String(userId), tier: "free", status: "active" },
+    subscription,
   });
 });
 

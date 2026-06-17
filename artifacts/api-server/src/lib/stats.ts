@@ -1,5 +1,5 @@
 import { db, analysesTable } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, gte } from "drizzle-orm";
 
 /**
  * Computes real-time streak and weekly progress for a user from their
@@ -41,4 +41,21 @@ export async function computeProfileStats(
   const weeklyProgress = rows.filter((r) => new Date(r.uploadedAt) >= weekStart).length;
 
   return { streak, weeklyProgress };
+}
+
+/**
+ * Returns the number of analyses the user has created this calendar month.
+ * Used by Stripe route to enforce usage limits.
+ */
+export async function getMonthlyAnalysisCount(userId: number): Promise<number> {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const rows = await db
+    .select({ count: analysesTable.id })
+    .from(analysesTable)
+    .where(and(eq(analysesTable.userId, userId), gte(analysesTable.uploadedAt, monthStart)));
+
+  return rows.length;
 }

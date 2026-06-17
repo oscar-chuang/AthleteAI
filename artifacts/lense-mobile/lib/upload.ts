@@ -44,19 +44,19 @@ export async function uploadVideo(
     throw new Error((err as any).error ?? "Failed to get upload URL");
   }
 
-  const { uploadURL, objectPath } = (await metaRes.json()) as {
-    uploadURL: string;
+  const { uploadUrl, objectPath } = (await metaRes.json()) as {
+    uploadUrl: string;
     objectPath: string;
   };
 
-  // Step 2: upload file bytes directly to GCS
+  // Step 2: upload file bytes directly to Supabase Storage
   // On React Native we use fetch with the local URI — RN's fetch handles file:// URIs
   const fileRes = await fetch(localUri);
   const blob = await fileRes.blob();
 
   onProgress?.(0.1);
 
-  const uploadRes = await fetch(uploadURL, {
+  const uploadRes = await fetch(uploadUrl, {
     method: "PUT",
     headers: { "Content-Type": mimeType },
     body: blob,

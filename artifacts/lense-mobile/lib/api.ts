@@ -1,10 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+// API URL configuration — set EXPO_PUBLIC_API_URL in production
 const _base =
-  process.env.EXPO_PUBLIC_API_URL ??
-  (process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : "http://localhost:8080");
+  process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8080";
 const API_URL = `${_base}/api`;
 
 const TOKEN_KEY = "auth_token";
@@ -323,36 +321,56 @@ export const achievements = {
     request<{ achievements: AchievementRecord[] }>("/achievements"),
 };
 
-// ─── Subscriptions ─────────────────────────────────────────────────────────────
+// ─── Stripe Subscriptions ─────────────────────────────────────────────────────
 
-export interface Plan {
+export interface StripeTierInfo {
   id: string;
   name: string;
-  price: number;
-  period: string | null;
-  description: string;
-  popular?: boolean;
+  priceCents: number;
   features: string[];
-  limits: {
-    analysesPerMonth: number;
-    aiChat: boolean;
-    proComparisons: boolean;
-    priorityProcessing: boolean;
-  };
+  priceId: string | null;
 }
 
-export const subscriptions = {
-  plans: () =>
-    request<{ plans: Plan[] }>("/subscriptions/plans"),
+export interface StripeConfig {
+  publishableKey: string;
+  tiers: StripeTierInfo[];
+}
 
-  current: () =>
-    request<{ subscription: SubscriptionRecord; plan: Plan }>(
-      "/subscriptions/current"
-    ),
+export interface SubscriptionInfo {
+  id: string;
+  tier: "free" | "pro" | "elite";
+  status: string;
+  currentPeriodEnd: string | null;
+  features: string[];
+  monthlyAnalyses: number;
+  includesChat: boolean;
+  includesBiomechanics: boolean;
+  priceCents: number;
+}
 
-  update: (tier: "free" | "pro" | "elite", revenueCatCustomerId?: string) =>
-    request<{ subscription: SubscriptionRecord }>("/subscriptions/update", {
+export const stripeApi = {
+  getConfig: () =>
+    request<StripeConfig>("/stripe/config"),
+
+  getSubscription: () =>
+    request<{ subscription: SubscriptionInfo }>("/stripe/subscription"),
+
+  createCheckout: (tier: "pro" | "elite") =>
+    request<{ url: string }>("/stripe/create-checkout", {
       method: "POST",
-      body: JSON.stringify({ tier, revenueCatCustomerId }),
+      body: JSON.stringify({ tier }),
     }),
+
+  createPortal: () =>
+    request<{ url: string }>("/stripe/create-portal", {
+      method: "POST",
+    }),
+
+  getUsage: () =>
+    request<{
+      tier: string;
+      limits: { monthlyAnalyses: number; includesChat: boolean; includesBiomechanics: boolean };
+      used: number;
+      remaining: number;
+    }>("/stripe/usage"),
 };
