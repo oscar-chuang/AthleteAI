@@ -16,7 +16,7 @@ const RequestUploadUrlBody = z.object({
 /**
  * POST /storage/uploads/request-url
  * Auth-protected — only signed-in users can upload files.
- * Client sends JSON metadata; receives a presigned GCS URL to PUT the file directly.
+ * Client sends JSON metadata; receives a presigned S3/R2 URL to PUT the file directly.
  */
 router.post("/storage/uploads/request-url", requireAuth, async (req: Request, res: Response) => {
   const parsed = RequestUploadUrlBody.safeParse(req.body);
@@ -28,8 +28,7 @@ router.post("/storage/uploads/request-url", requireAuth, async (req: Request, re
   try {
     const userId = String((req as any).userId);
     const { name, size, contentType } = parsed.data;
-    const uploadURL = await objectStorageService.getObjectEntityUploadURL(userId);
-    const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+    const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL(userId);
 
     res.json({ uploadURL, objectPath, metadata: { name, size, contentType } });
   } catch (error) {
@@ -40,7 +39,7 @@ router.post("/storage/uploads/request-url", requireAuth, async (req: Request, re
 
 /**
  * GET /storage/public-objects/*
- * Unconditionally public — serves assets uploaded via the Object Storage tool pane.
+ * Unconditionally public — serves files stored under the `public/` prefix in R2.
  */
 router.get("/storage/public-objects/*filePath", async (req: Request, res: Response) => {
   try {
@@ -52,7 +51,7 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
       return;
     }
     const [metadata] = await file.getMetadata();
-    res.setHeader("Content-Type", (metadata.contentType as string) ?? "application/octet-stream");
+    res.setHeader("Content-Type", metadata.contentType ?? "application/octet-stream");
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     const stream = file.createReadStream();
     Readable.from(stream).pipe(res);
@@ -76,7 +75,6 @@ router.get("/storage/objects/*filePath", requireAuth, async (req: Request, res: 
     const userId = String((req as any).userId);
 
     // Strict ownership: ONLY allow paths in the exact format uploads/{userId}/{objectId}.
-    // Anything else — including paths without this prefix — is rejected with 403.
     const normalized = filePath.replace(/^\/+/, "");
     const match = normalized.match(/^uploads\/([^/]+)\/[^/]+$/);
     if (!match || match[1] !== userId) {
@@ -86,7 +84,7 @@ router.get("/storage/objects/*filePath", requireAuth, async (req: Request, res: 
 
     const file = await objectStorageService.getObjectEntityFile(filePath);
     const [metadata] = await file.getMetadata();
-    res.setHeader("Content-Type", (metadata.contentType as string) ?? "application/octet-stream");
+    res.setHeader("Content-Type", metadata.contentType ?? "application/octet-stream");
     const stream = file.createReadStream();
     Readable.from(stream).pipe(res);
   } catch (err) {
