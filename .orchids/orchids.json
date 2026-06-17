@@ -1,0 +1,7 @@
+{
+  "startupCommands": [
+    "pnpm install; pnpm --filter @workspace/mockup-sandbox run dev"
+  ],
+  "projectId": "24023a38-c084-4501-b6c7-bbe8586dd0d0",
+  "templateId": "any"
+}
