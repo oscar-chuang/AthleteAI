@@ -1,0 +1,5 @@
+#!/bin/bash
+SCRIPT_DIR="$(git rev-parse --show-toplevel)/scripts"
+if [ -f "$SCRIPT_DIR/github-push.sh" ]; then
+  bash "$SCRIPT_DIR/github-push.sh"
+fi

@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "f_vwJYVBGU7iOwO1LsIDr"
+uri = "file://artifacts/lense-mobile/assets/images/icon.png"
+type = "image"
+title = "athleteai app icon lightning bolt"

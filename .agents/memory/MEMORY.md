@@ -1,0 +1,3 @@
+- [weeklyProgress/streakDays pattern](stats-helper.md) — never hardcode these to 0; use computeProfileStats() from lib/stats.ts in both /auth/me and /profile.
+- [referencedAnalysisId ownership](chat-ownership.md) — always verify analysis belongs to requesting user before persisting in chat messages.
+- [Biomechanics grounding contract](biomechanics-grounding.md) — tips must reflect the scanned pose; respect biomechanicsApplied; never run two biomechanics passes on one row (unguarded race); PATCH sport-only must not re-run AI.
