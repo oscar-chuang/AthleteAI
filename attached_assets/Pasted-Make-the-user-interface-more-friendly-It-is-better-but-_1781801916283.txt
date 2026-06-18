@@ -1,0 +1,101 @@
+Make the user interface more friendly. It is better, but I still want it to feel much more polished, colorful, user-friendly, and easier for normal people to understand. Space everything out more and make the app feel cleaner, more premium, and more enjoyable to use.
+
+Main goals:
+Improve the visual design across the app.
+Add a dark mode and light mode toggle.
+Use more color in a tasteful way.
+Make the analysis simpler, clearer, and less technical.
+Make every screen feel easier to read on mobile.
+
+Design direction:
+Use a modern sports-tech look.
+Make it feel colorful, energetic, and premium.
+Use rounded cards, soft shadows, clean icons, better spacing, and smoother visual hierarchy.
+Avoid dense blocks of text.
+Avoid making the app feel plain or overly serious.
+
+Dark and light mode:
+Add a theme toggle in settings or the profile screen.
+Support both dark mode and light mode across all major screens.
+Make sure text, cards, buttons, icons, and backgrounds are readable in both modes.
+Store the user’s theme choice so it stays the same after closing the app.
+
+Color improvements:
+Add a stronger color system:
+Green for strengths.
+Yellow or orange for things to improve.
+Red only for serious form warnings.
+Blue or purple for AI coaching and progress.
+Use gradients where appropriate, especially on hero cards, score cards, and call-to-action buttons.
+Make the app more visually interesting without making it messy.
+
+Analysis screen:
+Make the analysis much easier for normal users to understand.
+Rewrite the layout so users immediately understand:
+What went well.
+What needs work.
+What to fix first.
+What drill to do next.
+What goal to aim for next time.
+
+Replace technical wording with simple language.
+For example:
+Instead of “lumbar flexion exceeded optimal threshold,” say “Your lower back rounded too much.”
+Instead of “knee valgus detected,” say “Your knee moved inward.”
+Instead of “insufficient hip hinge mechanics,” say “You need to push your hips back more.”
+
+Analysis layout:
+Create these sections:
+
+1. Quick Summary
+    A short 2 to 3 sentence explanation of the full analysis.
+2. Your Scores
+    Show Overall, Technique, Power, and Balance in colorful cards with short explanations.
+3. Biggest Win
+    Tell the user what they did well.
+4. Biggest Fix
+    Tell the user the one thing they should focus on first.
+5. Why It Matters
+    Explain the issue in plain English.
+6. Try This Drill
+    Give one simple drill the user can do next.
+7. Next Workout Goal
+    Give one measurable goal for the next session.
+
+Make each section a separate card with plenty of spacing.
+
+Tone:
+Make the analysis feel like a helpful coach, not a science report.
+Use short sentences.
+Use encouraging language.
+Be clear and direct.
+
+Loading and scanning flow:
+Make the scanning screen look better and more fun.
+Use colorful progress indicators and better messages:
+Scanning your video.
+Finding the athlete.
+Tracking movement.
+Measuring key positions.
+Building your coaching plan.
+
+Remove any weird placeholder letters, debug text, random labels, or unfinished copy.
+
+General UI fixes:
+Increase spacing between cards.
+Make buttons bigger and easier to tap.
+Improve font sizes.
+Use cleaner headings.
+Make icons consistent.
+Make empty states friendly.
+Make error messages simple and helpful.
+Make the whole app feel less cramped.
+
+Important:
+Do not break existing navigation.
+Do not remove existing features.
+Do not change backend logic unless needed for UI display.
+Keep the code clean and reusable.
+Create reusable components where helpful.
+Check for TypeScript errors and fix them.
+Test the full flow: upload video, scan video, analyze movement, view results.
