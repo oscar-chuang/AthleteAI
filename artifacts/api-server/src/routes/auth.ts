@@ -150,6 +150,7 @@ router.get("/auth/me", async (req: Request, res: Response) => {
       injuryConcerns: profileRow.injuryConcerns ?? [],
       weeklyGoal: profileRow.weeklyGoal,
       trainingDays: profileRow.trainingDays ?? [0, 1, 2, 3, 4, 5, 6],
+      checkInHour: profileRow.checkInHour ?? 9,
       weeklyProgress,
       streakDays: streak,
       avatarUrl: profileRow.avatarUrl ?? null,

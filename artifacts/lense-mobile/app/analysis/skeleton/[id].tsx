@@ -22,6 +22,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { analyses as analysesApi, jointTrends, type TipRecord, type DrillRecord, type RiskRecord, type JointTrendsResponse, type JointDataPoint } from "@/lib/api";
 import { scheduleImprovementNotification } from "@/utils/notifications";
+import { useAuth } from "@/lib/authContext";
 import {
   computeFlaggedJoints,
   computeWorstLvl,
@@ -665,6 +666,7 @@ export default function SkeletonScreen() {
   }>();
   const insets    = useSafeAreaInsets();
   const router    = useRouter();
+  const { profile } = useAuth();
   const { width: screenW, height: screenH } = useWindowDimensions();
   const webviewRef = useRef<WebView>(null);
   const scrollRef  = useRef<ScrollView>(null);
@@ -678,6 +680,8 @@ export default function SkeletonScreen() {
   // id, so an older poll could clobber the newer scan. Each runBiomechanics call captures
   // a fresh token and only writes state while it is still the latest.
   const runTokenRef = useRef(0);
+  const checkInHourRef = useRef(profile?.checkInHour ?? 9);
+  useEffect(() => { checkInHourRef.current = profile?.checkInHour ?? 9; }, [profile?.checkInHour]);
 
   const [videoUri, setVideoUri]         = useState<string | undefined>();
   const [sport, setSport]               = useState("");
@@ -808,7 +812,7 @@ export default function SkeletonScreen() {
     analysesApi.update(analysisId, payload)
       .then(({ improvements }) => {
         if (improvements?.length) {
-          scheduleImprovementNotification(improvements, sportName).catch(() => {});
+          scheduleImprovementNotification(improvements, sportName, checkInHourRef.current).catch(() => {});
         }
         if (!isCurrent()) return;
         let attempts = 0;

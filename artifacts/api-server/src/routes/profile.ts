@@ -47,6 +47,7 @@ function formatProfile(
     injuryConcerns: p.injuryConcerns ?? [],
     weeklyGoal: p.weeklyGoal,
     trainingDays: p.trainingDays ?? [0, 1, 2, 3, 4, 5, 6],
+    checkInHour: p.checkInHour ?? 9,
     weeklyProgress,
     streakDays,
     avatarUrl: p.avatarUrl ?? null,
@@ -76,7 +77,7 @@ router.get("/profile", requireAuth, async (req: Request, res: Response) => {
 
 router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).userId as number;
-  const { name, sport, level, goals, injuryConcerns, weeklyGoal, trainingDays, avatarUrl } = req.body as {
+  const { name, sport, level, goals, injuryConcerns, weeklyGoal, trainingDays, checkInHour, avatarUrl } = req.body as {
     name?: string;
     sport?: string;
     level?: string;
@@ -84,6 +85,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
     injuryConcerns?: string[];
     weeklyGoal?: number;
     trainingDays?: number[];
+    checkInHour?: number;
     avatarUrl?: string | null;
   };
 
@@ -100,6 +102,13 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
       new Set(trainingDays).size !== trainingDays.length
     ) {
       res.status(400).json({ error: "trainingDays must be a non-empty array of unique integers 0–6" });
+      return;
+    }
+  }
+
+  if (checkInHour !== undefined) {
+    if (!Number.isInteger(checkInHour) || checkInHour < 6 || checkInHour > 22) {
+      res.status(400).json({ error: "checkInHour must be an integer between 6 and 22" });
       return;
     }
   }
@@ -128,6 +137,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
         ...(injuryConcerns !== undefined && { injuryConcerns }),
         ...(weeklyGoal !== undefined && { weeklyGoal }),
         ...(trainingDays !== undefined && { trainingDays }),
+        ...(checkInHour !== undefined && { checkInHour }),
         ...(processedAvatarUrl !== undefined && { avatarUrl: processedAvatarUrl }),
         updatedAt: new Date(),
       })
@@ -146,6 +156,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
         injuryConcerns: injuryConcerns ?? [],
         weeklyGoal: weeklyGoal ?? 3,
         trainingDays: trainingDays ?? [0, 1, 2, 3, 4, 5, 6],
+        checkInHour: checkInHour ?? 9,
         avatarUrl: processedAvatarUrl ?? null,
       })
       .returning();

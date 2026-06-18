@@ -46,6 +46,15 @@ const INJURIES = [
 
 const WEEKLY_GOAL_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
 
+const CHECK_IN_HOURS = [6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 22] as const;
+
+function formatHour(h: number): string {
+  if (h === 0) return "12am";
+  if (h < 12) return `${h}am`;
+  if (h === 12) return "12pm";
+  return `${h - 12}pm`;
+}
+
 const PRESET_AVATARS = [
   { key: "preset:#6c63ff", color: "#6c63ff" },
   { key: "preset:#22c55e", color: "#22c55e" },
@@ -142,6 +151,7 @@ export default function ProfileSettingsScreen() {
   const [injuries, setInjuries] = useState<string[]>(profile?.injuryConcerns ?? []);
   const [weeklyGoal, setWeeklyGoal] = useState(profile?.weeklyGoal ?? 3);
   const [trainingDays, setTrainingDays] = useState<number[]>(profile?.trainingDays ?? [0, 1, 2, 3, 4, 5, 6]);
+  const [checkInHour, setCheckInHour] = useState(profile?.checkInHour ?? 9);
   const [avatarUrl, setAvatarUrl] = useState<string | null | undefined>(profile?.avatarUrl);
 
   const savedName = useRef(profile?.name ?? user?.name ?? "");
@@ -195,6 +205,8 @@ export default function ProfileSettingsScreen() {
   const [goalSaving, setGoalSaving] = useState(false);
   const [goalSavedFor, setGoalSavedFor] = useState<number | null>(null);
   const [daysSaving, setDaysSaving] = useState(false);
+  const [checkInSaving, setCheckInSaving] = useState(false);
+  const [checkInSavedFor, setCheckInSavedFor] = useState<number | null>(null);
   const [avatarSaving, setAvatarSaving] = useState(false);
 
   async function handleTrainingDayToggle(dayIdx: number) {
@@ -230,6 +242,23 @@ export default function ProfileSettingsScreen() {
       setError("Couldn't update weekly goal. Please try again.");
     } finally {
       setGoalSaving(false);
+    }
+  }
+
+  async function handleCheckInHourTap(h: number) {
+    if (checkInSaving || h === checkInHour) return;
+    const prev = checkInHour;
+    setCheckInHour(h);
+    setCheckInSaving(true);
+    try {
+      await updateProfile({ checkInHour: h });
+      setCheckInSavedFor(h);
+      setTimeout(() => setCheckInSavedFor(null), 1500);
+    } catch {
+      setCheckInHour(prev);
+      setError("Couldn't update notification time. Please try again.");
+    } finally {
+      setCheckInSaving(false);
     }
   }
 
@@ -883,6 +912,50 @@ export default function ProfileSettingsScreen() {
                   <Text style={[s.weeklyLabel, { color: justSaved ? colors.success : active ? colors.primary : colors.mutedForeground }]}>
                     {n === 1 ? "session" : "sessions"}
                   </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* ── Check-in Time ── */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Improvement Notification Time</Text>
+          <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginBottom: 12, lineHeight: 17 }}>
+            When you beat a previous scan, we'll remind you at this time the next day.
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {CHECK_IN_HOURS.map((h) => {
+              const active = checkInHour === h;
+              const justSaved = checkInSavedFor === h;
+              return (
+                <TouchableOpacity
+                  key={h}
+                  style={[
+                    s.chip,
+                    {
+                      borderColor: justSaved ? colors.success : active ? colors.primary : colors.border,
+                      backgroundColor: justSaved
+                        ? colors.success + "18"
+                        : active
+                        ? colors.primary + "18"
+                        : colors.card,
+                    },
+                  ]}
+                  onPress={() => handleCheckInHourTap(h)}
+                  disabled={checkInSaving}
+                  activeOpacity={0.75}
+                >
+                  {active && checkInSaving ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Text style={[
+                      s.chipText,
+                      { color: justSaved ? colors.success : active ? colors.primary : colors.mutedForeground },
+                    ]}>
+                      {formatHour(h)}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               );
             })}

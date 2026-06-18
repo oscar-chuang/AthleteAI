@@ -53,7 +53,8 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
 export async function scheduleImprovementNotification(
   improvements: Array<{ joint: string; oldRisk: number; newRisk: number }>,
-  sport: string
+  sport: string,
+  checkInHour = 9,
 ): Promise<void> {
   if (Platform.OS === "web") return;
   if (!improvements.length) return;
@@ -76,9 +77,10 @@ export async function scheduleImprovementNotification(
       ? `Your ${jointLabel} is down to ${newRiskLabel} — keep it up!`
       : `Your ${jointLabel} and ${extraCount} other joint${extraCount > 1 ? "s" : ""} improved — keep it up!`;
 
+  const safeHour = Math.min(22, Math.max(6, Math.round(checkInHour)));
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(9, 0, 0, 0);
+  tomorrow.setHours(safeHour, 0, 0, 0);
 
   await Notifications.scheduleNotificationAsync({
     identifier: IMPROVEMENT_NOTIFICATION_ID,
