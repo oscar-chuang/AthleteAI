@@ -3,6 +3,7 @@ import { db, analysesTable, profilesTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "./auth";
 import { analyzeAthletePerformance, detectSportFromFrame, type AIAnalysisResult } from "../lib/anthropic";
+import sharp from "sharp";
 
 const router: IRouter = Router();
 
@@ -10,8 +11,34 @@ const router: IRouter = Router();
 const JOINT_KEYS = ["leftKnee", "rightKnee", "leftHip", "rightHip", "leftElbow", "rightElbow"] as const;
 // A 640x360 JPEG data URL is ~30-60KB; cap well above that to reject abuse.
 const MAX_FRAME_CHARS = 3_000_000;
+// Thumbnails are displayed at small sizes; cap width at 160 px to limit DB storage.
+const THUMBNAIL_MAX_WIDTH = 160;
+const THUMBNAIL_JPEG_QUALITY = 40;
 const MAX_TITLE_LENGTH = 120;
 const MAX_SPORT_LENGTH = 60;
+
+/**
+ * Down-sample a JPEG/PNG data-URL or raw base64 string to at most
+ * THUMBNAIL_MAX_WIDTH pixels wide before it is written to the DB.
+ * Returns the original string unchanged if resizing fails so the caller
+ * can still persist something rather than losing the frame entirely.
+ */
+async function resizeThumbnail(frameBase64: string): Promise<string> {
+  try {
+    const isDataUrl = frameBase64.startsWith("data:");
+    const [prefix, raw] = isDataUrl ? frameBase64.split(",") as [string, string] : ["", frameBase64];
+    const inputBuf = Buffer.from(raw, "base64");
+    const outputBuf = await sharp(inputBuf)
+      .resize({ width: THUMBNAIL_MAX_WIDTH, withoutEnlargement: true })
+      .jpeg({ quality: THUMBNAIL_JPEG_QUALITY })
+      .toBuffer();
+    const encoded = outputBuf.toString("base64");
+    return isDataUrl ? `${prefix},${encoded}` : encoded;
+  } catch (err) {
+    console.warn("thumbnail resize failed, storing original:", (err as Error).message);
+    return frameBase64;
+  }
+}
 
 function sanitizeJointAngles(raw: unknown): Record<string, number> | null {
   if (!raw || typeof raw !== "object") return null;
@@ -356,13 +383,15 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
   // grounded results once the re-analysis finishes. Persist a corrected sport too
   // when one was sent alongside the measured data. Snapshot the worst-frame JPEG
   // as the thumbnail immediately so the list shows it without waiting for the AI run.
+  // Down-sample the frame to ≤160 px wide before storing to keep the DB lean.
   // Also persist the raw measured joint angles/risks so the trends endpoint can
   // return per-joint history across sessions.
+  const thumbnailUrl = frameBase64 ? await resizeThumbnail(frameBase64) : undefined;
   await db.update(analysesTable)
     .set({
       status: "processing",
       ...(newSport ? { sport: newSport } : {}),
-      ...(frameBase64 ? { thumbnailUrl: frameBase64 } : {}),
+      ...(thumbnailUrl ? { thumbnailUrl } : {}),
       ...(jointAngles ? { jointAngles } : {}),
       ...(jointRisks ? { jointRisks } : {}),
     })
