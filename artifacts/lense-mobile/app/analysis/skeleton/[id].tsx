@@ -24,6 +24,7 @@ import {
   type JointKey,
   type RiskMap,
   type AngleMap,
+  computeConflictedJoints,
 } from "@/utils/analysisUtils";
 import {
   type Capture,
@@ -642,13 +643,10 @@ export default function SkeletonScreen() {
   // Joints that appear in BOTH an injury tip AND a performance tip — these pairs
   // give contradictory instructions. We flag them so the UI can label the injury
   // tip "Fix this first" and warn the performance tip to wait until it's resolved.
-  const conflictedJoints = useMemo<Set<string>>(() => {
-    const injuryJoints  = new Set(injuryTips.flatMap((t) => t.joints ?? []));
-    const perfJoints    = new Set(performanceTips.flatMap((t) => t.joints ?? []));
-    const shared        = new Set<string>();
-    injuryJoints.forEach((j) => { if (perfJoints.has(j)) shared.add(j); });
-    return shared;
-  }, [injuryTips, performanceTips]);
+  const conflictedJoints = useMemo<Set<string>>(
+    () => computeConflictedJoints(tips),
+    [tips],
+  );
 
   // Sorted tip lists derived from conflict data:
   //   • Injury section  — conflicted tips rise to the top ("Fix this first" banner already labels them)

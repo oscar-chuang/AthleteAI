@@ -26,3 +26,38 @@ export function computeFlaggedJoints(risks: RiskMap): JointKey[] {
 export function computeWorstLvl(flaggedJoints: JointKey[], risks: RiskMap): number {
   return flaggedJoints.reduce((m, k) => Math.max(m, risks[k] ?? 0), 0);
 }
+
+/**
+ * Minimal shape of a coaching tip needed for conflict detection.
+ * The full CoachingTip type (from the API) is a superset of this.
+ */
+export interface TipForConflict {
+  tipType?: string | null;
+  severity?: string | null;
+  joints?: string[] | null;
+}
+
+/**
+ * Returns the set of joint names that appear in BOTH an injury tip AND a
+ * performance tip for the same session.  These pairs give contradictory
+ * instructions ("avoid load" vs "increase power"), so the UI labels the
+ * injury tip "Fix this first" and warns the performance tip to wait.
+ *
+ * Injury tips:      tipType === "injury"  OR  severity === "warning" | "critical"
+ * Performance tips: tipType === "performance" AND severity === "info"
+ */
+export function computeConflictedJoints(tips: TipForConflict[]): Set<string> {
+  const injuryTips = tips.filter(
+    (t) => t.tipType === "injury" || t.severity === "warning" || t.severity === "critical",
+  );
+  const performanceTips = tips.filter(
+    (t) => t.tipType === "performance" && t.severity === "info",
+  );
+
+  const injuryJoints = new Set(injuryTips.flatMap((t) => t.joints ?? []));
+  const perfJoints   = new Set(performanceTips.flatMap((t) => t.joints ?? []));
+
+  const shared = new Set<string>();
+  injuryJoints.forEach((j) => { if (perfJoints.has(j)) shared.add(j); });
+  return shared;
+}

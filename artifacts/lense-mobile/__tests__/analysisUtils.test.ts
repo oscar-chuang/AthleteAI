@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   computeFlaggedJoints,
   computeWorstLvl,
+  computeConflictedJoints,
   type JointKey,
   type RiskMap,
+  type TipForConflict,
 } from "../utils/analysisUtils";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -121,5 +123,108 @@ describe("computeFlaggedJoints + computeWorstLvl contract", () => {
     const r = risks({ leftKnee: 1, rightHip: 2, leftHip: 1 });
     const flagged = computeFlaggedJoints(r);
     expect(r[flagged[0]]).toBe(computeWorstLvl(flagged, r));
+  });
+});
+
+// ── computeConflictedJoints ───────────────────────────────────────────────────
+
+function injuryTip(joints: string[]): TipForConflict {
+  return { tipType: "injury", severity: "warning", joints };
+}
+
+function perfTip(joints: string[]): TipForConflict {
+  return { tipType: "performance", severity: "info", joints };
+}
+
+describe("computeConflictedJoints", () => {
+  it("returns an empty set when the tips array is empty", () => {
+    expect(computeConflictedJoints([])).toEqual(new Set());
+  });
+
+  it("returns an empty set when there are only injury tips and no performance tips", () => {
+    const tips = [injuryTip(["leftKnee"]), injuryTip(["rightHip"])];
+    expect(computeConflictedJoints(tips)).toEqual(new Set());
+  });
+
+  it("returns an empty set when there are only performance tips and no injury tips", () => {
+    const tips = [perfTip(["leftKnee"]), perfTip(["rightHip"])];
+    expect(computeConflictedJoints(tips)).toEqual(new Set());
+  });
+
+  it("returns an empty set when injury and performance tips share no joints", () => {
+    const tips = [injuryTip(["leftKnee"]), perfTip(["rightHip"])];
+    expect(computeConflictedJoints(tips)).toEqual(new Set());
+  });
+
+  it("detects a conflict when one injury tip and one performance tip share a joint", () => {
+    const tips = [injuryTip(["leftKnee"]), perfTip(["leftKnee"])];
+    const result = computeConflictedJoints(tips);
+    expect(result.has("leftKnee")).toBe(true);
+    expect(result.size).toBe(1);
+  });
+
+  it("detects multiple conflicted joints across multiple tips", () => {
+    const tips = [
+      injuryTip(["leftKnee", "rightHip"]),
+      perfTip(["leftKnee", "rightHip", "leftElbow"]),
+    ];
+    const result = computeConflictedJoints(tips);
+    expect(result.has("leftKnee")).toBe(true);
+    expect(result.has("rightHip")).toBe(true);
+    expect(result.has("leftElbow")).toBe(false);
+    expect(result.size).toBe(2);
+  });
+
+  it("does NOT flag a joint when both tips covering it are the same type (both injury)", () => {
+    const tips = [injuryTip(["leftKnee"]), injuryTip(["leftKnee"])];
+    expect(computeConflictedJoints(tips)).toEqual(new Set());
+  });
+
+  it("does NOT flag a joint when both tips covering it are the same type (both performance)", () => {
+    const tips = [perfTip(["rightHip"]), perfTip(["rightHip"])];
+    expect(computeConflictedJoints(tips)).toEqual(new Set());
+  });
+
+  it("classifies a tip with severity 'warning' as an injury tip even if tipType is unset", () => {
+    const warnTip: TipForConflict = { tipType: null, severity: "warning", joints: ["leftKnee"] };
+    const tips = [warnTip, perfTip(["leftKnee"])];
+    expect(computeConflictedJoints(tips).has("leftKnee")).toBe(true);
+  });
+
+  it("classifies a tip with severity 'critical' as an injury tip even if tipType is unset", () => {
+    const critTip: TipForConflict = { tipType: null, severity: "critical", joints: ["rightHip"] };
+    const tips = [critTip, perfTip(["rightHip"])];
+    expect(computeConflictedJoints(tips).has("rightHip")).toBe(true);
+  });
+
+  it("does NOT treat a performance tip with severity 'warning' as conflicted with itself", () => {
+    const tips: TipForConflict[] = [
+      { tipType: "performance", severity: "warning", joints: ["leftKnee"] },
+    ];
+    expect(computeConflictedJoints(tips)).toEqual(new Set());
+  });
+
+  it("handles tips with null or missing joints without throwing", () => {
+    const tips: TipForConflict[] = [
+      { tipType: "injury", severity: "warning", joints: null },
+      { tipType: "performance", severity: "info", joints: undefined },
+    ];
+    expect(() => computeConflictedJoints(tips)).not.toThrow();
+    expect(computeConflictedJoints(tips)).toEqual(new Set());
+  });
+
+  it("handles a large mixed set and only reports the overlapping joints", () => {
+    const tips: TipForConflict[] = [
+      injuryTip(["leftKnee", "rightKnee"]),
+      injuryTip(["leftHip"]),
+      perfTip(["rightKnee", "leftElbow"]),
+      perfTip(["rightElbow"]),
+    ];
+    const result = computeConflictedJoints(tips);
+    expect(result.has("rightKnee")).toBe(true);
+    expect(result.has("leftKnee")).toBe(false);
+    expect(result.has("leftHip")).toBe(false);
+    expect(result.has("leftElbow")).toBe(false);
+    expect(result.size).toBe(1);
   });
 });
