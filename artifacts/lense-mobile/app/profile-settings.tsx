@@ -72,6 +72,25 @@ export default function ProfileSettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [goalSaving, setGoalSaving] = useState(false);
+  const [goalSavedFor, setGoalSavedFor] = useState<number | null>(null);
+
+  async function handleWeeklyGoalTap(n: number) {
+    if (goalSaving || n === weeklyGoal) return;
+    const prev = weeklyGoal;
+    setWeeklyGoal(n);
+    setGoalSaving(true);
+    try {
+      await updateProfile({ weeklyGoal: n });
+      setGoalSavedFor(n);
+      setTimeout(() => setGoalSavedFor(null), 1500);
+    } catch {
+      setWeeklyGoal(prev);
+      setError("Couldn't update weekly goal. Please try again.");
+    } finally {
+      setGoalSaving(false);
+    }
+  }
 
   function toggleGoal(val: string) {
     setGoals((prev) =>
@@ -455,23 +474,33 @@ export default function ProfileSettingsScreen() {
           <View style={s.weeklyRow}>
             {WEEKLY_GOAL_OPTIONS.map((n) => {
               const active = weeklyGoal === n;
+              const justSaved = goalSavedFor === n;
               return (
                 <TouchableOpacity
                   key={n}
                   style={[
                     s.weeklyBtn,
                     {
-                      borderColor: active ? colors.primary : colors.border,
-                      backgroundColor: active ? colors.primary + "18" : colors.card,
+                      borderColor: justSaved ? colors.success : active ? colors.primary : colors.border,
+                      backgroundColor: justSaved
+                        ? colors.success + "18"
+                        : active
+                        ? colors.primary + "18"
+                        : colors.card,
                     },
                   ]}
-                  onPress={() => setWeeklyGoal(n)}
+                  onPress={() => handleWeeklyGoalTap(n)}
+                  disabled={goalSaving}
                   activeOpacity={0.75}
                 >
-                  <Text style={[s.weeklyNum, { color: active ? colors.primary : colors.foreground }]}>
-                    {n}
-                  </Text>
-                  <Text style={[s.weeklyLabel, { color: active ? colors.primary : colors.mutedForeground }]}>
+                  {active && goalSaving ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Text style={[s.weeklyNum, { color: justSaved ? colors.success : active ? colors.primary : colors.foreground }]}>
+                      {n}
+                    </Text>
+                  )}
+                  <Text style={[s.weeklyLabel, { color: justSaved ? colors.success : active ? colors.primary : colors.mutedForeground }]}>
                     {n === 1 ? "session" : "sessions"}
                   </Text>
                 </TouchableOpacity>
