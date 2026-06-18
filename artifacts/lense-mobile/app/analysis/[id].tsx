@@ -337,6 +337,9 @@ export default function AnalysisDetailScreen() {
   const [sharing, setSharing] = useState(false);
   const shareCardRef = useRef<View>(null);
 
+  // Sibling session IDs for prev/next navigation — sorted newest-first
+  const [siblingIds, setSiblingIds] = useState<string[]>([]);
+
   // Hero fade-in
   const heroOpacity = useRef(new Animated.Value(0)).current;
   const heroTranslate = useRef(new Animated.Value(16)).current;
@@ -365,6 +368,31 @@ export default function AnalysisDetailScreen() {
       if (saved) setNote(saved);
     });
   }, [id]);
+
+  // Load sibling IDs for prev/next navigation (newest first, complete only)
+  useEffect(() => {
+    analysesApi.list().then(({ analyses: all }) => {
+      const ordered = [...all]
+        .filter((a) => a.status === "complete")
+        .sort(
+          (a, b) =>
+            new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+        )
+        .map((a) => a.id);
+      setSiblingIds(ordered);
+    }).catch(() => {});
+  }, []);
+
+  const currIndex = siblingIds.indexOf(id ?? "");
+  const prevId = currIndex > 0 ? siblingIds[currIndex - 1] : null;
+  const nextId =
+    currIndex >= 0 && currIndex < siblingIds.length - 1
+      ? siblingIds[currIndex + 1]
+      : null;
+
+  function navigateTo(targetId: string) {
+    router.replace(`/analysis/${targetId}` as any);
+  }
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 20;
@@ -604,6 +632,21 @@ export default function AnalysisDetailScreen() {
         </TouchableOpacity>
 
         <View style={styles.navCenter}>
+          {/* ← prev */}
+          <TouchableOpacity
+            onPress={() => prevId && navigateTo(prevId)}
+            disabled={!prevId}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Previous session"
+            style={[
+              styles.sessionNavBtn,
+              { opacity: prevId ? 1 : 0.25 },
+            ]}
+          >
+            <Feather name="chevron-left" size={18} color={colors.foreground} />
+          </TouchableOpacity>
+
           <View
             style={[
               styles.sportBadge,
@@ -614,6 +657,21 @@ export default function AnalysisDetailScreen() {
               {sportLabel}
             </Text>
           </View>
+
+          {/* next → */}
+          <TouchableOpacity
+            onPress={() => nextId && navigateTo(nextId)}
+            disabled={!nextId}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Next session"
+            style={[
+              styles.sessionNavBtn,
+              { opacity: nextId ? 1 : 0.25 },
+            ]}
+          >
+            <Feather name="chevron-right" size={18} color={colors.foreground} />
+          </TouchableOpacity>
         </View>
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -1444,7 +1502,14 @@ const styles = StyleSheet.create({
     padding: 6,
   },
   navBtnText: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  navCenter: { alignItems: "center" },
+  navCenter: { flexDirection: "row", alignItems: "center", gap: 4 },
+  sessionNavBtn: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+  },
   sportBadge: {
     borderRadius: 20,
     paddingHorizontal: 12,
