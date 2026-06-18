@@ -15,6 +15,13 @@ jest.mock("@/lib/api", () => ({
     get: (...args: any[]) => mockApiGet(...args),
     update: (...args: any[]) => mockApiUpdate(...args),
   },
+  jointTrends: {
+    get: jest.fn(async () => ({ joints: {}, improvements: [] })),
+  },
+}));
+
+jest.mock("@/utils/notifications", () => ({
+  scheduleImprovementNotification: jest.fn(async () => {}),
 }));
 
 jest.mock("react-native-webview", () => {

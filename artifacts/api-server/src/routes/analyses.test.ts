@@ -30,12 +30,14 @@ const h = vi.hoisted(() => {
   const analysesTable: any = {
     __name: "analyses",
     id: col("id"), userId: col("userId"), biomechanicsApplied: col("biomechanicsApplied"), uploadedAt: col("uploadedAt"),
+    jointRisks: col("jointRisks"),
   };
   const profilesTable: any = { __name: "profiles", userId: col("userId") };
 
   function evalCond(row: Row, cond: any): boolean {
     if (!cond) return true;
     if (cond.op === "eq") return row[cond.key] === cond.val;
+    if (cond.op === "ne") return row[cond.key] !== cond.val;
     if (cond.op === "and") return cond.conds.every((c: any) => evalCond(row, c));
     return true;
   }
@@ -133,6 +135,7 @@ vi.mock("./auth", () => ({
 
 vi.mock("drizzle-orm", () => ({
   eq: (col: any, val: any) => ({ op: "eq", key: col.__col, val }),
+  ne: (col: any, val: any) => ({ op: "ne", key: col.__col, val }),
   and: (...conds: any[]) => ({ op: "and", conds }),
   desc: (col: any) => ({ op: "desc", key: col.__col }),
 }));

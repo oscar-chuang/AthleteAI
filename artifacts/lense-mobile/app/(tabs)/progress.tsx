@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,8 +13,7 @@ import {
 import Svg, { Line, Path, Polyline, Circle, Text as SvgText } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { useRouter, useFocusEffect } from "expo-router";
-
+import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { progress as progressApi, achievements as achievementsApi, profile as profileApi, jointTrends as jointTrendsApi, type ProgressRecord, type AchievementRecord, type ProfileStats, type JointTrendsResponse, type JointDataPoint, type JointImprovement } from "@/lib/api";
 
@@ -272,6 +271,9 @@ export default function ProgressScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { scrollTo } = useLocalSearchParams<{ scrollTo?: string }>();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const trendsYRef    = useRef<number>(0);
   const [activeMetric, setActiveMetric]   = useState<MetricKey>("overall");
   const [period, setPeriod]               = useState<Period>("All");
   const [entries, setEntries]             = useState<ProgressRecord[]>([]);
@@ -308,6 +310,19 @@ export default function ProgressScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+
+  // When deep-linked from an improvement notification, scroll to the joint trends
+  // section once data has finished loading.
+  useEffect(() => {
+    if (scrollTo !== "trends" || loading) return;
+    if (!trends || Object.keys(trends.joints).length === 0) return;
+    const y = trendsYRef.current;
+    if (y > 0) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y, animated: true });
+      }, 150);
+    }
+  }, [scrollTo, loading, trends]);
 
   const filteredEntries = useMemo(() => {
     const cutoff = periodCutoff(period);
@@ -427,6 +442,7 @@ export default function ProgressScreen() {
   return (
     <View style={s.container}>
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={{ paddingBottom: bottomPad }}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -645,7 +661,10 @@ export default function ProgressScreen() {
 
         {/* ── Joint Angle Trends ── */}
         {trends && Object.keys(trends.joints).length > 0 && (
-          <View style={s.section}>
+          <View
+            style={s.section}
+            onLayout={(e) => { trendsYRef.current = e.nativeEvent.layout.y; }}
+          >
             <View style={s.sectionRow}>
               <Text style={s.sectionTitle}>Joint Angle Trends</Text>
               <Text style={s.sectionCount}>{Object.keys(trends.joints).length} joint{Object.keys(trends.joints).length === 1 ? "" : "s"}</Text>

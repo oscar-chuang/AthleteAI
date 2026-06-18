@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, analysesTable, profilesTable } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, ne } from "drizzle-orm";
 import { requireAuth } from "./auth";
 import { analyzeAthletePerformance, detectSportFromFrame, type AIAnalysisResult } from "../lib/anthropic";
 import sharp from "sharp";
@@ -349,6 +349,35 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
 
   const hasMeasuredData = !!jointAngles || !!jointRisks || !!frameBase64;
 
+  // Detect joint risk improvements vs the most recent prior biomechanics scan.
+  // Must run before res.json() so the PATCH response carries the improvement list
+  // for the mobile client to schedule a local notification.
+  const improvements: Array<{ joint: string; oldRisk: number; newRisk: number }> = [];
+  if (jointRisks) {
+    const [prevScan] = await db
+      .select({ jointRisks: analysesTable.jointRisks })
+      .from(analysesTable)
+      .where(
+        and(
+          eq(analysesTable.userId, userId),
+          eq(analysesTable.biomechanicsApplied, true),
+          ne(analysesTable.id, id),
+        )
+      )
+      .orderBy(desc(analysesTable.uploadedAt))
+      .limit(1);
+
+    if (prevScan?.jointRisks) {
+      const prevRisks = prevScan.jointRisks as Record<string, number>;
+      for (const [joint, newRisk] of Object.entries(jointRisks)) {
+        const oldRisk = prevRisks[joint];
+        if (typeof oldRisk === "number" && newRisk < oldRisk) {
+          improvements.push({ joint, oldRisk, newRisk });
+        }
+      }
+    }
+  }
+
   // Sport-only correction (no measured data): persist the corrected sport without
   // re-running. The authoritative grounded run happens when the skeleton scan later
   // PATCHes joint angles, and it will use this corrected sport. Re-running here as a
@@ -377,7 +406,7 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
     return;
   }
 
-  res.json({ success: true });
+  res.json({ success: true, improvements });
 
   // Mark as processing so the detail screen's poll resumes and picks up the
   // grounded results once the re-analysis finishes. Persist a corrected sport too

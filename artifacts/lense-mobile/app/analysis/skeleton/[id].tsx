@@ -17,6 +17,7 @@ import { WebView } from "react-native-webview";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { analyses as analysesApi, jointTrends, type TipRecord, type DrillRecord, type RiskRecord, type JointTrendsResponse } from "@/lib/api";
+import { scheduleImprovementNotification } from "@/utils/notifications";
 import {
   computeFlaggedJoints,
   computeWorstLvl,
@@ -464,7 +465,7 @@ export default function SkeletonScreen() {
   // This is the race fix: tips only swap in once they reflect *this* scan.
   const runBiomechanics = useCallback((analysisId: string, payload: {
     jointAngles: Partial<AngleMap>; jointRisks: RiskMap; frameBase64?: string;
-  }) => {
+  }, sportName: string) => {
     if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
     // Capture a fresh token for this scan. A previous scan's in-flight request (already
     // dispatched, so clearing pollRef's timeout can't stop it) will see a stale token and
@@ -473,7 +474,10 @@ export default function SkeletonScreen() {
     const isCurrent = () => mountedRef.current && currentIdRef.current === analysisId && runTokenRef.current === token;
     setRefining(true);
     analysesApi.update(analysisId, payload)
-      .then(() => {
+      .then(({ improvements }) => {
+        if (improvements?.length) {
+          scheduleImprovementNotification(improvements, sportName).catch(() => {});
+        }
         if (!isCurrent()) return;
         let attempts = 0;
         const poll = () => {
@@ -547,7 +551,7 @@ export default function SkeletonScreen() {
             jointAngles: angles,
             jointRisks: msg.risks as RiskMap,
             frameBase64: msg.frame || undefined,
-          });
+          }, sport);
         }
         return;
       }

@@ -65,6 +65,7 @@
   "dependencies": {
     "expo-av": "^16.0.8",
     "expo-file-system": "~19.0.23",
+    "expo-notifications": "^56.0.18",
     "expo-screen-orientation": "^9.0.9",
     "expo-sharing": "^14.0.8",
     "react-native-view-shot": "^5.1.0",

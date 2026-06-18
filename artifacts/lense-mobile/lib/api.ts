@@ -255,7 +255,7 @@ export const analyses = {
     ),
 
   update: (id: string, data: { jointAngles?: JointAngles; jointRisks?: JointRisks; frameBase64?: string; sport?: string }) =>
-    request<{ success: boolean }>(`/analyses/${id}`, {
+    request<{ success: boolean; improvements?: Array<{ joint: string; oldRisk: number; newRisk: number }> }>(`/analyses/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
