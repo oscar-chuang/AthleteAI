@@ -1,0 +1,162 @@
+Add a new “Movement Breakdown” experience that allows users to visually see exactly what the AI is analyzing, instead of only reading a report afterward.
+
+Goal:
+Make the analysis more transparent, interactive, educational, and engaging. Users should be able to see how the AI reached its conclusions.
+
+Movement Breakdown Experience:
+
+After analysis is complete, create a dedicated section called:
+
+“Movement Breakdown”
+
+or
+
+“Watch Your Analysis”
+
+This section should display the original video with the pose skeleton rendered directly on top of the athlete throughout the entire movement.
+
+Video Playback Features:
+
+* Display the full skeleton overlay in real time.
+* Show tracked joints and body segments clearly.
+* Allow users to pause, rewind, fast-forward, and scrub through the timeline.
+* Maintain smooth playback performance.
+
+AI Coaching Moments:
+
+As the video plays, the AI should identify important moments and place markers along the timeline.
+
+Examples:
+
+* Good hip extension
+* Knee collapse detected
+* Balance loss
+* Excessive forward lean
+* Strong landing position
+* Shoulder alignment issue
+
+When playback reaches one of these moments:
+
+* Automatically pause the video.
+* Highlight the relevant body area.
+* Dim the rest of the screen slightly.
+* Display a simple coaching card.
+
+The coaching card should contain:
+
+Title:
+“What We Noticed”
+
+Explanation:
+A short, easy-to-understand observation.
+
+Why It Matters:
+A simple explanation of performance implications.
+
+Suggested Fix:
+One actionable correction.
+
+Buttons:
+
+* Continue Playback
+* Replay Moment
+* Learn More
+
+Visual Highlighting:
+
+When an issue is detected:
+
+* Highlight affected joints or limbs.
+* Draw arrows showing movement direction when relevant.
+* Display measured angles when useful.
+* Use color coding:
+    * Green = strong movement
+    * Yellow = improvement opportunity
+    * Red = significant issue
+
+Keep visuals clean and understandable.
+
+Timeline Markers:
+
+Add a timeline below the video showing:
+
+* Key strengths
+* Technique issues
+* Risk flags
+* Coaching moments
+
+Users should be able to tap any marker and instantly jump to that moment.
+
+End-of-Video Summary:
+
+After playback finishes, present a comprehensive movement review.
+
+Title:
+“Your Movement Summary”
+
+Include:
+
+Movement Flow Score
+Evaluate how smoothly the athlete moved from start to finish.
+
+Movement Efficiency
+Assess whether energy was transferred efficiently throughout the movement.
+
+Body Control
+Evaluate stability, balance, and coordination.
+
+Consistency
+Evaluate whether movement patterns remained consistent throughout the exercise.
+
+Rhythm and Timing
+Evaluate sequencing and tempo when relevant.
+
+Strengths
+Top 3 strengths observed.
+
+Improvement Opportunities
+Top 3 areas for improvement.
+
+Most Important Fix
+Identify the single highest-impact correction.
+
+Coach’s Summary
+
+Provide a concise explanation of:
+
+* How the movement looked overall
+* Where energy was lost
+* Where mechanics broke down
+* What should be prioritized next
+
+Advanced Requirements:
+
+Only generate observations supported by actual tracked data, measured angles, pose landmarks, or visual evidence.
+
+Do not invent issues.
+
+If confidence is low:
+
+* Display uncertainty.
+* Explain why confidence is limited.
+
+Each observation should include:
+
+* Confidence score
+* Supporting evidence
+* Relevant frame or timestamp
+
+User Experience Goals:
+
+The user should feel like they are reviewing game film with a high-level coach.
+
+The experience should be:
+
+* Interactive
+* Visual
+* Easy to understand
+* Educational
+* Trustworthy
+* Engaging enough that users want to watch the full breakdown rather than skip directly to the report.
+
+The final result should feel closer to Hudl, Overtime Elite film review, or professional sports analysis software than a traditional AI text report.

@@ -1,0 +1,75 @@
+Add a mandatory pre-upload guidance screen before the user selects or uploads a video.
+
+Goal:
+Improve video quality and analysis accuracy by clearly teaching users how to record a usable video before they upload.
+
+Requirements:
+
+Create a polished, visually appealing “Recording Tips” screen that appears before every video upload. The screen should explain that AthleteAI performs best when the athlete is clearly visible and fully in frame.
+
+The screen should include:
+
+Title:
+“Get the Most Accurate Analysis”
+
+Subtitle:
+“Follow these tips before recording or uploading your video.”
+
+Best Practices Section:
+✓ Keep your entire body visible from head to toe throughout the movement.
+✓ Make sure all arms and legs remain in frame at all times.
+✓ Record from a reasonable distance so your full body is visible.
+✓ Use good lighting.
+✓ Keep the camera steady.
+✓ Avoid crowded backgrounds.
+✓ Record from an angle that clearly shows the movement.
+✓ Make sure the athlete is the primary subject in the video.
+
+Common Mistakes Section:
+✗ Standing too far away.
+✗ Cropping feet, hands, or parts of the body out of the frame.
+✗ Poor lighting.
+✗ Shaky video.
+✗ Multiple athletes visible.
+✗ Recording from an angle that blocks key movements.
+
+Visual Examples:
+Add simple visual illustrations or placeholder image cards showing:
+
+* Good example: athlete fully visible.
+* Bad example: athlete too far away.
+* Bad example: athlete partially cropped.
+* Bad example: poor lighting.
+
+User Acknowledgement:
+Add a checkbox:
+“I understand these recording guidelines.”
+
+The Continue button should remain disabled until the checkbox is selected.
+
+Optional Enhancement:
+Add a “Don’t show this again” toggle and save the preference locally.
+
+Future-Ready Enhancement:
+Structure the screen so it can later support automated video quality checks such as:
+
+* Full body visibility detection.
+* Lighting quality checks.
+* Camera distance estimation.
+* Occlusion detection.
+* Multiple-person detection.
+
+Design Requirements:
+Make the page feel premium and modern.
+Use clear icons, illustrations, spacing, and color.
+Avoid large blocks of text.
+Optimize for mobile devices.
+Make the guidance easy for a middle school athlete, parent, or coach to understand within 10 seconds.
+
+Success Criteria:
+A first-time user should immediately understand:
+
+1. The athlete must be fully visible.
+2. All limbs should remain in frame.
+3. The camera should not be too far away.
+4. Better video quality leads to more accurate analysis.
