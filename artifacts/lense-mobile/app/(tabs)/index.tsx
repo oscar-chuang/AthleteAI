@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Image,
+  Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -53,6 +54,7 @@ function getWorstMetric(a: AnalysisRecord): { key: string; score: number } | nul
 
 export default function HomeScreen() {
   const colors = useColors();
+  const trophyScale = useRef(new Animated.Value(1)).current;
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, profile } = useAuth();
@@ -106,7 +108,19 @@ export default function HomeScreen() {
   const thisWeek      = stats?.thisWeekCount ?? profile?.weeklyProgress ?? 0;
   const weeklyGoal    = profile?.weeklyGoal ?? 3;
   const weekPct       = Math.min((thisWeek / weeklyGoal) * 100, 100);
+  const goalReached   = weeklyGoal > 0 && thisWeek >= weeklyGoal;
   const scoreDelta    = stats?.scoreDelta ?? null;
+
+  useEffect(() => {
+    if (!goalReached) return;
+    const pulse = Animated.sequence([
+      Animated.timing(trophyScale, { toValue: 1.35, duration: 220, useNativeDriver: true }),
+      Animated.timing(trophyScale, { toValue: 0.9,  duration: 130, useNativeDriver: true }),
+      Animated.timing(trophyScale, { toValue: 1.15, duration: 100, useNativeDriver: true }),
+      Animated.timing(trophyScale, { toValue: 1.0,  duration: 80,  useNativeDriver: true }),
+    ]);
+    pulse.start();
+  }, [goalReached, trophyScale]);
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
   const totalSessions = stats?.totalAnalyses ?? allAnalyses.length;
 
@@ -182,13 +196,17 @@ export default function HomeScreen() {
     sectionTitle:   { fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground },
     seeAll:         { fontSize: 13, color: colors.primary, fontFamily: "Inter_500Medium" },
 
-    weeklyCard:     { backgroundColor: colors.card, borderRadius: colors.radius, padding: 16, borderWidth: 1, borderColor: colors.border },
-    weeklyRow:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-    weeklyLabel:    { color: colors.mutedForeground, fontSize: 13, fontFamily: "Inter_400Regular" },
-    weeklyCount:    { color: colors.foreground, fontSize: 14, fontFamily: "Inter_600SemiBold" },
-    weeklyDelta:    { fontSize: 11, fontFamily: "Inter_500Medium", marginLeft: 4 },
-    progressBarBg:  { height: 6, backgroundColor: colors.border, borderRadius: 3 },
-    progressBarFill:{ height: 6, borderRadius: 3, backgroundColor: colors.primary },
+    weeklyCard:         { backgroundColor: colors.card, borderRadius: colors.radius, padding: 16, borderWidth: 1, borderColor: colors.border },
+    weeklyCardGoal:     { backgroundColor: colors.card, borderRadius: colors.radius, padding: 16, borderWidth: 2, borderColor: "#f59e0b" },
+    weeklyRow:          { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+    weeklyLabel:        { color: colors.mutedForeground, fontSize: 13, fontFamily: "Inter_400Regular" },
+    weeklyCount:        { color: colors.foreground, fontSize: 14, fontFamily: "Inter_600SemiBold" },
+    weeklyDelta:        { fontSize: 11, fontFamily: "Inter_500Medium", marginLeft: 4 },
+    progressBarBg:      { height: 6, backgroundColor: colors.border, borderRadius: 3 },
+    progressBarFill:    { height: 6, borderRadius: 3, backgroundColor: colors.primary },
+    goalBanner:         { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#f59e0b18", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginBottom: 12, borderWidth: 1, borderColor: "#f59e0b44" },
+    goalBannerText:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#b45309", flex: 1 },
+    goalBannerSub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#92400e", marginTop: 1 },
 
     scoreGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 10 },
     scoreItem:      { width: "30%", backgroundColor: colors.card, borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
@@ -411,11 +429,22 @@ export default function HomeScreen() {
         {allAnalyses.length > 0 && (
           <View style={s.section}>
             <Text style={[s.sectionTitle, { marginBottom: 12 }]}>This Week</Text>
-            <View style={s.weeklyCard}>
+            <View style={goalReached ? s.weeklyCardGoal : s.weeklyCard}>
+              {goalReached && (
+                <View style={s.goalBanner}>
+                  <Animated.View style={{ transform: [{ scale: trophyScale }] }}>
+                    <Feather name="award" size={20} color="#d97706" />
+                  </Animated.View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.goalBannerText}>Weekly goal reached!</Text>
+                    <Text style={s.goalBannerSub}>{thisWeek} of {weeklyGoal} sessions this week</Text>
+                  </View>
+                </View>
+              )}
               <View style={s.weeklyRow}>
                 <Text style={s.weeklyLabel}>Sessions completed</Text>
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Text style={s.weeklyCount}>{thisWeek} / {weeklyGoal}</Text>
+                  <Text style={[s.weeklyCount, goalReached && { color: "#d97706" }]}>{thisWeek} / {weeklyGoal}</Text>
                   {stats != null && stats.lastWeekCount > 0 && (
                     <Text style={[s.weeklyDelta, { color: thisWeek >= stats.lastWeekCount ? colors.success : colors.warning }]}>
                       {thisWeek >= stats.lastWeekCount ? " ↑" : " ↓"} vs last week
@@ -424,7 +453,7 @@ export default function HomeScreen() {
                 </View>
               </View>
               <View style={s.progressBarBg}>
-                <View style={[s.progressBarFill, { width: `${weekPct}%` as any }]} />
+                <View style={[s.progressBarFill, { width: `${weekPct}%` as any, backgroundColor: goalReached ? "#f59e0b" : colors.primary }]} />
               </View>
               <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 16 }}>
                 {lastSevenDays.map((day) => {
@@ -438,7 +467,7 @@ export default function HomeScreen() {
                       </Text>
                       <View style={{
                         width: 22, height: 22, borderRadius: 11,
-                        backgroundColor: trained ? colors.primary : "transparent",
+                        backgroundColor: trained ? (goalReached ? "#f59e0b" : colors.primary) : "transparent",
                         borderWidth: trained ? 0 : 1.5,
                         borderColor: isToday ? colors.primary : colors.border,
                         alignItems: "center", justifyContent: "center",
