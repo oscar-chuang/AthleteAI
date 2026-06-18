@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Image,
   Animated,
+  Easing,
   Share,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -75,6 +76,7 @@ function getWeekKey(): string {
 export default function HomeScreen() {
   const colors = useColors();
   const trophyScale = useRef(new Animated.Value(1)).current;
+  const barWidthAnim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, profile } = useAuth();
@@ -185,6 +187,21 @@ export default function HomeScreen() {
     ]);
     pulse.start();
   }, [goalReached, trophyScale]);
+
+  useEffect(() => {
+    Animated.timing(barWidthAnim, {
+      toValue: weekPct,
+      duration: 600,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [weekPct, barWidthAnim]);
+
+  const animatedBarWidth = barWidthAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ["0%", "100%"],
+  });
+
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
   const totalSessions = stats?.totalAnalyses ?? allAnalyses.length;
 
@@ -532,7 +549,7 @@ export default function HomeScreen() {
                 </View>
               </View>
               <View style={s.progressBarBg}>
-                <View style={[s.progressBarFill, { width: `${weekPct}%` as any, backgroundColor: goalReached ? "#f59e0b" : colors.primary }]} />
+                <Animated.View style={[s.progressBarFill, { width: animatedBarWidth, backgroundColor: goalReached ? "#f59e0b" : colors.primary }]} />
               </View>
               <TouchableOpacity
                 style={{ flexDirection: "row", alignItems: "center", marginTop: 8, gap: 4 }}
