@@ -710,7 +710,14 @@ export default function SkeletonScreen() {
       })
       .filter(Boolean)
       .join(", ");
+    const isConflictedPerformanceTip =
+      tip.tipType === "performance" &&
+      (tip.joints ?? []).some((j) => conflictedJoints.has(j));
+    const conflictWarning = isConflictedPerformanceTip
+      ? "Note: there is an open injury risk on this joint — please address that first. "
+      : "";
     const msg =
+      conflictWarning +
       `I'm working on my ${sport || "training"} form. My coaching report flagged "${tip.title}"` +
       `${jointStr ? ` around my ${jointStr}` : ""}.` +
       `${readings ? ` Measured from my video: ${readings}.` : ""}` +
@@ -718,7 +725,7 @@ export default function SkeletonScreen() {
       ` How do I fix this, and what should I focus on first?`;
     await AsyncStorage.setItem(PENDING_CHAT_KEY, msg);
     router.push("/(tabs)/chat" as any);
-  }, [scanResult, sport, router]);
+  }, [scanResult, sport, router, conflictedJoints]);
 
   // ── Deep link from the detail screen: open the tapped joint's frozen frame ───
   useEffect(() => {
