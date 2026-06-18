@@ -189,6 +189,7 @@ export interface DrillRecord {
   sets: string;
   reps: string;
   cue: string;
+  drillFeelCue?: string;
 }
 
 export interface TipRecord {

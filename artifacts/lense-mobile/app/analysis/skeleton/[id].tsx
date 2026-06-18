@@ -797,6 +797,14 @@ export default function SkeletonScreen() {
                         <Feather name="message-square" size={11} color={accentColor} />
                         <Text style={ss.drillCueText}>{(drill as DrillRecord).cue}</Text>
                       </View>
+                      {(drill as DrillRecord).drillFeelCue ? (
+                        <View style={ss.drillFeelRow}>
+                          <Feather name="activity" size={11} color={accentColor + "99"} />
+                          <Text style={[ss.drillFeelText, { color: accentColor + "cc" }]}>
+                            {"Feel: "}{(drill as DrillRecord).drillFeelCue}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                   ) : (
                     <Text style={ss.drillText}>{drill as string}</Text>
@@ -1311,6 +1319,8 @@ const ss = StyleSheet.create({
   drillMetaValue:  { fontSize: 13, color: "#e8e8f8", fontFamily: "Inter_600SemiBold" },
   drillCueRow:     { flexDirection: "row", alignItems: "flex-start", gap: 7, paddingTop: 2 },
   drillCueText:    { flex: 1, fontSize: 12, color: "#c0c0d8", fontFamily: "Inter_400Regular", lineHeight: 17, fontStyle: "italic" },
+  drillFeelRow:    { flexDirection: "row", alignItems: "flex-start", gap: 7, paddingTop: 4, borderTopWidth: 1, borderTopColor: "#ffffff0f", marginTop: 4 },
+  drillFeelText:   { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17, fontStyle: "italic" },
   qualityBadge:    { marginTop: 6, borderWidth: 1, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 4 },
   qualityText:     { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   okCard:        { flexDirection: "row", gap: 12, alignItems: "center", backgroundColor: "#0f1c12", borderWidth: 1, borderColor: "#22c55e33", borderRadius: 14, padding: 14 },

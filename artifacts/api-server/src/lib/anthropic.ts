@@ -44,7 +44,7 @@ export interface AIAnalysisResult {
     videoObservation?: string;
     description: string;
     whyItMatters?: string;
-    drill?: { name: string; sets: string; reps: string; cue: string };
+    drill?: { name: string; sets: string; reps: string; cue: string; drillFeelCue?: string };
     source?: string;
     joints?: JointKey[];
   }>;
@@ -207,7 +207,7 @@ The JSON shape is exactly:
   "improvements": ["string", "string", "string"],
   "tips": [
     // VARIABLE LENGTH: 0 to 5 tips. Include a tip ONLY when you have a specific visual observation from the image OR a specific measured joint angle to reference. Generic sport advice with no personal observation is forbidden. An empty array [] is the correct output when no specific data is available.
-    // Format for each tip: { "tipType": "injury" or "performance", "category": "string", "severity": "info" or "warning" or "critical", "title": "string", "videoObservation": "EXACT thing you saw or measured — e.g. left knee at 138 deg HIGH RISK, or heel visibly raised at squat depth, or shoulder noticeably higher than contralateral side", "description": "plain-English explanation max 2 sentences of what the measurement/observation shows", "whyItMatters": "ONE sentence: the specific injury or performance consequence if this is not corrected (e.g. 'At 138° your patellar tendon absorbs 40% more load than at a safe depth, raising your ACL and tendon tear risk.')", "drill": { "name": "exercise name", "sets": "e.g. 3 sets", "reps": "e.g. 10 reps or 30 sec", "cue": "single coaching cue, one sentence" }, "source": "Author et al. (Year, Journal Abbrev)", "joints": ["leftKnee"] }
+    // Format for each tip: { "tipType": "injury" or "performance", "category": "string", "severity": "info" or "warning" or "critical", "title": "string", "videoObservation": "EXACT thing you saw or measured — e.g. left knee at 138 deg HIGH RISK, or heel visibly raised at squat depth, or shoulder noticeably higher than contralateral side", "description": "plain-English explanation max 2 sentences of what the measurement/observation shows", "whyItMatters": "ONE sentence: the specific injury or performance consequence if this is not corrected (e.g. 'At 138° your patellar tendon absorbs 40% more load than at a safe depth, raising your ACL and tendon tear risk.')", "drill": { "name": "exercise name", "sets": "e.g. 3 sets", "reps": "e.g. 10 reps or 30 sec", "cue": "single coaching cue, one sentence", "drillFeelCue": "ONE sentence describing the internal body sensation the athlete should notice when executing the drill correctly — use proprioceptive language (e.g. 'Feel your weight spread evenly across the whole foot, not tipping forward onto your toes.' or 'Notice your hips driving up first before your shoulders rise off the floor.')" }, "source": "Author et al. (Year, Journal Abbrev)", "joints": ["leftKnee"] }
     // "joints": the specific body joints this tip is about, so the app can highlight them on the live pose skeleton. MUST be a subset of EXACTLY these allowed values: "leftKnee", "rightKnee", "leftHip", "rightHip", "leftElbow", "rightElbow". Pick only joints your observation/measurement actually involves (1-3 typically). Use BOTH sides (e.g. ["leftKnee","rightKnee"]) only when the issue is genuinely bilateral. If the tip is not about any of these six joints, use an empty array [].
   ],
   "injuryRisks": [
@@ -404,7 +404,7 @@ ${hasData
   : `- "tips" MUST be an empty array — no video frame or joint angle measurements are available for this session, so no personal tips can be generated. Do not invent generic advice
 - 1 injury risk only: describe the single most common injury site in ${sport} at the recreational level. Keep riskPercent between 12-22% and note it is a general sport risk, not a personal observation`
 }
-- Drills: ONE drill per tip only — name, sets × reps or duration, then ONE coaching cue in quotes
+- Drills: ONE drill per tip only — name, sets × reps or duration, ONE technical coaching cue (what to do), and ONE feel cue (drillFeelCue — the internal body sensation when executed correctly)
 - Score bands: 80–100 Strong · 65–79 On Track · <65 Focus Here
 - Scores must vary meaningfully — do NOT cluster in the 70s
 - Do NOT include overallScore — it is computed separately
