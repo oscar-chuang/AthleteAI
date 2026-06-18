@@ -3,3 +3,5 @@
 - [Biomechanics grounding contract](biomechanics-grounding.md) — tips must reflect the scanned pose; respect biomechanicsApplied; never run two biomechanics passes on one row (unguarded race); PATCH sport-only must not re-run AI.
 - [Skeleton screen architecture & invariants](skeleton-screen.md) — pose overlay scans once then freezes (no live tracking) so it can't switch people; lists the PATCH/poll lifecycle contract you must not break.
 - [DB connection URL precedence](db-connection.md) — use DATABASE_URL before SUPABASE_DATABASE_URL; the Supabase host is dead (ENOTFOUND), Supabase-first makes every route 500.
+- [Artifact directory rename constraint](artifact-rename.md) — artifact directory names double as IDs and cannot be changed; rename surfaces via package.json name + workflow commands only.
+- [mockup-sandbox build exclusion](mockup-sandbox-build.md) — mockup-sandbox has no build script (dev-only tool); removed it to prevent PORT-required vite build from blocking `pnpm run build`.

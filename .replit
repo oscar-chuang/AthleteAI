@@ -18,26 +18,15 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "test-mobile-utils"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "test-api-biomechanics"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "typecheck"
 
-[[workflows.workflow]]
-name = "test-mobile-utils"
-author = "agent"
-
 [[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/lense-mobile run test"
-
-[workflows.workflow.metadata]
-isValidation = true
+task = "workflow.run"
+args = "test-mobile-utils"
 
 [[workflows.workflow]]
 name = "test-api-biomechanics"
@@ -60,6 +49,17 @@ args = "pnpm run typecheck"
 
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow]]
+name = "test-mobile-utils"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/athlete-mobile run test"
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [agent]
 stack = "PNPM_WORKSPACE"
