@@ -223,6 +223,19 @@ export default function ProfileSettingsScreen() {
     );
   }
 
+  async function handleRemovePhoto() {
+    setAvatarUrl(null);
+    setAvatarSaving(true);
+    try {
+      await updateProfile({ avatarUrl: null });
+    } catch {
+      setAvatarUrl(profile?.avatarUrl);
+      setError("Couldn't remove photo. Please try again.");
+    } finally {
+      setAvatarSaving(false);
+    }
+  }
+
   async function handleSelectPreset(key: string) {
     setAvatarUrl(key);
     setAvatarSaving(true);
@@ -442,6 +455,23 @@ export default function ProfileSettingsScreen() {
       fontSize: 13,
       fontFamily: "Inter_500Medium",
       color: colors.foreground,
+    },
+    removePhotoBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 7,
+      paddingHorizontal: 16,
+      paddingVertical: 9,
+      borderRadius: 22,
+      backgroundColor: colors.destructive + "12",
+      borderWidth: 1,
+      borderColor: colors.destructive + "44",
+      marginTop: 8,
+    },
+    removePhotoBtnText: {
+      fontSize: 13,
+      fontFamily: "Inter_500Medium",
+      color: colors.destructive,
     },
 
     section: { marginBottom: 28 },
@@ -666,6 +696,18 @@ export default function ProfileSettingsScreen() {
             <Feather name="image" size={14} color={colors.mutedForeground} />
             <Text style={s.photoBtnText}>Choose from library</Text>
           </TouchableOpacity>
+
+          {isPhotoAvatar(avatarUrl) && (
+            <TouchableOpacity
+              style={s.removePhotoBtn}
+              onPress={handleRemovePhoto}
+              activeOpacity={0.8}
+              disabled={avatarSaving}
+            >
+              <Feather name="trash-2" size={14} color={colors.destructive} />
+              <Text style={s.removePhotoBtnText}>Remove photo</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* ── Name ── */}
