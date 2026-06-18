@@ -707,6 +707,7 @@ export default function AnalysisDetailScreen() {
                 strokeWidth={8}
                 color={overallBand.color}
                 label="OVERALL"
+                animate
               />
             </View>
 
