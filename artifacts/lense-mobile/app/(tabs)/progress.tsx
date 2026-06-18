@@ -9,6 +9,7 @@ import {
   Dimensions,
   ActivityIndicator,
   RefreshControl,
+  Pressable,
 } from "react-native";
 import Svg, { Line, Path, Polyline, Circle, Text as SvgText } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -66,6 +67,9 @@ const FULL_CHART_PADDING_RIGHT = 8;
 const FULL_CHART_PADDING_TOP = 8;
 const FULL_CHART_PADDING_BOTTOM = 32;
 
+const TOOLTIP_W = 108;
+const TOOLTIP_H = 64;
+
 function JointFullChart({
   data,
   width,
@@ -75,6 +79,25 @@ function JointFullChart({
   width: number;
   colors: ReturnType<typeof useColors>;
 }) {
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (dismissTimer.current) clearTimeout(dismissTimer.current);
+    };
+  }, []);
+
+  function handleDotPress(i: number) {
+    if (dismissTimer.current) clearTimeout(dismissTimer.current);
+    if (selectedIdx === i) {
+      setSelectedIdx(null);
+      return;
+    }
+    setSelectedIdx(i);
+    dismissTimer.current = setTimeout(() => setSelectedIdx(null), 3000);
+  }
+
   const chartW = width - FULL_CHART_PADDING_LEFT - FULL_CHART_PADDING_RIGHT;
   const chartH = JOINT_CHART_H - FULL_CHART_PADDING_TOP - FULL_CHART_PADDING_BOTTOM;
 
@@ -122,85 +145,166 @@ function JointFullChart({
 
   const totalH = JOINT_CHART_H;
 
+  const selectedPoint = selectedIdx != null ? (data[selectedIdx] ?? null) : null;
+  const dotCx = selectedIdx != null ? toX(selectedIdx) : 0;
+  const dotCy = selectedPoint != null ? toY(selectedPoint.angle) : 0;
+  const tooltipAbove = dotCy - TOOLTIP_H - 10;
+  const tooltipTop = tooltipAbove >= 0 ? tooltipAbove : dotCy + 14;
+  let tooltipLeft = dotCx - TOOLTIP_W / 2;
+  if (tooltipLeft < 0) tooltipLeft = 0;
+  if (tooltipLeft + TOOLTIP_W > width) tooltipLeft = width - TOOLTIP_W;
+
   return (
-    <Svg width={width} height={totalH} style={{ overflow: "visible" }}>
-      {yTicks.map((tick, ti) => {
-        const y = toY(tick);
-        return (
-          <React.Fragment key={ti}>
-            <Line
-              x1={FULL_CHART_PADDING_LEFT}
-              y1={y}
-              x2={FULL_CHART_PADDING_LEFT + chartW}
-              y2={y}
-              stroke={colors.border}
-              strokeWidth={1}
-            />
-            <SvgText
-              x={FULL_CHART_PADDING_LEFT - 4}
-              y={y + 3}
-              fontSize={8}
-              fill={colors.mutedForeground}
-              fontFamily="Inter_400Regular"
-              textAnchor="end"
-            >
-              {Math.round(tick)}°
-            </SvgText>
-          </React.Fragment>
-        );
-      })}
+    <View style={{ position: "relative" }}>
+      <Svg width={width} height={totalH} style={{ overflow: "visible" }}>
+        {yTicks.map((tick, ti) => {
+          const y = toY(tick);
+          return (
+            <React.Fragment key={ti}>
+              <Line
+                x1={FULL_CHART_PADDING_LEFT}
+                y1={y}
+                x2={FULL_CHART_PADDING_LEFT + chartW}
+                y2={y}
+                stroke={colors.border}
+                strokeWidth={1}
+              />
+              <SvgText
+                x={FULL_CHART_PADDING_LEFT - 4}
+                y={y + 3}
+                fontSize={8}
+                fill={colors.mutedForeground}
+                fontFamily="Inter_400Regular"
+                textAnchor="end"
+              >
+                {Math.round(tick)}°
+              </SvgText>
+            </React.Fragment>
+          );
+        })}
 
-      {areaPath && (
-        <Path
-          d={areaPath}
-          fill={colors.primary + "18"}
-        />
-      )}
+        {areaPath && (
+          <Path
+            d={areaPath}
+            fill={colors.primary + "18"}
+          />
+        )}
 
-      {data.length > 1 && (
-        <Polyline
-          points={polyPts}
-          fill="none"
-          stroke={colors.primary}
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      )}
+        {data.length > 1 && (
+          <Polyline
+            points={polyPts}
+            fill="none"
+            stroke={colors.primary}
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
 
-      {data.map((d, i) => {
-        const dotColor = RISK_COLOR_MAP[d.risk] ?? colors.primary;
-        const cx = toX(i);
-        const cy = toY(d.angle);
-        const isLast = i === data.length - 1;
-        return (
-          <React.Fragment key={i}>
-            <Circle
-              cx={cx}
-              cy={cy}
-              r={isLast ? 6 : 4}
-              fill={dotColor}
-              stroke={isLast ? colors.card : "none"}
-              strokeWidth={isLast ? 2 : 0}
-            />
-          </React.Fragment>
-        );
-      })}
+        {data.map((d, i) => {
+          const dotColor = RISK_COLOR_MAP[d.risk] ?? colors.primary;
+          const cx = toX(i);
+          const cy = toY(d.angle);
+          const isLast = i === data.length - 1;
+          const isSelected = selectedIdx === i;
+          return (
+            <React.Fragment key={i}>
+              <Circle
+                cx={cx}
+                cy={cy}
+                r={isSelected ? 7 : isLast ? 6 : 4}
+                fill={dotColor}
+                stroke={isSelected ? colors.card : isLast ? colors.card : "none"}
+                strokeWidth={isSelected || isLast ? 2 : 0}
+              />
+              <Circle
+                cx={cx}
+                cy={cy}
+                r={18}
+                fill="transparent"
+                onPress={() => handleDotPress(i)}
+              />
+            </React.Fragment>
+          );
+        })}
 
-      {xLabels.map(({ i, text }) => (
-        <SvgText
-          key={i}
-          x={toX(i)}
-          y={FULL_CHART_PADDING_TOP + chartH + 18}
-          fontSize={8}
-          fill={colors.mutedForeground}
-          fontFamily="Inter_400Regular"
-          textAnchor={i === 0 ? "start" : i === data.length - 1 ? "end" : "middle"}
+        {xLabels.map(({ i, text }) => (
+          <SvgText
+            key={i}
+            x={toX(i)}
+            y={FULL_CHART_PADDING_TOP + chartH + 18}
+            fontSize={8}
+            fill={colors.mutedForeground}
+            fontFamily="Inter_400Regular"
+            textAnchor={i === 0 ? "start" : i === data.length - 1 ? "end" : "middle"}
+          >
+            {text}
+          </SvgText>
+        ))}
+      </Svg>
+
+      {selectedPoint != null && (
+        <Pressable
+          onPress={() => setSelectedIdx(null)}
+          style={{
+            position: "absolute",
+            left: tooltipLeft,
+            top: tooltipTop,
+            width: TOOLTIP_W,
+            backgroundColor: colors.card,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: (RISK_COLOR_MAP[selectedPoint.risk] ?? colors.primary) + "88",
+            padding: 8,
+            alignItems: "center",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.14,
+            shadowRadius: 4,
+            elevation: 5,
+          }}
         >
-          {text}
-        </SvgText>
-      ))}
-    </Svg>
+          <Text
+            style={{
+              fontSize: 18,
+              fontFamily: "Inter_700Bold",
+              color: RISK_COLOR_MAP[selectedPoint.risk] ?? colors.primary,
+            }}
+          >
+            {selectedPoint.angle.toFixed(1)}°
+          </Text>
+          <Text
+            style={{
+              fontSize: 10,
+              fontFamily: "Inter_400Regular",
+              color: colors.mutedForeground,
+              marginTop: 2,
+            }}
+          >
+            {formatDate(selectedPoint.date)}
+          </Text>
+          <View
+            style={{
+              marginTop: 5,
+              backgroundColor: (RISK_COLOR_MAP[selectedPoint.risk] ?? colors.primary) + "22",
+              borderRadius: 5,
+              paddingHorizontal: 7,
+              paddingVertical: 2,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 9,
+                fontFamily: "Inter_600SemiBold",
+                color: RISK_COLOR_MAP[selectedPoint.risk] ?? colors.primary,
+              }}
+            >
+              {RISK_LABEL_MAP[selectedPoint.risk] ?? ""}
+            </Text>
+          </View>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
