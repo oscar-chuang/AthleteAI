@@ -167,6 +167,8 @@ export interface AnalysisRecord {
   speedScore?: number;
   strengths: string[];
   improvements: string[];
+  jointAngles?: Record<string, number>;
+  jointRisks?: Record<string, number>;
   biomechanicsApplied?: boolean;
   uploadedAt: string;
 }
@@ -290,6 +292,33 @@ export const chat = {
 
   suggestions: () =>
     request<{ suggestions: string[]; hasCompletedAnalyses: boolean }>("/chat/suggestions"),
+};
+
+// ─── Joint Trends ─────────────────────────────────────────────────────────────
+
+export interface JointDataPoint {
+  analysisId: string;
+  date: string;
+  sport: string;
+  angle: number;
+  risk: number;
+}
+
+export interface JointImprovement {
+  joint: string;
+  deltaDeg: number;
+  sessions: number;
+  improved: boolean;
+}
+
+export interface JointTrendsResponse {
+  joints: Record<string, JointDataPoint[]>;
+  improvements: JointImprovement[];
+}
+
+export const jointTrends = {
+  get: () =>
+    request<JointTrendsResponse>("/analyses/joint-trends"),
 };
 
 // ─── Progress ─────────────────────────────────────────────────────────────────

@@ -21,6 +21,8 @@ export const analysesTable = pgTable("analyses", {
   improvements: text("improvements").array().notNull().default([]),
   tips: jsonb("tips").$type<object[]>().default([]),
   injuryRisks: jsonb("injury_risks").$type<object[]>().default([]),
+  jointAngles: jsonb("joint_angles").$type<Record<string, number>>(),
+  jointRisks: jsonb("joint_risks").$type<Record<string, number>>(),
   biomechanicsApplied: boolean("biomechanics_applied").notNull().default(false),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
 });

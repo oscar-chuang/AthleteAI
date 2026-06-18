@@ -56,6 +56,8 @@ function formatAnalysis(a: typeof analysesTable.$inferSelect) {
     speedScore: a.speedScore ?? undefined,
     strengths: a.strengths ?? [],
     improvements: a.improvements ?? [],
+    jointAngles: a.jointAngles ?? undefined,
+    jointRisks: a.jointRisks ?? undefined,
     biomechanicsApplied: a.biomechanicsApplied,
     uploadedAt: a.uploadedAt.toISOString(),
   };
@@ -179,6 +181,84 @@ router.post("/analyses/detect-sport", requireAuth, async (req: Request, res: Res
   }
 });
 
+// Returns per-joint angle history across all biomechanics-grounded analyses for
+// the user. Only sessions that actually have a skeleton scan (jointAngles populated)
+// are included. The response also includes an "improvements" array flagging joints
+// where the measured angle moved meaningfully in the right direction.
+// IMPORTANT: this route must be declared before GET /analyses/:id so Express does
+// not swallow "joint-trends" as an :id value.
+router.get("/analyses/joint-trends", requireAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).userId as number;
+
+  const rows = await db
+    .select({
+      id: analysesTable.id,
+      sport: analysesTable.sport,
+      uploadedAt: analysesTable.uploadedAt,
+      jointAngles: analysesTable.jointAngles,
+      jointRisks: analysesTable.jointRisks,
+    })
+    .from(analysesTable)
+    .where(
+      and(
+        eq(analysesTable.userId, userId),
+        eq(analysesTable.biomechanicsApplied, true),
+      )
+    )
+    .orderBy(analysesTable.uploadedAt);
+
+  // Keep only sessions that have measured joint angles.
+  const sessions = rows.filter((r) => r.jointAngles && Object.keys(r.jointAngles).length > 0);
+
+  // Build per-joint history arrays.
+  const jointHistory: Record<string, Array<{
+    analysisId: string;
+    date: string;
+    sport: string;
+    angle: number;
+    risk: number;
+  }>> = {};
+
+  for (const session of sessions) {
+    const angles = session.jointAngles as Record<string, number>;
+    const risks = (session.jointRisks ?? {}) as Record<string, number>;
+    for (const [joint, angle] of Object.entries(angles)) {
+      if (!jointHistory[joint]) jointHistory[joint] = [];
+      jointHistory[joint]!.push({
+        analysisId: String(session.id),
+        date: session.uploadedAt.toISOString(),
+        sport: session.sport,
+        angle,
+        risk: risks[joint] ?? 0,
+      });
+    }
+  }
+
+  // Detect meaningful improvements per joint.
+  // "Improved" = the most recent entry has a lower risk level than the earliest,
+  // or the risk level is the same but angle shifted >= 5° with stable/lower risk.
+  const improvements: Array<{
+    joint: string;
+    deltaDeg: number;
+    sessions: number;
+    improved: boolean;
+  }> = [];
+
+  for (const [joint, history] of Object.entries(jointHistory)) {
+    if (history.length < 2) continue;
+    const first = history[0]!;
+    const last = history[history.length - 1]!;
+    const deltaDeg = Math.round(last.angle - first.angle);
+    const riskDelta = first.risk - last.risk;
+    const improved = riskDelta > 0 || (riskDelta === 0 && Math.abs(deltaDeg) >= 5 && last.risk < 2);
+    if (improved || Math.abs(deltaDeg) >= 3) {
+      improvements.push({ joint, deltaDeg, sessions: history.length, improved });
+    }
+  }
+
+  res.json({ joints: jointHistory, improvements });
+});
+
 router.get("/analyses/:id", requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).userId as number;
   const id = parseInt(String(req.params.id ?? ""), 10);
@@ -276,11 +356,15 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
   // grounded results once the re-analysis finishes. Persist a corrected sport too
   // when one was sent alongside the measured data. Snapshot the worst-frame JPEG
   // as the thumbnail immediately so the list shows it without waiting for the AI run.
+  // Also persist the raw measured joint angles/risks so the trends endpoint can
+  // return per-joint history across sessions.
   await db.update(analysesTable)
     .set({
       status: "processing",
       ...(newSport ? { sport: newSport } : {}),
       ...(frameBase64 ? { thumbnailUrl: frameBase64 } : {}),
+      ...(jointAngles ? { jointAngles } : {}),
+      ...(jointRisks ? { jointRisks } : {}),
     })
     .where(eq(analysesTable.id, row.id))
     .catch(() => {});

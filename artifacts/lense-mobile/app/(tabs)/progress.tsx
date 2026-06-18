@@ -16,7 +16,50 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 
 import { useColors } from "@/hooks/useColors";
-import { progress as progressApi, achievements as achievementsApi, profile as profileApi, type ProgressRecord, type AchievementRecord, type ProfileStats } from "@/lib/api";
+import { progress as progressApi, achievements as achievementsApi, profile as profileApi, jointTrends as jointTrendsApi, type ProgressRecord, type AchievementRecord, type ProfileStats, type JointTrendsResponse, type JointDataPoint, type JointImprovement } from "@/lib/api";
+
+const JOINT_DISPLAY: Record<string, string> = {
+  leftKnee: "Left Knee",
+  rightKnee: "Right Knee",
+  leftHip: "Left Hip",
+  rightHip: "Right Hip",
+  leftElbow: "Left Elbow",
+  rightElbow: "Right Elbow",
+};
+
+const RISK_COLOR_MAP = ["#22c55e", "#f59e0b", "#ef4444"] as const;
+const RISK_LABEL_MAP = ["Safe", "Caution", "High Risk"] as const;
+
+const JOINT_SPARKLINE_W = 64;
+const JOINT_SPARKLINE_H = 28;
+
+function JointSparkline({ data, color }: { data: JointDataPoint[]; color: string }) {
+  if (data.length < 2) {
+    return (
+      <View style={{ width: JOINT_SPARKLINE_W, height: JOINT_SPARKLINE_H, alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ fontSize: 9, color }}>—</Text>
+      </View>
+    );
+  }
+  const angles = data.map((d) => d.angle);
+  const min = Math.min(...angles);
+  const max = Math.max(...angles);
+  const range = max - min || 1;
+  const step = JOINT_SPARKLINE_W / (data.length - 1);
+  const pts = data.map((d, i) => {
+    const x = i * step;
+    const y = JOINT_SPARKLINE_H - ((d.angle - min) / range) * JOINT_SPARKLINE_H;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const lastX = (data.length - 1) * step;
+  const lastY = JOINT_SPARKLINE_H - ((data[data.length - 1]!.angle - min) / range) * JOINT_SPARKLINE_H;
+  return (
+    <Svg width={JOINT_SPARKLINE_W} height={JOINT_SPARKLINE_H} style={{ overflow: "visible" }}>
+      <Polyline points={pts} fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx={lastX} cy={lastY} r={3} fill={color} />
+    </Svg>
+  );
+}
 
 const METRICS = ["overall", "technique", "power", "balance", "consistency", "mobility", "speed"] as const;
 type MetricKey = typeof METRICS[number];
@@ -90,6 +133,7 @@ export default function ProgressScreen() {
   const [entries, setEntries]           = useState<ProgressRecord[]>([]);
   const [achievements, setAchievements] = useState<AchievementRecord[]>([]);
   const [stats, setStats]               = useState<ProfileStats | null>(null);
+  const [trends, setTrends]             = useState<JointTrendsResponse | null>(null);
   const [loading, setLoading]           = useState(true);
   const [refreshing, setRefreshing]     = useState(false);
 
@@ -100,14 +144,16 @@ export default function ProgressScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [{ entries: e }, { achievements: a }, st] = await Promise.all([
+      const [{ entries: e }, { achievements: a }, st, tr] = await Promise.all([
         progressApi.list(),
         achievementsApi.list(),
         profileApi.stats().catch(() => null),
+        jointTrendsApi.get().catch(() => null),
       ]);
       setEntries(e);
       setAchievements(a);
       if (st) setStats(st);
+      if (tr) setTrends(tr);
     } catch {
       // ignore
     } finally {
@@ -449,6 +495,75 @@ export default function ProgressScreen() {
                 </>
               )}
             </View>
+          </View>
+        )}
+
+        {/* ── Joint Angle Trends ── */}
+        {trends && Object.keys(trends.joints).length > 0 && (
+          <View style={s.section}>
+            <View style={s.sectionRow}>
+              <Text style={s.sectionTitle}>Joint Angle Trends</Text>
+              <Text style={s.sectionCount}>{Object.keys(trends.joints).length} joint{Object.keys(trends.joints).length === 1 ? "" : "s"}</Text>
+            </View>
+
+            {/* Improvement callouts */}
+            {trends.improvements.filter((imp) => imp.improved).map((imp) => {
+              const absD = Math.abs(imp.deltaDeg);
+              const label = JOINT_DISPLAY[imp.joint] ?? imp.joint;
+              return (
+                <View
+                  key={imp.joint}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.success + "14", borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: colors.success + "33", marginBottom: 10 }}
+                >
+                  <Feather name="trending-up" size={16} color={colors.success} />
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: colors.success, flex: 1 }} numberOfLines={2}>
+                    Your {label.toLowerCase()} angle improved by {absD}° over {imp.sessions} session{imp.sessions === 1 ? "" : "s"}
+                  </Text>
+                </View>
+              );
+            })}
+
+            {/* Per-joint rows */}
+            {Object.entries(trends.joints).map(([joint, history]) => {
+              const label = JOINT_DISPLAY[joint] ?? joint;
+              const last = history[history.length - 1]!;
+              const first = history[0]!;
+              const deltaDeg = Math.round(last.angle - first.angle);
+              const latestRisk = last.risk;
+              const riskColor = RISK_COLOR_MAP[latestRisk] ?? colors.mutedForeground;
+              const riskLabel = RISK_LABEL_MAP[latestRisk] ?? "";
+              const imp = trends.improvements.find((i) => i.joint === joint);
+
+              return (
+                <View
+                  key={joint}
+                  style={{ backgroundColor: colors.card, borderRadius: colors.radius, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10, flexDirection: "row", alignItems: "center", gap: 12 }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>{label}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+                      <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: riskColor }}>{Math.round(last.angle)}°</Text>
+                      <View style={{ backgroundColor: riskColor + "22", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
+                        <Text style={{ fontSize: 10, fontFamily: "Inter_600SemiBold", color: riskColor }}>{riskLabel}</Text>
+                      </View>
+                    </View>
+                    {history.length >= 2 && (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 }}>
+                        <Feather
+                          name={imp?.improved ? "arrow-up-right" : deltaDeg > 0 ? "arrow-up-right" : "arrow-down-right"}
+                          size={12}
+                          color={imp?.improved ? colors.success : colors.mutedForeground}
+                        />
+                        <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: imp?.improved ? colors.success : colors.mutedForeground }}>
+                          {deltaDeg >= 0 ? "+" : ""}{deltaDeg}° over {history.length} scan{history.length === 1 ? "" : "s"}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <JointSparkline data={history} color={riskColor} />
+                </View>
+              );
+            })}
           </View>
         )}
 
