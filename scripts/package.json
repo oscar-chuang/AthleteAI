@@ -5,10 +5,17 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "backfill-thumbnails": "tsx ./src/backfill-thumbnails.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@workspace/db": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "sharp": "^0.35.1"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/sharp": "^0.32.0",
     "tsx": "catalog:"
   }
 }
