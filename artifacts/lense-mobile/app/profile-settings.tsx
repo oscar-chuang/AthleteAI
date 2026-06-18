@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -141,6 +141,31 @@ export default function ProfileSettingsScreen() {
   const [weeklyGoal, setWeeklyGoal] = useState(profile?.weeklyGoal ?? 3);
   const [avatarUrl, setAvatarUrl] = useState<string | null | undefined>(profile?.avatarUrl);
 
+  const savedName = useRef(profile?.name ?? user?.name ?? "");
+  const savedSport = useRef((() => {
+    if (!profile?.sport) return "";
+    const raw = profile.sport;
+    const match = SPORTS.find((s) => s.toLowerCase() === raw.toLowerCase());
+    return match ?? raw;
+  })());
+  const savedLevel = useRef((() => {
+    if (!profile?.level) return "";
+    const raw = profile.level;
+    const match = LEVELS.find((l) => l.label.toLowerCase() === raw.toLowerCase());
+    return match?.label ?? "";
+  })());
+  const savedGoals = useRef<string[]>(profile?.goals ?? []);
+  const savedInjuries = useRef<string[]>(profile?.injuryConcerns ?? []);
+
+  const isDirty =
+    name !== savedName.current ||
+    sport !== savedSport.current ||
+    level !== savedLevel.current ||
+    goals.length !== savedGoals.current.length ||
+    goals.some((g, i) => g !== savedGoals.current[i]) ||
+    injuries.length !== savedInjuries.current.length ||
+    injuries.some((inj, i) => inj !== savedInjuries.current[i]);
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -241,6 +266,11 @@ export default function ProfileSettingsScreen() {
         injuryConcerns: injuries,
         weeklyGoal,
       });
+      savedName.current = name;
+      savedSport.current = sport;
+      savedLevel.current = level;
+      savedGoals.current = [...goals];
+      savedInjuries.current = [...injuries];
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e: any) {
@@ -248,6 +278,25 @@ export default function ProfileSettingsScreen() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleClose() {
+    if (!isDirty) {
+      router.back();
+      return;
+    }
+    Alert.alert(
+      "Discard changes?",
+      "You have unsaved changes. If you leave now, they will be lost.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => router.back(),
+        },
+      ]
+    );
   }
 
   function handleLogout() {
@@ -502,7 +551,7 @@ export default function ProfileSettingsScreen() {
     <View style={s.container}>
       {/* ── Header ── */}
       <View style={s.header}>
-        <TouchableOpacity style={s.closeBtn} onPress={() => router.back()} activeOpacity={0.7}>
+        <TouchableOpacity style={s.closeBtn} onPress={handleClose} activeOpacity={0.7}>
           <Feather name="x" size={16} color={colors.mutedForeground} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Profile Settings</Text>
