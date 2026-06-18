@@ -32,6 +32,10 @@ args = "test-mobile-utils"
 task = "workflow.run"
 args = "Build All Safe Follow-Ups"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Add Pending Task"
+
 [[workflows.workflow]]
 name = "test-api-biomechanics"
 author = "agent"
@@ -72,6 +76,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/scripts run classify-tasks"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Add Pending Task"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/scripts run add-pending-task -- --id \"#NNN\" --title \"Your task title here\""
 
 [workflows.workflow.metadata]
 outputType = "console"

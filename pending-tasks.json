@@ -1,63 +1,258 @@
 [
-  { "id": "#77",  "title": "Let users tap individual data points on the joint chart to see exact angle and date" },
-  { "id": "#78",  "title": "Add a 'Most improved joint' highlight to the Progress summary cards" },
-  { "id": "#79",  "title": "Let users choose what time they receive their improvement notifications" },
-  { "id": "#80",  "title": "Add a test to verify improvement notifications are correctly queued after a better scan" },
-  { "id": "#81",  "title": "Show a summary of completed drills across all sessions on the Progress tab" },
-  { "id": "#82",  "title": "Reset completed drills when a new scan is run on the same analysis" },
-  { "id": "#83",  "title": "Carry completed-drill context into the AI Coach so it knows what you've already done" },
-  { "id": "#84",  "title": "Add a test that confirms feel cues appear in the AI coach system prompt" },
-  { "id": "#85",  "title": "Add automated tests so tip ordering never silently breaks" },
-  { "id": "#86",  "title": "Add automated tests for the conflict detection logic so it never silently breaks" },
-  { "id": "#87",  "title": "Add tests for the tip-sorting logic so conflict labels always appear in the right order" },
-  { "id": "#88",  "title": "Show a scan quality warning when the skeleton couldn't see the athlete clearly" },
-  { "id": "#89",  "title": "Fix skeleton overlay drift on non-standard video aspect ratios" },
-  { "id": "#90",  "title": "Add a test that verifies crop padding keeps landmarks aligned with the stored frame" },
-  { "id": "#91",  "title": "Let users set a weekly goal directly from the Home screen without going to Settings" },
-  { "id": "#93",  "title": "Adjust the weekly goal count to exclude rest days automatically" },
-  { "id": "#94",  "title": "Add a test to verify rest days are correctly greyed out and not counted as missed" },
-  { "id": "#95",  "title": "Show a weekly schedule summary in the Home header so users know their plan at a glance" },
-  { "id": "#96",  "title": "Add a test that confirms confetti fires exactly once when the weekly goal is crossed" },
-  { "id": "#97",  "title": "Show a brief 'Goal reached!' toast on the analysis result screen the moment processing completes" },
-  { "id": "#98",  "title": "Add a visual share card image to the weekly goal share so it stands out on social media" },
-  { "id": "#99",  "title": "Show a 'Tap to share' hint on the goal banner the first time users reach their weekly goal" },
-  { "id": "#100", "title": "Add a test that confirms the share message is formatted correctly for different session counts and sports" },
-  { "id": "#101", "title": "Animate the six sub-score rings so they fill in one by one as you scroll down" },
-  { "id": "#102", "title": "Add a haptic pulse when the score ring finishes counting up" },
-  { "id": "#103", "title": "Add a test confirming the ScoreRing count-up starts at 0 and ends at the target score" },
-  { "id": "#104", "title": "Remember which tab you were on when swiping between sessions" },
-  { "id": "#105", "title": "Add a swipe gesture to navigate between sessions (no button tap needed)" },
-  { "id": "#106", "title": "Show a session counter in the header so users know their position in the list" },
-  { "id": "#109", "title": "Confirm share card captures correctly on Android" },
-  { "id": "#110", "title": "Add a test to verify the share card shows the thumbnail when one is available" },
-  { "id": "#111", "title": "Let users share a direct link to their session alongside the image" },
-  { "id": "#112", "title": "Add a mandatory pre-upload recording tips screen with do/don't guidance" },
-  { "id": "#113", "title": "Movement Breakdown — live skeleton playback, coaching cards, and flow summary" },
-  { "id": "#114", "title": "Add a test that confirms old thumbnails are shrunk by the backfill script" },
-  { "id": "#115", "title": "Expand biomechanics accuracy — more joints, multi-frame, temporal context" },
-  { "id": "#116", "title": "UI overhaul — premium look, dark/light mode, plain-English analysis, better spacing" },
-  { "id": "#118", "title": "Prevent oversized raw frames from ever reaching the database" },
-  { "id": "#119", "title": "Shrink stored video URLs the same way thumbnails are shrunk" },
-  { "id": "#120", "title": "Let users download the share card directly to their camera roll" },
-  { "id": "#121", "title": "Add a test to verify the share preview modal opens and closes correctly" },
-  { "id": "#122", "title": "Let users customise which tip appears on their share card" },
-  { "id": "#123", "title": "Add a test to verify the share card shows the top tip and hides it when none exist" },
-  { "id": "#124", "title": "Let users pick dark or light share card before sharing" },
-  { "id": "#125", "title": "Add a snapshot test so the share card design never breaks silently" },
-  { "id": "#126", "title": "Keep type errors from sneaking back in by adding TypeScript to CI" },
-  { "id": "#127", "title": "Show a friendly message when a session scan couldn't be completed" },
-  { "id": "#128", "title": "Add a test to confirm the Progress tab shows an error notice when data fails to load" },
-  { "id": "#129", "title": "Let users tap their avatar in the Coach header to jump straight to profile settings" },
-  { "id": "#130", "title": "Add a test to confirm the avatar shows up in the AI Coach header" },
-  { "id": "#131", "title": "Add a test to confirm avatar photos are always stored compressed" },
-  { "id": "#132", "title": "Migrate existing oversized avatars in the database to the compressed format" },
-  { "id": "#133", "title": "Add a test that verifies removing a photo avatar resets to initials" },
-  { "id": "#134", "title": "Let users crop or zoom their photo before it becomes their avatar" },
-  { "id": "#136", "title": "Guard against accidentally skipping the discard prompt when adding new profile fields" },
-  { "id": "#137", "title": "Add a test that confirms the sport chip picker also triggers the discard prompt" },
-  { "id": "#138", "title": "Let users tap the sport/level tag in the Coach header to jump straight to profile settings" },
-  { "id": "#139", "title": "Keep the Coach header sport/level in sync without a full reload after profile edits" },
-  { "id": "#140", "title": "Redesign Progress section to be fully sport-specific" },
-  { "id": "#141", "title": "Add a test to verify the AI Coach uses the right level (beginner/advanced) when coaching" },
-  { "id": "#142", "title": "Add a test to verify the AI Coach includes recent session data in its coaching context" }
+  {
+    "id": "#77",
+    "title": "Let users tap individual data points on the joint chart to see exact angle and date"
+  },
+  {
+    "id": "#78",
+    "title": "Add a 'Most improved joint' highlight to the Progress summary cards"
+  },
+  {
+    "id": "#79",
+    "title": "Let users choose what time they receive their improvement notifications"
+  },
+  {
+    "id": "#80",
+    "title": "Add a test to verify improvement notifications are correctly queued after a better scan"
+  },
+  {
+    "id": "#81",
+    "title": "Show a summary of completed drills across all sessions on the Progress tab"
+  },
+  {
+    "id": "#82",
+    "title": "Reset completed drills when a new scan is run on the same analysis"
+  },
+  {
+    "id": "#83",
+    "title": "Carry completed-drill context into the AI Coach so it knows what you've already done"
+  },
+  {
+    "id": "#84",
+    "title": "Add a test that confirms feel cues appear in the AI coach system prompt"
+  },
+  {
+    "id": "#85",
+    "title": "Add automated tests so tip ordering never silently breaks"
+  },
+  {
+    "id": "#86",
+    "title": "Add automated tests for the conflict detection logic so it never silently breaks"
+  },
+  {
+    "id": "#87",
+    "title": "Add tests for the tip-sorting logic so conflict labels always appear in the right order"
+  },
+  {
+    "id": "#88",
+    "title": "Show a scan quality warning when the skeleton couldn't see the athlete clearly"
+  },
+  {
+    "id": "#89",
+    "title": "Fix skeleton overlay drift on non-standard video aspect ratios"
+  },
+  {
+    "id": "#90",
+    "title": "Add a test that verifies crop padding keeps landmarks aligned with the stored frame"
+  },
+  {
+    "id": "#91",
+    "title": "Let users set a weekly goal directly from the Home screen without going to Settings"
+  },
+  {
+    "id": "#93",
+    "title": "Adjust the weekly goal count to exclude rest days automatically"
+  },
+  {
+    "id": "#94",
+    "title": "Add a test to verify rest days are correctly greyed out and not counted as missed"
+  },
+  {
+    "id": "#95",
+    "title": "Show a weekly schedule summary in the Home header so users know their plan at a glance"
+  },
+  {
+    "id": "#96",
+    "title": "Add a test that confirms confetti fires exactly once when the weekly goal is crossed"
+  },
+  {
+    "id": "#97",
+    "title": "Show a brief 'Goal reached!' toast on the analysis result screen the moment processing completes"
+  },
+  {
+    "id": "#98",
+    "title": "Add a visual share card image to the weekly goal share so it stands out on social media"
+  },
+  {
+    "id": "#99",
+    "title": "Show a 'Tap to share' hint on the goal banner the first time users reach their weekly goal"
+  },
+  {
+    "id": "#100",
+    "title": "Add a test that confirms the share message is formatted correctly for different session counts and sports"
+  },
+  {
+    "id": "#101",
+    "title": "Animate the six sub-score rings so they fill in one by one as you scroll down"
+  },
+  {
+    "id": "#102",
+    "title": "Add a haptic pulse when the score ring finishes counting up"
+  },
+  {
+    "id": "#103",
+    "title": "Add a test confirming the ScoreRing count-up starts at 0 and ends at the target score"
+  },
+  {
+    "id": "#104",
+    "title": "Remember which tab you were on when swiping between sessions"
+  },
+  {
+    "id": "#105",
+    "title": "Add a swipe gesture to navigate between sessions (no button tap needed)"
+  },
+  {
+    "id": "#106",
+    "title": "Show a session counter in the header so users know their position in the list"
+  },
+  {
+    "id": "#109",
+    "title": "Confirm share card captures correctly on Android"
+  },
+  {
+    "id": "#110",
+    "title": "Add a test to verify the share card shows the thumbnail when one is available"
+  },
+  {
+    "id": "#111",
+    "title": "Let users share a direct link to their session alongside the image"
+  },
+  {
+    "id": "#112",
+    "title": "Add a mandatory pre-upload recording tips screen with do/don't guidance"
+  },
+  {
+    "id": "#113",
+    "title": "Movement Breakdown — live skeleton playback, coaching cards, and flow summary"
+  },
+  {
+    "id": "#114",
+    "title": "Add a test that confirms old thumbnails are shrunk by the backfill script"
+  },
+  {
+    "id": "#115",
+    "title": "Expand biomechanics accuracy — more joints, multi-frame, temporal context"
+  },
+  {
+    "id": "#116",
+    "title": "UI overhaul — premium look, dark/light mode, plain-English analysis, better spacing"
+  },
+  {
+    "id": "#118",
+    "title": "Prevent oversized raw frames from ever reaching the database"
+  },
+  {
+    "id": "#119",
+    "title": "Shrink stored video URLs the same way thumbnails are shrunk"
+  },
+  {
+    "id": "#120",
+    "title": "Let users download the share card directly to their camera roll"
+  },
+  {
+    "id": "#121",
+    "title": "Add a test to verify the share preview modal opens and closes correctly"
+  },
+  {
+    "id": "#122",
+    "title": "Let users customise which tip appears on their share card"
+  },
+  {
+    "id": "#123",
+    "title": "Add a test to verify the share card shows the top tip and hides it when none exist"
+  },
+  {
+    "id": "#124",
+    "title": "Let users pick dark or light share card before sharing"
+  },
+  {
+    "id": "#125",
+    "title": "Add a snapshot test so the share card design never breaks silently"
+  },
+  {
+    "id": "#126",
+    "title": "Keep type errors from sneaking back in by adding TypeScript to CI"
+  },
+  {
+    "id": "#127",
+    "title": "Show a friendly message when a session scan couldn't be completed"
+  },
+  {
+    "id": "#128",
+    "title": "Add a test to confirm the Progress tab shows an error notice when data fails to load"
+  },
+  {
+    "id": "#129",
+    "title": "Let users tap their avatar in the Coach header to jump straight to profile settings"
+  },
+  {
+    "id": "#130",
+    "title": "Add a test to confirm the avatar shows up in the AI Coach header"
+  },
+  {
+    "id": "#131",
+    "title": "Add a test to confirm avatar photos are always stored compressed"
+  },
+  {
+    "id": "#132",
+    "title": "Migrate existing oversized avatars in the database to the compressed format"
+  },
+  {
+    "id": "#133",
+    "title": "Add a test that verifies removing a photo avatar resets to initials"
+  },
+  {
+    "id": "#134",
+    "title": "Let users crop or zoom their photo before it becomes their avatar"
+  },
+  {
+    "id": "#136",
+    "title": "Guard against accidentally skipping the discard prompt when adding new profile fields"
+  },
+  {
+    "id": "#137",
+    "title": "Add a test that confirms the sport chip picker also triggers the discard prompt"
+  },
+  {
+    "id": "#138",
+    "title": "Let users tap the sport/level tag in the Coach header to jump straight to profile settings"
+  },
+  {
+    "id": "#139",
+    "title": "Keep the Coach header sport/level in sync without a full reload after profile edits"
+  },
+  {
+    "id": "#140",
+    "title": "Redesign Progress section to be fully sport-specific"
+  },
+  {
+    "id": "#141",
+    "title": "Add a test to verify the AI Coach uses the right level (beginner/advanced) when coaching"
+  },
+  {
+    "id": "#142",
+    "title": "Add a test to verify the AI Coach includes recent session data in its coaching context"
+  },
+  {
+    "id": "#143",
+    "title": "Let users tap individual data points on the joint chart to see exact angle and date"
+  },
+  {
+    "id": "#144",
+    "title": "Keep the joint history chart accessible from the Progress tab too"
+  },
+  {
+    "id": "#145",
+    "title": "Add tests to verify the joint history sheet opens when a delta badge is tapped"
+  }
 ]
