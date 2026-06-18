@@ -345,3 +345,85 @@ describe("analyses route — sport correction", () => {
     expect(got.body.analysis.biomechanicsApplied).toBe(false);
   });
 });
+
+describe("analyses route — improvement notifications", () => {
+  function seedPrevScan(jointRisks: Record<string, number>) {
+    h.store.analyses.push({
+      id: ++h.seq.analyses,
+      userId: TEST_USER_ID,
+      biomechanicsApplied: true,
+      jointRisks,
+      uploadedAt: new Date(Date.now() - 10_000),
+      status: "complete",
+      tips: null, injuryRisks: null,
+      overallScore: null, techniqueScore: null, powerScore: null, balanceScore: null,
+      consistencyScore: null, mobilityScore: null, speedScore: null,
+      strengths: null, improvements: null,
+      title: "Previous Scan", sport: "weightlifting",
+    });
+  }
+
+  it("returns improvements for joints whose risk decreased vs the previous scan", async () => {
+    const app = makeApp();
+
+    // Seed a prior biomechanics scan with elevated risks.
+    seedPrevScan({ leftKnee: 2, rightKnee: 2 });
+
+    // Create and settle the current analysis.
+    const created = await request(app).post("/analyses").send({ title: "New Squat", sport: "weightlifting" });
+    expect(created.status).toBe(201);
+    const id = created.body.analysis.id;
+    await flush();
+    h.aiCalls.create[0]!.resolve(aiResult("createtime"));
+    await flush();
+
+    // PATCH with leftKnee improved (2→1) and rightKnee unchanged (2→2).
+    const patched = await request(app)
+      .patch(`/analyses/${id}`)
+      .send({ jointAngles: { leftKnee: 90 }, jointRisks: { leftKnee: 1, rightKnee: 2 } });
+
+    expect(patched.status).toBe(200);
+    expect(patched.body.improvements).toEqual([
+      { joint: "leftKnee", oldRisk: 2, newRisk: 1 },
+    ]);
+  });
+
+  it("returns an empty improvements array when there is no previous scan", async () => {
+    const app = makeApp();
+
+    // No prior scan seeded — this is the first ever analysis for the user.
+    const created = await request(app).post("/analyses").send({ title: "First Squat", sport: "weightlifting" });
+    const id = created.body.analysis.id;
+    await flush();
+    h.aiCalls.create[0]!.resolve(aiResult("createtime"));
+    await flush();
+
+    const patched = await request(app)
+      .patch(`/analyses/${id}`)
+      .send({ jointAngles: { leftKnee: 90 }, jointRisks: { leftKnee: 1, rightKnee: 2 } });
+
+    expect(patched.status).toBe(200);
+    expect(patched.body.improvements).toEqual([]);
+  });
+
+  it("returns no improvements when all risks are the same or worse than the previous scan", async () => {
+    const app = makeApp();
+
+    // Previous scan: leftKnee=1 (low), rightKnee=0 (none).
+    seedPrevScan({ leftKnee: 1, rightKnee: 0 });
+
+    const created = await request(app).post("/analyses").send({ title: "New Squat", sport: "weightlifting" });
+    const id = created.body.analysis.id;
+    await flush();
+    h.aiCalls.create[0]!.resolve(aiResult("createtime"));
+    await flush();
+
+    // leftKnee same (1→1), rightKnee worse (0→2) — neither qualifies as an improvement.
+    const patched = await request(app)
+      .patch(`/analyses/${id}`)
+      .send({ jointAngles: { leftKnee: 90 }, jointRisks: { leftKnee: 1, rightKnee: 2 } });
+
+    expect(patched.status).toBe(200);
+    expect(patched.body.improvements).toEqual([]);
+  });
+});
