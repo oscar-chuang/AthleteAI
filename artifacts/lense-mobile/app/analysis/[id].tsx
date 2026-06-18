@@ -11,6 +11,7 @@ import {
   TextInput,
   Animated,
 } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -614,9 +615,20 @@ export default function AnalysisDetailScreen() {
               borderColor: colors.border,
               opacity: heroOpacity,
               transform: [{ translateY: heroTranslate }],
+              overflow: "hidden",
             },
           ]}
         >
+          {/* Thumbnail banner — shown when a pose-frame thumbnail is available */}
+          {!!analysis.thumbnailUrl && (
+            <Image
+              source={{ uri: analysis.thumbnailUrl }}
+              style={styles.heroThumbnail}
+              contentFit="cover"
+              transition={200}
+            />
+          )}
+
           {/* Title + meta */}
           <Text style={[styles.heroTitle, { color: colors.foreground }]}>
             {analysis.title}
@@ -1386,6 +1398,14 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 20,
     borderWidth: 1,
+  },
+  heroThumbnail: {
+    height: 160,
+    marginHorizontal: -20,
+    marginTop: -20,
+    marginBottom: 14,
+    borderTopLeftRadius: 17,
+    borderTopRightRadius: 17,
   },
   heroTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
   heroMeta: {

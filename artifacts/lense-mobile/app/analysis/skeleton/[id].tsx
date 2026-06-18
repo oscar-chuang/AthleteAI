@@ -9,6 +9,7 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -370,10 +371,11 @@ export default function SkeletonScreen() {
   // a fresh token and only writes state while it is still the latest.
   const runTokenRef = useRef(0);
 
-  const [videoUri, setVideoUri]   = useState<string | undefined>();
-  const [sport, setSport]         = useState("");
-  const [tips, setTips]           = useState<TipRecord[]>([]);
-  const [injuryRisks, setInjuryRisks] = useState<RiskRecord[]>([]);
+  const [videoUri, setVideoUri]         = useState<string | undefined>();
+  const [sport, setSport]               = useState("");
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [tips, setTips]                 = useState<TipRecord[]>([]);
+  const [injuryRisks, setInjuryRisks]   = useState<RiskRecord[]>([]);
   const [showSources, setShowSources] = useState(false);
 
   const [scanResult,  setScanResult]  = useState<{ angles: Partial<AngleMap>; risks: RiskMap } | null>(null);
@@ -417,6 +419,7 @@ export default function SkeletonScreen() {
     analysesApi.get(id).then(({ analysis, tips: t, injuryRisks: r }) => {
       if (cancelled) return;
       setSport(analysis.sport ?? "");
+      setThumbnailUrl(analysis.thumbnailUrl ?? null);
       setTips(t ?? []);
       setInjuryRisks(r ?? []);
       // If this analysis was already grounded on a prior scan, the loaded tips are
@@ -946,6 +949,17 @@ export default function SkeletonScreen() {
         <TouchableOpacity style={ss.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
           <Feather name="chevron-left" size={18} color="#8888aa" />
         </TouchableOpacity>
+
+        {/* Small thumbnail preview — visible before a skeleton frame is ready */}
+        {!!thumbnailUrl && !scanDone && (
+          <Image
+            source={{ uri: thumbnailUrl }}
+            style={ss.headerThumb}
+            contentFit="cover"
+            transition={150}
+          />
+        )}
+
         <View style={{ flex: 1 }}>
           <Text style={ss.headerTitle} numberOfLines={1}>
             {sport || "Form"} · Coach Report
@@ -1308,6 +1322,7 @@ const ss = StyleSheet.create({
   hiddenScanner: { position: "absolute", width: 1, height: 1, top: 0, left: 0, opacity: 0 },
   header:        { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "#18182a", gap: 12 },
   backBtn:       { width: 36, height: 36, borderRadius: 10, backgroundColor: "#111118", borderWidth: 1, borderColor: "#18182a", alignItems: "center", justifyContent: "center" },
+  headerThumb:   { width: 52, height: 36, borderRadius: 7, borderWidth: 1, borderColor: "#18182a" },
   headerTitle:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#f0f0f8", textTransform: "capitalize" },
   headerBtn:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#6c63ff", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
   headerBtnText: { fontSize: 12, color: "#fff", fontFamily: "Inter_600SemiBold" },
