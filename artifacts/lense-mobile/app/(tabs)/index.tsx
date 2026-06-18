@@ -8,6 +8,7 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -540,9 +541,17 @@ export default function HomeScreen() {
                   onPress={() => router.push(`/analysis/${a.id}` as any)}
                   activeOpacity={0.85}
                 >
-                  <View style={[s.sportIconWrap, { backgroundColor: scoreColor + "1a" }]}>
-                    <Feather name="activity" size={18} color={scoreColor} />
-                  </View>
+                  {a.thumbnailUrl ? (
+                    <Image
+                      source={{ uri: a.thumbnailUrl }}
+                      style={[s.sportIconWrap, { backgroundColor: scoreColor + "1a" }]}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={[s.sportIconWrap, { backgroundColor: scoreColor + "1a" }]}>
+                      <Feather name="activity" size={18} color={scoreColor} />
+                    </View>
+                  )}
                   <View style={{ flex: 1 }}>
                     <Text style={s.analysisTitle} numberOfLines={1}>{a.title}</Text>
                     <Text style={s.analysisMeta}>{a.sport} · {a.status}</Text>

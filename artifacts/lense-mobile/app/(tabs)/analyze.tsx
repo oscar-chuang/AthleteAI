@@ -12,6 +12,7 @@ import {
   Alert,
   RefreshControl,
   TextInput,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -605,9 +606,17 @@ export default function AnalyzeScreen() {
             >
               <View style={[s.cardLeft, { backgroundColor: accent }]} />
               <View style={[s.cardBody, { paddingLeft: 14 }]}>
-                <View style={[s.iconBg, { backgroundColor: accent + "22" }]}>
-                  <Feather name="activity" size={20} color={accent} />
-                </View>
+                {item.thumbnailUrl ? (
+                  <Image
+                    source={{ uri: item.thumbnailUrl }}
+                    style={[s.iconBg, { backgroundColor: accent + "22" }]}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={[s.iconBg, { backgroundColor: accent + "22" }]}>
+                    <Feather name="activity" size={20} color={accent} />
+                  </View>
+                )}
                 <View style={{ flex: 1 }}>
                   <Text style={s.cardTitle} numberOfLines={1}>{item.title}</Text>
                   <Text style={s.cardMeta}>

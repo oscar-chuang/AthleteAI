@@ -274,9 +274,14 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
 
   // Mark as processing so the detail screen's poll resumes and picks up the
   // grounded results once the re-analysis finishes. Persist a corrected sport too
-  // when one was sent alongside the measured data.
+  // when one was sent alongside the measured data. Snapshot the worst-frame JPEG
+  // as the thumbnail immediately so the list shows it without waiting for the AI run.
   await db.update(analysesTable)
-    .set({ status: "processing", ...(newSport ? { sport: newSport } : {}) })
+    .set({
+      status: "processing",
+      ...(newSport ? { sport: newSport } : {}),
+      ...(frameBase64 ? { thumbnailUrl: frameBase64 } : {}),
+    })
     .where(eq(analysesTable.id, row.id))
     .catch(() => {});
 
