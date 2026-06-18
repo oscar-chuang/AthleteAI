@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -118,6 +119,7 @@ export default function ProfileSettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const navigation = useNavigation();
   const { user, profile, updateProfile, logout } = useAuth();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -166,6 +168,26 @@ export default function ProfileSettingsScreen() {
     goals.some((g, i) => g !== savedGoals.current[i]) ||
     injuries.length !== savedInjuries.current.length ||
     injuries.some((inj, i) => inj !== savedInjuries.current[i]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e: any) => {
+      if (!isDirty) return;
+      e.preventDefault();
+      Alert.alert(
+        "Discard changes?",
+        "You have unsaved changes. If you leave now, they will be lost.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Discard",
+            style: "destructive",
+            onPress: () => navigation.dispatch(e.data.action),
+          },
+        ]
+      );
+    });
+    return unsubscribe;
+  }, [navigation, isDirty]);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -315,22 +337,7 @@ export default function ProfileSettingsScreen() {
   }
 
   function handleClose() {
-    if (!isDirty) {
-      router.back();
-      return;
-    }
-    Alert.alert(
-      "Discard changes?",
-      "You have unsaved changes. If you leave now, they will be lost.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Discard",
-          style: "destructive",
-          onPress: () => router.back(),
-        },
-      ]
-    );
+    router.back();
   }
 
   function handleLogout() {
