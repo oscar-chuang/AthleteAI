@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -16,70 +17,342 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useColors } from "@/hooks/useColors";
-import { analyses as analysesApi, type AnalysisRecord, type TipRecord, type RiskRecord } from "@/lib/api";
+import {
+  analyses as analysesApi,
+  type AnalysisRecord,
+  type TipRecord,
+  type RiskRecord,
+} from "@/lib/api";
+import { ScoreRing } from "@/components/ScoreRing";
+import { ScoreCard, getScoreBand } from "@/components/analysis/ScoreCard";
+import { SectionHeader } from "@/components/analysis/SectionHeader";
+import { InsightCard } from "@/components/analysis/InsightCard";
+import { CoachTakeawayCard } from "@/components/analysis/CoachTakeawayCard";
+import { NextFocusCard } from "@/components/analysis/NextFocusCard";
+import { AnimatedLoadingState } from "@/components/analysis/AnimatedLoadingState";
 
 const PENDING_CHAT_KEY = "pendingChatMessage";
 
-const SCORE_KEYS = ["technique", "power", "balance", "consistency", "mobility", "speed"] as const;
+const SCORE_KEYS = [
+  "technique",
+  "power",
+  "balance",
+  "consistency",
+  "mobility",
+  "speed",
+] as const;
 
-const SCORE_META: Record<typeof SCORE_KEYS[number], { icon: React.ComponentProps<typeof Feather>["name"]; desc: string }> = {
-  technique:   { icon: "target",      desc: "How closely your form matches ideal movement patterns for your sport" },
-  power:       { icon: "zap",         desc: "The strength and explosiveness behind your movements" },
-  balance:     { icon: "activity",    desc: "How stable and controlled you are through each movement" },
-  consistency: { icon: "refresh-cw",  desc: "How repeatable your technique is from rep to rep" },
-  mobility:    { icon: "maximize-2",  desc: "Your range of motion and flexibility in key joints" },
-  speed:       { icon: "wind",        desc: "How quickly and efficiently you execute movements" },
+const SCORE_META: Record<
+  (typeof SCORE_KEYS)[number],
+  { icon: React.ComponentProps<typeof Feather>["name"]; desc: string }
+> = {
+  technique: {
+    icon: "target",
+    desc: "How closely your form matches ideal movement patterns for your sport",
+  },
+  power: {
+    icon: "zap",
+    desc: "The strength and explosiveness behind your movements",
+  },
+  balance: {
+    icon: "activity",
+    desc: "How stable and controlled you are through each movement",
+  },
+  consistency: {
+    icon: "refresh-cw",
+    desc: "How repeatable your technique is from rep to rep",
+  },
+  mobility: {
+    icon: "maximize-2",
+    desc: "Your range of motion and flexibility in key joints",
+  },
+  speed: {
+    icon: "wind",
+    desc: "How quickly and efficiently you execute movements",
+  },
 };
 
-const SCORE_BANDS = [
-  { min: 80, label: "Strong",     color: "#22c55e", note: "You're doing this well — keep it up" },
-  { min: 65, label: "On Track",   color: "#6c63ff", note: "Solid foundation, room to grow" },
-  { min: 0,  label: "Focus Here", color: "#f59e0b", note: "Prioritise improving this area" },
-];
-
-function getScoreBand(score: number) {
-  return SCORE_BANDS.find((b) => score >= b.min) ?? SCORE_BANDS[2];
-}
-
 const SEVERITY_CONFIG = {
-  info:     { color: "#38bdf8", icon: "info"          as const, label: "Info"     },
-  warning:  { color: "#f59e0b", icon: "alert-triangle" as const, label: "Warning"  },
-  critical: { color: "#ef4444", icon: "alert-circle"  as const, label: "Critical" },
+  info: { color: "#38bdf8", icon: "info" as const, label: "Info" },
+  warning: {
+    color: "#f59e0b",
+    icon: "alert-triangle" as const,
+    label: "Warning",
+  },
+  critical: {
+    color: "#ef4444",
+    icon: "alert-circle" as const,
+    label: "Critical",
+  },
+};
+
+const RISK_LABEL: Record<string, { label: string; color: string }> = {
+  low:      { label: "Low Risk",      color: "#22c55e" },
+  moderate: { label: "Moderate Risk", color: "#f59e0b" },
+  high:     { label: "High Risk",     color: "#ef4444" },
 };
 
 const JOINT_LABEL: Record<string, string> = {
-  leftKnee: "Left Knee", rightKnee: "Right Knee",
-  leftHip: "Left Hip", rightHip: "Right Hip",
-  leftElbow: "Left Elbow", rightElbow: "Right Elbow",
+  leftKnee:   "Left Knee",
+  rightKnee:  "Right Knee",
+  leftHip:    "Left Hip",
+  rightHip:   "Right Hip",
+  leftElbow:  "Left Elbow",
+  rightElbow: "Right Elbow",
 };
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
-function scoreForKey(analysis: AnalysisRecord, key: typeof SCORE_KEYS[number]): number {
+function scoreForKey(
+  analysis: AnalysisRecord,
+  key: (typeof SCORE_KEYS)[number]
+): number {
   return (analysis as any)[`${key}Score`] ?? 0;
 }
 
+function getRiskLabel(pct: number) {
+  if (pct >= 50) return RISK_LABEL.high;
+  if (pct >= 30) return RISK_LABEL.moderate;
+  return RISK_LABEL.low;
+}
+
+// ── Animated risk bar ──────────────────────────────────────────────────────────
+function AnimatedRiskBar({
+  pct,
+  color,
+  delay = 0,
+}: {
+  pct: number;
+  color: string;
+  delay?: number;
+}) {
+  const widthAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(widthAnim, {
+      toValue: pct,
+      duration: 600,
+      delay,
+      useNativeDriver: false,
+    }).start();
+  }, [pct]);
+
+  return (
+    <View style={{ height: 7, backgroundColor: color + "22", borderRadius: 4, marginVertical: 8 }}>
+      <Animated.View
+        style={{
+          height: 7,
+          borderRadius: 4,
+          backgroundColor: color,
+          width: widthAnim.interpolate({
+            inputRange: [0, 100],
+            outputRange: ["0%", "100%"],
+          }),
+        }}
+      />
+    </View>
+  );
+}
+
+// ── Press-scale button wrapper ─────────────────────────────────────────────────
+function ScaleButton({
+  onPress,
+  style,
+  children,
+  activeOpacity = 0.75,
+}: {
+  onPress: () => void;
+  style?: object;
+  children: React.ReactNode;
+  activeOpacity?: number;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const onPressIn = () =>
+    Animated.spring(scale, {
+      toValue: 0.96,
+      useNativeDriver: true,
+      speed: 30,
+    }).start();
+
+  const onPressOut = () =>
+    Animated.spring(scale, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 30,
+    }).start();
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      activeOpacity={activeOpacity}
+    >
+      <Animated.View style={[{ transform: [{ scale }] }, style]}>
+        {children}
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
+// ── Error / state screens ──────────────────────────────────────────────────────
+function StateScreen({
+  icon,
+  iconColor,
+  heading,
+  body,
+  primaryLabel,
+  onPrimary,
+  secondaryLabel,
+  onSecondary,
+}: {
+  icon: React.ComponentProps<typeof Feather>["name"];
+  iconColor: string;
+  heading: string;
+  body: string;
+  primaryLabel: string;
+  onPrimary: () => void;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
+}) {
+  const colors = useColors();
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: colors.background,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 36,
+        gap: 0,
+      }}
+    >
+      <View
+        style={{
+          width: 68,
+          height: 68,
+          borderRadius: 34,
+          backgroundColor: iconColor + "18",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 20,
+        }}
+      >
+        <Feather name={icon} size={30} color={iconColor} />
+      </View>
+      <Text
+        style={{
+          fontSize: 19,
+          fontFamily: "Inter_700Bold",
+          color: colors.foreground,
+          textAlign: "center",
+          marginBottom: 10,
+        }}
+      >
+        {heading}
+      </Text>
+      <Text
+        style={{
+          fontSize: 14,
+          color: colors.mutedForeground,
+          fontFamily: "Inter_400Regular",
+          textAlign: "center",
+          lineHeight: 21,
+          marginBottom: 28,
+        }}
+      >
+        {body}
+      </Text>
+      <ScaleButton
+        onPress={onPrimary}
+        style={{
+          flexDirection: "row" as const,
+          alignItems: "center" as const,
+          gap: 7,
+          backgroundColor: colors.primary,
+          borderRadius: 14,
+          paddingVertical: 13,
+          paddingHorizontal: 26,
+          marginBottom: 14,
+        }}
+      >
+        <Text
+          style={{
+            color: "#fff",
+            fontSize: 15,
+            fontFamily: "Inter_600SemiBold",
+          }}
+        >
+          {primaryLabel}
+        </Text>
+      </ScaleButton>
+      {secondaryLabel && onSecondary && (
+        <TouchableOpacity onPress={onSecondary} activeOpacity={0.7}>
+          <Text
+            style={{
+              color: colors.mutedForeground,
+              fontFamily: "Inter_500Medium",
+              fontSize: 13,
+            }}
+          >
+            {secondaryLabel}
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+// ── Main screen ────────────────────────────────────────────────────────────────
 export default function AnalysisDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const [analysis, setAnalysis]     = useState<AnalysisRecord | null>(null);
-  const [tips, setTips]             = useState<TipRecord[]>([]);
-  const [risks, setRisks]           = useState<RiskRecord[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState(false);
-  const [expandedTip, setExpanded]  = useState<string | null>(null);
-  const [activeTab, setActiveTab]   = useState<"scores" | "tips" | "risks">("scores");
-  const [showGuide, setShowGuide]   = useState(false);
-  const [note, setNote]             = useState("");
-  const [deleting, setDeleting]     = useState(false);
+  const [analysis, setAnalysis] = useState<AnalysisRecord | null>(null);
+  const [tips, setTips] = useState<TipRecord[]>([]);
+  const [risks, setRisks] = useState<RiskRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [expandedTip, setExpanded] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"scores" | "tips" | "risks">(
+    "scores"
+  );
+  const [showGuide, setShowGuide] = useState(false);
+  const [note, setNote] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [pollExhausted, setPollExhausted] = useState(false);
 
-  // Load persisted note from local storage
+  // Hero fade-in
+  const heroOpacity = useRef(new Animated.Value(0)).current;
+  const heroTranslate = useRef(new Animated.Value(16)).current;
+
+  useEffect(() => {
+    if (!loading && analysis) {
+      Animated.parallel([
+        Animated.timing(heroOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(heroTranslate, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [loading, analysis]);
+
+  // Load persisted note
   useEffect(() => {
     if (!id) return;
     AsyncStorage.getItem(`note_${id}`).then((saved) => {
@@ -87,14 +360,15 @@ export default function AnalysisDetailScreen() {
     });
   }, [id]);
 
-  const topPad    = Platform.OS === "web" ? 67 : insets.top;
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 20;
 
   async function handleAskCoach() {
     if (!analysis) return;
-    const worst = SCORE_KEYS
-      .map(k => ({ key: k, score: scoreForKey(analysis, k) }))
-      .sort((a, b) => a.score - b.score)[0];
+    const worst = SCORE_KEYS.map((k) => ({
+      key: k,
+      score: scoreForKey(analysis, k),
+    })).sort((a, b) => a.score - b.score)[0];
     const msg = `I just reviewed my "${analysis.title}" (${analysis.sport}) session. My overall score was ${Math.round(analysis.overallScore ?? 0)}/100. My weakest area is ${worst?.key ?? "technique"} (${Math.round(worst?.score ?? 0)}). What's the single most impactful thing I can do to improve?`;
     await AsyncStorage.setItem(PENDING_CHAT_KEY, msg);
     router.push("/(tabs)/chat" as any);
@@ -140,11 +414,17 @@ export default function AnalysisDetailScreen() {
     }
   }, [id]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
-  // Poll while processing — capped at ~3 min so a stuck job can't drain the battery.
+  // Poll while processing
   const isProcessing =
-    !!analysis && analysis.status !== "complete" && analysis.status !== "failed";
+    !!analysis &&
+    analysis.status !== "complete" &&
+    analysis.status !== "failed";
   useEffect(() => {
     if (!isProcessing || pollExhausted) return;
     let count = 0;
@@ -166,194 +446,145 @@ export default function AnalysisDetailScreen() {
     return colors.warning;
   }
 
-  function getRiskColor(pct: number) {
-    if (pct >= 50) return colors.destructive;
-    if (pct >= 30) return colors.warning;
-    return colors.success;
-  }
-
+  // ── Loading ──
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={colors.primary} size="large" />
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <AnimatedLoadingState />
       </View>
     );
   }
 
+  // ── Error ──
   if (error || !analysis) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 12 }}>
-        <Feather name="alert-circle" size={32} color={colors.destructive} />
-        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Analysis not found</Text>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={{ color: colors.primary, fontFamily: "Inter_500Medium" }}>Go back</Text>
-        </TouchableOpacity>
-      </View>
+      <StateScreen
+        icon="wifi-off"
+        iconColor={colors.destructive}
+        heading="Couldn't load analysis"
+        body="We couldn't fetch this session. Check your connection and try again."
+        primaryLabel="Try again"
+        onPrimary={() => { setLoading(true); setError(false); load(); }}
+        secondaryLabel="Go back"
+        onSecondary={() => router.back()}
+      />
     );
   }
 
-  // Still processing — show a waiting screen
+  // ── Processing / pending ──
   if (analysis.status === "processing" || analysis.status === "pending") {
     if (pollExhausted) {
       return (
-        <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 14, paddingHorizontal: 32 }}>
-          <Feather name="clock" size={32} color={colors.warning} />
-          <Text style={{ fontSize: 17, fontFamily: "Inter_600SemiBold", color: colors.foreground, textAlign: "center" }}>
-            This is taking longer than usual
-          </Text>
-          <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 19 }}>
-            Your analysis is still processing. You can keep waiting or check back in a moment.
-          </Text>
-          <TouchableOpacity
-            onPress={() => { setPollExhausted(false); load(); }}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Check again"
-            style={{ flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 22, marginTop: 4 }}
-          >
-            <Feather name="refresh-cw" size={15} color="#fff" />
-            <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" }}>Check again</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Go back">
-            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 13 }}>Go back</Text>
-          </TouchableOpacity>
-        </View>
+        <StateScreen
+          icon="clock"
+          iconColor={colors.warning}
+          heading="Taking longer than usual"
+          body="Your analysis is still processing in the background. You can check again or come back in a moment."
+          primaryLabel="Check again"
+          onPrimary={() => { setPollExhausted(false); load(); }}
+          secondaryLabel="Go back"
+          onSecondary={() => router.back()}
+        />
       );
     }
     return (
-      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 16, paddingHorizontal: 32 }}>
-        <ActivityIndicator color={colors.primary} size="large" />
-        <Text style={{ fontSize: 17, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
-          Analyzing your video…
-        </Text>
-        <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }}>
-          Our AI is reviewing your movement. This usually takes 10–30 seconds.
-        </Text>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <AnimatedLoadingState />
       </View>
     );
   }
 
+  // ── Failed ──
   if (analysis.status === "failed") {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 32 }}>
-        <Feather name="x-circle" size={32} color={colors.destructive} />
-        <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>Analysis failed</Text>
-        <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }}>
-          Something went wrong processing your video. Please try uploading again.
-        </Text>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={{ color: colors.primary, fontFamily: "Inter_500Medium" }}>Go back</Text>
-        </TouchableOpacity>
-      </View>
+      <StateScreen
+        icon="x-circle"
+        iconColor={colors.destructive}
+        heading="Analysis failed"
+        body="Something went wrong processing your video. Please try uploading a new clip — shorter clips (under 60s) tend to work best."
+        primaryLabel="Go back"
+        onPrimary={() => router.back()}
+      />
     );
   }
 
+  // ── Derived values ──
   const overallScore = analysis.overallScore ?? 0;
 
-  const s = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background },
-    heroCard: {
-      margin: 20,
-      backgroundColor: colors.card,
-      borderRadius: colors.radius,
-      padding: 20,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    heroTitle: { fontSize: 22, fontFamily: "Inter_700Bold", color: colors.foreground },
-    heroMeta:  { fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 4, textTransform: "capitalize" },
-    scoreRow:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 16 },
-    overallCircle: {
-      width: 72, height: 72, borderRadius: 36,
-      borderWidth: 3, borderColor: colors.primary,
-      backgroundColor: colors.primary + "20",
-      alignItems: "center", justifyContent: "center",
-    },
-    overallNum:   { fontSize: 26, fontFamily: "Inter_700Bold", color: colors.primary },
-    overallLabel: { fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-    scoresMini:   { flex: 1, marginLeft: 16, gap: 6 },
-    scoreMiniRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-    scoreMiniLabel: { fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular", width: 78, textTransform: "capitalize" },
-    scoreMiniBarBg: { flex: 1, height: 5, backgroundColor: colors.border, borderRadius: 2.5 },
-    scoreMiniBarFill: { height: 5, borderRadius: 2.5 },
-    scoreMiniNum: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: colors.foreground, width: 28, textAlign: "right" },
-    tabRow: {
-      flexDirection: "row", marginHorizontal: 20, marginBottom: 16,
-      backgroundColor: colors.card, borderRadius: 10, padding: 4,
-    },
-    tab:     { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 8 },
-    tabText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-    section: { paddingHorizontal: 20, marginBottom: 16 },
-    listItem: { flexDirection: "row", gap: 10, marginBottom: 10, alignItems: "flex-start" },
-    dot:      { width: 6, height: 6, borderRadius: 3, marginTop: 7 },
-    listText: { fontSize: 14, color: colors.foreground, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 20 },
-    tipCard:   { backgroundColor: colors.card, borderRadius: colors.radius, marginBottom: 10, borderWidth: 1, overflow: "hidden" },
-    tipHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
-    tipTitle:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground, flex: 1 },
-    tipBody:   { paddingHorizontal: 14, paddingBottom: 14 },
-    tipDesc:   { fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", lineHeight: 19 },
-    drillBox:  { marginTop: 10, backgroundColor: colors.muted, borderRadius: 8, padding: 10 },
-    drillLabel:{ fontSize: 11, color: colors.primary, fontFamily: "Inter_600SemiBold", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },
-    drillText: { fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular", lineHeight: 17 },
-    chipRow:   { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
-    chip:      { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4 },
-    chipDot:   { width: 6, height: 6, borderRadius: 3 },
-    chipText:  { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-    riskCard:  { backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border },
-    riskRow:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
-    riskJoint: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground },
-    riskPct:   { fontSize: 16, fontFamily: "Inter_700Bold" },
-    riskBarBg: { height: 6, backgroundColor: colors.border, borderRadius: 3, marginBottom: 8 },
-    riskBarFill:{ height: 6, borderRadius: 3 },
-    riskDesc:  { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginBottom: 4 },
-    riskPrev:  { fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular" },
-    prevLabel: { color: colors.primary, fontFamily: "Inter_500Medium" },
-    noteInput: {
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 14,
-      color: colors.foreground,
-      fontSize: 14,
-      fontFamily: "Inter_400Regular",
-      lineHeight: 21,
-      minHeight: 110,
-    },
-    noteFooter: {
-      fontSize: 11,
-      color: colors.mutedForeground,
-      fontFamily: "Inter_400Regular",
-      marginTop: 6,
-      textAlign: "right" as const,
-    },
+  const rankedScores = SCORE_KEYS.map((k) => ({
+    key: k,
+    score: scoreForKey(analysis, k),
+  })).sort((a, b) => a.score - b.score);
+
+  const worstMetric = rankedScores[0];
+  const bestMetric = rankedScores[rankedScores.length - 1];
+
+  const sortedTips = [...tips].sort((a, b) => {
+    const order: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+    return (order[a.severity] ?? 2) - (order[b.severity] ?? 2);
   });
 
+  const topTip = sortedTips[0];
+
+  // Auto-expand top tip (critical/warning)
+  const defaultExpandedId =
+    expandedTip === null
+      ? (sortedTips.find((t) => t.severity === "critical" || t.severity === "warning")?.id ?? sortedTips[0]?.id ?? null)
+      : expandedTip;
+
+  const firstDrill = tips.find((t) => t.drill)?.drill;
+
+  // Summary: first 1–2 sentences from the first tip description
+  const summaryText = (() => {
+    if (!topTip) return null;
+    const sentences = topTip.description.split(/(?<=\.)\s+/);
+    return sentences.slice(0, 2).join(" ");
+  })();
+
+  const sportLabel =
+    analysis.sport.charAt(0).toUpperCase() + analysis.sport.slice(1);
+
+  const overallBand = getScoreBand(overallScore);
+
   return (
-    <View style={s.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* ── Navigation header ── */}
-      <View style={{
-        paddingTop: topPad + 4,
-        paddingBottom: 10,
-        paddingHorizontal: 16,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-        backgroundColor: colors.background,
-      }}>
+      <View
+        style={[
+          styles.navBar,
+          {
+            paddingTop: topPad + 4,
+            borderBottomColor: colors.border,
+            backgroundColor: colors.background,
+          },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => router.back()}
           activeOpacity={0.7}
-          style={{ flexDirection: "row", alignItems: "center", gap: 4, padding: 6 }}
+          style={styles.navBtn}
         >
           <Feather name="arrow-left" size={20} color={colors.foreground} />
-          <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: colors.foreground }}>Back</Text>
+          <Text
+            style={[styles.navBtnText, { color: colors.foreground }]}
+          >
+            Back
+          </Text>
         </TouchableOpacity>
-        <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground }} numberOfLines={1}>
-          {analysis.sport.charAt(0).toUpperCase() + analysis.sport.slice(1)} · {Math.round(analysis.overallScore ?? 0)}
-        </Text>
+
+        <View style={styles.navCenter}>
+          <View
+            style={[
+              styles.sportBadge,
+              { backgroundColor: colors.primary + "18", borderColor: colors.primary + "44" },
+            ]}
+          >
+            <Text style={[styles.sportBadgeText, { color: colors.primary }]}>
+              {sportLabel}
+            </Text>
+          </View>
+        </View>
+
         <TouchableOpacity
           onPress={handleDelete}
           activeOpacity={0.7}
@@ -370,274 +601,738 @@ export default function AnalysisDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomPad }}>
-        <View style={s.heroCard}>
-          <Text style={s.heroTitle}>{analysis.title}</Text>
-          <Text style={s.heroMeta}>
-            {analysis.sport}
-            {analysis.duration ? ` · ${analysis.duration}s` : ""}
-            {" · "}{formatDate(analysis.uploadedAt)}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: bottomPad }}
+      >
+        {/* ── Hero card ── */}
+        <Animated.View
+          style={[
+            styles.heroCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              opacity: heroOpacity,
+              transform: [{ translateY: heroTranslate }],
+            },
+          ]}
+        >
+          {/* Title + meta */}
+          <Text style={[styles.heroTitle, { color: colors.foreground }]}>
+            {analysis.title}
+          </Text>
+          <Text style={[styles.heroMeta, { color: colors.mutedForeground }]}>
+            {analysis.duration ? `${analysis.duration}s · ` : ""}
+            {formatDate(analysis.uploadedAt)}
           </Text>
 
-          <View style={s.scoreRow}>
-            <View style={s.overallCircle}>
-              <Text style={s.overallNum}>{Math.round(overallScore)}</Text>
-              <Text style={s.overallLabel}>SCORE</Text>
+          {/* Score ring + stats */}
+          <View style={styles.heroScoreRow}>
+            <View style={styles.ringWrap}>
+              <ScoreRing
+                score={overallScore}
+                size={100}
+                strokeWidth={8}
+                color={overallBand.color}
+                label="OVERALL"
+              />
             </View>
-            <View style={s.scoresMini}>
-              {SCORE_KEYS.map((key) => {
-                const score = scoreForKey(analysis, key);
-                const band = getScoreBand(score);
-                return (
-                  <View key={key} style={s.scoreMiniRow}>
-                    <Text style={s.scoreMiniLabel}>{key}</Text>
-                    <View style={s.scoreMiniBarBg}>
-                      <View style={[s.scoreMiniBarFill, { width: `${score}%` as any, backgroundColor: band.color }]} />
-                    </View>
-                    <Text style={[s.scoreMiniNum, { color: band.color }]}>{Math.round(score)}</Text>
-                  </View>
-                );
-              })}
+
+            <View style={styles.heroStats}>
+              {/* Best / worst */}
+              <View style={[styles.statChip, { backgroundColor: colors.success + "12", borderColor: colors.success + "33" }]}>
+                <Feather name="trending-up" size={11} color={colors.success} />
+                <Text style={[styles.statChipLabel, { color: colors.mutedForeground }]}>Best</Text>
+                <Text style={[styles.statChipValue, { color: colors.success }]}>
+                  {bestMetric.key.charAt(0).toUpperCase() + bestMetric.key.slice(1)} · {Math.round(bestMetric.score)}
+                </Text>
+              </View>
+
+              <View style={[styles.statChip, { backgroundColor: colors.warning + "12", borderColor: colors.warning + "33" }]}>
+                <Feather name="arrow-up-circle" size={11} color={colors.warning} />
+                <Text style={[styles.statChipLabel, { color: colors.mutedForeground }]}>Improve</Text>
+                <Text style={[styles.statChipValue, { color: colors.warning }]}>
+                  {worstMetric.key.charAt(0).toUpperCase() + worstMetric.key.slice(1)} · {Math.round(worstMetric.score)}
+                </Text>
+              </View>
+
+              {/* AI summary snippet */}
+              {summaryText && (
+                <View style={[styles.summaryBox, { backgroundColor: colors.primary + "0a", borderColor: colors.primary + "22" }]}>
+                  <Feather name="message-circle" size={11} color={colors.primary} style={{ marginTop: 1 }} />
+                  <Text style={[styles.summaryText, { color: colors.mutedForeground }]} numberOfLines={3}>
+                    {summaryText}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
 
           {/* Score guide toggle */}
           <TouchableOpacity
             onPress={() => setShowGuide((v) => !v)}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12, alignSelf: "flex-end" }}
+            style={styles.guideToggle}
             activeOpacity={0.7}
           >
             <Feather name="info" size={13} color={colors.mutedForeground} />
-            <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+            <Text style={[styles.guideToggleText, { color: colors.mutedForeground }]}>
               What do these scores mean?
             </Text>
-            <Feather name={showGuide ? "chevron-up" : "chevron-down"} size={12} color={colors.mutedForeground} />
+            <Feather
+              name={showGuide ? "chevron-up" : "chevron-down"}
+              size={12}
+              color={colors.mutedForeground}
+            />
           </TouchableOpacity>
 
           {showGuide && (
-            <View style={{ marginTop: 12, backgroundColor: colors.muted, borderRadius: 10, padding: 14, gap: 10 }}>
-              {/* Score band key */}
-              <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Score bands</Text>
-              <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
-                {SCORE_BANDS.map((b) => (
-                  <View key={b.label} style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: b.color }} />
-                    <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: b.color }}>{b.label}</Text>
-                    <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>({b.min === 0 ? "<65" : b.min === 65 ? "65–79" : "80–100"}) — {b.note}</Text>
-                  </View>
-                ))}
-              </View>
-              {/* Per-metric explanations */}
-              <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2, marginTop: 4 }}>What each score measures</Text>
-              {SCORE_KEYS.map((key) => {
-                const meta = SCORE_META[key];
-                const band = getScoreBand(scoreForKey(analysis, key));
-                return (
-                  <View key={key} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-                    <Feather name={meta.icon} size={13} color={band.color} style={{ marginTop: 2 }} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.foreground, textTransform: "capitalize" }}>{key}</Text>
-                      <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular", lineHeight: 16 }}>{meta.desc}</Text>
-                    </View>
-                  </View>
-                );
-              })}
+            <View style={[styles.guideBox, { backgroundColor: colors.muted }]}>
+              <Text style={[styles.guideBoxLabel, { color: colors.mutedForeground }]}>
+                Score bands
+              </Text>
+              {[
+                { label: "Strong", color: "#22c55e", range: "80–100", note: "Keep it up" },
+                { label: "On Track", color: "#6c63ff", range: "65–79", note: "Room to grow" },
+                { label: "Focus Here", color: "#f59e0b", range: "0–64", note: "Prioritise this" },
+              ].map((b) => (
+                <View key={b.label} style={styles.guideBandRow}>
+                  <View style={[styles.guideDot, { backgroundColor: b.color }]} />
+                  <Text style={[styles.guideBandLabel, { color: b.color }]}>
+                    {b.label}
+                  </Text>
+                  <Text style={[styles.guideBandRange, { color: colors.mutedForeground }]}>
+                    {b.range} — {b.note}
+                  </Text>
+                </View>
+              ))}
             </View>
           )}
 
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-            <TouchableOpacity
-              style={{
-                flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-                gap: 7, backgroundColor: colors.primary + "18",
-                borderRadius: 12, borderWidth: 1, borderColor: colors.primary + "55", paddingVertical: 12,
-              }}
-              activeOpacity={0.75}
-              onPress={() => router.push(`/analysis/person-select/${id}` as any)}
+          {/* CTA buttons */}
+          <View style={styles.ctaRow}>
+            <ScaleButton
+              onPress={() =>
+                router.push(`/analysis/person-select/${id}` as any)
+              }
+              style={[
+                styles.ctaBtn,
+                {
+                  backgroundColor: colors.primary + "18",
+                  borderColor: colors.primary + "55",
+                },
+              ]}
             >
               <Feather name="user" size={15} color={colors.primary} />
-              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.primary }}>
+              <Text style={[styles.ctaBtnText, { color: colors.primary }]}>
                 Skeleton
               </Text>
-            </TouchableOpacity>
+            </ScaleButton>
 
-            <TouchableOpacity
-              style={{
-                flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-                gap: 7, backgroundColor: colors.success + "18",
-                borderRadius: 12, borderWidth: 1, borderColor: colors.success + "55", paddingVertical: 12,
-              }}
-              activeOpacity={0.75}
+            <ScaleButton
               onPress={handleAskCoach}
+              style={[
+                styles.ctaBtn,
+                {
+                  backgroundColor: colors.success + "18",
+                  borderColor: colors.success + "55",
+                },
+              ]}
             >
               <Feather name="message-circle" size={15} color={colors.success} />
-              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.success }}>
+              <Text style={[styles.ctaBtnText, { color: colors.success }]}>
                 Ask Coach
               </Text>
-            </TouchableOpacity>
+            </ScaleButton>
+          </View>
+        </Animated.View>
+
+        {/* ── Score grid (2 × 3) ── */}
+        <View style={styles.sectionWrap}>
+          <SectionHeader
+            title="Performance Breakdown"
+            icon="bar-chart-2"
+            accentColor={colors.primary}
+          />
+          <View style={styles.scoreGrid}>
+            {SCORE_KEYS.map((key, i) => (
+              <View key={key} style={styles.scoreGridCell}>
+                <ScoreCard
+                  label={key}
+                  score={scoreForKey(analysis, key)}
+                  icon={SCORE_META[key].icon}
+                  desc={SCORE_META[key].desc}
+                  delay={i * 60}
+                />
+              </View>
+            ))}
           </View>
         </View>
 
-        <View style={s.tabRow}>
+        {/* ── Coach Takeaway ── */}
+        <CoachTakeawayCard
+          worstMetric={
+            worstMetric.key.charAt(0).toUpperCase() + worstMetric.key.slice(1)
+          }
+          worstScore={worstMetric.score}
+          topTipTitle={topTip?.title}
+        />
+
+        {/* ── Tabs ── */}
+        <View
+          style={[
+            styles.tabRow,
+            { backgroundColor: colors.card },
+          ]}
+        >
           {(["scores", "tips", "risks"] as const).map((tab) => {
             const active = activeTab === tab;
             return (
               <TouchableOpacity
                 key={tab}
-                style={[s.tab, active && { backgroundColor: colors.primary }]}
+                style={[
+                  styles.tab,
+                  active && { backgroundColor: colors.primary },
+                ]}
                 onPress={() => setActiveTab(tab)}
                 activeOpacity={0.7}
               >
-                <Text style={[s.tabText, { color: active ? "#fff" : colors.mutedForeground, textTransform: "capitalize" }]}>
-                  {tab === "scores" ? "Highlights" : tab === "risks" ? "Injury Risk" : "Tips"}
+                <Text
+                  style={[
+                    styles.tabText,
+                    { color: active ? "#fff" : colors.mutedForeground },
+                  ]}
+                >
+                  {tab === "scores"
+                    ? "Highlights"
+                    : tab === "risks"
+                    ? "Injury Risk"
+                    : "Tips"}
                 </Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
+        {/* ── Highlights tab ── */}
         {activeTab === "scores" && (
-          <View style={s.section}>
-            <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.success, marginBottom: 10 }}>
-              Strengths
-            </Text>
-            {(analysis.strengths ?? []).map((str, i) => (
-              <View key={i} style={s.listItem}>
-                <View style={[s.dot, { backgroundColor: colors.success }]} />
-                <Text style={s.listText}>{str}</Text>
-              </View>
-            ))}
-            <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.warning, marginBottom: 10, marginTop: 8 }}>
-              Areas to Improve
-            </Text>
-            {(analysis.improvements ?? []).map((imp, i) => (
-              <View key={i} style={s.listItem}>
-                <View style={[s.dot, { backgroundColor: colors.warning }]} />
-                <Text style={s.listText}>{imp}</Text>
-              </View>
-            ))}
+          <View style={styles.sectionWrap}>
+            {/* What you did well */}
+            <SectionHeader
+              title="What you did well"
+              icon="check-circle"
+              accentColor={colors.success}
+            />
+            {(analysis.strengths ?? []).length === 0 ? (
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                No strengths recorded
+              </Text>
+            ) : (
+              (analysis.strengths ?? []).map((str, i) => (
+                <InsightCard
+                  key={i}
+                  text={str}
+                  variant="strength"
+                  reinforcement={
+                    i === 0 ? "Nice work — you're strong here" : undefined
+                  }
+                />
+              ))
+            )}
+
+            <View style={styles.sectionGap} />
+
+            {/* What needs work */}
+            <SectionHeader
+              title="What needs work"
+              icon="alert-circle"
+              accentColor={colors.warning}
+            />
+            {(analysis.improvements ?? []).length === 0 ? (
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                No areas flagged
+              </Text>
+            ) : (
+              (analysis.improvements ?? []).map((imp, i) => (
+                <InsightCard key={i} text={imp} variant="weakness" />
+              ))
+            )}
+
+            {/* Biggest fix */}
+            {worstMetric && (
+              <>
+                <View style={styles.sectionGap} />
+                <SectionHeader
+                  title="Biggest fix"
+                  icon="zap"
+                  accentColor={colors.primary}
+                />
+                <InsightCard
+                  text={`Your ${worstMetric.key} score is ${Math.round(worstMetric.score)}/100 — this is your highest-leverage improvement area. ${SCORE_META[worstMetric.key].desc}.`}
+                  variant="highlight"
+                  reinforcement="Your biggest opportunity is here"
+                />
+              </>
+            )}
+
+            {/* Recommended drill */}
+            {firstDrill && (
+              <>
+                <View style={styles.sectionGap} />
+                <SectionHeader
+                  title="Recommended drill"
+                  icon="activity"
+                  accentColor="#22c55e"
+                />
+                <View
+                  style={[
+                    styles.drillHighlight,
+                    {
+                      backgroundColor: colors.success + "0e",
+                      borderColor: colors.success + "33",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[styles.drillHighlightName, { color: colors.foreground }]}
+                  >
+                    {firstDrill.name}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.drillHighlightMeta,
+                      { color: colors.mutedForeground },
+                    ]}
+                  >
+                    {firstDrill.sets} · {firstDrill.reps}
+                  </Text>
+                  {firstDrill.cue ? (
+                    <Text
+                      style={[
+                        styles.drillHighlightCue,
+                        { color: colors.foreground },
+                      ]}
+                    >
+                      "{firstDrill.cue}"
+                    </Text>
+                  ) : null}
+                </View>
+              </>
+            )}
           </View>
         )}
 
+        {/* ── Tips tab ── */}
         {activeTab === "tips" && (
-          <View style={s.section}>
-            {tips.length === 0 ? (
-              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 24 }}>
+          <View style={styles.sectionWrap}>
+            {sortedTips.length === 0 ? (
+              <Text
+                style={[
+                  styles.emptyText,
+                  { color: colors.mutedForeground, textAlign: "center", paddingVertical: 24 },
+                ]}
+              >
                 No coaching tips available
               </Text>
-            ) : tips.map((tip) => {
-              const cfg = SEVERITY_CONFIG[tip.severity as keyof typeof SEVERITY_CONFIG] ?? SEVERITY_CONFIG.info;
-              const expanded = expandedTip === tip.id;
-              return (
-                <TouchableOpacity
-                  key={tip.id}
-                  style={[s.tipCard, { borderColor: cfg.color + "44" }]}
-                  activeOpacity={0.8}
-                  onPress={() => setExpanded(expanded ? null : tip.id)}
-                >
-                  <View style={s.tipHeader}>
-                    <Feather name={cfg.icon} size={16} color={cfg.color} />
-                    <Text style={s.tipTitle}>{tip.title}</Text>
-                    <Feather name={expanded ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
-                  </View>
-                  {expanded && (
-                    <View style={s.tipBody}>
-                      {tip.videoObservation && (
-                        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: colors.primary + "12", borderRadius: 8, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: colors.primary + "33" }}>
-                          <Feather name="eye" size={13} color={colors.primary} style={{ marginTop: 1 }} />
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 9, color: colors.primary, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>
-                              Observed in your video
-                            </Text>
-                            <Text style={{ fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular", lineHeight: 17 }}>
-                              {tip.videoObservation}
+            ) : (
+              sortedTips.map((tip, idx) => {
+                const cfg =
+                  SEVERITY_CONFIG[
+                    tip.severity as keyof typeof SEVERITY_CONFIG
+                  ] ?? SEVERITY_CONFIG.info;
+                const expanded =
+                  expandedTip === null
+                    ? idx === 0
+                    : expandedTip === tip.id;
+
+                // "Why it matters" — first sentence of description
+                const whyText =
+                  tip.whyItMatters ??
+                  tip.description.split(/(?<=\.)\s+/)[0] ??
+                  "";
+
+                return (
+                  <TouchableOpacity
+                    key={tip.id}
+                    style={[
+                      styles.tipCard,
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: cfg.color + "44",
+                      },
+                    ]}
+                    activeOpacity={0.85}
+                    onPress={() =>
+                      setExpanded(expanded ? `__none_${tip.id}` : tip.id)
+                    }
+                  >
+                    <View style={styles.tipHeader}>
+                      <View
+                        style={[
+                          styles.tipIconWrap,
+                          { backgroundColor: cfg.color + "18" },
+                        ]}
+                      >
+                        <Feather name={cfg.icon} size={14} color={cfg.color} />
+                      </View>
+                      <View style={styles.tipTitleBlock}>
+                        <Text
+                          style={[
+                            styles.tipTitle,
+                            { color: colors.foreground },
+                          ]}
+                        >
+                          {tip.title}
+                        </Text>
+                        <View style={styles.tipBadgeRow}>
+                          <View
+                            style={[
+                              styles.severityBadge,
+                              { backgroundColor: cfg.color + "18" },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.severityBadgeText,
+                                { color: cfg.color },
+                              ]}
+                            >
+                              {cfg.label}
                             </Text>
                           </View>
-                        </View>
-                      )}
-                      <Text style={s.tipDesc}>{tip.description}</Text>
-                      {(tip.joints?.length ?? 0) > 0 && (
-                        <View style={s.chipRow}>
-                          {tip.joints!.map((j) => (
-                            <TouchableOpacity
-                              key={j}
-                              style={[s.chip, { borderColor: cfg.color + "55", backgroundColor: cfg.color + "12" }]}
-                              onPress={() =>
-                                router.push({
-                                  pathname: "/analysis/skeleton/[id]",
-                                  params: { id: id!, highlightJoint: j },
-                                } as any)
-                              }
-                              activeOpacity={0.7}
-                            >
-                              <View style={[s.chipDot, { backgroundColor: cfg.color }]} />
-                              <Text style={[s.chipText, { color: cfg.color }]}>{JOINT_LABEL[j] ?? j}</Text>
-                              <Feather name="crosshair" size={9} color={cfg.color} style={{ opacity: 0.6 }} />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-                      {tip.drill && (
-                        <View style={s.drillBox}>
-                          <Text style={s.drillLabel}>Drill</Text>
-                          <Text style={s.drillText}>
-                            {typeof tip.drill === "string"
-                              ? tip.drill
-                              : `${tip.drill.name} · ${tip.drill.sets}, ${tip.drill.reps}${tip.drill.cue ? ` — ${tip.drill.cue}` : ""}`}
+                          <Text
+                            style={[
+                              styles.tipCategory,
+                              { color: colors.mutedForeground },
+                            ]}
+                          >
+                            {tip.category}
                           </Text>
                         </View>
-                      )}
-                      {tip.source && (
-                        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
-                          <Feather name="book-open" size={10} color={colors.mutedForeground} style={{ marginTop: 2 }} />
-                          <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", flex: 1, fontStyle: "italic", lineHeight: 14 }}>
-                            {tip.source}
-                          </Text>
-                        </View>
-                      )}
+                      </View>
+                      <Feather
+                        name={expanded ? "chevron-up" : "chevron-down"}
+                        size={16}
+                        color={colors.mutedForeground}
+                      />
                     </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
+
+                    {expanded && (
+                      <View style={styles.tipBody}>
+                        {/* Video observation */}
+                        {tip.videoObservation && (
+                          <View
+                            style={[
+                              styles.observationBox,
+                              {
+                                backgroundColor: colors.primary + "12",
+                                borderColor: colors.primary + "33",
+                              },
+                            ]}
+                          >
+                            <Feather
+                              name="eye"
+                              size={13}
+                              color={colors.primary}
+                              style={{ marginTop: 1 }}
+                            />
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={[
+                                  styles.observationLabel,
+                                  { color: colors.primary },
+                                ]}
+                              >
+                                Observed in your video
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.observationText,
+                                  { color: colors.foreground },
+                                ]}
+                              >
+                                {tip.videoObservation}
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+
+                        {/* Why it matters */}
+                        {whyText.length > 0 && (
+                          <View
+                            style={[
+                              styles.whyBox,
+                              {
+                                backgroundColor: cfg.color + "0a",
+                                borderLeftColor: cfg.color,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.whyLabel,
+                                { color: cfg.color },
+                              ]}
+                            >
+                              WHY IT MATTERS
+                            </Text>
+                            <Text
+                              style={[
+                                styles.whyText,
+                                { color: colors.foreground },
+                              ]}
+                            >
+                              {whyText}
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* Full description */}
+                        <Text
+                          style={[
+                            styles.tipDesc,
+                            { color: colors.mutedForeground },
+                          ]}
+                        >
+                          {tip.description}
+                        </Text>
+
+                        {/* Joint chips */}
+                        {(tip.joints?.length ?? 0) > 0 && (
+                          <View style={styles.chipRow}>
+                            {tip.joints!.map((j) => (
+                              <TouchableOpacity
+                                key={j}
+                                style={[
+                                  styles.chip,
+                                  {
+                                    borderColor: cfg.color + "55",
+                                    backgroundColor: cfg.color + "12",
+                                  },
+                                ]}
+                                onPress={() =>
+                                  router.push({
+                                    pathname: "/analysis/skeleton/[id]",
+                                    params: { id: id!, highlightJoint: j },
+                                  } as any)
+                                }
+                                activeOpacity={0.7}
+                              >
+                                <View
+                                  style={[
+                                    styles.chipDot,
+                                    { backgroundColor: cfg.color },
+                                  ]}
+                                />
+                                <Text
+                                  style={[
+                                    styles.chipText,
+                                    { color: cfg.color },
+                                  ]}
+                                >
+                                  {JOINT_LABEL[j] ?? j}
+                                </Text>
+                                <Feather
+                                  name="crosshair"
+                                  size={9}
+                                  color={cfg.color}
+                                  style={{ opacity: 0.6 }}
+                                />
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
+
+                        {/* Drill */}
+                        {tip.drill && (
+                          <View
+                            style={[
+                              styles.drillBox,
+                              {
+                                backgroundColor: colors.success + "0e",
+                                borderColor: colors.success + "33",
+                              },
+                            ]}
+                          >
+                            <View style={styles.drillHeaderRow}>
+                              <Feather
+                                name="activity"
+                                size={12}
+                                color={colors.success}
+                              />
+                              <Text
+                                style={[
+                                  styles.drillLabel,
+                                  { color: colors.success },
+                                ]}
+                              >
+                                HOW TO FIX IT — DRILL
+                              </Text>
+                            </View>
+                            <Text
+                              style={[
+                                styles.drillName,
+                                { color: colors.foreground },
+                              ]}
+                            >
+                              {typeof tip.drill === "string"
+                                ? tip.drill
+                                : tip.drill.name}
+                            </Text>
+                            {typeof tip.drill !== "string" && (
+                              <Text
+                                style={[
+                                  styles.drillMeta,
+                                  { color: colors.mutedForeground },
+                                ]}
+                              >
+                                {tip.drill.sets} · {tip.drill.reps}
+                                {tip.drill.cue
+                                  ? ` — ${tip.drill.cue}`
+                                  : ""}
+                              </Text>
+                            )}
+                          </View>
+                        )}
+
+                        {/* Source */}
+                        {tip.source && (
+                          <View style={[styles.sourceRow, { borderTopColor: colors.border }]}>
+                            <Feather
+                              name="book-open"
+                              size={10}
+                              color={colors.mutedForeground}
+                              style={{ marginTop: 2 }}
+                            />
+                            <Text
+                              style={[
+                                styles.sourceText,
+                                { color: colors.mutedForeground },
+                              ]}
+                            >
+                              {tip.source}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            )}
           </View>
         )}
 
+        {/* ── Injury Risk tab ── */}
         {activeTab === "risks" && (
-          <View style={s.section}>
+          <View style={styles.sectionWrap}>
             {risks.length === 0 ? (
-              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 24 }}>
-                No injury risks detected
-              </Text>
-            ) : risks.map((risk) => {
-              const clr = getRiskColor(risk.riskPercent);
-              return (
-                <View key={risk.id} style={s.riskCard}>
-                  <View style={s.riskRow}>
-                    <Text style={s.riskJoint}>{risk.joint}</Text>
-                    <Text style={[s.riskPct, { color: clr }]}>{risk.riskPercent}%</Text>
-                  </View>
-                  <View style={s.riskBarBg}>
-                    <View style={[s.riskBarFill, { width: `${risk.riskPercent}%` as any, backgroundColor: clr }]} />
-                  </View>
-                  <Text style={s.riskDesc}>{risk.description}</Text>
-                  <Text style={s.riskPrev}><Text style={s.prevLabel}>Prevention: </Text>{risk.prevention}</Text>
+              <View style={styles.noRiskWrap}>
+                <View style={[styles.noRiskIcon, { backgroundColor: colors.success + "18" }]}>
+                  <Feather name="shield" size={24} color={colors.success} />
                 </View>
-              );
-            })}
+                <Text style={[styles.noRiskHeading, { color: colors.foreground }]}>
+                  All clear
+                </Text>
+                <Text style={[styles.noRiskSub, { color: colors.mutedForeground }]}>
+                  No significant injury risks detected in this session. Keep moving well!
+                </Text>
+              </View>
+            ) : (
+              risks.map((risk, idx) => {
+                const clr = risk.riskPercent >= 50
+                  ? colors.destructive
+                  : risk.riskPercent >= 30
+                  ? colors.warning
+                  : colors.success;
+                const rl = getRiskLabel(risk.riskPercent);
+                return (
+                  <View
+                    key={risk.id}
+                    style={[
+                      styles.riskCard,
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: clr + "33",
+                      },
+                    ]}
+                  >
+                    <View style={styles.riskHeaderRow}>
+                      <Text style={[styles.riskJoint, { color: colors.foreground }]}>
+                        {JOINT_LABEL[risk.joint] ?? risk.joint}
+                      </Text>
+                      <View style={styles.riskRightCol}>
+                        <View
+                          style={[
+                            styles.riskBadge,
+                            { backgroundColor: clr + "18" },
+                          ]}
+                        >
+                          <Text style={[styles.riskBadgeText, { color: clr }]}>
+                            {rl.label}
+                          </Text>
+                        </View>
+                        <Text style={[styles.riskPct, { color: clr }]}>
+                          {risk.riskPercent}%
+                        </Text>
+                      </View>
+                    </View>
+
+                    <AnimatedRiskBar pct={risk.riskPercent} color={clr} delay={idx * 80} />
+
+                    {/* What this means */}
+                    <View style={[styles.whatThisMeansBox, { backgroundColor: clr + "08", borderColor: clr + "22" }]}>
+                      <Text style={[styles.whatThisMeansLabel, { color: clr }]}>
+                        WHAT THIS MEANS
+                      </Text>
+                      <Text style={[styles.riskDesc, { color: colors.foreground }]}>
+                        {risk.description}
+                      </Text>
+                    </View>
+
+                    <Text style={[styles.riskPrev, { color: colors.mutedForeground }]}>
+                      <Text style={[styles.prevLabel, { color: colors.primary }]}>
+                        Prevention:{" "}
+                      </Text>
+                      {risk.prevention}
+                    </Text>
+                  </View>
+                );
+              })
+            )}
           </View>
         )}
+
+        {/* ── Next Workout Focus ── */}
+        <View style={[styles.sectionWrap, { paddingBottom: 0 }]}>
+          <SectionHeader
+            title="Next Workout Focus"
+            icon="target"
+            accentColor="#f59e0b"
+          />
+          <NextFocusCard
+            focusCue={`Focus on improving your ${worstMetric.key} — ${SCORE_META[worstMetric.key].desc.toLowerCase()}`}
+            drill={firstDrill}
+            goal={`Raise your ${worstMetric.key} score from ${Math.round(worstMetric.score)} to ${Math.min(100, Math.round(worstMetric.score) + 10)} in your next session`}
+          />
+        </View>
 
         {/* ── Session Notes ── */}
-        <View style={[s.section, { marginTop: 8, marginBottom: 32 }]}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <View style={[styles.sectionWrap, { marginTop: 8, marginBottom: 32 }]}>
+          <View style={styles.noteHeaderRow}>
             <Feather name="edit-3" size={15} color={colors.mutedForeground} />
-            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
+            <Text style={[styles.noteTitle, { color: colors.foreground }]}>
               Session Notes
             </Text>
           </View>
           <TextInput
-            style={s.noteInput}
+            style={[
+              styles.noteInput,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                color: colors.foreground,
+              },
+            ]}
             value={note}
             onChangeText={setNote}
             onBlur={() => id && AsyncStorage.setItem(`note_${id}`, note)}
@@ -647,10 +1342,341 @@ export default function AnalysisDetailScreen() {
             textAlignVertical="top"
           />
           {note.length > 0 && (
-            <Text style={s.noteFooter}>{note.length} chars · saved locally</Text>
+            <Text style={[styles.noteFooter, { color: colors.mutedForeground }]}>
+              {note.length} chars · saved locally
+            </Text>
           )}
         </View>
       </ScrollView>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+
+  // Nav
+  navBar: {
+    paddingBottom: 10,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+  },
+  navBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    padding: 6,
+  },
+  navBtnText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  navCenter: { alignItems: "center" },
+  sportBadge: {
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderWidth: 1,
+  },
+  sportBadgeText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+
+  // Hero
+  heroCard: {
+    margin: 16,
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1,
+  },
+  heroTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  heroMeta: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    marginTop: 3,
+  },
+  heroScoreRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 16,
+    marginTop: 18,
+  },
+  ringWrap: { alignItems: "center" },
+  heroStats: { flex: 1, gap: 8 },
+  statChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  statChipLabel: { fontSize: 10, fontFamily: "Inter_400Regular" },
+  statChipValue: { fontSize: 12, fontFamily: "Inter_600SemiBold", flex: 1 },
+  summaryBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 8,
+  },
+  summaryText: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 16,
+    flex: 1,
+  },
+  guideToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 14,
+    alignSelf: "flex-end",
+  },
+  guideToggleText: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  guideBox: { borderRadius: 12, padding: 14, marginTop: 10, gap: 8 },
+  guideBoxLabel: {
+    fontSize: 10,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  guideBandRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  guideDot: { width: 8, height: 8, borderRadius: 4 },
+  guideBandLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", width: 74 },
+  guideBandRange: { fontSize: 11, fontFamily: "Inter_400Regular", flex: 1 },
+  ctaRow: { flexDirection: "row", gap: 10, marginTop: 18 },
+  ctaBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 12,
+  },
+  ctaBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+
+  // Score grid
+  sectionWrap: { paddingHorizontal: 16, marginBottom: 16 },
+  scoreGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  scoreGridCell: { width: "48%", flexShrink: 1 },
+
+  // Tabs
+  tabRow: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    padding: 4,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 9,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  tabText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+
+  // Highlights
+  sectionGap: { height: 16 },
+  emptyText: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  drillHighlight: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 4,
+  },
+  drillHighlightName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  drillHighlightMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 3 },
+  drillHighlightCue: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    fontStyle: "italic",
+    marginTop: 6,
+    lineHeight: 18,
+  },
+
+  // Tips
+  tipCard: {
+    borderRadius: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  tipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 14,
+  },
+  tipIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tipTitleBlock: { flex: 1 },
+  tipTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  tipBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 3,
+  },
+  severityBadge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
+  severityBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  tipCategory: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  tipBody: { paddingHorizontal: 14, paddingBottom: 14 },
+  observationBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+  observationLabel: {
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  observationText: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
+  whyBox: {
+    borderLeftWidth: 3,
+    borderRadius: 4,
+    paddingVertical: 8,
+    paddingLeft: 10,
+    paddingRight: 8,
+    marginBottom: 10,
+  },
+  whyLabel: {
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 3,
+  },
+  whyText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  tipDesc: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  chipDot: { width: 6, height: 6, borderRadius: 3 },
+  chipText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  drillBox: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 12,
+    marginTop: 10,
+  },
+  drillHeaderRow: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 6 },
+  drillLabel: {
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  drillName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  drillMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 3 },
+  sourceRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 5,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+  },
+  sourceText: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    flex: 1,
+    fontStyle: "italic",
+    lineHeight: 14,
+  },
+
+  // Risks
+  noRiskWrap: { alignItems: "center", paddingVertical: 32, gap: 10 },
+  noRiskIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  noRiskHeading: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  noRiskSub: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    lineHeight: 19,
+  },
+  riskCard: {
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+  riskHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  riskJoint: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  riskRightCol: { alignItems: "flex-end", gap: 4 },
+  riskBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
+  riskBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  riskPct: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  whatThisMeansBox: {
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 10,
+    marginBottom: 8,
+  },
+  whatThisMeansLabel: {
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  riskDesc: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  riskPrev: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  prevLabel: { fontFamily: "Inter_500Medium" },
+
+  // Notes
+  noteHeaderRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
+  noteTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  noteInput: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 21,
+    minHeight: 110,
+  },
+  noteFooter: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    marginTop: 6,
+    textAlign: "right",
+  },
+});
