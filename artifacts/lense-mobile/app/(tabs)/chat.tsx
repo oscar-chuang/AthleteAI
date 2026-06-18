@@ -214,7 +214,11 @@ export default function ChatScreen() {
             </View>
             <View>
               <Text style={s.headerTitle}>AI Coach</Text>
-              <Text style={[s.headerSub, { color: colors.mutedForeground }]}>Pro feature</Text>
+              <Text style={[s.headerSub, { color: colors.mutedForeground }]}>
+                {profile?.sport && profile?.level
+                  ? `${profile.sport} · ${profile.level}`
+                  : "Pro feature"}
+              </Text>
             </View>
           </View>
           {profile && (
@@ -260,7 +264,11 @@ export default function ChatScreen() {
           </View>
           <View>
             <Text style={s.headerTitle}>AI Coach</Text>
-            <Text style={s.headerSub}>Online · Ready to help</Text>
+            <Text style={s.headerSub}>
+              {profile?.sport && profile?.level
+                ? `${profile.sport} · ${profile.level}`
+                : "Online · Ready to help"}
+            </Text>
           </View>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
