@@ -102,3 +102,70 @@ See `docs/` for deeper dives:
 - `docs/architecture.md` — system design, data flow, package responsibilities
 - `docs/api.md` — endpoint reference and auth
 - `docs/roadmap.md` — planned features and priorities
+- `docs/workflow.md` — task lifecycle, follow-up rules, safety gates
+
+---
+
+## AGENT RULES — read this before writing any code
+
+These rules are mandatory for every task agent and for the main agent.
+They are not suggestions. Violating them breaks the production branch.
+
+### Mandatory post-task checklist
+
+Every task — no exceptions — must complete all five steps before marking done:
+
+1. **Typecheck:** `pnpm run typecheck` — zero errors allowed.
+2. **API tests:** `pnpm --filter @workspace/api-server test` — all green.
+3. **Mobile tests:** `pnpm --filter @workspace/athlete-mobile test` — all green.
+4. **Server restart:** restart the `artifacts/api-server: API Server` workflow and confirm it starts without errors (watch for `EADDRINUSE` or missing-module crashes).
+5. **Merge to main immediately:** do not leave finished, tested work in a branch or draft state.
+
+A checkpoint is created automatically after every successful merge. If any step above fails, do not merge — fix the failure first, or roll back to the previous checkpoint.
+
+### Follow-up task classification
+
+When proposing or deciding whether to build a follow-up task, classify it using exactly one of these labels:
+
+#### BUILD — proceed automatically
+No approval needed. Build, test, merge, checkpoint.
+
+| Category | Examples |
+|----------|---------|
+| Bug fix | Crash on screen load, broken API call, wrong data displayed |
+| UX / polish | Empty states, loading skeletons, copy improvements, spacing, accessibility |
+| Performance | Faster queries, smaller payloads, reduced re-renders |
+| Incomplete scope | A feature the current task started but deliberately deferred |
+| Test coverage | Unit or integration tests for code that was just merged |
+| Minor feature extension | Adding a field, a filter chip, a sort option to an existing screen |
+
+#### ASK FIRST — stop and confirm with the user before building
+Do not start work until the user explicitly approves.
+
+| Category | Examples |
+|----------|---------|
+| Payments / billing | Stripe, RevenueCat, subscription gating, pricing changes |
+| Authentication | Login flow, JWT logic, token storage, Clerk/Auth changes, signup |
+| Database schema | New columns, dropped columns, renamed tables, new migrations, index changes |
+| Data deletion | Bulk-deleting DB rows, purging uploads, clearing user data |
+| Major redesign | Full screen layout overhaul, navigation restructure, new design system |
+| New third-party integration | Any new external API, OAuth provider, or secret/credential |
+| Security-sensitive change | Rate limiting, CORS policy, auth middleware, input sanitisation |
+
+#### REJECT — do not build
+Decline and explain why.
+
+| Category | Examples |
+|----------|---------|
+| Unrelated feature | Anything outside the AthleteAI domain (video coaching, biomechanics, progress tracking) |
+| Conflicts with architecture | Re-introducing per-frame crop-following, switching DB back to Supabase, bypassing biomechanicsApplied guard |
+| Already covered | Duplicate of a task already in the task list |
+| Breaks a protected contract | Changing `jointAngles`/`jointRisks`/`frameBase64` shape without updating the OpenAPI spec first |
+
+### If the app breaks after a merge
+
+1. Stop all new work immediately.
+2. Identify whether it is a code error or an environment issue (port collision, missing env var).
+3. For code errors: roll back to the previous checkpoint and open a new task to fix the root cause.
+4. For environment issues (e.g. `EADDRINUSE`): restart the affected workflow; do not roll back.
+5. Do not merge any further tasks until the app is stable again.
