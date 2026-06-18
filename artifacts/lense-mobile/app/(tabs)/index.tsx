@@ -240,13 +240,22 @@ export default function HomeScreen() {
               <Text style={s.greeting}>Good {getHour()}</Text>
               <Text style={s.name}>{profile?.name ?? user?.name ?? "Athlete"}</Text>
             </View>
-            <TouchableOpacity
-              onPress={() => router.push("/(tabs)/analyze" as any)}
-              style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginTop: 4 }}
-              activeOpacity={0.85}
-            >
-              <Feather name="plus" size={20} color="#fff" />
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 }}>
+              <TouchableOpacity
+                onPress={() => router.push("/profile-settings" as any)}
+                style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}
+                activeOpacity={0.8}
+              >
+                <Feather name="settings" size={18} color={colors.mutedForeground} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push("/(tabs)/analyze" as any)}
+                style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" }}
+                activeOpacity={0.85}
+              >
+                <Feather name="plus" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={s.badgeRow}>
             <View style={s.badge}>

@@ -58,6 +58,10 @@ function RootLayoutNav() {
         name="analysis/skeleton/[id]"
         options={{ headerShown: false, presentation: "fullScreenModal" }}
       />
+      <Stack.Screen
+        name="profile-settings"
+        options={{ headerShown: false, presentation: "modal" }}
+      />
     </Stack>
   );
 }
