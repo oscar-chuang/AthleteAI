@@ -397,6 +397,7 @@ export default function SkeletonScreen() {
   const [htmlFileUri, setHtmlFileUri] = useState<string | null>(null);
   const [prevAngles,  setPrevAngles]  = useState<Partial<Record<string, number>>>({});
   const [prevRisks,   setPrevRisks]   = useState<Partial<Record<string, number>>>({});
+  const [completedDrills, setCompletedDrills] = useState<Set<string>>(new Set());
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -452,6 +453,26 @@ export default function SkeletonScreen() {
     }).catch(() => {});
 
     return () => { cancelled = true; };
+  }, [id]);
+
+  // ── Load + persist completed drills per-analysis ─────────────────────────────
+  useEffect(() => {
+    if (!id) return;
+    setCompletedDrills(new Set());
+    AsyncStorage.getItem(`drill_done_${id}`).then((raw) => {
+      if (raw) {
+        try { setCompletedDrills(new Set(JSON.parse(raw) as string[])); } catch {}
+      }
+    }).catch(() => {});
+  }, [id]);
+
+  const toggleDrillDone = useCallback((tipId: string) => {
+    setCompletedDrills((prev) => {
+      const next = new Set(prev);
+      if (next.has(tipId)) next.delete(tipId); else next.add(tipId);
+      if (id) AsyncStorage.setItem(`drill_done_${id}`, JSON.stringify([...next])).catch(() => {});
+      return next;
+    });
   }, [id]);
 
   // Track mount so the biomechanics poll loop never calls setState after unmount.
@@ -788,6 +809,12 @@ export default function SkeletonScreen() {
               <Text style={[ss.tipCategory, { color }]}>{tip.category}</Text>
               <Text style={ss.tipTitle}>{tip.title}</Text>
             </View>
+            {tip.drill && completedDrills.has(tip.id) && (
+              <View style={ss.drillDoneBadge}>
+                <Feather name="check" size={10} color="#22c55e" />
+                <Text style={ss.drillDoneBadgeText}>Done</Text>
+              </View>
+            )}
             <Feather name={expanded ? "chevron-up" : "chevron-down"} size={18} color="#55556e" />
           </View>
         </TouchableOpacity>
@@ -890,6 +917,20 @@ export default function SkeletonScreen() {
                   ) : (
                     <Text style={ss.drillText}>{drill as string}</Text>
                   )}
+                  <TouchableOpacity
+                    style={[ss.markDoneBtn, completedDrills.has(tip.id) && ss.markDoneBtnDone]}
+                    activeOpacity={0.8}
+                    onPress={() => toggleDrillDone(tip.id)}
+                  >
+                    <Feather
+                      name={completedDrills.has(tip.id) ? "check-circle" : "circle"}
+                      size={14}
+                      color={completedDrills.has(tip.id) ? "#22c55e" : accentColor + "99"}
+                    />
+                    <Text style={[ss.markDoneBtnText, completedDrills.has(tip.id) && ss.markDoneBtnTextDone]}>
+                      {completedDrills.has(tip.id) ? "Completed" : "Mark done"}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               );
             })() : null}
@@ -1420,6 +1461,12 @@ const ss = StyleSheet.create({
   drillCueText:    { flex: 1, fontSize: 12, color: "#c0c0d8", fontFamily: "Inter_400Regular", lineHeight: 17, fontStyle: "italic" },
   drillFeelRow:    { flexDirection: "row", alignItems: "flex-start", gap: 7, paddingTop: 4, borderTopWidth: 1, borderTopColor: "#ffffff0f", marginTop: 4 },
   drillFeelText:   { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17, fontStyle: "italic" },
+  markDoneBtn:     { flexDirection: "row", alignItems: "center", gap: 7, borderTopWidth: 1, borderTopColor: "#ffffff0f", marginTop: 6, paddingTop: 9, paddingBottom: 1 },
+  markDoneBtnDone: { borderTopColor: "#22c55e18" },
+  markDoneBtnText: { fontSize: 12, color: "#6060a0", fontFamily: "Inter_600SemiBold" },
+  markDoneBtnTextDone: { color: "#22c55e" },
+  drillDoneBadge:  { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#0d2010", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: "#22c55e33" },
+  drillDoneBadgeText: { fontSize: 10, color: "#22c55e", fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
   qualityBadge:    { marginTop: 6, borderWidth: 1, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 4 },
   qualityText:     { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   okCard:        { flexDirection: "row", gap: 12, alignItems: "center", backgroundColor: "#0f1c12", borderWidth: 1, borderColor: "#22c55e33", borderRadius: 14, padding: 14 },
