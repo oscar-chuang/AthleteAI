@@ -15,6 +15,7 @@ import Svg, { Line, Path, Polyline, Circle, Text as SvgText } from "react-native
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { progress as progressApi, achievements as achievementsApi, profile as profileApi, jointTrends as jointTrendsApi, type ProgressRecord, type AchievementRecord, type ProfileStats, type JointTrendsResponse, type JointDataPoint, type JointImprovement } from "@/lib/api";
 
@@ -388,11 +389,34 @@ export default function ProgressScreen() {
   const [refreshing, setRefreshing]       = useState(false);
   const [error, setError]                 = useState(false);
   const [selectedJoint, setSelectedJoint] = useState<string | null>(null);
+  const [drillsDoneCount, setDrillsDoneCount] = useState(0);
 
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
   const chartWidth = SCREEN_WIDTH - 56;
   const lineColor  = getMetricColor(activeMetric, colors.primary, colors.success, colors.warning);
+
+  const loadDrillsDone = useCallback(async () => {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const drillKeys = keys.filter((k) => k.startsWith("drill_done_"));
+      if (drillKeys.length === 0) {
+        setDrillsDoneCount(0);
+        return;
+      }
+      const pairs = await AsyncStorage.multiGet(drillKeys);
+      let total = 0;
+      for (const [, val] of pairs) {
+        if (val) {
+          try {
+            const ids = JSON.parse(val) as string[];
+            total += ids.length;
+          } catch {}
+        }
+      }
+      setDrillsDoneCount(total);
+    } catch {}
+  }, []);
 
   const loadData = useCallback(async () => {
     setError(false);
@@ -413,7 +437,8 @@ export default function ProgressScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+    await loadDrillsDone();
+  }, [loadDrillsDone]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
@@ -613,6 +638,21 @@ export default function ProgressScreen() {
                 </View>
               </View>
             )}
+          </View>
+        )}
+
+        {/* ── Drills completed ── */}
+        {drillsDoneCount > 0 && (
+          <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, flexDirection: "row", alignItems: "center", gap: 14, borderWidth: 1, borderColor: colors.success + "44" }}>
+            <View style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: colors.success + "20", alignItems: "center", justifyContent: "center" }}>
+              <Feather name="check-circle" size={20} color={colors.success} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: colors.foreground }}>{drillsDoneCount}</Text>
+              <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Drill{drillsDoneCount === 1 ? "" : "s"} completed · all sessions
+              </Text>
+            </View>
           </View>
         )}
 
