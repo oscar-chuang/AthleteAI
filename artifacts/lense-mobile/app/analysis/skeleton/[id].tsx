@@ -587,6 +587,17 @@ export default function SkeletonScreen() {
   const injuryTips      = useMemo(() => tips.filter((t) => t.tipType === "injury" || t.severity === "warning" || t.severity === "critical"), [tips]);
   const performanceTips = useMemo(() => tips.filter((t) => t.tipType === "performance" && t.severity === "info"), [tips]);
 
+  // Joints that appear in BOTH an injury tip AND a performance tip — these pairs
+  // give contradictory instructions. We flag them so the UI can label the injury
+  // tip "Fix this first" and warn the performance tip to wait until it's resolved.
+  const conflictedJoints = useMemo<Set<string>>(() => {
+    const injuryJoints  = new Set(injuryTips.flatMap((t) => t.joints ?? []));
+    const perfJoints    = new Set(performanceTips.flatMap((t) => t.joints ?? []));
+    const shared        = new Set<string>();
+    injuryJoints.forEach((j) => { if (perfJoints.has(j)) shared.add(j); });
+    return shared;
+  }, [injuryTips, performanceTips]);
+
   // Joints the scan flagged (level ≥ 1) — the ground truth the injury section and
   // joint chips correspond to. Sorted worst-first.
   const flaggedJoints = useMemo(
@@ -697,8 +708,24 @@ export default function SkeletonScreen() {
     const matchedRisk = injuryRisks.find((r) => riskMatchesJoints(r.joint, tjoints));
     const mini = expanded ? captureForJoints(captures, tjoints) : null;
 
+    // Conflict detection: does this tip share a joint with a tip of the opposite type?
+    const hasConflict = tjoints.some((j) => conflictedJoints.has(j));
+
     return (
       <View key={tip.id} style={[ss.tipCard, kind === "performance" ? ss.perfCard : { borderColor: color + "44" }]}>
+        {/* Conflict priority banner */}
+        {hasConflict && kind === "injury" && (
+          <View style={ss.conflictBannerInjury}>
+            <Feather name="alert-triangle" size={11} color="#f59e0b" />
+            <Text style={ss.conflictBannerInjuryText}>⚠ Fix this first</Text>
+          </View>
+        )}
+        {hasConflict && kind === "performance" && (
+          <View style={ss.conflictBannerPerf}>
+            <Feather name="clock" size={11} color="#8888aa" />
+            <Text style={ss.conflictBannerPerfText}>After injury risk is resolved</Text>
+          </View>
+        )}
         <TouchableOpacity activeOpacity={0.85} onPress={() => openTip(tip)}>
           <View style={ss.tipHeader}>
             <View style={[ss.tipIcon, { backgroundColor: color + "1a" }]}>
@@ -1370,6 +1397,10 @@ const ss = StyleSheet.create({
   sourcesSubheading:   { fontSize: 11, color: "#55556e", fontFamily: "Inter_400Regular", lineHeight: 16, fontStyle: "italic" },
   sourcesGroupLabel:   { fontSize: 10, color: "#ef444488", fontFamily: "Inter_700Bold", letterSpacing: 1, marginBottom: 4 },
   perfCard:            { borderColor: "#6c63ff33" },
+  conflictBannerInjury:     { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#2a1a00", borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, marginBottom: 2, alignSelf: "flex-start" },
+  conflictBannerInjuryText: { fontSize: 11, color: "#f59e0b", fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
+  conflictBannerPerf:       { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#12121e", borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, marginBottom: 2, alignSelf: "flex-start", borderWidth: 1, borderColor: "#2a2a44" },
+  conflictBannerPerfText:   { fontSize: 11, color: "#8888aa", fontFamily: "Inter_600SemiBold", letterSpacing: 0.2 },
   sourceRow:           { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   sourceNum:           { fontSize: 11, color: "#6c63ff", fontFamily: "Inter_700Bold", width: 16, paddingTop: 1 },
   sourceRef:           { fontSize: 11, color: "#c0c0d8", fontFamily: "Inter_600SemiBold" },
