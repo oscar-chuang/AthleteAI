@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Image,
   Animated,
+  Share,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -155,6 +156,17 @@ export default function HomeScreen() {
   const goalReached   = weeklyGoal > 0 && thisWeek >= weeklyGoal;
   const scoreDelta    = stats?.scoreDelta ?? null;
 
+  const handleShareGoal = useCallback(async () => {
+    const sport = profile?.sport ? ` (${profile.sport})` : "";
+    const streakLine = streakDays > 1 ? ` ${streakDays}-day streak and counting!` : "";
+    const message = `I hit my weekly training goal on AthleteAI! 🏆 ${thisWeek} session${thisWeek !== 1 ? "s" : ""} this week${sport}.${streakLine}`;
+    try {
+      await Share.share({ message });
+    } catch {
+      // user dismissed or share unavailable — no-op
+    }
+  }, [profile?.sport, thisWeek, streakDays]);
+
   useEffect(() => {
     if (!goalReached) return;
     const pulse = Animated.sequence([
@@ -252,6 +264,7 @@ export default function HomeScreen() {
     goalBanner:         { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#f59e0b18", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginBottom: 12, borderWidth: 1, borderColor: "#f59e0b44" },
     goalBannerText:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#b45309", flex: 1 },
     goalBannerSub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#92400e", marginTop: 1 },
+    goalShareBtn:       { padding: 4, borderRadius: 6, backgroundColor: "#f59e0b22" },
 
     scoreGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 10 },
     scoreItem:      { width: "30%", backgroundColor: colors.card, borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
@@ -489,6 +502,14 @@ export default function HomeScreen() {
                     <Text style={s.goalBannerText}>Weekly goal reached!</Text>
                     <Text style={s.goalBannerSub}>{thisWeek} of {weeklyGoal} sessions this week</Text>
                   </View>
+                  <TouchableOpacity
+                    onPress={handleShareGoal}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    activeOpacity={0.7}
+                    style={s.goalShareBtn}
+                  >
+                    <Feather name="share-2" size={16} color="#d97706" />
+                  </TouchableOpacity>
                 </View>
               )}
               <View style={s.weeklyRow}>
