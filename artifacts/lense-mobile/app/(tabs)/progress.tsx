@@ -477,6 +477,13 @@ export default function ProgressScreen() {
 
   const sessionLog = [...filteredEntries].reverse();
 
+  const mostImproved = (() => {
+    if (!trends?.improvements?.length) return null;
+    const positives = trends.improvements.filter((i) => i.improved && i.deltaDeg > 0);
+    if (!positives.length) return null;
+    return positives.reduce((best, cur) => (cur.deltaDeg > best.deltaDeg ? cur : best));
+  })();
+
   const s = StyleSheet.create({
     container:        { flex: 1, backgroundColor: colors.background },
     header:           { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 16 },
@@ -650,6 +657,21 @@ export default function ProgressScreen() {
                 {gainPct >= 0 ? "+" : ""}{gainPct}%
               </Text>
               <Text style={s.summaryLabel}>Change</Text>
+            </View>
+          </View>
+        )}
+
+        {/* ── Most improved joint ── */}
+        {mostImproved && (
+          <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.success + "14", borderRadius: colors.radius, padding: 14, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: colors.success + "33" }}>
+            <Feather name="trending-up" size={18} color={colors.success} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: colors.success }}>
+                {JOINT_DISPLAY[mostImproved.joint] ?? mostImproved.joint} +{Math.round(mostImproved.deltaDeg)}°
+              </Text>
+              <Text style={{ fontSize: 11, color: colors.success + "88", fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Most improved
+              </Text>
             </View>
           </View>
         )}
