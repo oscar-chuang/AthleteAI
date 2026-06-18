@@ -127,6 +127,26 @@ export function captureForJoints(captures: Capture[], joints: JointKey[]): Captu
 }
 
 /**
+ * Derive a scan-quality badge (high / medium / low) from the landmark visibility
+ * scores stored in a capture. MediaPipe emits per-landmark visibility in [0, 1];
+ * averaging the tracked KEY_LANDMARKS gives a quick proxy for how well the model
+ * saw the athlete.
+ *
+ * Thresholds chosen empirically:
+ *  ≥ 0.70 → "high"   (clear subject, good lighting)
+ *  ≥ 0.45 → "medium" (some occlusion or poor contrast)
+ *  <  0.45 → "low"   (heavy occlusion, motion blur, or detection nearly failed)
+ */
+export function computeScanQuality(capture: Capture): "high" | "medium" | "low" {
+  if (!capture.lm || capture.lm.length === 0) return "low";
+  const tracked = KEY_LANDMARKS.map((i) => capture.lm[i]?.v ?? 0);
+  const avg = tracked.reduce((s, v) => s + v, 0) / tracked.length;
+  if (avg >= 0.70) return "high";
+  if (avg >= 0.45) return "medium";
+  return "low";
+}
+
+/**
  * Best-effort match of a free-form injury-risk joint string (from the AI, e.g.
  * "Left Knee", "knee", "lead elbow") to the structured joint keys a tip targets.
  * Returns true when the risk's joint name plausibly refers to one of the tip joints.

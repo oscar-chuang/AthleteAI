@@ -31,6 +31,7 @@ import {
   pickHeroCapture,
   captureForJoints,
   riskMatchesJoints,
+  computeScanQuality,
 } from "@/utils/skeleton";
 import FrozenSkeleton from "@/components/FrozenSkeleton";
 
@@ -391,8 +392,6 @@ export default function SkeletonScreen() {
   const [videoAspect, setVideoAspect] = useState(16 / 9);
   const [preparing,   setPreparing]   = useState(true);
   const [htmlFileUri, setHtmlFileUri] = useState<string | null>(null);
-  // "low" | "medium" | "high" — derived from landmark visibility scores in scanComplete.
-  const [scanQuality, setScanQuality] = useState<"low" | "medium" | "high" | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -510,8 +509,7 @@ export default function SkeletonScreen() {
         setScanResult({ angles, risks: msg.risks as RiskMap });
         // Derive scan quality from average landmark visibility (0..1) in the payload.
         if (Array.isArray(msg.visibility) && msg.visibility.length > 0) {
-          const avg = (msg.visibility as number[]).reduce((s, v) => s + v, 0) / msg.visibility.length;
-          setScanQuality(avg >= 0.72 ? "high" : avg >= 0.50 ? "medium" : "low");
+          // No longer using scanQuality state — computeScanQuality is called inline in render.
         }
         // Already-grounded revisit: the fresh scan only refreshes the frozen frames,
         // so don't re-PATCH/re-poll — that would flip `refining` on and momentarily
@@ -729,6 +727,12 @@ export default function SkeletonScreen() {
             )}
             {tip.videoObservation ? <Text style={ss.tipObs}>“{tip.videoObservation}”</Text> : null}
             <Text style={ss.tipDesc}>{tip.description}</Text>
+            {tip.whyItMatters ? (
+              <View style={ss.whyBox}>
+                <Text style={ss.whyLabel}>WHY THIS MATTERS</Text>
+                <Text style={ss.whyText}>{tip.whyItMatters}</Text>
+              </View>
+            ) : null}
 
             {tjoints.length > 0 && (
               <View style={ss.readingRow}>
@@ -875,18 +879,17 @@ export default function SkeletonScreen() {
               : "FORM LOOKS CLEAN"}
           </Text>
         </View>
-        {scanQuality && (
-          <View style={[ss.qualityBadge, {
-            backgroundColor: scanQuality === "high" ? "#22c55e18" : scanQuality === "medium" ? "#f59e0b18" : "#ef444418",
-            borderColor: scanQuality === "high" ? "#22c55e55" : scanQuality === "medium" ? "#f59e0b55" : "#ef444455",
-          }]}>
-            <Text style={[ss.qualityText, {
-              color: scanQuality === "high" ? "#22c55e" : scanQuality === "medium" ? "#f59e0b" : "#ef4444",
-            }]}>
-              {scanQuality === "high" ? "● High quality scan" : scanQuality === "medium" ? "◐ Medium quality scan" : "○ Low quality — try better lighting"}
-            </Text>
-          </View>
-        )}
+        {(() => {
+          const q = computeScanQuality(hero.capture);
+          const qColor = q === "high" ? "#22c55e" : q === "medium" ? "#f59e0b" : "#6b7280";
+          return (
+            <View style={[ss.scanQualityBadge, { borderColor: qColor + "60" }]}>
+              <Text style={[ss.scanQualityText, { color: qColor }]}>
+                {q === "high" ? "● HIGH CONFIDENCE" : q === "medium" ? "◑ MED CONFIDENCE" : "○ LOW CONFIDENCE"}
+              </Text>
+            </View>
+          );
+        })()}
       </View>
     </View>
   ) : (
@@ -1314,6 +1317,11 @@ const ss = StyleSheet.create({
   okTitle:       { fontSize: 13, color: "#d8f5e0", fontFamily: "Inter_600SemiBold" },
   okBody:        { fontSize: 12, color: "#7a9a82", fontFamily: "Inter_400Regular", marginTop: 3, lineHeight: 17 },
   tipObs:        { fontSize: 12, color: "#9a9ac4", fontFamily: "Inter_400Regular", fontStyle: "italic", lineHeight: 17 },
+  whyBox:        { backgroundColor: "#0c0c20", borderRadius: 8, borderWidth: 1, borderColor: "#2a2a44", paddingHorizontal: 10, paddingVertical: 8, gap: 3 },
+  whyLabel:      { fontSize: 9, color: "#6c63ff", fontFamily: "Inter_700Bold", letterSpacing: 1 },
+  whyText:       { fontSize: 12, color: "#b0b0cc", fontFamily: "Inter_400Regular", lineHeight: 17 },
+  scanQualityBadge: { marginTop: 6, borderWidth: 1, borderRadius: 22, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: "rgba(7,7,15,0.72)" },
+  scanQualityText:  { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5 },
   chipRow:       { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   chip:          { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4 },
   chipDot:       { width: 6, height: 6, borderRadius: 3 },

@@ -197,7 +197,8 @@ export interface TipRecord {
   title: string;
   videoObservation?: string;
   description: string;
-  drill?: DrillRecord | string;
+  whyItMatters?: string;
+  drill?: DrillRecord;
   source?: string;
   joints?: JointKey[];
 }
