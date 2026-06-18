@@ -15,7 +15,7 @@ import { Feather } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { analyses as analysesApi, type TipRecord, type RiskRecord } from "@/lib/api";
+import { analyses as analysesApi, type TipRecord, type DrillRecord, type RiskRecord } from "@/lib/api";
 import {
   computeFlaggedJoints,
   computeWorstLvl,
@@ -305,7 +305,9 @@ ${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto">
     const baseJr = worstSeenTime>=0 ? worstJr : clearest.jr;
     const angles={leftKnee:baseJr[25]?baseJr[25].deg:undefined,rightKnee:baseJr[26]?baseJr[26].deg:undefined,leftHip:baseJr[23]?baseJr[23].deg:undefined,rightHip:baseJr[24]?baseJr[24].deg:undefined,leftElbow:baseJr[13]?baseJr[13].deg:undefined,rightElbow:baseJr[14]?baseJr[14].deg:undefined};
     const risks={leftKnee:baseJr[25]?baseJr[25].lvl:0,rightKnee:baseJr[26]?baseJr[26].lvl:0,leftHip:baseJr[23]?baseJr[23].lvl:0,rightHip:baseJr[24]?baseJr[24].lvl:0,leftElbow:baseJr[13]?baseJr[13].lvl:0,rightElbow:baseJr[14]?baseJr[14].lvl:0};
-    post({type:"scanComplete",angles,risks,frame:worstFrameB64||clearest.full||""});
+    // Include per-landmark visibility scores so the native layer can compute a scan quality badge.
+    const visibility=clearest.cap&&clearest.cap.lm?clearest.cap.lm.map(l=>l.v??0):[];
+    post({type:"scanComplete",angles,risks,frame:worstFrameB64||clearest.full||"",visibility});
   }
 
   // ── MediaPipe init + gating ──────────────────────────────────────────────────
@@ -389,6 +391,8 @@ export default function SkeletonScreen() {
   const [videoAspect, setVideoAspect] = useState(16 / 9);
   const [preparing,   setPreparing]   = useState(true);
   const [htmlFileUri, setHtmlFileUri] = useState<string | null>(null);
+  // "low" | "medium" | "high" — derived from landmark visibility scores in scanComplete.
+  const [scanQuality, setScanQuality] = useState<"low" | "medium" | "high" | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -504,6 +508,11 @@ export default function SkeletonScreen() {
         const measured = Object.values(angles).some((v) => typeof v === "number" && Number.isFinite(v));
         if (!measured || !msg.risks) return;
         setScanResult({ angles, risks: msg.risks as RiskMap });
+        // Derive scan quality from average landmark visibility (0..1) in the payload.
+        if (Array.isArray(msg.visibility) && msg.visibility.length > 0) {
+          const avg = (msg.visibility as number[]).reduce((s, v) => s + v, 0) / msg.visibility.length;
+          setScanQuality(avg >= 0.72 ? "high" : avg >= 0.50 ? "medium" : "low");
+        }
         // Already-grounded revisit: the fresh scan only refreshes the frozen frames,
         // so don't re-PATCH/re-poll — that would flip `refining` on and momentarily
         // hide the grounded tips behind the refinement spinner. Only first-time scans
@@ -758,14 +767,39 @@ export default function SkeletonScreen() {
               </View>
             )}
 
-            {tip.drill ? (
-              <View style={[ss.drillBox, kind === "performance" ? { backgroundColor: "#0e0e28" } : null]}>
-                <Text style={[ss.drillLabel, kind === "performance" ? { color: "#6c63ff" } : null]}>
-                  {kind === "performance" ? "PERFORMANCE DRILL" : "CORRECTIVE ROUTINE"}
-                </Text>
-                <Text style={ss.drillText}>{tip.drill}</Text>
-              </View>
-            ) : null}
+            {tip.drill ? (() => {
+              const drill = tip.drill as DrillRecord | string;
+              const isStructured = typeof drill === "object" && drill !== null;
+              const accentColor = kind === "performance" ? "#6c63ff" : "#f59e0b";
+              return (
+                <View style={[ss.drillBox, { borderColor: accentColor + "40", backgroundColor: kind === "performance" ? "#0e0e28" : "#16140e" }]}>
+                  <Text style={[ss.drillLabel, { color: accentColor }]}>
+                    {kind === "performance" ? "PERFORMANCE DRILL" : "CORRECTIVE ROUTINE"}
+                  </Text>
+                  {isStructured ? (
+                    <View style={ss.drillStructured}>
+                      <Text style={ss.drillName}>{(drill as DrillRecord).name}</Text>
+                      <View style={ss.drillMeta}>
+                        <View style={ss.drillMetaPill}>
+                          <Text style={[ss.drillMetaLabel, { color: accentColor }]}>SETS</Text>
+                          <Text style={ss.drillMetaValue}>{(drill as DrillRecord).sets}</Text>
+                        </View>
+                        <View style={ss.drillMetaPill}>
+                          <Text style={[ss.drillMetaLabel, { color: accentColor }]}>REPS</Text>
+                          <Text style={ss.drillMetaValue}>{(drill as DrillRecord).reps}</Text>
+                        </View>
+                      </View>
+                      <View style={ss.drillCueRow}>
+                        <Feather name="message-square" size={11} color={accentColor} />
+                        <Text style={ss.drillCueText}>{(drill as DrillRecord).cue}</Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <Text style={ss.drillText}>{drill as string}</Text>
+                  )}
+                </View>
+              );
+            })() : null}
 
             {tip.source ? (
               <View style={ss.citeRow}>
@@ -841,6 +875,18 @@ export default function SkeletonScreen() {
               : "FORM LOOKS CLEAN"}
           </Text>
         </View>
+        {scanQuality && (
+          <View style={[ss.qualityBadge, {
+            backgroundColor: scanQuality === "high" ? "#22c55e18" : scanQuality === "medium" ? "#f59e0b18" : "#ef444418",
+            borderColor: scanQuality === "high" ? "#22c55e55" : scanQuality === "medium" ? "#f59e0b55" : "#ef444455",
+          }]}>
+            <Text style={[ss.qualityText, {
+              color: scanQuality === "high" ? "#22c55e" : scanQuality === "medium" ? "#f59e0b" : "#ef4444",
+            }]}>
+              {scanQuality === "high" ? "● High quality scan" : scanQuality === "medium" ? "◐ Medium quality scan" : "○ Low quality — try better lighting"}
+            </Text>
+          </View>
+        )}
       </View>
     </View>
   ) : (
@@ -1251,9 +1297,19 @@ const ss = StyleSheet.create({
   tipCategory:   { fontSize: 10, color: "#6c63ff", fontFamily: "Inter_600SemiBold", letterSpacing: 0.5, textTransform: "uppercase" },
   tipTitle:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#f0f0f8", marginTop: 1 },
   tipDesc:       { fontSize: 13, color: "#a0a0bc", fontFamily: "Inter_400Regular", lineHeight: 19 },
-  drillBox:      { backgroundColor: "#161628", borderRadius: 10, padding: 11, gap: 4 },
-  drillLabel:    { fontSize: 9, color: "#6c63ff", fontFamily: "Inter_700Bold", letterSpacing: 1 },
-  drillText:     { fontSize: 12, color: "#c0c0d8", fontFamily: "Inter_400Regular", lineHeight: 17 },
+  drillBox:        { borderRadius: 10, borderWidth: 1, padding: 11, gap: 6 },
+  drillLabel:      { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 1 },
+  drillText:       { fontSize: 12, color: "#c0c0d8", fontFamily: "Inter_400Regular", lineHeight: 17 },
+  drillStructured: { gap: 8 },
+  drillName:       { fontSize: 13, color: "#f0f0f8", fontFamily: "Inter_600SemiBold" },
+  drillMeta:       { flexDirection: "row", gap: 8 },
+  drillMetaPill:   { backgroundColor: "#07070f", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, gap: 2, alignItems: "center" },
+  drillMetaLabel:  { fontSize: 8, fontFamily: "Inter_700Bold", letterSpacing: 0.8 },
+  drillMetaValue:  { fontSize: 13, color: "#e8e8f8", fontFamily: "Inter_600SemiBold" },
+  drillCueRow:     { flexDirection: "row", alignItems: "flex-start", gap: 7, paddingTop: 2 },
+  drillCueText:    { flex: 1, fontSize: 12, color: "#c0c0d8", fontFamily: "Inter_400Regular", lineHeight: 17, fontStyle: "italic" },
+  qualityBadge:    { marginTop: 6, borderWidth: 1, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 4 },
+  qualityText:     { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   okCard:        { flexDirection: "row", gap: 12, alignItems: "center", backgroundColor: "#0f1c12", borderWidth: 1, borderColor: "#22c55e33", borderRadius: 14, padding: 14 },
   okTitle:       { fontSize: 13, color: "#d8f5e0", fontFamily: "Inter_600SemiBold" },
   okBody:        { fontSize: 12, color: "#7a9a82", fontFamily: "Inter_400Regular", marginTop: 3, lineHeight: 17 },

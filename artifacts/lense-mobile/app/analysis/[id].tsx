@@ -580,7 +580,11 @@ export default function AnalysisDetailScreen() {
                       {tip.drill && (
                         <View style={s.drillBox}>
                           <Text style={s.drillLabel}>Drill</Text>
-                          <Text style={s.drillText}>{tip.drill}</Text>
+                          <Text style={s.drillText}>
+                            {typeof tip.drill === "string"
+                              ? tip.drill
+                              : `${tip.drill.name} · ${tip.drill.sets}, ${tip.drill.reps}${tip.drill.cue ? ` — ${tip.drill.cue}` : ""}`}
+                          </Text>
                         </View>
                       )}
                       {tip.source && (

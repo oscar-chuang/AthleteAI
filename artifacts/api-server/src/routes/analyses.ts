@@ -193,7 +193,9 @@ router.get("/analyses/:id", requireAuth, async (req: Request, res: Response) => 
 
   const storedTips = (row.tips ?? []) as Array<{
     tipType?: string; category: string; severity: string; title: string;
-    videoObservation?: string; description: string; drill?: string; source?: string;
+    videoObservation?: string; description: string;
+    drill?: { name: string; sets: string; reps: string; cue: string } | string;
+    source?: string;
     joints?: string[];
   }>;
   const storedRisks = (row.injuryRisks ?? []) as Array<{

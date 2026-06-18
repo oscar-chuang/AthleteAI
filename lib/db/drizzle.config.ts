@@ -1,7 +1,7 @@
 import { defineConfig } from "drizzle-kit";
 import path from "path";
 
-const url = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+const url = process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
 
 if (!url) {
   throw new Error(

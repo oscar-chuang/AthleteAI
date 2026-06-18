@@ -182,6 +182,13 @@ export const JOINT_KEYS: JointKey[] = [
   "leftKnee", "rightKnee", "leftHip", "rightHip", "leftElbow", "rightElbow",
 ];
 
+export interface DrillRecord {
+  name: string;
+  sets: string;
+  reps: string;
+  cue: string;
+}
+
 export interface TipRecord {
   id: string;
   tipType: "injury" | "performance";
@@ -190,7 +197,7 @@ export interface TipRecord {
   title: string;
   videoObservation?: string;
   description: string;
-  drill?: string;
+  drill?: DrillRecord | string;
   source?: string;
   joints?: JointKey[];
 }

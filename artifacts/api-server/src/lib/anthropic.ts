@@ -43,7 +43,7 @@ export interface AIAnalysisResult {
     title: string;
     videoObservation?: string;
     description: string;
-    drill?: string;
+    drill?: { name: string; sets: string; reps: string; cue: string } | string;
     source?: string;
     joints?: JointKey[];
   }>;
@@ -206,7 +206,7 @@ The JSON shape is exactly:
   "improvements": ["string", "string", "string"],
   "tips": [
     // VARIABLE LENGTH: 0 to 5 tips. Include a tip ONLY when you have a specific visual observation from the image OR a specific measured joint angle to reference. Generic sport advice with no personal observation is forbidden. An empty array [] is the correct output when no specific data is available.
-    // Format for each tip: { "tipType": "injury" or "performance", "category": "string", "severity": "info" or "warning" or "critical", "title": "string", "videoObservation": "EXACT thing you saw or measured — e.g. left knee at 138 deg HIGH RISK, or heel visibly raised at squat depth, or shoulder noticeably higher than contralateral side", "description": "plain-English explanation max 2 sentences", "drill": "step-by-step drill with sets, reps, duration", "source": "Author et al. (Year, Journal Abbrev)", "joints": ["leftKnee"] }
+    // Format for each tip: { "tipType": "injury" or "performance", "category": "string", "severity": "info" or "warning" or "critical", "title": "string", "videoObservation": "EXACT thing you saw or measured — e.g. left knee at 138 deg HIGH RISK, or heel visibly raised at squat depth, or shoulder noticeably higher than contralateral side", "description": "plain-English explanation max 2 sentences", "drill": { "name": "exercise name", "sets": "e.g. 3 sets", "reps": "e.g. 10 reps or 30 sec", "cue": "single coaching cue, one sentence" }, "source": "Author et al. (Year, Journal Abbrev)", "joints": ["leftKnee"] }
     // "joints": the specific body joints this tip is about, so the app can highlight them on the live pose skeleton. MUST be a subset of EXACTLY these allowed values: "leftKnee", "rightKnee", "leftHip", "rightHip", "leftElbow", "rightElbow". Pick only joints your observation/measurement actually involves (1-3 typically). Use BOTH sides (e.g. ["leftKnee","rightKnee"]) only when the issue is genuinely bilateral. If the tip is not about any of these six joints, use an empty array [].
   ],
   "injuryRisks": [
