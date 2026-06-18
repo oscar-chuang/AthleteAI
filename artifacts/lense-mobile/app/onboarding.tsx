@@ -38,13 +38,16 @@ const INJURIES = [
   "Hip", "Ankle", "Elbow", "Neck",
 ];
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
+
+const WEEKLY_GOAL_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
 
 interface OnboardingState {
   sport: string;
   level: string;
   goals: string[];
   injuries: string[];
+  weeklyGoal: number;
 }
 
 export default function OnboardingScreen() {
@@ -58,6 +61,7 @@ export default function OnboardingScreen() {
     level: "",
     goals: [],
     injuries: [],
+    weeklyGoal: 3,
   });
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -81,6 +85,7 @@ export default function OnboardingScreen() {
           level: (state.level.toLowerCase() as any) || "beginner",
           goals: state.goals,
           injuryConcerns: state.injuries,
+          weeklyGoal: state.weeklyGoal,
         });
       } catch {
         // non-critical — continue anyway
@@ -393,6 +398,48 @@ export default function OnboardingScreen() {
 
         {step === 5 && (
           <>
+            <Text style={s.stepTitle}>Weekly training goal</Text>
+            <Text style={s.stepSub}>How many sessions per week do you aim for? You can change this any time.</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 32 }}>
+              {WEEKLY_GOAL_OPTIONS.map((n) => {
+                const active = state.weeklyGoal === n;
+                return (
+                  <TouchableOpacity
+                    key={n}
+                    style={{
+                      width: 72,
+                      height: 72,
+                      borderRadius: 16,
+                      borderWidth: 2,
+                      borderColor: active ? colors.primary : colors.border,
+                      backgroundColor: active ? colors.primary + "18" : colors.card,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    onPress={() => setState((p) => ({ ...p, weeklyGoal: n }))}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={{ fontSize: 28, fontFamily: "Inter_700Bold", color: active ? colors.primary : colors.foreground }}>
+                      {n}
+                    </Text>
+                    <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: active ? colors.primary : colors.mutedForeground, marginTop: 1 }}>
+                      {n === 1 ? "session" : "sessions"}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <View style={{ backgroundColor: colors.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <Feather name="target" size={18} color={colors.primary} />
+              <Text style={{ flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 18 }}>
+                Your weekly progress bar and session counter on the Home tab will track you against this goal.
+              </Text>
+            </View>
+          </>
+        )}
+
+        {step === 6 && (
+          <>
             <Text style={s.stepTitle}>You're all set!</Text>
             <Text style={s.stepSub}>Your personalized coaching profile is ready.</Text>
             {[
@@ -400,6 +447,7 @@ export default function OnboardingScreen() {
               { label: "Level", value: state.level || "—" },
               { label: "Goals", value: state.goals.join(", ") || "—" },
               { label: "Injury concerns", value: state.injuries.join(", ") || "—" },
+              { label: "Weekly goal", value: `${state.weeklyGoal} session${state.weeklyGoal === 1 ? "" : "s"} / week` },
             ].map((row) => (
               <View key={row.label} style={s.summaryRow}>
                 <Text style={s.summaryKey}>{row.label}</Text>
