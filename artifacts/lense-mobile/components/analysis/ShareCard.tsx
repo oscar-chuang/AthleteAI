@@ -5,13 +5,42 @@ import { Feather } from "@expo/vector-icons";
 import Svg, { Circle } from "react-native-svg";
 import type { AnalysisRecord } from "@/lib/api";
 
-// Fixed dark palette so the card always looks polished regardless of user theme
-const CARD_BG      = "#0e0e18";
-const CARD_SURFACE = "#16161f";
-const CARD_BORDER  = "#22223a";
-const TEXT_PRIMARY = "#f0f0f8";
-const TEXT_MUTED   = "#7878aa";
-const ACCENT       = "#6c63ff";
+// ─── Brand palette ────────────────────────────────────────────────────────────
+// One place to update colors for the share card.  Two schemes are provided so
+// the card looks polished whether the recipient's screenshot tool captures it
+// on a dark or light background.
+
+export interface ShareCardPalette {
+  cardBg:      string;
+  cardSurface: string;
+  cardBorder:  string;
+  textPrimary: string;
+  textMuted:   string;
+  accent:      string;
+  imageOverlay: string;
+}
+
+export const SHARE_CARD_DARK: ShareCardPalette = {
+  cardBg:      "#0e0e18",
+  cardSurface: "#16161f",
+  cardBorder:  "#22223a",
+  textPrimary: "#f0f0f8",
+  textMuted:   "#7878aa",
+  accent:      "#6c63ff",
+  imageOverlay: "#00000044",
+};
+
+export const SHARE_CARD_LIGHT: ShareCardPalette = {
+  cardBg:      "#ffffff",
+  cardSurface: "#f2f2f8",
+  cardBorder:  "#dcdcf0",
+  textPrimary: "#1a1a2e",
+  textMuted:   "#6666a0",
+  accent:      "#6c63ff",
+  imageOverlay: "#0000001a",
+};
+
+// ─── Score bands ──────────────────────────────────────────────────────────────
 
 const SCORE_BANDS = [
   { min: 80, color: "#22c55e", label: "Strong"     },
@@ -23,26 +52,27 @@ function scoreBandColor(score: number): string {
   return (SCORE_BANDS.find((b) => score >= b.min) ?? SCORE_BANDS[2]).color;
 }
 
+// ─── Sport icons ──────────────────────────────────────────────────────────────
+
 const SPORT_ICON: Record<string, React.ComponentProps<typeof Feather>["name"]> = {
-  running:      "wind",
-  swimming:     "droplet",
-  cycling:      "zap",
-  tennis:       "crosshair",
-  football:     "circle",
-  soccer:       "circle",
-  basketball:   "circle",
-  volleyball:   "circle",
-  weightlifting:"trending-up",
-  gymnastics:   "star",
-  rowing:       "anchor",
-  golf:         "flag",
-  boxing:       "shield",
-  yoga:         "heart",
+  running:       "wind",
+  swimming:      "droplet",
+  cycling:       "zap",
+  tennis:        "crosshair",
+  football:      "circle",
+  soccer:        "circle",
+  basketball:    "circle",
+  volleyball:    "circle",
+  weightlifting: "trending-up",
+  gymnastics:    "star",
+  rowing:        "anchor",
+  golf:          "flag",
+  boxing:        "shield",
+  yoga:          "heart",
 };
 
 function sportIcon(sport: string): React.ComponentProps<typeof Feather>["name"] {
-  const key = sport.toLowerCase();
-  return SPORT_ICON[key] ?? "activity";
+  return SPORT_ICON[sport.toLowerCase()] ?? "activity";
 }
 
 function formatDate(iso: string): string {
@@ -53,7 +83,10 @@ function formatDate(iso: string): string {
   });
 }
 
-// Mini ring — static (no animation) so view-shot captures correctly
+// ─── Static ring ──────────────────────────────────────────────────────────────
+// No animation — view-shot captures a frozen frame, so Animated values would
+// render at their initial position.
+
 function StaticRing({
   score,
   size = 88,
@@ -65,11 +98,12 @@ function StaticRing({
   strokeWidth?: number;
   color: string;
 }) {
-  const r           = (size - strokeWidth) / 2;
-  const circ        = 2 * Math.PI * r;
-  const clamped     = Math.min(100, Math.max(0, score));
-  const dashOffset  = circ * (1 - clamped / 100);
-  const center      = size / 2;
+  const r          = (size - strokeWidth) / 2;
+  const circ       = 2 * Math.PI * r;
+  const clamped    = Math.min(100, Math.max(0, score));
+  const dashOffset = circ * (1 - clamped / 100);
+  const center     = size / 2;
+
   return (
     <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
       <Svg width={size} height={size} style={{ position: "absolute" }}>
@@ -102,71 +136,79 @@ function StaticRing({
   );
 }
 
+// ─── Metrics list ─────────────────────────────────────────────────────────────
+
 const METRICS: { key: keyof AnalysisRecord; label: string }[] = [
-  { key: "techniqueScore",    label: "Technique"   },
-  { key: "powerScore",        label: "Power"       },
-  { key: "balanceScore",      label: "Balance"     },
-  { key: "consistencyScore",  label: "Consistency" },
-  { key: "mobilityScore",     label: "Mobility"    },
-  { key: "speedScore",        label: "Speed"       },
+  { key: "techniqueScore",   label: "Technique"   },
+  { key: "powerScore",       label: "Power"       },
+  { key: "balanceScore",     label: "Balance"     },
+  { key: "consistencyScore", label: "Consistency" },
+  { key: "mobilityScore",    label: "Mobility"    },
+  { key: "speedScore",       label: "Speed"       },
 ];
 
-interface Props {
-  analysis: AnalysisRecord;
-  topTip?: string;
+// ─── ShareCard ────────────────────────────────────────────────────────────────
+
+export interface ShareCardProps {
+  analysis:    AnalysisRecord;
+  topTip?:     string;
+  /** @default "dark" */
+  colorScheme?: "dark" | "light";
 }
 
-export function ShareCard({ analysis, topTip }: Props) {
-  const overallScore  = analysis.overallScore ?? 0;
-  const overallColor  = scoreBandColor(overallScore);
-  const sportLabel    = analysis.sport.charAt(0).toUpperCase() + analysis.sport.slice(1);
-  const icon          = sportIcon(analysis.sport);
-  const hasThumbnail  = !!analysis.thumbnailUrl;
+export function ShareCard({ analysis, topTip, colorScheme = "dark" }: ShareCardProps) {
+  const palette      = colorScheme === "light" ? SHARE_CARD_LIGHT : SHARE_CARD_DARK;
+  const overallScore = analysis.overallScore ?? 0;
+  const overallColor = scoreBandColor(overallScore);
+  const sportLabel   = analysis.sport.charAt(0).toUpperCase() + analysis.sport.slice(1);
+  const icon         = sportIcon(analysis.sport);
+  const hasThumbnail = !!analysis.thumbnailUrl;
+
+  const s = makeStyles(palette);
 
   return (
-    <View style={styles.card}>
-      {/* ── Thumbnail or sport-icon placeholder ── */}
-      <View style={styles.imageWrap}>
+    <View style={s.card}>
+      {/* ── Thumbnail / sport-icon placeholder ── */}
+      <View style={s.imageWrap}>
         {hasThumbnail ? (
           <Image
             source={{ uri: analysis.thumbnailUrl }}
-            style={styles.thumbnail}
+            style={s.thumbnail}
             contentFit="cover"
           />
         ) : (
-          <View style={[styles.thumbnailFallback, { backgroundColor: CARD_SURFACE }]}>
-            <View style={[styles.iconCircle, { backgroundColor: ACCENT + "22" }]}>
-              <Feather name={icon} size={36} color={ACCENT} />
+          <View style={s.thumbnailFallback}>
+            <View style={s.iconCircle}>
+              <Feather name={icon} size={36} color={palette.accent} />
             </View>
-            <Text style={styles.fallbackSport}>{sportLabel}</Text>
+            <Text style={s.fallbackSport}>{sportLabel}</Text>
           </View>
         )}
-        {/* Gradient overlay so text on top is readable */}
-        <View style={styles.imageOverlay} />
+        {/* Scrim so sport badge text is readable */}
+        <View style={s.imageOverlay} />
         {/* Sport badge floats over image */}
-        <View style={[styles.sportBadge, { backgroundColor: ACCENT + "cc" }]}>
+        <View style={s.sportBadge}>
           <Feather name={icon} size={10} color="#fff" />
-          <Text style={styles.sportBadgeText}>{sportLabel}</Text>
+          <Text style={s.sportBadgeText}>{sportLabel}</Text>
         </View>
       </View>
 
       {/* ── Body ── */}
-      <View style={styles.body}>
-        {/* Title + date */}
-        <Text style={styles.title} numberOfLines={1}>{analysis.title}</Text>
-        <Text style={styles.date}>{formatDate(analysis.uploadedAt)}</Text>
+      <View style={s.body}>
+        <Text style={s.title} numberOfLines={1}>{analysis.title}</Text>
+        <Text style={s.date}>{formatDate(analysis.uploadedAt)}</Text>
 
-        {/* Score row */}
-        <View style={styles.scoreRow}>
+        {/* Score ring + metrics grid */}
+        <View style={s.scoreRow}>
           <StaticRing score={overallScore} color={overallColor} />
-          <View style={styles.metricsGrid}>
+          <View style={s.metricsGrid}>
             {METRICS.map(({ key, label }) => {
               const val   = (analysis[key] as number | undefined) ?? 0;
               const color = scoreBandColor(val);
               return (
-                <View key={key} style={styles.metricItem}>
-                  <Text style={[styles.metricValue, { color }]}>{Math.round(val)}</Text>
-                  <Text style={styles.metricLabel}>{label}</Text>
+                <View key={key} style={s.metricItem}>
+                  <Text style={[s.metricValue, { color }]}>{Math.round(val)}</Text>
+                  <Text style={s.metricLabel}>{label}</Text>
                 </View>
               );
             })}
@@ -175,179 +217,189 @@ export function ShareCard({ analysis, topTip }: Props) {
 
         {/* Top coaching tip strip */}
         {!!topTip && (
-          <View style={styles.tipStrip}>
-            <Feather name="message-circle" size={11} color={ACCENT} style={{ marginTop: 1 }} />
-            <Text style={styles.tipText} numberOfLines={2}>{topTip}</Text>
+          <View style={s.tipStrip}>
+            <Feather name="message-circle" size={11} color={palette.accent} style={{ marginTop: 1 }} />
+            <Text style={s.tipText} numberOfLines={2}>{topTip}</Text>
           </View>
         )}
 
-        {/* Divider */}
-        <View style={[styles.divider, { backgroundColor: CARD_BORDER }]} />
+        <View style={s.divider} />
 
         {/* Branding footer */}
-        <View style={styles.footer}>
-          <View style={[styles.logoMark, { backgroundColor: ACCENT + "22" }]}>
-            <Feather name="activity" size={11} color={ACCENT} />
+        <View style={s.footer}>
+          <View style={s.logoMark}>
+            <Feather name="activity" size={11} color={palette.accent} />
           </View>
-          <Text style={styles.brandText}>AthleteAI</Text>
-          <Text style={styles.brandSub}>· AI-powered coaching</Text>
+          <Text style={s.brandText}>AthleteAI</Text>
+          <Text style={s.brandSub}>· AI-powered coaching</Text>
         </View>
       </View>
     </View>
   );
 }
 
+// ─── Dynamic styles ───────────────────────────────────────────────────────────
+// Called once per render with the active palette.  React Native's StyleSheet
+// caches the underlying object so this is equivalent in perf to a static sheet.
+
 const CARD_WIDTH = 340;
 
-const styles = StyleSheet.create({
-  card: {
-    width:         CARD_WIDTH,
-    backgroundColor: CARD_BG,
-    borderRadius:  20,
-    overflow:      "hidden",
-    borderWidth:   1,
-    borderColor:   CARD_BORDER,
-  },
+function makeStyles(p: ShareCardPalette) {
+  return StyleSheet.create({
+    card: {
+      width:           CARD_WIDTH,
+      backgroundColor: p.cardBg,
+      borderRadius:    20,
+      overflow:        "hidden",
+      borderWidth:     1,
+      borderColor:     p.cardBorder,
+    },
 
-  // Image area
-  imageWrap: {
-    height: 170,
-    backgroundColor: CARD_SURFACE,
-  },
-  thumbnail: {
-    width: "100%",
-    height: "100%",
-  },
-  thumbnailFallback: {
-    width:          "100%",
-    height:         "100%",
-    alignItems:     "center",
-    justifyContent: "center",
-    gap:            10,
-  },
-  iconCircle: {
-    width:          72,
-    height:         72,
-    borderRadius:   36,
-    alignItems:     "center",
-    justifyContent: "center",
-  },
-  fallbackSport: {
-    fontSize:    14,
-    fontFamily:  "Inter_600SemiBold",
-    color:       TEXT_MUTED,
-    letterSpacing: 0.5,
-  },
-  imageOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#00000044",
-  },
-  sportBadge: {
-    position:       "absolute",
-    top:            12,
-    left:           12,
-    flexDirection:  "row",
-    alignItems:     "center",
-    gap:            5,
-    borderRadius:   20,
-    paddingHorizontal: 10,
-    paddingVertical:   4,
-  },
-  sportBadgeText: {
-    fontSize:   11,
-    fontFamily: "Inter_700Bold",
-    color:      "#fff",
-  },
+    // Image area
+    imageWrap: {
+      height:          170,
+      backgroundColor: p.cardSurface,
+    },
+    thumbnail: {
+      width:  "100%",
+      height: "100%",
+    },
+    thumbnailFallback: {
+      width:           "100%",
+      height:          "100%",
+      backgroundColor: p.cardSurface,
+      alignItems:      "center",
+      justifyContent:  "center",
+      gap:             10,
+    },
+    iconCircle: {
+      width:           72,
+      height:          72,
+      borderRadius:    36,
+      backgroundColor: p.accent + "22",
+      alignItems:      "center",
+      justifyContent:  "center",
+    },
+    fallbackSport: {
+      fontSize:      14,
+      fontFamily:    "Inter_600SemiBold",
+      color:         p.textMuted,
+      letterSpacing: 0.5,
+    },
+    imageOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: p.imageOverlay,
+    },
+    sportBadge: {
+      position:          "absolute",
+      top:               12,
+      left:              12,
+      flexDirection:     "row",
+      alignItems:        "center",
+      gap:               5,
+      borderRadius:      20,
+      paddingHorizontal: 10,
+      paddingVertical:   4,
+      backgroundColor:   p.accent + "cc",
+    },
+    sportBadgeText: {
+      fontSize:   11,
+      fontFamily: "Inter_700Bold",
+      color:      "#fff",
+    },
 
-  // Body
-  body: {
-    padding: 16,
-  },
-  title: {
-    fontSize:   17,
-    fontFamily: "Inter_700Bold",
-    color:      TEXT_PRIMARY,
-    marginBottom: 2,
-  },
-  date: {
-    fontSize:   12,
-    fontFamily: "Inter_400Regular",
-    color:      TEXT_MUTED,
-    marginBottom: 14,
-  },
-  scoreRow: {
-    flexDirection:  "row",
-    alignItems:     "center",
-    gap:            16,
-    marginBottom:   14,
-  },
-  metricsGrid: {
-    flex:       1,
-    flexDirection: "row",
-    flexWrap:   "wrap",
-    gap:        8,
-  },
-  metricItem: {
-    width:          "30%",
-    flexShrink:     1,
-    alignItems:     "flex-start",
-  },
-  metricValue: {
-    fontSize:   16,
-    fontFamily: "Inter_700Bold",
-    lineHeight: 19,
-  },
-  metricLabel: {
-    fontSize:   9,
-    fontFamily: "Inter_400Regular",
-    color:      TEXT_MUTED,
-    marginTop:  1,
-  },
-  divider: {
-    height: 1,
-    marginBottom: 12,
-  },
+    // Body
+    body: {
+      padding: 16,
+    },
+    title: {
+      fontSize:     17,
+      fontFamily:   "Inter_700Bold",
+      color:        p.textPrimary,
+      marginBottom: 2,
+    },
+    date: {
+      fontSize:     12,
+      fontFamily:   "Inter_400Regular",
+      color:        p.textMuted,
+      marginBottom: 14,
+    },
+    scoreRow: {
+      flexDirection: "row",
+      alignItems:    "center",
+      gap:           16,
+      marginBottom:  14,
+    },
+    metricsGrid: {
+      flex:          1,
+      flexDirection: "row",
+      flexWrap:      "wrap",
+      gap:           8,
+    },
+    metricItem: {
+      width:      "30%",
+      flexShrink: 1,
+      alignItems: "flex-start",
+    },
+    metricValue: {
+      fontSize:   16,
+      fontFamily: "Inter_700Bold",
+      lineHeight: 19,
+    },
+    metricLabel: {
+      fontSize:   9,
+      fontFamily: "Inter_400Regular",
+      color:      p.textMuted,
+      marginTop:  1,
+    },
+    divider: {
+      height:          1,
+      backgroundColor: p.cardBorder,
+      marginBottom:    12,
+    },
 
-  // Tip strip
-  tipStrip: {
-    flexDirection:    "row",
-    alignItems:       "flex-start",
-    gap:              7,
-    backgroundColor:  ACCENT + "18",
-    borderRadius:     8,
-    paddingHorizontal: 10,
-    paddingVertical:   8,
-    marginBottom:     12,
-  },
-  tipText: {
-    flex:       1,
-    fontSize:   11,
-    fontFamily: "Inter_400Regular",
-    color:      TEXT_PRIMARY,
-    lineHeight: 16,
-  },
+    // Tip strip
+    tipStrip: {
+      flexDirection:     "row",
+      alignItems:        "flex-start",
+      gap:               7,
+      backgroundColor:   p.accent + "18",
+      borderRadius:      8,
+      paddingHorizontal: 10,
+      paddingVertical:   8,
+      marginBottom:      12,
+    },
+    tipText: {
+      flex:       1,
+      fontSize:   11,
+      fontFamily: "Inter_400Regular",
+      color:      p.textPrimary,
+      lineHeight: 16,
+    },
 
-  // Footer
-  footer: {
-    flexDirection:  "row",
-    alignItems:     "center",
-    gap:            6,
-  },
-  logoMark: {
-    width:          20,
-    height:         20,
-    borderRadius:   6,
-    alignItems:     "center",
-    justifyContent: "center",
-  },
-  brandText: {
-    fontSize:   12,
-    fontFamily: "Inter_700Bold",
-    color:      TEXT_PRIMARY,
-  },
-  brandSub: {
-    fontSize:   11,
-    fontFamily: "Inter_400Regular",
-    color:      TEXT_MUTED,
-  },
-});
+    // Footer
+    footer: {
+      flexDirection: "row",
+      alignItems:    "center",
+      gap:           6,
+    },
+    logoMark: {
+      width:           20,
+      height:          20,
+      borderRadius:    6,
+      backgroundColor: p.accent + "22",
+      alignItems:      "center",
+      justifyContent:  "center",
+    },
+    brandText: {
+      fontSize:   12,
+      fontFamily: "Inter_700Bold",
+      color:      p.textPrimary,
+    },
+    brandSub: {
+      fontSize:   11,
+      fontFamily: "Inter_400Regular",
+      color:      p.textMuted,
+    },
+  });
+}
