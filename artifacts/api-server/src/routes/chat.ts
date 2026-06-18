@@ -34,7 +34,7 @@ function formatMessage(m: typeof chatMessagesTable.$inferSelect) {
   };
 }
 
-async function buildSystemPrompt(userId: number): Promise<string> {
+export async function buildSystemPrompt(userId: number): Promise<string> {
   const [profile] = await db
     .select()
     .from(profilesTable)
