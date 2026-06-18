@@ -10,6 +10,7 @@ import {
   Alert,
   TextInput,
   Animated,
+  Modal,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -335,6 +336,7 @@ export default function AnalysisDetailScreen() {
   const [deleting, setDeleting] = useState(false);
   const [pollExhausted, setPollExhausted] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [showSharePreview, setShowSharePreview] = useState(false);
   const shareCardRef = useRef<View>(null);
 
   // Sibling session IDs for prev/next navigation — sorted newest-first
@@ -408,7 +410,12 @@ export default function AnalysisDetailScreen() {
     router.push("/(tabs)/chat" as any);
   }
 
-  async function handleShare() {
+  function handleShare() {
+    if (!analysis) return;
+    setShowSharePreview(true);
+  }
+
+  async function handleDoShare() {
     if (!analysis || sharing) return;
     setSharing(true);
     try {
@@ -422,6 +429,7 @@ export default function AnalysisDetailScreen() {
         quality: 1,
         result: "tmpfile",
       });
+      setShowSharePreview(false);
       await Sharing.shareAsync(uri, {
         mimeType: "image/png",
         dialogTitle: "Share your session",
@@ -719,6 +727,85 @@ export default function AnalysisDetailScreen() {
       >
         <ShareCard analysis={analysis} />
       </View>
+
+      {/* ── Share preview modal ── */}
+      <Modal
+        visible={showSharePreview}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowSharePreview(false)}
+      >
+        <View style={styles.shareModalBackdrop}>
+          <View
+            style={[
+              styles.shareModalSheet,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            {/* Handle bar */}
+            <View
+              style={[styles.sheetHandle, { backgroundColor: colors.border }]}
+            />
+
+            <Text
+              style={[styles.sheetTitle, { color: colors.foreground }]}
+            >
+              Share your session
+            </Text>
+            <Text
+              style={[styles.sheetSubtitle, { color: colors.mutedForeground }]}
+            >
+              Here's what others will see
+            </Text>
+
+            {/* Card preview */}
+            <View style={styles.shareCardPreviewWrap}>
+              <ShareCard analysis={analysis} />
+            </View>
+
+            {/* Actions */}
+            <View style={styles.sheetActions}>
+              <TouchableOpacity
+                onPress={() => setShowSharePreview(false)}
+                activeOpacity={0.7}
+                style={[
+                  styles.sheetBtn,
+                  styles.sheetBtnCancel,
+                  { borderColor: colors.border, backgroundColor: colors.background },
+                ]}
+              >
+                <Text
+                  style={[styles.sheetBtnText, { color: colors.foreground }]}
+                >
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleDoShare}
+                activeOpacity={0.7}
+                disabled={sharing}
+                style={[
+                  styles.sheetBtn,
+                  styles.sheetBtnShare,
+                  { backgroundColor: colors.primary },
+                ]}
+              >
+                {sharing ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Feather name="share-2" size={15} color="#fff" />
+                    <Text style={[styles.sheetBtnText, { color: "#fff" }]}>
+                      Share
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -1824,5 +1911,72 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     marginTop: 6,
     textAlign: "right",
+  },
+
+  // Share preview modal
+  shareModalBackdrop: {
+    flex: 1,
+    backgroundColor: "#00000088",
+    justifyContent: "flex-end",
+  },
+  shareModalSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    paddingTop: 10,
+    paddingBottom: 36,
+    paddingHorizontal: 20,
+    alignItems: "center",
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 18,
+  },
+  sheetTitle: {
+    fontSize: 17,
+    fontFamily: "Inter_700Bold",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  sheetSubtitle: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  shareCardPreviewWrap: {
+    alignSelf: "center",
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 8,
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  sheetActions: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  sheetBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    borderRadius: 14,
+    paddingVertical: 14,
+  },
+  sheetBtnCancel: {
+    borderWidth: 1,
+  },
+  sheetBtnShare: {},
+  sheetBtnText: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
   },
 });
