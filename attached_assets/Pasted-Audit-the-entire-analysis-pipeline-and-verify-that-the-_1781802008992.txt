@@ -1,0 +1,91 @@
+Audit the entire analysis pipeline and verify that the AI is receiving the correct inputs, context, and data before generating coaching feedback.
+
+Primary goal:
+Maximize analysis accuracy, consistency, and trustworthiness. Prioritize factual correctness over sounding impressive. The app should never invent biomechanical observations, injury risks, joint angles, or coaching advice that are not supported by actual video evidence or measured data.
+
+Tasks:
+
+1. Trace the complete analysis flow.
+    * Follow the path from video upload to final analysis output.
+    * Verify exactly what data is sent to Claude.
+    * Verify whether Claude receives:
+        * the actual video,
+        * extracted frames,
+        * pose landmarks,
+        * joint angle measurements,
+        * sport classification,
+        * athlete metadata,
+        * previous analysis history.
+    * Document what is actually being passed versus what is assumed to be passed.
+2. Eliminate hallucinated feedback.
+    * Claude should never claim it observed something that was not measured.
+    * Claude should never invent joint angles, posture issues, movement flaws, or injury risks.
+    * Every coaching insight should be traceable to measured data or observable video evidence.
+3. Strengthen the analysis prompt.
+    * Rewrite the Claude prompt to prioritize accuracy, evidence, and uncertainty.
+    * Force Claude to explain reasoning based on available measurements.
+    * Require Claude to distinguish between:
+        * confirmed observations,
+        * likely observations,
+        * unknowns.
+    * If evidence is insufficient, Claude should explicitly say so rather than guessing.
+4. Improve biomechanical grounding.
+    * Verify that recommendations match the detected sport.
+    * Verify that movement assessments align with measured joint angles and pose data.
+    * Ensure sport-specific advice is used when appropriate.
+    * Remove generic AI coaching statements that are not supported by evidence.
+5. Add confidence scoring.
+    * Generate confidence levels for major findings.
+    * Lower confidence when:
+        * pose tracking quality is poor,
+        * athlete visibility is limited,
+        * video quality is low,
+        * important joints are occluded,
+        * movement is partially outside the frame.
+6. Create evidence-backed findings.
+    * For each issue identified, provide:
+        * observation,
+        * supporting evidence,
+        * why it matters,
+        * recommended fix,
+        * suggested drill.
+    * The observation must be linked to actual measured data whenever possible.
+7. Improve error handling.
+    * If the video quality is too poor for a reliable assessment, tell the user.
+    * If tracking fails, tell the user.
+    * If the movement cannot be analyzed confidently, tell the user.
+    * Never produce a confident-looking analysis when confidence is low.
+8. Verify video usage.
+    * Confirm whether Claude is analyzing:
+        * the raw video,
+        * extracted key frames,
+        * pose data,
+        * or some combination.
+    * If the video is not currently being provided effectively, improve the pipeline so the AI receives the most useful visual context possible.
+9. Build validation tests.
+    * Create test cases using known movement examples.
+    * Verify that repeated analysis of the same video produces similar results.
+    * Flag inconsistencies.
+    * Identify where variability comes from.
+10. Generate an audit report.
+    At the end, provide:
+    * what data Claude currently receives,
+    * weaknesses in the current pipeline,
+    * likely sources of inaccurate analysis,
+    * recommendations to improve accuracy,
+    * confidence level in the current system.
+
+Important:
+Do not optimize for making the analysis sound smart.
+Do not optimize for engagement.
+Do not optimize for longer responses.
+
+Optimize for:
+
+1. Accuracy.
+2. Consistency.
+3. Evidence-based conclusions.
+4. Clear uncertainty reporting.
+5. Trustworthiness.
+
+The analysis should behave more like a sports scientist reviewing measured data than a motivational AI coach. If the system does not know something, it should say it does not know rather than infer or guess.
