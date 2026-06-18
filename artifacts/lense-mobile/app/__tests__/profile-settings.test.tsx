@@ -1,0 +1,160 @@
+import React from "react";
+import { render, act, fireEvent } from "@testing-library/react-native";
+import { Alert } from "react-native";
+
+// ─── Navigation mock ───────────────────────────────────────────────────────────
+// Capture the latest beforeRemove listener so tests can fire it manually.
+let capturedBeforeRemove: ((e: any) => void) | undefined;
+const mockDispatch = jest.fn();
+const mockAddListener = jest.fn((event: string, cb: any) => {
+  if (event === "beforeRemove") capturedBeforeRemove = cb;
+  return jest.fn(); // returns unsubscribe
+});
+
+jest.mock("@react-navigation/native", () => ({
+  useNavigation: () => ({
+    addListener: mockAddListener,
+    dispatch: mockDispatch,
+  }),
+}));
+
+jest.mock("expo-router", () => ({
+  useRouter: () => ({ back: jest.fn(), replace: jest.fn(), push: jest.fn() }),
+}));
+
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+
+jest.mock("@expo/vector-icons", () => ({
+  Feather: () => null,
+}));
+
+jest.mock("expo-image-picker", () => ({
+  requestMediaLibraryPermissionsAsync: jest.fn(),
+  launchImageLibraryAsync: jest.fn(),
+}));
+
+// ─── Auth mock ─────────────────────────────────────────────────────────────────
+const mockUpdateProfile = jest.fn(async () => {});
+
+jest.mock("@/lib/authContext", () => ({
+  useAuth: () => ({
+    user: { id: "u1", email: "athlete@example.com", name: "Alex Smith" },
+    profile: {
+      name: "Alex Smith",
+      sport: "Running",
+      level: "intermediate",
+      goals: ["Improve technique"],
+      injuryConcerns: ["No current injuries"],
+      weeklyGoal: 3,
+      trainingDays: [0, 1, 2, 3, 4, 5, 6],
+      avatarUrl: null,
+    },
+    updateProfile: mockUpdateProfile,
+    logout: jest.fn(),
+  }),
+}));
+
+jest.mock("@/hooks/useColors", () => ({
+  useColors: () => ({
+    background: "#0a0a0a",
+    foreground: "#f5f5f5",
+    card: "#1a1a1a",
+    border: "#2a2a2a",
+    primary: "#6c63ff",
+    mutedForeground: "#888888",
+    destructive: "#ff4d6d",
+    success: "#22c55e",
+    radius: 12,
+  }),
+}));
+
+// Import after all mocks are set up.
+import ProfileSettingsScreen from "../profile-settings";
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Fire the captured beforeRemove listener with a preventable fake event. */
+function fireBeforeRemove() {
+  const preventDefault = jest.fn();
+  const fakeEvent = {
+    preventDefault,
+    data: { action: { type: "GO_BACK" } },
+  };
+  capturedBeforeRemove?.(fakeEvent);
+  return { preventDefault };
+}
+
+/** Flush pending React microtasks / effect queues. */
+async function flush(rounds = 3) {
+  for (let i = 0; i < rounds; i++) {
+    // eslint-disable-next-line no-await-in-loop
+    await act(async () => {});
+  }
+}
+
+// ─── Setup / teardown ─────────────────────────────────────────────────────────
+
+beforeEach(() => {
+  capturedBeforeRemove = undefined;
+  mockAddListener.mockClear();
+  mockDispatch.mockClear();
+  mockUpdateProfile.mockClear();
+  mockUpdateProfile.mockResolvedValue(undefined);
+  jest.spyOn(Alert, "alert").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+describe("ProfileSettingsScreen — discard-changes prompt", () => {
+  it("does NOT show an Alert when closing with no edits", async () => {
+    render(<ProfileSettingsScreen />);
+    await flush();
+
+    fireBeforeRemove();
+
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it("shows the 'Discard changes?' Alert after editing the name field", async () => {
+    const { getByPlaceholderText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    // Edit the name field — makes isDirty true.
+    fireEvent.changeText(getByPlaceholderText("e.g. Alex Johnson"), "Alex Modified");
+    await flush();
+
+    const { preventDefault } = fireBeforeRemove();
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(Alert.alert).toHaveBeenCalledWith(
+      "Discard changes?",
+      expect.any(String),
+      expect.any(Array)
+    );
+  });
+
+  it("does NOT show an Alert after saving the edits and then closing", async () => {
+    const { getByPlaceholderText, getByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    // Edit the name field to make the form dirty.
+    fireEvent.changeText(getByPlaceholderText("e.g. Alex Johnson"), "Alex Saved");
+    await flush();
+
+    // Tap Save Changes — updates refs → isDirty becomes false.
+    await act(async () => {
+      fireEvent.press(getByText("Save Changes"));
+    });
+    await flush();
+
+    fireBeforeRemove();
+
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+});
