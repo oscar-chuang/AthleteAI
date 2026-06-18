@@ -650,6 +650,26 @@ export default function SkeletonScreen() {
     return shared;
   }, [injuryTips, performanceTips]);
 
+  // Sorted tip lists derived from conflict data:
+  //   • Injury section  — conflicted tips rise to the top ("Fix this first" banner already labels them)
+  //   • Performance section — conflicted tips sink to the bottom ("After injury resolution" banner already labels them)
+  const sortedInjuryTips = useMemo(
+    () => [...injuryTips].sort((a, b) => {
+      const aConflict = (a.joints ?? []).some((j) => conflictedJoints.has(j)) ? 0 : 1;
+      const bConflict = (b.joints ?? []).some((j) => conflictedJoints.has(j)) ? 0 : 1;
+      return aConflict - bConflict;
+    }),
+    [injuryTips, conflictedJoints],
+  );
+  const sortedPerformanceTips = useMemo(
+    () => [...performanceTips].sort((a, b) => {
+      const aConflict = (a.joints ?? []).some((j) => conflictedJoints.has(j)) ? 1 : 0;
+      const bConflict = (b.joints ?? []).some((j) => conflictedJoints.has(j)) ? 1 : 0;
+      return aConflict - bConflict;
+    }),
+    [performanceTips, conflictedJoints],
+  );
+
   // Joints the scan flagged (level ≥ 1) — the ground truth the injury section and
   // joint chips correspond to. Sorted worst-first.
   const flaggedJoints = useMemo(
@@ -1107,8 +1127,8 @@ export default function SkeletonScreen() {
               <Text style={[ss.sectionLabel, { color: "#ef444488" }]}>INJURY PREVENTION</Text>
             </View>
 
-            {groundedReady && injuryTips.length > 0 ? (
-              injuryTips.map((tip) => renderTip(tip, "injury"))
+            {groundedReady && sortedInjuryTips.length > 0 ? (
+              sortedInjuryTips.map((tip) => renderTip(tip, "injury"))
             ) : refining ? (
               <View style={ss.refiningCard}>
                 <ActivityIndicator size="small" color="#6c63ff" />
@@ -1154,7 +1174,7 @@ export default function SkeletonScreen() {
               <Feather name="zap" size={10} color="#6c63ff" />
               <Text style={[ss.sectionLabel, { color: "#6c63ffaa" }]}>PERFORMANCE COACHING</Text>
             </View>
-            {performanceTips.map((tip) => renderTip(tip, "performance"))}
+            {sortedPerformanceTips.map((tip) => renderTip(tip, "performance"))}
           </View>
         )}
 
