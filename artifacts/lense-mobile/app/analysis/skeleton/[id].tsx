@@ -105,11 +105,12 @@ function buildHtml(videoUri: string | undefined, sport: string, initCrop?: InitC
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#000}
-video{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;opacity:0}
+video{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain}
+#oc{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
 </style>
 </head>
 <body>
-${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto"></video>` : ""}
+${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto"></video><canvas id="oc"></canvas>` : ""}
 <script src="${MEDIAPIPE_BASE}/pose.js" crossorigin="anonymous"
   onerror="try{window.ReactNativeWebView.postMessage(JSON.stringify({type:'scanComplete',angles:{},risks:{leftKnee:0,rightKnee:0,leftHip:0,rightHip:0,leftElbow:0,rightElbow:0},frame:''}));}catch(e){}">
 </script>
@@ -144,8 +145,50 @@ ${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto">
   const capCanvas=document.createElement("canvas"), capCtx=capCanvas.getContext("2d");
   const fullCanvas=document.createElement("canvas"), fullCtx=fullCanvas.getContext("2d");
   const offCanvas=document.createElement("canvas"), offCtx=offCanvas.getContext("2d");
+  const liveCanvas=document.getElementById("oc"), liveCtx=liveCanvas?liveCanvas.getContext("2d"):null;
 
   function post(o){ try{window.ReactNativeWebView.postMessage(JSON.stringify(o));}catch(e){} }
+
+  // ── Live skeleton overlay drawn on each processed frame ──────────────────────
+  // Landmarks from MediaPipe are crop-local (0..1 within the crop) when
+  // personLocked=true, or full-frame when not yet locked. We map them back to
+  // full-frame normalised coords before projecting onto the visible canvas.
+  function drawSkeleton(res){
+    if(!liveCanvas||!liveCtx)return;
+    const cW=liveCanvas.offsetWidth||640, cH=liveCanvas.offsetHeight||360;
+    if(liveCanvas.width!==cW)liveCanvas.width=cW;
+    if(liveCanvas.height!==cH)liveCanvas.height=cH;
+    liveCtx.clearRect(0,0,cW,cH);
+    const lm=res.poseLandmarks; if(!lm)return;
+    const VW=video.videoWidth||640, VH=video.videoHeight||360;
+    const vAR=VW/VH, cAR=cW/cH;
+    let vX,vY,vW,vH;
+    if(vAR>cAR){vW=cW;vH=cW/vAR;vX=0;vY=(cH-vH)/2;}
+    else{vH=cH;vW=cH*vAR;vX=(cW-vW)/2;vY=0;}
+    function toFull(p){
+      if(!p||(p.visibility||0)<0.30)return null;
+      const fx=personLocked?(p.x*cropW+cropX0)/Math.max(1,VW):p.x;
+      const fy=personLocked?(p.y*cropH+cropY0)/Math.max(1,VH):p.y;
+      return{x:vX+fx*vW,y:vY+fy*vH};
+    }
+    if(personLocked){
+      const bx=vX+cropX0/VW*vW,by=vY+cropY0/VH*vH,bw=cropW/VW*vW,bh=cropH/VH*vH;
+      liveCtx.strokeStyle='rgba(108,99,255,0.40)';liveCtx.lineWidth=1.5;
+      liveCtx.setLineDash([4,4]);liveCtx.strokeRect(bx,by,bw,bh);liveCtx.setLineDash([]);
+    }
+    const CONNS=[[11,12],[11,23],[12,24],[23,24],[11,13],[13,15],[15,17],[12,14],[14,16],[16,18],[23,25],[25,27],[24,26],[26,28]];
+    CONNS.forEach(function(pair){
+      const pa=toFull(lm[pair[0]]),pb=toFull(lm[pair[1]]); if(!pa||!pb)return;
+      liveCtx.beginPath();liveCtx.moveTo(pa.x,pa.y);liveCtx.lineTo(pb.x,pb.y);
+      liveCtx.strokeStyle='rgba(108,99,255,0.80)';liveCtx.lineWidth=2;liveCtx.stroke();
+    });
+    var KEYS=[0,11,12,13,14,15,16,23,24,25,26,27,28];
+    KEYS.forEach(function(i){
+      const p=toFull(lm[i]); if(!p)return;
+      liveCtx.beginPath();liveCtx.arc(p.x,p.y,4,0,Math.PI*2);
+      liveCtx.fillStyle='#a78bfa';liveCtx.fill();
+    });
+  }
 
   // ── Crop state (fixed selection or auto-locked first person) ────────────────
   const INIT_CROP=${initCrop ? JSON.stringify(initCrop) : "null"};
@@ -165,11 +208,21 @@ ${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto">
     cropW=x1-cropX0; cropH=y1-cropY0;
     if(cropW<8){cropX0=0;cropW=W;} if(cropH<8){cropY0=0;cropH=H;}
   }
+  // ── Padded crop bounds (15% margin clamped to video bounds) ─────────────────
+  // Used by both snapCrop and lmRemapped so the stored image and landmarks stay in sync.
+  function paddedBounds(){
+    const W=video.videoWidth||640, H=video.videoHeight||360;
+    const px=cropW*0.15, py=cropH*0.15;
+    const sx=Math.max(0,cropX0-px), sy=Math.max(0,cropY0-py);
+    const ex=Math.min(W,cropX0+cropW+px), ey=Math.min(H,cropY0+cropH+py);
+    return{sx,sy,sw:Math.max(1,ex-sx),sh:Math.max(1,ey-sy)};
+  }
   function snapCrop(){
-    const maxW=480; const s=Math.min(1,maxW/Math.max(1,cropW));
-    const cw=Math.max(1,Math.round(cropW*s)), ch=Math.max(1,Math.round(cropH*s));
+    const{sx,sy,sw,sh}=paddedBounds();
+    const maxW=480; const s=Math.min(1,maxW/sw);
+    const cw=Math.max(1,Math.round(sw*s)), ch=Math.max(1,Math.round(sh*s));
     capCanvas.width=cw; capCanvas.height=ch;
-    try{ capCtx.drawImage(video,cropX0,cropY0,cropW,cropH,0,0,cw,ch); }catch(e){}
+    try{ capCtx.drawImage(video,sx,sy,sw,sh,0,0,cw,ch); }catch(e){}
     return capCanvas.toDataURL("image/jpeg",0.6);
   }
   function snapFull(){
@@ -178,8 +231,20 @@ ${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto">
     try{ fullCtx.drawImage(video,0,0,fullCanvas.width,fullCanvas.height); }catch(e){}
     return fullCanvas.toDataURL("image/jpeg",0.45);
   }
-  function lmStore(lm){ return lm.map(p=>({x:+(p.x).toFixed(4),y:+(p.y).toFixed(4),v:+((p.visibility||0)).toFixed(3)})); }
+  // Remap crop-local landmarks (0..1 within cropX0/Y0/W/H) to padded-crop-local
+  // coords so they stay aligned with the padded image stored in the Capture.
+  function lmRemapped(rawLm){
+    const{sx,sy,sw,sh}=paddedBounds();
+    return rawLm.map(function(p){
+      return{
+        x:+(((p.x*cropW+cropX0-sx)/sw)).toFixed(4),
+        y:+(((p.y*cropH+cropY0-sy)/sh)).toFixed(4),
+        v:+((p.visibility||0)).toFixed(3)
+      };
+    });
+  }
   function buildCapture(rawLm,jr,maxLvl){
+    const{sw,sh}=paddedBounds();
     const joints=[],jrOut={};
     Object.keys(jr).forEach(k=>{const jk=J2K[k];if(jk){jrOut[jk]={deg:jr[k].deg,lvl:jr[k].lvl};if(jr[k].lvl>=1)joints.push(jk);}});
     joints.sort((a,b)=>jrOut[b].lvl-jrOut[a].lvl);
@@ -187,9 +252,9 @@ ${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto">
       id:"cap"+(capId++),
       kind:"joint",
       time:+(video.currentTime||0).toFixed(2),
-      aspect:(cropW>0&&cropH>0)?cropW/cropH:((video.videoWidth||16)/(video.videoHeight||9)),
+      aspect:(sw>0&&sh>0)?sw/sh:((video.videoWidth||16)/(video.videoHeight||9)),
       frame:snapCrop(),
-      lm:lmStore(rawLm),
+      lm:lmRemapped(rawLm),
       jr:jrOut,
       joints,
       maxLvl,
@@ -286,6 +351,7 @@ ${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto">
 
   function onResults(res){
     busy=false; if(!scanning)return; clearTimeout(stepTimer);
+    try{ drawSkeleton(res); }catch(e){}
     try{ processFrame(res); }catch(e){}
     if(singleFrame){ post({type:"progress",value:1}); finishScan(); return; }
     post({type:"progress",value:duration>0?Math.min(1,scanPos/duration):1});
@@ -984,28 +1050,9 @@ export default function SkeletonScreen() {
   const heroLvl = hero?.capture.maxLvl ?? 0;
   const heroPrimary = hero?.capture.joints[0];
 
-  // ── Off-screen headless scanner (unmounted once the scan completes) ──────────
-  const scanner = (!preparing && htmlFileUri && videoUri && !scanDone) ? (
-    <View style={ss.hiddenScanner} pointerEvents="none">
-      <WebView
-        ref={webviewRef}
-        source={{ uri: htmlFileUri }}
-        style={{ width: 1, height: 1, opacity: 0 }}
-        allowFileAccess
-        allowFileAccessFromFileURLs
-        allowUniversalAccessFromFileURLs
-        allowingReadAccessToURL={FileSystem.cacheDirectory ?? "file:///"}
-        mixedContentMode="always"
-        allowsInlineMediaPlayback
-        mediaPlaybackRequiresUserAction={false}
-        javaScriptEnabled
-        domStorageEnabled
-        originWhitelist={["*", "file://*"]}
-        scrollEnabled={false}
-        onMessage={handleMessage}
-      />
-    </View>
-  ) : null;
+  // scanner is embedded in heroBlock below; this is kept as null to avoid
+  // accidentally mounting a second WebView instance.
+  const scanner = null;
 
   // ── Hero block ───────────────────────────────────────────────────────────────
   const heroBlock = !videoUri ? null : preparing ? (
@@ -1014,12 +1061,40 @@ export default function SkeletonScreen() {
       <Text style={ss.preparingText}>Preparing your clip…</Text>
     </View>
   ) : !scanDone ? (
-    <View style={[ss.heroSlot, { height: heroBoxH }]}>
-      <ActivityIndicator color="#6c63ff" size="large" />
-      <Text style={ss.scanTitle}>Tracking your movement</Text>
-      <Text style={ss.scanSub}>Measuring joint angles frame by frame</Text>
-      <View style={ss.progTrack}>
-        <View style={[ss.progFill, { width: `${Math.round(scanProgress * 100)}%` }]} />
+    // Live scanner WebView fills the hero slot — user sees each seek-frame with
+    // the skeleton overlay drawn on top. Progress bar floats at the bottom.
+    <View style={{ width: heroBoxW, height: heroBoxH, backgroundColor: "#05050c" }} pointerEvents="none">
+      {(!preparing && htmlFileUri) ? (
+        <WebView
+          ref={webviewRef}
+          source={{ uri: htmlFileUri }}
+          style={{ width: heroBoxW, height: heroBoxH }}
+          allowFileAccess
+          allowFileAccessFromFileURLs
+          allowUniversalAccessFromFileURLs
+          allowingReadAccessToURL={FileSystem.cacheDirectory ?? "file:///"}
+          mixedContentMode="always"
+          allowsInlineMediaPlayback
+          mediaPlaybackRequiresUserAction={false}
+          javaScriptEnabled
+          domStorageEnabled
+          originWhitelist={["*", "file://*"]}
+          scrollEnabled={false}
+          onMessage={handleMessage}
+        />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
+          <ActivityIndicator color="#6c63ff" size="large" />
+          <Text style={ss.preparingText}>Preparing your clip…</Text>
+        </View>
+      )}
+      {/* Progress overlay */}
+      <View style={ss.scanOverlay}>
+        <Text style={ss.scanOverlayTitle}>Tracking your movement</Text>
+        <View style={ss.progTrack}>
+          <View style={[ss.progFill, { width: `${Math.round(scanProgress * 100)}%` }]} />
+        </View>
+        <Text style={ss.scanOverlaySub}>{Math.round(scanProgress * 100)}% — measuring joints</Text>
       </View>
     </View>
   ) : hero ? (
@@ -1454,9 +1529,12 @@ const ss = StyleSheet.create({
   heroSlot:      { backgroundColor: "#05050c", alignItems: "center", justifyContent: "center", gap: 9, paddingHorizontal: 30 },
   scanTitle:     { fontSize: 14, color: "#cfcdf2", fontFamily: "Inter_600SemiBold", textAlign: "center" },
   scanSub:       { fontSize: 12, color: "#8888aa", fontFamily: "Inter_400Regular", textAlign: "center" },
-  progTrack:     { width: "70%", height: 4, borderRadius: 3, backgroundColor: "#1c1c2e", overflow: "hidden", marginTop: 4 },
+  progTrack:     { width: "70%", height: 4, borderRadius: 3, backgroundColor: "rgba(28,28,46,0.85)", overflow: "hidden", marginTop: 4 },
   progFill:      { height: "100%", borderRadius: 3, backgroundColor: "#6c63ff" },
   preparingText: { fontSize: 12, color: "#8888aa", fontFamily: "Inter_400Regular" },
+  scanOverlay:   { position: "absolute", bottom: 16, left: 0, right: 0, alignItems: "center", gap: 5, pointerEvents: "none" } as any,
+  scanOverlayTitle: { fontSize: 12, color: "rgba(255,255,255,0.82)", fontFamily: "Inter_600SemiBold", textShadowColor: "#000", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
+  scanOverlaySub:   { fontSize: 10, color: "rgba(255,255,255,0.50)", fontFamily: "Inter_400Regular" },
   reselectBtn:   { flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "#6c63ff", borderRadius: 22, paddingHorizontal: 16, paddingVertical: 9, marginTop: 6 },
   reselectText:  { fontSize: 13, color: "#fff", fontFamily: "Inter_600SemiBold" },
 

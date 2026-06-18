@@ -42,7 +42,7 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
 <div id="wrap">
   <video id="v" src="${videoUri}" playsinline muted crossorigin="anonymous"></video>
   <canvas id="cv"></canvas>
-  <div id="st">Preparing…</div>
+  <div id="st">Preparing...</div>
 </div>
 <script>
 (function(){
@@ -57,8 +57,23 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
   function post(o){try{window.ReactNativeWebView.postMessage(JSON.stringify(o));}catch(e){}}
 
   function resize(){cv.width=cv.offsetWidth||window.innerWidth;cv.height=cv.offsetHeight||window.innerHeight;}
-  window.addEventListener('resize',()=>{resize();draw();});
+  window.addEventListener('resize',function(){resize();draw();});
   resize();
+
+  // ctx.roundRect is not available on all Android WebViews — use a manual arc path.
+  function roundRectPath(c,x,y,w,h,r){
+    c.beginPath();
+    c.moveTo(x+r,y);
+    c.lineTo(x+w-r,y);
+    c.arcTo(x+w,y,x+w,y+r,r);
+    c.lineTo(x+w,y+h-r);
+    c.arcTo(x+w,y+h,x+w-r,y+h,r);
+    c.lineTo(x+r,y+h);
+    c.arcTo(x,y+h,x,y+h-r,r);
+    c.lineTo(x,y+r);
+    c.arcTo(x,y,x+r,y,r);
+    c.closePath();
+  }
 
   function videoRect(){
     const cW=cv.width,cH=cv.height;
@@ -71,7 +86,7 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
     ctx.clearRect(0,0,cv.width,cv.height);
     if(!persons.length)return;
     const r=videoRect();
-    persons.forEach((p,i)=>{
+    persons.forEach(function(p,i){
       const x=r.l+p.nx*r.w, y=r.t+p.ny*r.h, w=p.nw*r.w, h=p.nh*r.h;
       const sel=i===selIdx;
       ctx.save();
@@ -79,13 +94,16 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
       ctx.strokeStyle=p.color; ctx.lineWidth=sel?4:2.5; ctx.globalAlpha=sel?1:0.78;
       if(sel){ctx.fillStyle=p.color+'22';ctx.fillRect(x,y,w,h);}
       ctx.strokeRect(x+1,y+1,w-2,h-2);
-      const lbl='Person '+(i+1)+(sel?' ✓':'');
+      // Use ASCII-safe label — no Unicode checkmark or ellipsis
+      const lbl='Person '+(i+1)+(sel?' (OK)':'');
       ctx.font='bold 12px -apple-system,sans-serif';
       const lw=ctx.measureText(lbl).width+16;
+      // Clamp label above the box to prevent it going off the top of the canvas
+      const lblY=Math.max(4,y-28);
       ctx.globalAlpha=1; ctx.fillStyle=p.color;
-      ctx.beginPath(); ctx.roundRect(x,y-28,lw,24,5); ctx.fill();
+      roundRectPath(ctx,x,lblY,lw,24,5); ctx.fill();
       ctx.fillStyle='#07070f'; ctx.textBaseline='middle';
-      ctx.fillText(lbl,x+8,y-16);
+      ctx.fillText(lbl,x+8,lblY+12);
       ctx.restore();
     });
   }
@@ -117,7 +135,7 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
   }
 
   async function detect(){
-    st.textContent='Finding athletes…';
+    st.textContent='Finding athletes...';
     try{
       if(!tfLoaded){
         await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js');
@@ -139,8 +157,8 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
 
       const preds=await model.detect(snap);
       persons=preds
-        .filter(p=>p.class==='person'&&p.score>0.3)
-        .map((p,i)=>({nx:p.bbox[0]/vW,ny:p.bbox[1]/vH,nw:p.bbox[2]/vW,nh:p.bbox[3]/vH,color:COLORS[i%COLORS.length]}));
+        .filter(function(p){return p.class==='person'&&p.score>0.3;})
+        .map(function(p,i){return{nx:p.bbox[0]/vW,ny:p.bbox[1]/vH,nw:p.bbox[2]/vW,nh:p.bbox[3]/vH,color:COLORS[i%COLORS.length]};});
 
       draw();
       if(persons.length===1){
@@ -148,9 +166,10 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
         post({type:'personSelected',nx:persons[0].nx,ny:persons[0].ny,nw:persons[0].nw,nh:persons[0].nh,index:0,autoSelected:true});
       }
       post({type:'ready',personCount:persons.length});
-      st.textContent=persons.length===0?'No people detected':persons.length===1?'1 person found ✓':persons.length+' people — tap one';
+      // ASCII-only status text — no Unicode checkmark or ellipsis
+      st.textContent=persons.length===0?'No people detected':persons.length===1?'1 person found (OK)':persons.length+' people - tap one to select';
     }catch(e){
-      st.textContent='Detection unavailable — tap Proceed to continue';
+      st.textContent='Detection unavailable - tap Proceed to continue';
       post({type:'ready',personCount:0,error:true});
     }
   }
@@ -159,9 +178,13 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
     vW=v.videoWidth||640; vH=v.videoHeight||360;
     v.currentTime=Math.min(1.5,v.duration||1.5);
   });
-  v.addEventListener('seeked',function(){resize();detect();},{once:true});
+  var _seekedOnce=false;
+  v.addEventListener('seeked',function(){
+    if(_seekedOnce)return; _seekedOnce=true;
+    resize(); detect();
+  });
   v.addEventListener('error',function(){
-    st.textContent='Couldn\'t load the video';
+    st.textContent='Could not load the video';
     post({type:'ready',personCount:0,error:true});
   });
   v.load();
