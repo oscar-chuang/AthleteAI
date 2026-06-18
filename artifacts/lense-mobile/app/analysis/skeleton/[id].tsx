@@ -16,7 +16,7 @@ import { Feather } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { analyses as analysesApi, type TipRecord, type DrillRecord, type RiskRecord } from "@/lib/api";
+import { analyses as analysesApi, jointTrends, type TipRecord, type DrillRecord, type RiskRecord, type JointTrendsResponse } from "@/lib/api";
 import {
   computeFlaggedJoints,
   computeWorstLvl,
@@ -394,6 +394,8 @@ export default function SkeletonScreen() {
   const [videoAspect, setVideoAspect] = useState(16 / 9);
   const [preparing,   setPreparing]   = useState(true);
   const [htmlFileUri, setHtmlFileUri] = useState<string | null>(null);
+  const [prevAngles,  setPrevAngles]  = useState<Partial<Record<string, number>>>({});
+  const [prevRisks,   setPrevRisks]   = useState<Partial<Record<string, number>>>({});
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -426,6 +428,28 @@ export default function SkeletonScreen() {
       // grounded — surface them immediately instead of waiting for a fresh scan.
       if (analysis.biomechanicsApplied) setGroundedReady(true);
     }).catch(() => {});
+
+    // Fetch joint trend history to compute "vs last session" delta badges.
+    setPrevAngles({});
+    setPrevRisks({});
+    jointTrends.get().then((trends: JointTrendsResponse) => {
+      if (cancelled) return;
+      const newPrevAngles: Partial<Record<string, number>> = {};
+      const newPrevRisks: Partial<Record<string, number>> = {};
+      Object.entries(trends.joints).forEach(([joint, points]) => {
+        const sorted = [...points].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+        const idx = sorted.findIndex((p) => p.analysisId === id);
+        if (idx > 0) {
+          newPrevAngles[joint] = sorted[idx - 1].angle;
+          newPrevRisks[joint]  = sorted[idx - 1].risk;
+        }
+      });
+      setPrevAngles(newPrevAngles);
+      setPrevRisks(newPrevRisks);
+    }).catch(() => {});
+
     return () => { cancelled = true; };
   }, [id]);
 
@@ -671,6 +695,27 @@ export default function SkeletonScreen() {
     if (hit) setExpandedTipId((prev) => prev ?? hit.id);
   }, [groundedReady, highlightJoint, injuryTips, performanceTips]);
 
+  // ── "vs last session" delta badge ───────────────────────────────────────────
+  function renderDeltaBadge(joint: string, currentDeg: number | undefined, currentRisk: number) {
+    if (typeof currentDeg !== "number") return null;
+    const pDeg  = prevAngles[joint];
+    const pRisk = prevRisks[joint];
+    if (typeof pDeg !== "number") return null;
+    const delta = Math.round(currentDeg - pDeg);
+    if (delta === 0) return null;
+    let badgeColor = "#f59e0b";
+    if (typeof pRisk === "number") {
+      if (currentRisk < pRisk)      badgeColor = "#22c55e";
+      else if (currentRisk > pRisk) badgeColor = "#ef4444";
+    }
+    const sign = delta > 0 ? "+" : "";
+    return (
+      <Text style={[ss.deltaBadge, { color: badgeColor, borderColor: badgeColor + "55", backgroundColor: badgeColor + "18" }]}>
+        {sign}{delta}°
+      </Text>
+    );
+  }
+
   // ── Joint chips: measured angle + risk colour, tap to inspect on the frame ───
   function renderJointChips(joints?: string[]) {
     const arr = (joints ?? []).filter((j) => j in JOINT_LABEL) as JointKey[];
@@ -692,6 +737,7 @@ export default function SkeletonScreen() {
               <Text style={[ss.chipText, { color }]}>
                 {JOINT_LABEL[j]}{typeof deg === "number" ? ` · ${Math.round(deg)}°` : ""}
               </Text>
+              {renderDeltaBadge(j, deg, typeof lvl === "number" ? lvl : 0)}
             </TouchableOpacity>
           );
         })}
@@ -776,6 +822,7 @@ export default function SkeletonScreen() {
                       <Text style={[ss.readingText, { color: c }]}>
                         {JOINT_LABEL[j]} {typeof d === "number" ? `${Math.round(d)}°` : "--"} · {RISK_WORD[l]}
                       </Text>
+                      {renderDeltaBadge(j, d, l)}
                     </View>
                   );
                 })}
@@ -1384,6 +1431,7 @@ const ss = StyleSheet.create({
   chip:          { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4 },
   chipDot:       { width: 6, height: 6, borderRadius: 3 },
   chipText:      { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  deltaBadge:    { fontSize: 10, fontFamily: "Inter_700Bold", borderWidth: 1, borderRadius: 10, paddingHorizontal: 5, paddingVertical: 1 },
   tapHintRow:    { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1 },
   tapHint:       { fontSize: 10, color: "#6c63ff", fontFamily: "Inter_600SemiBold" },
 
