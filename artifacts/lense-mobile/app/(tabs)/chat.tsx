@@ -21,7 +21,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useColors } from "@/hooks/useColors";
 import { chat as chatApi, type ChatRecord, ApiError } from "@/lib/api";
-import { useCanAccessFeature } from "@/lib/authContext";
+import { useAuth, useCanAccessFeature } from "@/lib/authContext";
 import { MarkdownText } from "@/components/MarkdownText";
 
 const PENDING_KEY = "pendingChatMessage";
@@ -63,6 +63,7 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const canChat = useCanAccessFeature("aiChat");
+  const { profile, refreshProfile } = useAuth();
 
   const [messages, setMessages] = useState<ChatRecord[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -71,11 +72,26 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  // Track whether the initial load has completed so profile-change effects
+  // don't double-fire on first mount (loadHistory already covers that).
+  const initialLoadDone = useRef(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
+  const loadSuggestions = useCallback(async () => {
+    if (!canChat) return;
+    try {
+      const { suggestions: suggs, hasCompletedAnalyses: hasAnalyses } =
+        await chatApi.suggestions().catch(() => ({ suggestions: [] as string[], hasCompletedAnalyses: false }));
+      setSuggestions(suggs);
+      setHasCompletedAnalyses(hasAnalyses);
+    } catch {
+      // ignore
+    }
+  }, [canChat]);
+
   const loadHistory = useCallback(async () => {
-    if (!canChat) { setLoading(false); return; }
+    if (!canChat) { setLoading(false); initialLoadDone.current = true; return; }
     try {
       const [{ messages: msgs }, { suggestions: suggs, hasCompletedAnalyses: hasAnalyses }] = await Promise.all([
         chatApi.history(),
@@ -88,10 +104,14 @@ export default function ChatScreen() {
       // ignore
     } finally {
       setLoading(false);
+      initialLoadDone.current = true;
     }
   }, [canChat]);
 
+  // Refresh the profile from the server whenever this tab gains focus so the
+  // context passed to Claude always reflects the latest sport / level.
   useFocusEffect(useCallback(() => {
+    refreshProfile();
     loadHistory();
     AsyncStorage.getItem(PENDING_KEY).then(async (pending) => {
       if (!pending || !canChat) return;
@@ -99,7 +119,16 @@ export default function ChatScreen() {
       // Auto-send after history has had time to load
       setTimeout(() => sendMessage(pending), 800);
     });
-  }, [canChat, loadHistory]));
+  }, [canChat, loadHistory, refreshProfile]));
+
+  // When sport or level changes mid-session (e.g. user edits profile and comes
+  // back to Coach), reload suggestions so the chips reflect the new sport.
+  const profileSport = profile?.sport;
+  const profileLevel = profile?.level;
+  useEffect(() => {
+    if (!initialLoadDone.current) return; // skip initial render; loadHistory covers it
+    loadSuggestions();
+  }, [profileSport, profileLevel, loadSuggestions]);
 
   async function sendMessage(content?: string) {
     const text = (content ?? input).trim();
