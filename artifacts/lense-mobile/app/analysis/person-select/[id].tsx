@@ -42,7 +42,7 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
 <div id="wrap">
   <video id="v" src="${videoUri}" playsinline muted crossorigin="anonymous"></video>
   <canvas id="cv"></canvas>
-  <div id="st">Loading…</div>
+  <div id="st">Preparing…</div>
 </div>
 <script>
 (function(){
@@ -117,7 +117,7 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
   }
 
   async function detect(){
-    st.textContent='Detecting people…';
+    st.textContent='Finding athletes…';
     try{
       if(!tfLoaded){
         await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js');
@@ -150,7 +150,7 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
       post({type:'ready',personCount:persons.length});
       st.textContent=persons.length===0?'No people detected':persons.length===1?'1 person found ✓':persons.length+' people — tap one';
     }catch(e){
-      st.textContent='Detection unavailable';
+      st.textContent='Detection unavailable — tap Proceed to continue';
       post({type:'ready',personCount:0,error:true});
     }
   }
@@ -161,7 +161,7 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
   });
   v.addEventListener('seeked',function(){resize();detect();},{once:true});
   v.addEventListener('error',function(){
-    st.textContent='Video load error';
+    st.textContent='Couldn\'t load the video';
     post({type:'ready',personCount:0,error:true});
   });
   v.load();
@@ -345,8 +345,8 @@ export default function PersonSelectScreen() {
     `${personCount} people — tap one to select`;
 
   const helpText =
-    detectionError     ? "Detection failed (no network?). Tap Proceed to track manually in the overlay." :
-    personCount === null ? "COCO-SSD is scanning for people…" :
+    detectionError     ? "Couldn't detect automatically. Tap Proceed and we'll track the main athlete." :
+    personCount === null ? "Scanning your video for athletes…" :
     personCount === 0    ? "We'll focus on the most prominent person in frame." :
     personCount === 1    ? "Tap Analyze to start. We'll track this person throughout." :
     "Tap the person you want scored.";
@@ -444,7 +444,7 @@ export default function PersonSelectScreen() {
         {sport ? (
           <View style={s.sportPill}>
             <Feather name="tag" size={11} color="#a78bfa" />
-            <Text style={s.sportText}>{sport}</Text>
+            <Text style={s.sportText} numberOfLines={1} ellipsizeMode="tail">{sport}</Text>
           </View>
         ) : null}
       </View>
@@ -459,7 +459,7 @@ export default function PersonSelectScreen() {
           <View style={s.videoSlot}>
             <ActivityIndicator color="#6c63ff" size="large" />
             <Text style={{ color: "#55556e", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 10 }}>
-              {!videoChecked ? "Loading…" : "Preparing video…"}
+              {!videoChecked ? "Loading…" : "Preparing your clip…"}
             </Text>
           </View>
         ) : noVideo ? (
@@ -516,7 +516,7 @@ export default function PersonSelectScreen() {
         {showWebView && sportChecking && (
           <View style={s.claudeRow}>
             <ActivityIndicator size="small" color="#a78bfa" />
-            <Text style={s.claudeText}>Claude is checking the sport in your video…</Text>
+            <Text style={s.claudeText}>Verifying sport from your video…</Text>
           </View>
         )}
 

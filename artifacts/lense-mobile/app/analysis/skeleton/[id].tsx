@@ -894,13 +894,13 @@ export default function SkeletonScreen() {
   const heroBlock = !videoUri ? null : preparing ? (
     <View style={[ss.heroSlot, { height: heroBoxH }]}>
       <ActivityIndicator color="#6c63ff" size="large" />
-      <Text style={ss.preparingText}>Preparing video…</Text>
+      <Text style={ss.preparingText}>Preparing your clip…</Text>
     </View>
   ) : !scanDone ? (
     <View style={[ss.heroSlot, { height: heroBoxH }]}>
       <ActivityIndicator color="#6c63ff" size="large" />
-      <Text style={ss.scanTitle}>Analyzing your form…</Text>
-      <Text style={ss.scanSub}>Measuring joint angles across every frame</Text>
+      <Text style={ss.scanTitle}>Tracking your movement</Text>
+      <Text style={ss.scanSub}>Measuring joint angles frame by frame</Text>
       <View style={ss.progTrack}>
         <View style={[ss.progFill, { width: `${Math.round(scanProgress * 100)}%` }]} />
       </View>
@@ -922,8 +922,14 @@ export default function SkeletonScreen() {
           const qColor = q === "high" ? "#22c55e" : q === "medium" ? "#f59e0b" : "#6b7280";
           return (
             <View style={[ss.scanQualityBadge, { borderColor: qColor + "60" }]}>
+              <Feather
+                name={q === "high" ? "shield" : q === "medium" ? "shield" : "alert-circle"}
+                size={10}
+                color={qColor}
+                style={{ opacity: q === "medium" ? 0.65 : 1 }}
+              />
               <Text style={[ss.scanQualityText, { color: qColor }]}>
-                {q === "high" ? "● HIGH CONFIDENCE" : q === "medium" ? "◑ MED CONFIDENCE" : "○ LOW CONFIDENCE"}
+                {q === "high" ? "High confidence" : q === "medium" ? "Medium confidence" : "Low confidence"}
               </Text>
             </View>
           );
@@ -966,7 +972,7 @@ export default function SkeletonScreen() {
           </Text>
           {videoUri && (
             <Text style={{ fontSize: 10, color: scanDone ? "#22c55e" : "#8888aa", fontFamily: "Inter_400Regular" }}>
-              {scanDone ? "● Frozen-frame analysis" : "Scanning your clip…"}
+              {scanDone ? "● Analysis complete" : "Scanning video…"}
             </Text>
           )}
         </View>
@@ -1372,7 +1378,7 @@ const ss = StyleSheet.create({
   whyBox:        { backgroundColor: "#0c0c20", borderRadius: 8, borderWidth: 1, borderColor: "#2a2a44", paddingHorizontal: 10, paddingVertical: 8, gap: 3 },
   whyLabel:      { fontSize: 9, color: "#6c63ff", fontFamily: "Inter_700Bold", letterSpacing: 1 },
   whyText:       { fontSize: 12, color: "#b0b0cc", fontFamily: "Inter_400Regular", lineHeight: 17 },
-  scanQualityBadge: { marginTop: 6, borderWidth: 1, borderRadius: 22, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: "rgba(7,7,15,0.72)" },
+  scanQualityBadge: { marginTop: 6, borderWidth: 1, borderRadius: 22, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: "rgba(7,7,15,0.72)", flexDirection: "row", alignItems: "center", gap: 5 },
   scanQualityText:  { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5 },
   chipRow:       { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   chip:          { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4 },

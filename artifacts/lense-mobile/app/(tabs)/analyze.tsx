@@ -55,11 +55,11 @@ const SPORT_ACCENT: Record<string, string> = {
 };
 
 const ANALYSIS_STEPS = [
-  { label: "Extracting video frames",  icon: "film"     },
-  { label: "Detecting body pose",      icon: "user"     },
-  { label: "Calculating joint angles", icon: "activity" },
-  { label: "Running AI analysis",      icon: "cpu"      },
-  { label: "Generating report",        icon: "file-text"},
+  { label: "Scanning video",             icon: "film"     },
+  { label: "Detecting athlete",          icon: "user"     },
+  { label: "Measuring joint angles",     icon: "activity" },
+  { label: "Building your analysis",     icon: "cpu"      },
+  { label: "Generating your report",     icon: "file-text"},
 ];
 
 type SortMode = "newest" | "oldest" | "score-high" | "score-low";
@@ -288,7 +288,7 @@ export default function AnalyzeScreen() {
           ]
         );
       } else {
-        Alert.alert("Analysis failed", "Please try again.");
+        Alert.alert("Something went wrong", "Please try again.");
       }
     }
   }
@@ -296,8 +296,8 @@ export default function AnalyzeScreen() {
   const sortOptions: { key: SortMode; label: string }[] = [
     { key: "newest",     label: "Newest"    },
     { key: "oldest",     label: "Oldest"    },
-    { key: "score-high", label: "Best ↑"    },
-    { key: "score-low",  label: "Worst ↓"   },
+    { key: "score-high", label: "Top Score"  },
+    { key: "score-low",  label: "Low Score"  },
   ];
 
   const s = StyleSheet.create({
