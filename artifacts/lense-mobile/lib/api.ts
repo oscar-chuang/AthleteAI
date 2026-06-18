@@ -281,7 +281,7 @@ export const chat = {
   clear: () => request<{ success: boolean }>("/chat", { method: "DELETE" }),
 
   suggestions: () =>
-    request<{ suggestions: string[] }>("/chat/suggestions"),
+    request<{ suggestions: string[]; hasCompletedAnalyses: boolean }>("/chat/suggestions"),
 };
 
 // ─── Progress ─────────────────────────────────────────────────────────────────

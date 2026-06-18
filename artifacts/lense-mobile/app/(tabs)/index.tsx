@@ -260,39 +260,64 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* ── Stats row ── */}
-        <View style={s.statsRow}>
-          <View style={s.statCard}>
-            <View style={[s.overallCircle, { borderColor: overallColor, backgroundColor: overallColor + "1a" }]}>
-              <Text style={[s.overallNum, { color: overallColor }]}>
-                {overallScore != null ? Math.round(overallScore) : "--"}
-              </Text>
+        {/* ── Empty state for fresh users ── */}
+        {!error && allAnalyses.length === 0 && (
+          <View style={{ marginHorizontal: 20, marginBottom: 24, backgroundColor: colors.card, borderRadius: colors.radius, padding: 28, alignItems: "center", borderWidth: 1, borderColor: colors.border }}>
+            <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: colors.primary + "1a", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
+              <Feather name="video" size={32} color={colors.primary} />
             </View>
-            {scoreDelta != null && (
-              <View style={s.deltaRow}>
-                <Feather
-                  name={scoreDelta >= 0 ? "trending-up" : "trending-down"}
-                  size={11}
-                  color={scoreDelta >= 0 ? colors.success : colors.destructive}
-                />
-                <Text style={[s.deltaText, { color: scoreDelta >= 0 ? colors.success : colors.destructive }]}>
-                  {scoreDelta >= 0 ? "+" : ""}{scoreDelta}
+            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 8, textAlign: "center" }}>
+              Record your first video
+            </Text>
+            <Text style={{ fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 21, marginBottom: 24 }}>
+              Upload or record a training clip to get AI-powered biomechanics feedback, injury-risk scores, and personalised drills.
+            </Text>
+            <TouchableOpacity
+              style={{ backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 28, flexDirection: "row", alignItems: "center", gap: 8 }}
+              onPress={() => router.push("/(tabs)/analyze" as any)}
+              activeOpacity={0.85}
+            >
+              <Feather name="upload" size={16} color="#fff" />
+              <Text style={{ color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" }}>Analyze a Video</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ── Stats row (only when the user has data) ── */}
+        {allAnalyses.length > 0 && (
+          <View style={s.statsRow}>
+            <View style={s.statCard}>
+              <View style={[s.overallCircle, { borderColor: overallColor, backgroundColor: overallColor + "1a" }]}>
+                <Text style={[s.overallNum, { color: overallColor }]}>
+                  {overallScore != null ? Math.round(overallScore) : "--"}
                 </Text>
               </View>
-            )}
-            <Text style={s.statLabel}>Score</Text>
+              {scoreDelta != null && (
+                <View style={s.deltaRow}>
+                  <Feather
+                    name={scoreDelta >= 0 ? "trending-up" : "trending-down"}
+                    size={11}
+                    color={scoreDelta >= 0 ? colors.success : colors.destructive}
+                  />
+                  <Text style={[s.deltaText, { color: scoreDelta >= 0 ? colors.success : colors.destructive }]}>
+                    {scoreDelta >= 0 ? "+" : ""}{scoreDelta}
+                  </Text>
+                </View>
+              )}
+              <Text style={s.statLabel}>Score</Text>
+            </View>
+            <View style={s.statCard}>
+              <Text style={s.statValue}>{totalSessions}</Text>
+              <Text style={s.statLabel}>Sessions</Text>
+            </View>
+            <View style={s.statCard}>
+              <Text style={[s.statValue, { color: streakDays > 0 ? "#ff6b35" : colors.foreground }]}>
+                {streakDays > 0 ? `${streakDays}` : unlockedCount}
+              </Text>
+              <Text style={s.statLabel}>{streakDays > 0 ? "Streak" : "Awards"}</Text>
+            </View>
           </View>
-          <View style={s.statCard}>
-            <Text style={s.statValue}>{totalSessions}</Text>
-            <Text style={s.statLabel}>Sessions</Text>
-          </View>
-          <View style={s.statCard}>
-            <Text style={[s.statValue, { color: streakDays > 0 ? "#ff6b35" : colors.foreground }]}>
-              {streakDays > 0 ? `${streakDays}` : unlockedCount}
-            </Text>
-            <Text style={s.statLabel}>{streakDays > 0 ? "Streak" : "Awards"}</Text>
-          </View>
-        </View>
+        )}
 
         {/* ── Error banner ── */}
         {error && !loading && (
@@ -373,51 +398,52 @@ export default function HomeScreen() {
         )}
 
         {/* ── This Week ── */}
-        <View style={s.section}>
-          <Text style={[s.sectionTitle, { marginBottom: 12 }]}>This Week</Text>
-          <View style={s.weeklyCard}>
-            <View style={s.weeklyRow}>
-              <Text style={s.weeklyLabel}>Sessions completed</Text>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Text style={s.weeklyCount}>{thisWeek} / {weeklyGoal}</Text>
-                {stats != null && stats.lastWeekCount > 0 && (
-                  <Text style={[s.weeklyDelta, { color: thisWeek >= stats.lastWeekCount ? colors.success : colors.warning }]}>
-                    {thisWeek >= stats.lastWeekCount ? " ↑" : " ↓"} vs last week
-                  </Text>
-                )}
+        {allAnalyses.length > 0 && (
+          <View style={s.section}>
+            <Text style={[s.sectionTitle, { marginBottom: 12 }]}>This Week</Text>
+            <View style={s.weeklyCard}>
+              <View style={s.weeklyRow}>
+                <Text style={s.weeklyLabel}>Sessions completed</Text>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Text style={s.weeklyCount}>{thisWeek} / {weeklyGoal}</Text>
+                  {stats != null && stats.lastWeekCount > 0 && (
+                    <Text style={[s.weeklyDelta, { color: thisWeek >= stats.lastWeekCount ? colors.success : colors.warning }]}>
+                      {thisWeek >= stats.lastWeekCount ? " ↑" : " ↓"} vs last week
+                    </Text>
+                  )}
+                </View>
+              </View>
+              <View style={s.progressBarBg}>
+                <View style={[s.progressBarFill, { width: `${weekPct}%` as any }]} />
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 16 }}>
+                {lastSevenDays.map((day) => {
+                  const trained = trainedDaysSet.has(day);
+                  const isToday = day === todayStr;
+                  const dayIdx = new Date(day + "T12:00:00").getDay();
+                  return (
+                    <View key={day} style={{ alignItems: "center", gap: 5 }}>
+                      <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: isToday ? colors.primary : colors.mutedForeground }}>
+                        {DAY_LABELS[dayIdx]}
+                      </Text>
+                      <View style={{
+                        width: 22, height: 22, borderRadius: 11,
+                        backgroundColor: trained ? colors.primary : "transparent",
+                        borderWidth: trained ? 0 : 1.5,
+                        borderColor: isToday ? colors.primary : colors.border,
+                        alignItems: "center", justifyContent: "center",
+                      }}>
+                        {isToday && !trained && (
+                          <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.primary }} />
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
               </View>
             </View>
-            <View style={s.progressBarBg}>
-              <View style={[s.progressBarFill, { width: `${weekPct}%` as any }]} />
-            </View>
-            {/* 7-day activity dots */}
-            <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 16 }}>
-              {lastSevenDays.map((day) => {
-                const trained = trainedDaysSet.has(day);
-                const isToday = day === todayStr;
-                const dayIdx = new Date(day + "T12:00:00").getDay();
-                return (
-                  <View key={day} style={{ alignItems: "center", gap: 5 }}>
-                    <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: isToday ? colors.primary : colors.mutedForeground }}>
-                      {DAY_LABELS[dayIdx]}
-                    </Text>
-                    <View style={{
-                      width: 22, height: 22, borderRadius: 11,
-                      backgroundColor: trained ? colors.primary : "transparent",
-                      borderWidth: trained ? 0 : 1.5,
-                      borderColor: isToday ? colors.primary : colors.border,
-                      alignItems: "center", justifyContent: "center",
-                    }}>
-                      {isToday && !trained && (
-                        <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.primary }} />
-                      )}
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
           </View>
-        </View>
+        )}
 
         {/* ── Latest Performance ── */}
         {latestComplete && (

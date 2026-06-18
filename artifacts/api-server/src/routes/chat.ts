@@ -122,7 +122,7 @@ router.get("/chat/suggestions", requireAuth, async (req: Request, res: Response)
     "What are the most impactful drills for any sport?",
   ];
 
-  res.json({ suggestions });
+  res.json({ suggestions, hasCompletedAnalyses: !!latest });
 });
 
 router.get("/chat", requireAuth, async (req: Request, res: Response) => {

@@ -66,6 +66,7 @@ export default function ChatScreen() {
 
   const [messages, setMessages] = useState<ChatRecord[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [hasCompletedAnalyses, setHasCompletedAnalyses] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -76,12 +77,13 @@ export default function ChatScreen() {
   const loadHistory = useCallback(async () => {
     if (!canChat) { setLoading(false); return; }
     try {
-      const [{ messages: msgs }, { suggestions: suggs }] = await Promise.all([
+      const [{ messages: msgs }, { suggestions: suggs, hasCompletedAnalyses: hasAnalyses }] = await Promise.all([
         chatApi.history(),
-        chatApi.suggestions().catch(() => ({ suggestions: [] as string[] })),
+        chatApi.suggestions().catch(() => ({ suggestions: [] as string[], hasCompletedAnalyses: false })),
       ]);
       setMessages(msgs);
       setSuggestions(suggs);
+      setHasCompletedAnalyses(hasAnalyses);
     } catch {
       // ignore
     } finally {
@@ -263,8 +265,20 @@ export default function ChatScreen() {
           </View>
           <Text style={s.emptyTitle}>Your AI Coach</Text>
           <Text style={s.emptySub}>
-            Ask anything about your training, form, or recovery. I have your recent session data ready.
+            {hasCompletedAnalyses
+              ? "Ask anything about your training, form, or recovery. I have your recent session data ready."
+              : "Analyze a training video first, then come back here to discuss your results with your AI coach."}
           </Text>
+          {!hasCompletedAnalyses && (
+            <TouchableOpacity
+              style={{ backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 24, flexDirection: "row", alignItems: "center", gap: 8 }}
+              onPress={() => router.push("/(tabs)/analyze" as any)}
+              activeOpacity={0.85}
+            >
+              <Feather name="upload" size={15} color="#fff" />
+              <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" }}>Analyze a Video</Text>
+            </TouchableOpacity>
+          )}
           {suggestions.length > 0 && (
             <View style={s.suggestionsWrap}>
               {suggestions.map((s_text, i) => (

@@ -168,6 +168,17 @@ export default function AnalyzeScreen() {
   }, [analysisList, searchQuery, sortBy]);
 
   async function handleUpload() {
+    if (!profile?.sport) {
+      Alert.alert(
+        "Set your sport first",
+        "Tell us your sport so we can give you accurate, sport-specific biomechanics feedback.",
+        [
+          { text: "Skip for now", style: "cancel" },
+          { text: "Set up profile", onPress: () => router.push("/onboarding" as any) },
+        ]
+      );
+      return;
+    }
     try {
       if (Platform.OS !== "web") {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -201,6 +212,17 @@ export default function AnalyzeScreen() {
   }
 
   async function handleRecord() {
+    if (!profile?.sport) {
+      Alert.alert(
+        "Set your sport first",
+        "Tell us your sport so we can give you accurate, sport-specific biomechanics feedback.",
+        [
+          { text: "Skip for now", style: "cancel" },
+          { text: "Set up profile", onPress: () => router.push("/onboarding" as any) },
+        ]
+      );
+      return;
+    }
     if (Platform.OS === "web") {
       Alert.alert("Not available", "Video recording is only available on the mobile app.");
       return;
