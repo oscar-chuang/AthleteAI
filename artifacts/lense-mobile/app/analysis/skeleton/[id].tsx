@@ -1030,16 +1030,36 @@ export default function SkeletonScreen() {
     const conflictWarning = isConflictedPerformanceTip
       ? "Note: there is an open injury risk on this joint — please address that first. "
       : "";
+
+    // Build completed-drills context so the coach knows what has already been done.
+    const allTips = [...injuryTips, ...performanceTips];
+    const thisDrillDone = completedDrills.has(tip.id);
+    const otherDoneDrillNames = allTips
+      .filter((t) => t.id !== tip.id && completedDrills.has(t.id) && t.drill?.name)
+      .map((t) => t.drill!.name);
+
+    let completedCtx = "";
+    if (thisDrillDone && otherDoneDrillNames.length > 0) {
+      completedCtx =
+        ` I have already completed this drill. Other drills I've finished this session: ${otherDoneDrillNames.join(", ")}.` +
+        ` Please suggest a progression rather than repeating what I've done.`;
+    } else if (thisDrillDone) {
+      completedCtx = ` I have already completed this drill — please suggest what to work on next as a progression.`;
+    } else if (otherDoneDrillNames.length > 0) {
+      completedCtx = ` Other drills I've already completed this session: ${otherDoneDrillNames.join(", ")}.`;
+    }
+
     const msg =
       conflictWarning +
       `I'm working on my ${sport || "training"} form. My coaching report flagged "${tip.title}"` +
       `${jointStr ? ` around my ${jointStr}` : ""}.` +
       `${readings ? ` Measured from my video: ${readings}.` : ""}` +
       `${tip.description ? ` ${tip.description}` : ""}` +
+      completedCtx +
       ` How do I fix this, and what should I focus on first?`;
     await AsyncStorage.setItem(PENDING_CHAT_KEY, msg);
     router.push("/(tabs)/chat" as any);
-  }, [scanResult, sport, router, conflictedJoints]);
+  }, [scanResult, sport, router, conflictedJoints, completedDrills, injuryTips, performanceTips]);
 
   // ── Deep link from the detail screen: open the tapped joint's frozen frame ───
   useEffect(() => {

@@ -1,5 +1,5 @@
 import React from "react";
-import { render, act, screen } from "@testing-library/react-native";
+import { render, act, screen, fireEvent } from "@testing-library/react-native";
 import { Dimensions } from "react-native";
 
 // ─── Drive the mocks from per-test state ──────────────────────────────────────
@@ -327,5 +327,113 @@ describe("skeleton screen — grounding lifecycle", () => {
     expect(screen.queryByText("No injury risks detected across the scan")).toBeNull();
     // The hero communicates the failure and offers re-selection instead.
     expect(screen.getByText("Couldn’t detect the athlete clearly")).toBeTruthy();
+  });
+});
+
+
+// ─── askCoach — completed-drill context ───────────────────────────────────────
+// These tests verify that when tips with drills have been marked as done, the
+// pending chat message stored in AsyncStorage includes the completed-drill
+// context so the AI Coach can acknowledge the work and suggest progressions.
+describe("askCoach — completed-drill context in pending message", () => {
+  const kneeInjuryTip = {
+    id: "dt-knee",
+    tipType: "injury",
+    severity: "critical",
+    category: "Knee Mechanics",
+    title: "KNEE_VALGUS_TIP",
+    description: "Knee is caving inward.",
+    joints: ["leftKnee"],
+    drill: { name: "Hip Hinge Drill", sets: "3", reps: "10", cue: "Push knees out" },
+  };
+  const hipPerfTip = {
+    id: "dt-hip",
+    tipType: "performance",
+    severity: "info",
+    category: "Power Output",
+    title: "HIP_DRIVE_TIP",
+    description: "Increase hip drive.",
+    joints: ["leftHip"],
+    drill: { name: "Tempo Squat", sets: "3", reps: "8", cue: "3-second descent" },
+  };
+
+  function drillResp() {
+    return {
+      analysis: { id: 1, sport: "weightlifting", biomechanicsApplied: true },
+      tips: [kneeInjuryTip, hipPerfTip],
+      injuryRisks: [],
+    };
+  }
+
+  function getSetItemCalls() {
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    return (AsyncStorage.setItem.mock.calls as [string, string][]).filter(
+      ([key]) => key === "pendingChatMessage"
+    );
+  }
+
+  beforeEach(() => {
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    AsyncStorage.setItem.mockClear();
+  });
+
+  it("includes other completed drill names when asking about a different tip", async () => {
+    mockApiGet.mockResolvedValue(drillResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Expand knee tip and mark its drill as done
+    fireEvent.press(screen.getByText("KNEE_VALGUS_TIP"));
+    await flush();
+    fireEvent.press(screen.getByText("Mark done"));
+    await flush();
+
+    // Expand hip tip and ask the coach about it
+    fireEvent.press(screen.getByText("HIP_DRIVE_TIP"));
+    await flush();
+    fireEvent.press(screen.getByText("Ask Coach about this"));
+    await flush();
+
+    const calls = getSetItemCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![1]).toContain("Hip Hinge Drill");
+  });
+
+  it("asks for a progression when the current tip drill is already done", async () => {
+    mockApiGet.mockResolvedValue(drillResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Expand knee tip, mark done, then ask coach about the same tip
+    fireEvent.press(screen.getByText("KNEE_VALGUS_TIP"));
+    await flush();
+    fireEvent.press(screen.getByText("Mark done"));
+    await flush();
+    fireEvent.press(screen.getByText("Ask Coach about this"));
+    await flush();
+
+    const calls = getSetItemCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![1]).toContain("already completed this drill");
+    expect(calls[0]![1]).toContain("progression");
+  });
+
+  it("omits completed-drill context when no drills have been marked done", async () => {
+    mockApiGet.mockResolvedValue(drillResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Expand knee tip and ask coach without marking anything done
+    fireEvent.press(screen.getByText("KNEE_VALGUS_TIP"));
+    await flush();
+    fireEvent.press(screen.getByText("Ask Coach about this"));
+    await flush();
+
+    const calls = getSetItemCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![1]).not.toContain("completed");
   });
 });
