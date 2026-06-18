@@ -16,6 +16,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { captureRef } from "react-native-view-shot";
+import * as Sharing from "expo-sharing";
 
 import { useColors } from "@/hooks/useColors";
 import {
@@ -31,6 +33,7 @@ import { InsightCard } from "@/components/analysis/InsightCard";
 import { CoachTakeawayCard } from "@/components/analysis/CoachTakeawayCard";
 import { NextFocusCard } from "@/components/analysis/NextFocusCard";
 import { AnimatedLoadingState } from "@/components/analysis/AnimatedLoadingState";
+import { ShareCard } from "@/components/analysis/ShareCard";
 
 const PENDING_CHAT_KEY = "pendingChatMessage";
 
@@ -331,6 +334,8 @@ export default function AnalysisDetailScreen() {
   const [note, setNote] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [pollExhausted, setPollExhausted] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const shareCardRef = useRef<View>(null);
 
   // Hero fade-in
   const heroOpacity = useRef(new Animated.Value(0)).current;
@@ -373,6 +378,31 @@ export default function AnalysisDetailScreen() {
     const msg = `I just reviewed my "${analysis.title}" (${analysis.sport}) session. My overall score was ${Math.round(analysis.overallScore ?? 0)}/100. My weakest area is ${worst?.key ?? "technique"} (${Math.round(worst?.score ?? 0)}). What's the single most impactful thing I can do to improve?`;
     await AsyncStorage.setItem(PENDING_CHAT_KEY, msg);
     router.push("/(tabs)/chat" as any);
+  }
+
+  async function handleShare() {
+    if (!analysis || sharing) return;
+    setSharing(true);
+    try {
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert("Sharing not available", "Your device doesn't support sharing.");
+        return;
+      }
+      const uri = await captureRef(shareCardRef, {
+        format: "png",
+        quality: 1,
+        result: "tmpfile",
+      });
+      await Sharing.shareAsync(uri, {
+        mimeType: "image/png",
+        dialogTitle: "Share your session",
+      });
+    } catch {
+      Alert.alert("Couldn't share", "Something went wrong. Please try again.");
+    } finally {
+      setSharing(false);
+    }
   }
 
   async function handleDelete() {
@@ -586,20 +616,50 @@ export default function AnalysisDetailScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          onPress={handleDelete}
-          activeOpacity={0.7}
-          disabled={deleting}
-          accessibilityRole="button"
-          accessibilityLabel="Delete analysis"
-          style={{ padding: 6 }}
-        >
-          {deleting ? (
-            <ActivityIndicator size="small" color={colors.destructive} />
-          ) : (
-            <Feather name="trash-2" size={18} color={colors.destructive} />
-          )}
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <TouchableOpacity
+            onPress={handleShare}
+            activeOpacity={0.7}
+            disabled={sharing}
+            accessibilityRole="button"
+            accessibilityLabel="Share analysis"
+            style={{ padding: 6 }}
+          >
+            {sharing ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Feather name="share-2" size={18} color={colors.primary} />
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleDelete}
+            activeOpacity={0.7}
+            disabled={deleting}
+            accessibilityRole="button"
+            accessibilityLabel="Delete analysis"
+            style={{ padding: 6 }}
+          >
+            {deleting ? (
+              <ActivityIndicator size="small" color={colors.destructive} />
+            ) : (
+              <Feather name="trash-2" size={18} color={colors.destructive} />
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Hidden off-screen share card — captured by react-native-view-shot */}
+      <View
+        ref={shareCardRef}
+        collapsable={false}
+        style={{
+          position: "absolute",
+          top:      -9999,
+          left:     -9999,
+        }}
+      >
+        <ShareCard analysis={analysis} />
       </View>
 
       <ScrollView
