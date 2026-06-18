@@ -1,0 +1,92 @@
+Improve the AthleteAI app UI/UX, especially the analysis experience. Focus mostly on visual design, readability, clarity, and making the app feel more premium, fun, and enjoyable to use.
+
+Do not change the core backend logic unless needed for UI display. Keep the current app structure, routes, and data flow working.
+
+Main goal:
+Make the analysis screen feel like a modern sports performance dashboard instead of a plain report.
+
+Design direction:
+Use a clean, dark, premium athletic UI inspired by Linear, WHOOP, Strava, and modern AI apps.
+Use strong spacing, rounded cards, subtle gradients, smooth transitions, and clear visual hierarchy.
+Make the app feel energetic but not childish.
+Prioritize mobile-first design.
+
+Analysis screen changes:
+
+1. Create a strong “Analysis Summary” hero section at the top.
+    Include:
+    * Overall score
+    * Sport detected
+    * Main improvement area
+    * Short AI coach summary in plain language
+2. Replace long blocks of text with scannable cards.
+    Use sections like:
+    * What you did well
+    * What needs work
+    * Biggest fix
+    * Recommended drill
+    * Injury/form risk flags
+3. Add visual score cards for:
+    * Technique
+    * Power
+    * Balance
+    * Overall
+        Each card should have a large score, short label, icon, and a small explanation.
+4. Make weaknesses easier to understand.
+    Each weakness should show:
+    * Issue name
+    * Severity level
+    * Why it matters
+    * How to fix it
+    * One simple drill
+5. Add a “Coach Takeaway” card.
+    This should be the clearest part of the screen.
+    It should answer: “What should I focus on next time?”
+6. Add better empty, loading, and error states.
+    Loading should feel exciting, with messages like:
+    * Analyzing movement
+    * Measuring joint angles
+    * Finding performance patterns
+    * Building your coaching plan
+7. Use icons and small visual cues, but keep the design clean.
+    Add icons for strength, balance, warning, progress, and coaching.
+8. Improve typography.
+    Use larger headings, shorter paragraphs, more line spacing, and clear section labels.
+    Avoid dense text.
+9. Add subtle animations.
+    Examples:
+    * Score cards animate in
+    * Progress bars fill smoothly
+    * Analysis sections fade in
+    * Buttons have press feedback
+10. Improve color usage.
+    Use dark background with cards.
+    Use accent colors for scores and status:
+
+* Green for strong
+* Yellow/orange for needs work
+* Red only for serious form risk
+    Do not overuse red.
+
+11. Make the app feel more rewarding.
+    Add small positive feedback moments like:
+
+* “Nice work”
+* “You have a clear next step”
+* “Your biggest opportunity is…”
+
+12. Add a clean “Next Workout Focus” section at the bottom.
+    Include:
+
+* One focus cue
+* One drill
+* One measurable goal
+
+Keep everything responsive and polished on mobile screens.
+
+Important:
+After making changes, check for TypeScript errors and fix them.
+Do not break navigation.
+Do not remove existing features.
+Do not hardcode fake results unless the current app already uses mock data.
+Keep the code clean and reusable by making UI components where helpful.
