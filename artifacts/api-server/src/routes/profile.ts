@@ -1,8 +1,32 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, and, desc } from "drizzle-orm";
+import sharp from "sharp";
 import { db, profilesTable, analysesTable } from "@workspace/db";
 import { requireAuth } from "./auth";
 import { computeProfileStats } from "../lib/stats";
+
+const AVATAR_MAX_PX = 64;
+const AVATAR_MAX_BYTES = 20 * 1024;
+
+async function compressAvatarIfNeeded(avatarUrl: string): Promise<string> {
+  const match = avatarUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+  if (!match) return avatarUrl;
+
+  const inputBuffer = Buffer.from(match[2], "base64");
+
+  let quality = 80;
+  let outputBuffer: Buffer;
+
+  do {
+    outputBuffer = await sharp(inputBuffer)
+      .resize(AVATAR_MAX_PX, AVATAR_MAX_PX, { fit: "cover", position: "centre" })
+      .jpeg({ quality })
+      .toBuffer();
+    quality -= 10;
+  } while (outputBuffer.byteLength > AVATAR_MAX_BYTES && quality >= 20);
+
+  return `data:image/jpeg;base64,${outputBuffer.toString("base64")}`;
+}
 
 const router: IRouter = Router();
 
@@ -80,6 +104,11 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
     }
   }
 
+  let processedAvatarUrl = avatarUrl;
+  if (typeof avatarUrl === "string") {
+    processedAvatarUrl = await compressAvatarIfNeeded(avatarUrl);
+  }
+
   const [existing] = await db
     .select()
     .from(profilesTable)
@@ -99,7 +128,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
         ...(injuryConcerns !== undefined && { injuryConcerns }),
         ...(weeklyGoal !== undefined && { weeklyGoal }),
         ...(trainingDays !== undefined && { trainingDays }),
-        ...(avatarUrl !== undefined && { avatarUrl }),
+        ...(processedAvatarUrl !== undefined && { avatarUrl: processedAvatarUrl }),
         updatedAt: new Date(),
       })
       .where(eq(profilesTable.userId, userId))
@@ -117,7 +146,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
         injuryConcerns: injuryConcerns ?? [],
         weeklyGoal: weeklyGoal ?? 3,
         trainingDays: trainingDays ?? [0, 1, 2, 3, 4, 5, 6],
-        avatarUrl: avatarUrl ?? null,
+        avatarUrl: processedAvatarUrl ?? null,
       })
       .returning();
     result = created!;
