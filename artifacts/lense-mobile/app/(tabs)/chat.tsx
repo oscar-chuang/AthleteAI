@@ -23,6 +23,7 @@ import { useColors } from "@/hooks/useColors";
 import { chat as chatApi, type ChatRecord, ApiError } from "@/lib/api";
 import { useAuth, useCanAccessFeature } from "@/lib/authContext";
 import { MarkdownText } from "@/components/MarkdownText";
+import { AvatarDisplay } from "@/app/profile-settings";
 
 const PENDING_KEY = "pendingChatMessage";
 
@@ -216,6 +217,14 @@ export default function ChatScreen() {
               <Text style={[s.headerSub, { color: colors.mutedForeground }]}>Pro feature</Text>
             </View>
           </View>
+          {profile && (
+            <AvatarDisplay
+              avatarUrl={profile.avatarUrl}
+              name={profile.name ?? "Athlete"}
+              size={36}
+              colors={colors}
+            />
+          )}
         </View>
         <View style={s.paywall}>
           <View style={s.paywallIcon}>
@@ -254,9 +263,18 @@ export default function ChatScreen() {
             <Text style={s.headerSub}>Online · Ready to help</Text>
           </View>
         </View>
-        <TouchableOpacity
-          style={s.clearBtn}
-          onPress={() => {
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          {profile && (
+            <AvatarDisplay
+              avatarUrl={profile.avatarUrl}
+              name={profile.name ?? "Athlete"}
+              size={36}
+              colors={colors}
+            />
+          )}
+          <TouchableOpacity
+            style={s.clearBtn}
+            onPress={() => {
             Alert.alert(
               "Clear conversation",
               "This will permanently delete your entire chat history with the AI coach. This can't be undone.",
@@ -276,7 +294,8 @@ export default function ChatScreen() {
           activeOpacity={0.7}
         >
           <Feather name="trash-2" size={18} color={colors.mutedForeground} />
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
