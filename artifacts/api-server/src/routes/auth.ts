@@ -151,6 +151,7 @@ router.get("/auth/me", async (req: Request, res: Response) => {
       weeklyGoal: profileRow.weeklyGoal,
       weeklyProgress,
       streakDays: streak,
+      avatarUrl: profileRow.avatarUrl ?? null,
     };
   }
 

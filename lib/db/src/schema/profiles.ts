@@ -10,6 +10,7 @@ export const profilesTable = pgTable("profiles", {
   goals: text("goals").array().notNull().default([]),
   injuryConcerns: text("injury_concerns").array().notNull().default([]),
   weeklyGoal: integer("weekly_goal").notNull().default(3),
+  avatarUrl: text("avatar_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

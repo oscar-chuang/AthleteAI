@@ -9,10 +9,12 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/lib/authContext";
@@ -43,6 +45,75 @@ const INJURIES = [
 
 const WEEKLY_GOAL_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
 
+const PRESET_AVATARS = [
+  { key: "preset:#6c63ff", color: "#6c63ff" },
+  { key: "preset:#22c55e", color: "#22c55e" },
+  { key: "preset:#f59e0b", color: "#f59e0b" },
+  { key: "preset:#ff4d6d", color: "#ff4d6d" },
+  { key: "preset:#06b6d4", color: "#06b6d4" },
+  { key: "preset:#a855f7", color: "#a855f7" },
+  { key: "preset:#ff6b35", color: "#ff6b35" },
+  { key: "preset:#14b8a6", color: "#14b8a6" },
+];
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 0 || !parts[0]) return "A";
+  if (parts.length === 1) return parts[0]!.charAt(0).toUpperCase();
+  return (parts[0]!.charAt(0) + parts[parts.length - 1]!.charAt(0)).toUpperCase();
+}
+
+function getPresetColor(avatarUrl: string | null | undefined): string | null {
+  if (!avatarUrl?.startsWith("preset:")) return null;
+  return avatarUrl.replace("preset:", "");
+}
+
+function isPhotoAvatar(avatarUrl: string | null | undefined): boolean {
+  return !!avatarUrl && (avatarUrl.startsWith("data:") || avatarUrl.startsWith("file:") || avatarUrl.startsWith("http"));
+}
+
+interface AvatarDisplayProps {
+  avatarUrl: string | null | undefined;
+  name: string;
+  size: number;
+  colors: ReturnType<typeof useColors>;
+}
+
+export function AvatarDisplay({ avatarUrl, name, size, colors }: AvatarDisplayProps) {
+  const presetColor = getPresetColor(avatarUrl);
+  const isPhoto = isPhotoAvatar(avatarUrl);
+  const initials = getInitials(name || "Athlete");
+  const fontSize = size * 0.38;
+
+  if (isPhoto && avatarUrl) {
+    return (
+      <Image
+        source={{ uri: avatarUrl }}
+        style={{ width: size, height: size, borderRadius: size / 2 }}
+        resizeMode="cover"
+      />
+    );
+  }
+
+  const bg = presetColor ?? colors.primary;
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: bg,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Text style={{ fontSize, fontFamily: "Inter_700Bold", color: "#fff" }}>
+        {initials}
+      </Text>
+    </View>
+  );
+}
+
 export default function ProfileSettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -68,12 +139,14 @@ export default function ProfileSettingsScreen() {
   const [goals, setGoals] = useState<string[]>(profile?.goals ?? []);
   const [injuries, setInjuries] = useState<string[]>(profile?.injuryConcerns ?? []);
   const [weeklyGoal, setWeeklyGoal] = useState(profile?.weeklyGoal ?? 3);
+  const [avatarUrl, setAvatarUrl] = useState<string | null | undefined>(profile?.avatarUrl);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [goalSaving, setGoalSaving] = useState(false);
   const [goalSavedFor, setGoalSavedFor] = useState<number | null>(null);
+  const [avatarSaving, setAvatarSaving] = useState(false);
 
   async function handleWeeklyGoalTap(n: number) {
     if (goalSaving || n === weeklyGoal) return;
@@ -102,6 +175,57 @@ export default function ProfileSettingsScreen() {
     setInjuries((prev) =>
       prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val]
     );
+  }
+
+  async function handleSelectPreset(key: string) {
+    setAvatarUrl(key);
+    setAvatarSaving(true);
+    try {
+      await updateProfile({ avatarUrl: key });
+    } catch {
+      setError("Couldn't update avatar. Please try again.");
+    } finally {
+      setAvatarSaving(false);
+    }
+  }
+
+  async function handlePickPhoto() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Allow access to your photo library to pick a profile photo.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.4,
+      base64: true,
+    });
+
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const asset = result.assets[0]!;
+    let uri: string;
+
+    if (asset.base64) {
+      const mimeType = asset.mimeType ?? "image/jpeg";
+      uri = `data:${mimeType};base64,${asset.base64}`;
+    } else {
+      uri = asset.uri;
+    }
+
+    setAvatarUrl(uri);
+    setAvatarSaving(true);
+    try {
+      await updateProfile({ avatarUrl: uri });
+    } catch {
+      setError("Couldn't save photo. Please try again.");
+      setAvatarUrl(profile?.avatarUrl);
+    } finally {
+      setAvatarSaving(false);
+    }
   }
 
   async function handleSave() {
@@ -144,6 +268,8 @@ export default function ProfileSettingsScreen() {
     );
   }
 
+  const displayName = name || user?.name || "Athlete";
+
   const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     header: {
@@ -176,6 +302,76 @@ export default function ProfileSettingsScreen() {
       paddingHorizontal: 20,
       paddingTop: 24,
       paddingBottom: bottomPad + 120,
+    },
+
+    avatarSection: {
+      alignItems: "center",
+      marginBottom: 32,
+    },
+    avatarRing: {
+      width: 88,
+      height: 88,
+      borderRadius: 44,
+      alignItems: "center",
+      justifyContent: "center",
+      position: "relative",
+      marginBottom: 16,
+    },
+    avatarEditBadge: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2,
+      borderColor: colors.background,
+    },
+    presetLabel: {
+      fontSize: 11,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.mutedForeground,
+      textTransform: "uppercase",
+      letterSpacing: 0.9,
+      marginBottom: 10,
+      alignSelf: "flex-start",
+    },
+    presetRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+      justifyContent: "center",
+      marginBottom: 12,
+    },
+    presetDot: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    presetDotSelected: {
+      borderWidth: 2.5,
+      borderColor: "#fff",
+    },
+    photoBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 7,
+      paddingHorizontal: 16,
+      paddingVertical: 9,
+      borderRadius: 22,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    photoBtnText: {
+      fontSize: 13,
+      fontFamily: "Inter_500Medium",
+      color: colors.foreground,
     },
 
     section: { marginBottom: 28 },
@@ -336,6 +532,71 @@ export default function ProfileSettingsScreen() {
             </Text>
           </View>
         )}
+
+        {/* ── Avatar Picker ── */}
+        <View style={s.avatarSection}>
+          <TouchableOpacity
+            style={s.avatarRing}
+            onPress={handlePickPhoto}
+            activeOpacity={0.85}
+            disabled={avatarSaving}
+          >
+            {avatarSaving ? (
+              <View style={{
+                width: 88, height: 88, borderRadius: 44,
+                backgroundColor: colors.card,
+                alignItems: "center", justifyContent: "center",
+                borderWidth: 2, borderColor: colors.border,
+              }}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
+            ) : (
+              <AvatarDisplay
+                avatarUrl={avatarUrl}
+                name={displayName}
+                size={88}
+                colors={colors}
+              />
+            )}
+            <View style={s.avatarEditBadge}>
+              <Feather name="camera" size={12} color="#fff" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Preset color swatches */}
+          <View style={s.presetRow}>
+            {PRESET_AVATARS.map((p) => {
+              const selected = avatarUrl === p.key;
+              return (
+                <TouchableOpacity
+                  key={p.key}
+                  style={[
+                    s.presetDot,
+                    { backgroundColor: p.color },
+                    selected && s.presetDotSelected,
+                  ]}
+                  onPress={() => handleSelectPreset(p.key)}
+                  activeOpacity={0.8}
+                  disabled={avatarSaving}
+                >
+                  {selected && (
+                    <Feather name="check" size={16} color="#fff" />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <TouchableOpacity
+            style={s.photoBtn}
+            onPress={handlePickPhoto}
+            activeOpacity={0.8}
+            disabled={avatarSaving}
+          >
+            <Feather name="image" size={14} color={colors.mutedForeground} />
+            <Text style={s.photoBtnText}>Choose from library</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* ── Name ── */}
         <View style={s.section}>

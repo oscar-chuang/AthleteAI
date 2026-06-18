@@ -24,6 +24,7 @@ function formatProfile(
     weeklyGoal: p.weeklyGoal,
     weeklyProgress,
     streakDays,
+    avatarUrl: p.avatarUrl ?? null,
   };
 }
 
@@ -50,13 +51,14 @@ router.get("/profile", requireAuth, async (req: Request, res: Response) => {
 
 router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).userId as number;
-  const { name, sport, level, goals, injuryConcerns, weeklyGoal } = req.body as {
+  const { name, sport, level, goals, injuryConcerns, weeklyGoal, avatarUrl } = req.body as {
     name?: string;
     sport?: string;
     level?: string;
     goals?: string[];
     injuryConcerns?: string[];
     weeklyGoal?: number;
+    avatarUrl?: string | null;
   };
 
   if (level !== undefined && !VALID_LEVELS.includes(level as any)) {
@@ -82,6 +84,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
         ...(goals !== undefined && { goals }),
         ...(injuryConcerns !== undefined && { injuryConcerns }),
         ...(weeklyGoal !== undefined && { weeklyGoal }),
+        ...(avatarUrl !== undefined && { avatarUrl }),
         updatedAt: new Date(),
       })
       .where(eq(profilesTable.userId, userId))
@@ -98,6 +101,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
         goals: goals ?? [],
         injuryConcerns: injuryConcerns ?? [],
         weeklyGoal: weeklyGoal ?? 3,
+        avatarUrl: avatarUrl ?? null,
       })
       .returning();
     result = created!;

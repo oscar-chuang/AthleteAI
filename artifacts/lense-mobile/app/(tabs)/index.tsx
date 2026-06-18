@@ -17,6 +17,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { useColors } from "@/hooks/useColors";
 import { useAuth, useTier } from "@/lib/authContext";
+import { AvatarDisplay } from "@/app/profile-settings";
 import {
   analyses as analysesApi,
   achievements as achievementsApi,
@@ -261,10 +262,15 @@ export default function HomeScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 }}>
               <TouchableOpacity
                 onPress={() => router.push("/profile-settings" as any)}
-                style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}
+                style={{ width: 40, height: 40, borderRadius: 20, overflow: "hidden" }}
                 activeOpacity={0.8}
               >
-                <Feather name="settings" size={18} color={colors.mutedForeground} />
+                <AvatarDisplay
+                  avatarUrl={profile?.avatarUrl}
+                  name={profile?.name ?? user?.name ?? "Athlete"}
+                  size={40}
+                  colors={colors}
+                />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => router.push("/(tabs)/analyze" as any)}

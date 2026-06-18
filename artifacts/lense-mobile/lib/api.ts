@@ -113,6 +113,7 @@ export interface Profile {
   weeklyGoal: number;
   weeklyProgress: number;
   streakDays: number;
+  avatarUrl?: string | null;
 }
 
 export interface ProfileStats {
