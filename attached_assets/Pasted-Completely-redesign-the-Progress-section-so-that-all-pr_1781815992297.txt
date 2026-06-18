@@ -1,0 +1,252 @@
+Completely redesign the Progress section so that all progress tracking, trend analysis, charts, benchmarks, and historical comparisons are sport-specific.
+
+Current problem:
+
+The app appears to compare movement data, joint angles, scores, and progression across different sports. This creates misleading insights because movement mechanics vary significantly between sports.
+
+For example:
+
+* Volleyball jumping mechanics should not be compared against basketball shooting mechanics.
+* Sprinting mechanics should not be compared against golf swings.
+* Swimming movement patterns should not be compared against deadlift mechanics.
+
+The Progress section should only compare athletes against previous performances within the same sport and movement category.
+
+Core Requirement:
+
+Every uploaded analysis must be categorized by:
+
+* Sport
+* Movement type
+* Drill/exercise (when applicable)
+
+Examples:
+Basketball
+
+* Jump Shot
+* Layup
+* Defensive Slide
+* Vertical Jump
+
+Volleyball
+
+* Spike Approach
+* Block Jump
+* Serve
+* Defensive Movement
+
+Track
+
+* Sprint Start
+* Acceleration
+* Top-Speed Sprint
+
+Weightlifting
+
+* Deadlift
+* Squat
+* Clean
+* Snatch
+
+Progress Architecture:
+
+Create separate progress histories for each sport.
+
+A user’s:
+
+* Basketball history
+* Volleyball history
+* Sprinting history
+* Weightlifting history
+
+must all be tracked independently.
+
+The app should never combine or average metrics across sports.
+
+Sport-Specific Progress Dashboard:
+
+When a user enters Progress:
+
+Show a Sport Selector at the top.
+
+Examples:
+
+* Basketball
+* Volleyball
+* Soccer
+* Track
+* Golf
+* Weightlifting
+
+The user should immediately see progress data relevant only to that sport.
+
+Sport-Specific Joint Tracking:
+
+Joint analysis must be contextualized by sport.
+
+For example:
+
+Basketball:
+
+* Knee flexion during jumps
+* Shoulder positioning during shots
+* Landing mechanics
+* Hip power generation
+
+Volleyball:
+
+* Spike arm mechanics
+* Jump approach mechanics
+* Landing stability
+* Shoulder range of motion
+
+Sprinting:
+
+* Hip extension
+* Knee drive
+* Ground contact mechanics
+* Stride efficiency
+
+Golf:
+
+* Shoulder rotation
+* Hip rotation
+* Weight transfer
+* Swing sequencing
+
+Do not display irrelevant joints simply because they exist in the data.
+
+Display only the most important biomechanical metrics for that sport.
+
+Progress Trends:
+
+Instead of generic charts, create sport-specific trends such as:
+
+Basketball:
+
+* Shot mechanics consistency
+* Jump explosiveness
+* Landing control
+* Balance score
+
+Volleyball:
+
+* Spike mechanics
+* Vertical jump efficiency
+* Shoulder stability
+* Approach consistency
+
+Sprinting:
+
+* Sprint posture
+* Knee drive quality
+* Stride efficiency
+* Acceleration mechanics
+
+Weightlifting:
+
+* Back positioning
+* Depth consistency
+* Bar path quality
+* Hip drive
+
+Performance Timeline:
+
+Create a timeline showing:
+
+* Date
+* Sport
+* Movement
+* Overall score
+* Key improvement
+* Biggest weakness
+
+Allow filtering by:
+
+* Sport
+* Movement type
+* Date range
+
+Smart Comparisons:
+
+Compare current performances against:
+
+1. User’s previous performances in the same sport.
+2. User’s previous performances in the same movement.
+3. User’s personal best within that sport.
+
+Never compare unrelated sports.
+
+Personal Records System:
+
+Add sport-specific achievements.
+
+Examples:
+
+Basketball:
+
+* Best Jump Shot Score
+* Best Landing Stability
+* Best Vertical Power
+
+Volleyball:
+
+* Best Spike Mechanics
+* Best Block Jump
+
+Track:
+
+* Best Sprint Mechanics
+* Best Acceleration Score
+
+Weightlifting:
+
+* Best Deadlift Technique
+* Best Squat Depth Consistency
+
+AI Progress Coach:
+
+Generate progress summaries that understand context.
+
+Bad:
+“Your shoulder mobility improved compared to your last session.”
+
+Good:
+“Your shoulder positioning during volleyball spikes improved 12% compared to your last volleyball spike analysis.”
+
+Progress Insights:
+
+Add insights like:
+
+“Your volleyball spike mechanics improved in 4 of your last 5 sessions.”
+
+“Your sprint posture has become more consistent over the past month.”
+
+“Your deadlift back positioning is now your strongest metric.”
+
+UI Improvements:
+
+Create a premium progress dashboard with:
+
+* Sport selector tabs
+* Sport-specific colors and icons
+* Progress cards
+* Interactive charts
+* Personal records section
+* Achievement system
+* Trend indicators
+* Performance timeline
+
+Data Integrity Rules:
+
+A basketball analysis must never influence volleyball progress metrics.
+
+A sprinting analysis must never affect golf progress metrics.
+
+A deadlift analysis must never affect swimming progress metrics.
+
+All historical analytics, averages, trends, records, rankings, and progress calculations must be separated by sport and movement category.
+
+Success Criteria:
+
+When a user opens Progress, it should feel like they are viewing a personalized performance development system for that specific sport, rather than a generic collection of all uploaded videos mixed together. The entire experience should feel tailored, intelligent, and biomechanically relevant to the athlete’s actual training history.
