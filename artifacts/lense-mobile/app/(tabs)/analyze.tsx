@@ -20,6 +20,13 @@ import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 
+function getWeekKey(): string {
+  const d = new Date();
+  const sunday = new Date(d);
+  sunday.setDate(d.getDate() - d.getDay()); // Sunday-start, matches thisWeekCount on server
+  return sunday.toISOString().split("T")[0]!;
+}
+
 import { useColors } from "@/hooks/useColors";
 import { analyses as analysesApi, type AnalysisRecord, ApiError } from "@/lib/api";
 import { useAuth, useCanAccessFeature } from "@/lib/authContext";
@@ -269,6 +276,19 @@ export default function AnalyzeScreen() {
         videoUrl: pendingUri,
       });
       await AsyncStorage.setItem(`video_uri_${analysis.id}`, pendingUri);
+
+      // Write a pending-confetti flag if this upload crosses the weekly goal.
+      // headerStats.thisWeek is the count of COMPLETE sessions before this one;
+      // the new analysis adds +1 complete session once processed.
+      const weeklyGoal = profile?.weeklyGoal ?? 3;
+      if (weeklyGoal > 0 && headerStats.thisWeek < weeklyGoal && headerStats.thisWeek + 1 >= weeklyGoal) {
+        const weekKey = getWeekKey();
+        const alreadyCelebrated = await AsyncStorage.getItem(`confetti_celebrated_${weekKey}`);
+        if (!alreadyCelebrated) {
+          await AsyncStorage.setItem(`confetti_pending_${weekKey}`, "true");
+        }
+      }
+
       clearInterval(stepInterval);
       setAnalysisStep(ANALYSIS_STEPS.length - 1);
       await new Promise((r) => setTimeout(r, 500));

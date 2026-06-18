@@ -14,6 +14,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Haptics from "expo-haptics";
 
 import { useColors } from "@/hooks/useColors";
 import { useAuth, useTier } from "@/lib/authContext";
@@ -26,6 +28,7 @@ import {
   type AchievementRecord,
   type ProfileStats,
 } from "@/lib/api";
+import { ConfettiBurst } from "@/components/ConfettiBurst";
 
 const SCORE_KEYS = ["technique", "power", "balance", "consistency", "mobility", "speed"] as const;
 
@@ -53,6 +56,13 @@ function getWorstMetric(a: AnalysisRecord): { key: string; score: number } | nul
   return scores.sort((x, y) => x.score - y.score)[0]!;
 }
 
+function getWeekKey(): string {
+  const d = new Date();
+  const sunday = new Date(d);
+  sunday.setDate(d.getDate() - d.getDay()); // Sunday-start, matches thisWeekCount on server
+  return sunday.toISOString().split("T")[0]!;
+}
+
 export default function HomeScreen() {
   const colors = useColors();
   const trophyScale = useRef(new Animated.Value(1)).current;
@@ -68,6 +78,7 @@ export default function HomeScreen() {
   const [loading, setLoading]             = useState(true);
   const [refreshing, setRefreshing]       = useState(false);
   const [error, setError]                 = useState(false);
+  const [showConfetti, setShowConfetti]   = useState(false);
 
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
@@ -84,13 +95,45 @@ export default function HomeScreen() {
       setRecentAnalyses(analyses.slice(0, 3));
       setAchievements(ach);
       if (statsResult) setStats(statsResult);
+
+      const currentWeekGoal = profile?.weeklyGoal ?? 3;
+      if (currentWeekGoal > 0 && statsResult) {
+        const currentCount = statsResult.thisWeekCount ?? 0;
+        const weekKey      = getWeekKey();
+        const celebratedKey = `confetti_celebrated_${weekKey}`;
+        const pendingKey    = `confetti_pending_${weekKey}`;
+        const prevCountKey  = `confetti_prev_count_${weekKey}`;
+        const [celebrated, pending, prevCountStr] = await Promise.all([
+          AsyncStorage.getItem(celebratedKey),
+          AsyncStorage.getItem(pendingKey),
+          AsyncStorage.getItem(prevCountKey),
+        ]);
+        const prevCount = prevCountStr !== null ? parseInt(prevCountStr, 10) : null;
+        // Celebrate when:
+        //   1. Not yet celebrated this week
+        //   2. Current count has reached or passed the goal
+        //   3. Either: an explicit pending flag was written by analyze.tsx on upload,
+        //      OR the prevCount snapshot shows the threshold was just crossed
+        const justCrossed =
+          pending !== null ||
+          (prevCount !== null && prevCount < currentWeekGoal);
+        if (!celebrated && currentCount >= currentWeekGoal && justCrossed) {
+          await Promise.all([
+            AsyncStorage.setItem(celebratedKey, "true"),
+            AsyncStorage.removeItem(pendingKey),
+          ]);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          setShowConfetti(true);
+        }
+        await AsyncStorage.setItem(prevCountKey, String(currentCount));
+      }
     } catch {
       setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [profile?.weeklyGoal]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
   function onRefresh() { setRefreshing(true); loadData(); }
@@ -672,6 +715,10 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
+
+      {showConfetti && (
+        <ConfettiBurst onComplete={() => setShowConfetti(false)} />
+      )}
     </View>
   );
 }
