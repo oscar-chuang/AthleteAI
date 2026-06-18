@@ -6,6 +6,7 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "backfill-thumbnails": "tsx ./src/backfill-thumbnails.ts",
+    "classify-tasks": "tsx ./src/classify-tasks.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
