@@ -7,7 +7,7 @@ import { Dimensions } from "react-native";
 const mockApiGet = jest.fn();
 const mockApiUpdate = jest.fn();
 
-// Captured WebView onMessage handler so tests can push pose-engine events.
+// Captured WebView onMessage handler so tests can push scan-engine events.
 let webviewOnMessage: ((e: { nativeEvent: { data: string } }) => void) | undefined;
 
 jest.mock("@/lib/api", () => ({
@@ -29,16 +29,23 @@ jest.mock("react-native-webview", () => {
   };
 });
 
+// The frozen viewer pulls in expo-image / react-native-svg / reanimated; the
+// grounding lifecycle doesn't depend on the actual drawing, so stub it out.
+jest.mock("@/components/FrozenSkeleton", () => {
+  const ReactLocal = require("react");
+  const { View } = require("react-native");
+  return {
+    __esModule: true,
+    default: () => ReactLocal.createElement(View, { testID: "frozen-skeleton" }),
+  };
+});
+
+jest.mock("@expo/vector-icons", () => ({ Feather: () => null }));
+
 let mockParams: Record<string, string> = { id: "1" };
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => mockParams,
   useRouter: () => ({ back: jest.fn(), push: jest.fn(), replace: jest.fn() }),
-}));
-
-jest.mock("expo-screen-orientation", () => ({
-  lockAsync: jest.fn(async () => {}),
-  unlockAsync: jest.fn(async () => {}),
-  OrientationLock: { PORTRAIT_UP: 1, LANDSCAPE_RIGHT: 2 },
 }));
 
 jest.mock("expo-file-system/legacy", () => ({
@@ -100,8 +107,10 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-// Flush pending microtasks (effect async work, resolved api promises).
-async function flush(rounds = 4) {
+// Flush pending microtasks (effect async work, resolved api promises). The
+// hidden scanner only mounts after the html file + video uri resolve, so give
+// the load/build effects a few rounds to settle.
+async function flush(rounds = 6) {
   for (let i = 0; i < rounds; i++) {
     // eslint-disable-next-line no-await-in-loop
     await act(async () => {});
@@ -114,6 +123,8 @@ function emit(msg: any) {
   });
 }
 
+// New scanner protocol: a single scanComplete carries the measured angles,
+// per-joint risk levels and the frozen frame used for the PATCH contract.
 const scanMsg = {
   type: "scanComplete",
   time: 1.2,
@@ -121,6 +132,22 @@ const scanMsg = {
   angles: { leftKnee: 88, rightKnee: 90 },
   risks: { leftKnee: 2, rightKnee: 0, leftHip: 0, rightHip: 0, leftElbow: 0, rightElbow: 0 },
   frame: "frame-data",
+};
+
+// A per-joint frozen-frame capture streamed over the bridge during the scan.
+const captureMsg = {
+  type: "capture",
+  capture: {
+    id: "cap0",
+    kind: "worst",
+    time: 1.2,
+    aspect: 0.6,
+    frame: "data:image/jpeg;base64,zzz",
+    lm: [{ x: 0.5, y: 0.5, v: 0.9 }],
+    jr: { leftKnee: { deg: 88, lvl: 2 } },
+    joints: ["leftKnee"],
+    maxLvl: 2,
+  },
 };
 
 beforeEach(() => {
@@ -146,7 +173,6 @@ describe("skeleton screen — grounding lifecycle", () => {
     render(<SkeletonScreen />);
     await flush();
 
-    emit({ type: "angles" }); // model ready
     grounded = true; // server will report grounded on the next poll
     emit(scanMsg); // triggers runBiomechanics → PATCH → poll
     await flush();
@@ -167,7 +193,6 @@ describe("skeleton screen — grounding lifecycle", () => {
     render(<SkeletonScreen />);
     await flush();
 
-    emit({ type: "angles" });
     emit(scanMsg);
     await flush();
 
@@ -181,7 +206,6 @@ describe("skeleton screen — grounding lifecycle", () => {
     render(<SkeletonScreen />);
     await flush();
 
-    emit({ type: "angles" });
     emit(scanMsg);
     await flush();
 
@@ -205,10 +229,10 @@ describe("skeleton screen — grounding lifecycle", () => {
     render(<SkeletonScreen />);
     await flush();
 
-    emit({ type: "angles" }); // model ready; no fresh scan needed
-
-    // Performance section renders from the load-time grounded flag (no scanResult required).
+    // Grounded tips render from the load-time grounded flag — no fresh scan
+    // result is required (the re-scan only refreshes the frozen frames).
     expect(screen.getByText("GROUNDED_PERF_TIP")).toBeTruthy();
+    expect(screen.getByText("GROUNDED_INJURY_TIP")).toBeTruthy();
   });
 
   it("never writes one analysis's grounded tips onto another after rapid id navigation", async () => {
@@ -226,7 +250,6 @@ describe("skeleton screen — grounding lifecycle", () => {
     const { rerender } = render(<SkeletonScreen />);
     await flush();
 
-    emit({ type: "angles" });
     emit(scanMsg); // runBiomechanics for id "1"
     await flush();
     await act(async () => { jest.advanceTimersByTime(2000); }); // poll fires → in-flight GET
@@ -248,5 +271,54 @@ describe("skeleton screen — grounding lifecycle", () => {
     await flush();
 
     expect(screen.queryByText("ANALYSIS_ONE_TIP")).toBeNull();
+  });
+
+  it("accepts streamed frozen-frame captures without disrupting the grounding flow", async () => {
+    let grounded = false;
+    mockApiGet.mockImplementation(() => Promise.resolve(resp(grounded)));
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // A capture streams in mid-scan and is retained.
+    emit(captureMsg);
+    await flush();
+
+    // The scan still completes and grounds normally with captures present.
+    grounded = true;
+    emit(scanMsg);
+    await flush();
+    await act(async () => { jest.advanceTimersByTime(2000); });
+    await flush();
+
+    expect(mockApiUpdate).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("GROUNDED_INJURY_TIP")).toBeTruthy();
+    // Once scanning ends the streamed capture drives the frozen hero viewer.
+    expect(screen.getAllByTestId("frozen-skeleton").length).toBeGreaterThan(0);
+  });
+
+  it("never PATCHes empty biomechanics when the scan measured no pose", async () => {
+    mockApiGet.mockImplementation(() => Promise.resolve(resp(false)));
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Model-load / video-decode failure: scanComplete with no measured angles.
+    emit({
+      type: "scanComplete",
+      angles: {},
+      risks: { leftKnee: 0, rightKnee: 0, leftHip: 0, rightHip: 0, leftElbow: 0, rightElbow: 0 },
+      frame: "",
+    });
+    await flush();
+    await act(async () => { jest.advanceTimersByTime(2000); });
+    await flush();
+
+    // No measurement → never PATCH, never ground, never claim "all safe".
+    expect(mockApiUpdate).not.toHaveBeenCalled();
+    expect(screen.queryByText("GROUNDED_INJURY_TIP")).toBeNull();
+    expect(screen.queryByText("No injury risks detected across the scan")).toBeNull();
+    // The hero communicates the failure and offers re-selection instead.
+    expect(screen.getByText("Couldn’t detect the athlete clearly")).toBeTruthy();
   });
 });
