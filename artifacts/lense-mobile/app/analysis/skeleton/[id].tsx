@@ -827,6 +827,8 @@ export default function SkeletonScreen() {
                 setGroundedReady(true);
                 setRefining(false);
                 pollRef.current = null;
+                AsyncStorage.removeItem(`drill_done_${analysisId}`).catch(() => {});
+                setCompletedDrills(new Set());
               } else if (attempts < 20) {
                 pollRef.current = setTimeout(poll, 1800);
               } else {
