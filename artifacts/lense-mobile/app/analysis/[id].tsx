@@ -725,7 +725,7 @@ export default function AnalysisDetailScreen() {
           left:     -9999,
         }}
       >
-        <ShareCard analysis={analysis} />
+        <ShareCard analysis={analysis} topTip={topTip?.title} />
       </View>
 
       {/* ── Share preview modal ── */}
@@ -760,7 +760,7 @@ export default function AnalysisDetailScreen() {
 
             {/* Card preview */}
             <View style={styles.shareCardPreviewWrap}>
-              <ShareCard analysis={analysis} />
+              <ShareCard analysis={analysis} topTip={topTip?.title} />
             </View>
 
             {/* Actions */}

@@ -113,9 +113,10 @@ const METRICS: { key: keyof AnalysisRecord; label: string }[] = [
 
 interface Props {
   analysis: AnalysisRecord;
+  topTip?: string;
 }
 
-export function ShareCard({ analysis }: Props) {
+export function ShareCard({ analysis, topTip }: Props) {
   const overallScore  = analysis.overallScore ?? 0;
   const overallColor  = scoreBandColor(overallScore);
   const sportLabel    = analysis.sport.charAt(0).toUpperCase() + analysis.sport.slice(1);
@@ -171,6 +172,14 @@ export function ShareCard({ analysis }: Props) {
             })}
           </View>
         </View>
+
+        {/* Top coaching tip strip */}
+        {!!topTip && (
+          <View style={styles.tipStrip}>
+            <Feather name="message-circle" size={11} color={ACCENT} style={{ marginTop: 1 }} />
+            <Text style={styles.tipText} numberOfLines={2}>{topTip}</Text>
+          </View>
+        )}
 
         {/* Divider */}
         <View style={[styles.divider, { backgroundColor: CARD_BORDER }]} />
@@ -297,6 +306,25 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     marginBottom: 12,
+  },
+
+  // Tip strip
+  tipStrip: {
+    flexDirection:    "row",
+    alignItems:       "flex-start",
+    gap:              7,
+    backgroundColor:  ACCENT + "18",
+    borderRadius:     8,
+    paddingHorizontal: 10,
+    paddingVertical:   8,
+    marginBottom:     12,
+  },
+  tipText: {
+    flex:       1,
+    fontSize:   11,
+    fontFamily: "Inter_400Regular",
+    color:      TEXT_PRIMARY,
+    lineHeight: 16,
   },
 
   // Footer
