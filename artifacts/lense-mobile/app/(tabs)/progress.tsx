@@ -282,6 +282,7 @@ export default function ProgressScreen() {
   const [trends, setTrends]               = useState<JointTrendsResponse | null>(null);
   const [loading, setLoading]             = useState(true);
   const [refreshing, setRefreshing]       = useState(false);
+  const [error, setError]                 = useState(false);
   const [selectedJoint, setSelectedJoint] = useState<string | null>(null);
 
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
@@ -290,6 +291,7 @@ export default function ProgressScreen() {
   const lineColor  = getMetricColor(activeMetric, colors.primary, colors.success, colors.warning);
 
   const loadData = useCallback(async () => {
+    setError(false);
     try {
       const [{ entries: e }, { achievements: a }, st, tr] = await Promise.all([
         progressApi.list(),
@@ -302,7 +304,7 @@ export default function ProgressScreen() {
       if (st) setStats(st);
       if (tr) setTrends(tr);
     } catch {
-      // ignore
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -459,6 +461,16 @@ export default function ProgressScreen() {
             {entries.length > 0 ? `${entries.length} session${entries.length === 1 ? "" : "s"} logged` : "Track your improvement over time"}
           </Text>
         </View>
+
+        {/* ── Error banner ── */}
+        {error && !refreshing && (
+          <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.warning + "14", borderRadius: colors.radius, padding: 14, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: colors.warning + "44" }}>
+            <Feather name="wifi-off" size={16} color={colors.warning} />
+            <Text style={{ flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: colors.foreground, lineHeight: 18 }}>
+              Couldn't load your progress. Pull down to try again.
+            </Text>
+          </View>
+        )}
 
         {/* ── Streak & weekly pulse ── */}
         {stats && (

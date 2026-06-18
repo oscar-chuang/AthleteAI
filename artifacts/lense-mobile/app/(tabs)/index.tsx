@@ -42,6 +42,14 @@ const QUICK_ACTIONS: { label: string; icon: React.ComponentProps<typeof Feather>
 
 const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 
+const STATUS_LABEL: Record<string, string> = {
+  pending:    "Queued",
+  uploading:  "Uploading…",
+  processing: "Analysing…",
+  complete:   "",
+  failed:     "Could not analyse",
+};
+
 function getHour() {
   const h = new Date().getHours();
   if (h < 12) return "morning";
@@ -685,7 +693,9 @@ export default function HomeScreen() {
                   )}
                   <View style={{ flex: 1 }}>
                     <Text style={s.analysisTitle} numberOfLines={1}>{a.title}</Text>
-                    <Text style={s.analysisMeta}>{a.sport} · {a.status}</Text>
+                    <Text style={s.analysisMeta}>
+                      {[a.sport, STATUS_LABEL[a.status] ?? a.status].filter(Boolean).join(" · ")}
+                    </Text>
                   </View>
                   {score != null ? (
                     <View style={[s.scoreCircle, { borderColor: scoreColor, backgroundColor: scoreColor + "14" }]}>
