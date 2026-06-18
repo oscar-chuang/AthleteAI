@@ -4,6 +4,20 @@ import Anthropic from "@anthropic-ai/sdk";
 import { db, chatMessagesTable, analysesTable, profilesTable } from "@workspace/db";
 import { requireAuth } from "./auth";
 
+type TipDrill = {
+  name: string;
+  sets: string;
+  reps: string;
+  cue: string;
+  drillFeelCue?: string;
+};
+
+type Tip = {
+  tipType?: string;
+  title?: string;
+  drill?: TipDrill;
+};
+
 const router: IRouter = Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -68,6 +82,27 @@ async function buildSystemPrompt(userId: number): Promise<string> {
       if (scores.length) systemPrompt += ` — ${scores.join(", ")}`;
       if (a.strengths?.length) systemPrompt += `\n  Strengths: ${a.strengths.slice(0, 2).join("; ")}`;
       if (a.improvements?.length) systemPrompt += `\n  Needs work: ${a.improvements.slice(0, 2).join("; ")}`;
+
+      const tips = (a.tips ?? []) as Tip[];
+      if (tips.length > 0) {
+        systemPrompt += `\n  Coaching tips & drills:`;
+        for (const tip of tips) {
+          if (!tip.title) continue;
+          systemPrompt += `\n    • [${tip.tipType ?? "tip"}] ${tip.title}`;
+          if (tip.drill?.name) {
+            systemPrompt += `\n      Drill: ${tip.drill.name}`;
+            if (tip.drill.sets || tip.drill.reps) {
+              systemPrompt += ` — ${[tip.drill.sets, tip.drill.reps].filter(Boolean).join(" × ")}`;
+            }
+            if (tip.drill.cue) {
+              systemPrompt += `\n      Cue: ${tip.drill.cue}`;
+            }
+            if (tip.drill.drillFeelCue) {
+              systemPrompt += `\n      Feel: ${tip.drill.drillFeelCue}`;
+            }
+          }
+        }
+      }
     }
   } else {
     systemPrompt += `\n\nThis athlete has no completed analyses yet.`;
