@@ -30,6 +30,7 @@ function getWeekKey(): string {
 import { useColors } from "@/hooks/useColors";
 import { analyses as analysesApi, type AnalysisRecord, ApiError } from "@/lib/api";
 import { useAuth, useCanAccessFeature } from "@/lib/authContext";
+import { buildDeltaMap } from "@/lib/sessionDelta";
 
 const SPORTS = [
   "Weightlifting", "Running", "Basketball", "Golf", "Tennis",
@@ -155,6 +156,9 @@ export default function AnalyzeScreen() {
       : 0;
     return { total: done.length, thisWeek, avg };
   }, [analysisList]);
+
+  // Precompute delta badges once per analyses refresh — O(n log n) total
+  const deltaBadgeMap = useMemo(() => buildDeltaMap(analysisList), [analysisList]);
 
   // Filter + sort
   const displayList = useMemo(() => {
@@ -347,6 +351,8 @@ export default function AnalyzeScreen() {
     iconBg:          { width: 44, height: 44, borderRadius: 11, alignItems: "center", justifyContent: "center" },
     cardTitle:       { fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground },
     cardMeta:        { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 2, textTransform: "capitalize" },
+    deltaBadge:      { alignSelf: "flex-start", marginTop: 5, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, overflow: "hidden" },
+    deltaBadgeText:  { fontSize: 10, fontFamily: "Inter_700Bold" },
     scoreCircle:     { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", borderWidth: 2 },
     scoreText:       { fontSize: 15, fontFamily: "Inter_700Bold" },
     processingBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: colors.primary + "22" },
@@ -617,6 +623,9 @@ export default function AnalyzeScreen() {
           const score = item.overallScore ?? 0;
           const scoreColor = getScoreColor(score, colors);
           const accent = getSportAccent(item.sport, colors.primary);
+          const deltaBadge = item.status === "complete"
+            ? (deltaBadgeMap.get(item.id) ?? null)
+            : null;
 
           return (
             <TouchableOpacity
@@ -643,6 +652,13 @@ export default function AnalyzeScreen() {
                     {item.sport} · {formatDate(item.uploadedAt)}
                     {item.duration ? ` · ${Math.round(item.duration)}s` : ""}
                   </Text>
+                  {deltaBadge && (
+                    <View style={[s.deltaBadge, { borderColor: deltaBadge.color + "88", backgroundColor: deltaBadge.color + "18" }]}>
+                      <Text style={[s.deltaBadgeText, { color: deltaBadge.color }]}>
+                        {deltaBadge.delta > 0 ? "↑" : "↓"}{Math.abs(deltaBadge.delta)}° {deltaBadge.jointLabel}
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 {isProcessing ? (
                   <View style={s.processingBadge}>

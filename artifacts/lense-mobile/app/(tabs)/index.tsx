@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -31,6 +31,7 @@ import {
   type ProfileStats,
 } from "@/lib/api";
 import { ConfettiBurst } from "@/components/ConfettiBurst";
+import { buildDeltaMap } from "@/lib/sessionDelta";
 
 const SCORE_KEYS = ["technique", "power", "balance", "consistency", "mobility", "speed"] as const;
 
@@ -243,6 +244,9 @@ export default function HomeScreen() {
   }
   const topSports = Object.entries(sportCounts).sort((a, b) => b[1] - a[1]).slice(0, 6);
 
+  // Precompute delta badges once per analyses refresh — O(n log n) total
+  const deltaBadgeMap = useMemo(() => buildDeltaMap(allAnalyses), [allAnalyses]);
+
   const s = StyleSheet.create({
     container:      { flex: 1, backgroundColor: colors.background },
     scroll:         { flex: 1 },
@@ -298,12 +302,14 @@ export default function HomeScreen() {
     scoreNum:       { fontSize: 19, fontFamily: "Inter_700Bold", color: colors.foreground },
     scoreName:      { fontSize: 9, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 },
 
-    analysisCard:   { backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center", gap: 12 },
-    sportIconWrap:  { width: 42, height: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-    analysisTitle:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.foreground },
-    analysisMeta:   { fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 2, textTransform: "capitalize" },
-    scoreCircle:    { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", borderWidth: 2 },
-    scoreCircleNum: { fontSize: 14, fontFamily: "Inter_700Bold" },
+    analysisCard:      { backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center", gap: 12 },
+    sportIconWrap:     { width: 42, height: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+    analysisTitle:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.foreground },
+    analysisMeta:      { fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 2, textTransform: "capitalize" },
+    analysisDeltaBadge:     { alignSelf: "flex-start", marginTop: 4, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, borderWidth: 1, overflow: "hidden" },
+    analysisDeltaBadgeText: { fontSize: 9, fontFamily: "Inter_700Bold" },
+    scoreCircle:       { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", borderWidth: 2 },
+    scoreCircleNum:    { fontSize: 14, fontFamily: "Inter_700Bold" },
 
     achRow:         { flexDirection: "row", gap: 10 },
     achCard:        { backgroundColor: colors.primary + "08", borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: colors.primary + "44", alignItems: "center", width: 90 },
@@ -690,6 +696,9 @@ export default function HomeScreen() {
             recentAnalyses.map((a) => {
               const score = a.overallScore != null ? Math.round(a.overallScore) : null;
               const scoreColor = score != null ? getScoreColor(score) : colors.mutedForeground;
+              const deltaBadge = a.status === "complete"
+                ? (deltaBadgeMap.get(a.id) ?? null)
+                : null;
               return (
                 <TouchableOpacity
                   key={a.id}
@@ -713,6 +722,13 @@ export default function HomeScreen() {
                     <Text style={s.analysisMeta}>
                       {[a.sport, STATUS_LABEL[a.status] ?? a.status].filter(Boolean).join(" · ")}
                     </Text>
+                    {deltaBadge && (
+                      <View style={[s.analysisDeltaBadge, { borderColor: deltaBadge.color + "88", backgroundColor: deltaBadge.color + "18" }]}>
+                        <Text style={[s.analysisDeltaBadgeText, { color: deltaBadge.color }]}>
+                          {deltaBadge.delta > 0 ? "↑" : "↓"}{Math.abs(deltaBadge.delta)}° {deltaBadge.jointLabel}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   {score != null ? (
                     <View style={[s.scoreCircle, { borderColor: scoreColor, backgroundColor: scoreColor + "14" }]}>
