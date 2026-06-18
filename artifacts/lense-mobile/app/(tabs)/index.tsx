@@ -461,7 +461,18 @@ export default function HomeScreen() {
               <View style={s.progressBarBg}>
                 <View style={[s.progressBarFill, { width: `${weekPct}%` as any, backgroundColor: goalReached ? "#f59e0b" : colors.primary }]} />
               </View>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 16 }}>
+              <TouchableOpacity
+                style={{ flexDirection: "row", alignItems: "center", marginTop: 8, gap: 4 }}
+                onPress={() => router.push("/profile-settings" as any)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+                  Goal: {weeklyGoal} session{weeklyGoal !== 1 ? "s" : ""}/week
+                </Text>
+                <Feather name="edit-2" size={10} color={colors.mutedForeground} />
+              </TouchableOpacity>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 12 }}>
                 {lastSevenDays.map((day) => {
                   const trained = trainedDaysSet.has(day);
                   const isToday = day === todayStr;
