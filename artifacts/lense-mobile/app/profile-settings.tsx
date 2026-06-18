@@ -139,6 +139,7 @@ export default function ProfileSettingsScreen() {
   const [goals, setGoals] = useState<string[]>(profile?.goals ?? []);
   const [injuries, setInjuries] = useState<string[]>(profile?.injuryConcerns ?? []);
   const [weeklyGoal, setWeeklyGoal] = useState(profile?.weeklyGoal ?? 3);
+  const [trainingDays, setTrainingDays] = useState<number[]>(profile?.trainingDays ?? [0, 1, 2, 3, 4, 5, 6]);
   const [avatarUrl, setAvatarUrl] = useState<string | null | undefined>(profile?.avatarUrl);
 
   const savedName = useRef(profile?.name ?? user?.name ?? "");
@@ -171,7 +172,27 @@ export default function ProfileSettingsScreen() {
   const [saved, setSaved] = useState(false);
   const [goalSaving, setGoalSaving] = useState(false);
   const [goalSavedFor, setGoalSavedFor] = useState<number | null>(null);
+  const [daysSaving, setDaysSaving] = useState(false);
   const [avatarSaving, setAvatarSaving] = useState(false);
+
+  async function handleTrainingDayToggle(dayIdx: number) {
+    if (daysSaving) return;
+    const next = trainingDays.includes(dayIdx)
+      ? trainingDays.filter((d) => d !== dayIdx)
+      : [...trainingDays, dayIdx].sort((a, b) => a - b);
+    if (next.length === 0) return;
+    const prev = trainingDays;
+    setTrainingDays(next);
+    setDaysSaving(true);
+    try {
+      await updateProfile({ trainingDays: next });
+    } catch {
+      setTrainingDays(prev);
+      setError("Couldn't update training schedule. Please try again.");
+    } finally {
+      setDaysSaving(false);
+    }
+  }
 
   async function handleWeeklyGoalTap(n: number) {
     if (goalSaving || n === weeklyGoal) return;
@@ -817,6 +838,54 @@ export default function ProfileSettingsScreen() {
               );
             })}
           </View>
+        </View>
+
+        {/* ── Training Days ── */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Training Days</Text>
+          <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginBottom: 12, lineHeight: 17 }}>
+            Tap the days you plan to train. Rest days won't count against your weekly goal.
+          </Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            {(["S", "M", "T", "W", "T", "F", "S"] as const).map((label, dayIdx) => {
+              const active = trainingDays.includes(dayIdx);
+              return (
+                <TouchableOpacity
+                  key={dayIdx}
+                  onPress={() => handleTrainingDayToggle(dayIdx)}
+                  disabled={daysSaving}
+                  activeOpacity={0.75}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    borderWidth: 1.5,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: active ? colors.primary + "18" : colors.card,
+                    borderColor: active ? colors.primary : colors.border,
+                    opacity: daysSaving ? 0.6 : 1,
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 13,
+                    fontFamily: "Inter_600SemiBold",
+                    color: active ? colors.primary : colors.mutedForeground,
+                  }}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {daysSaving && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 }}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>
+                Saving schedule…
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 

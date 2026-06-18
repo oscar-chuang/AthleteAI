@@ -111,6 +111,7 @@ export interface Profile {
   goals: string[];
   injuryConcerns: string[];
   weeklyGoal: number;
+  trainingDays: number[];
   weeklyProgress: number;
   streakDays: number;
   avatarUrl?: string | null;

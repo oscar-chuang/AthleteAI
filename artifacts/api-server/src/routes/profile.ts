@@ -22,6 +22,7 @@ function formatProfile(
     goals: p.goals ?? [],
     injuryConcerns: p.injuryConcerns ?? [],
     weeklyGoal: p.weeklyGoal,
+    trainingDays: p.trainingDays ?? [0, 1, 2, 3, 4, 5, 6],
     weeklyProgress,
     streakDays,
     avatarUrl: p.avatarUrl ?? null,
@@ -51,19 +52,32 @@ router.get("/profile", requireAuth, async (req: Request, res: Response) => {
 
 router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).userId as number;
-  const { name, sport, level, goals, injuryConcerns, weeklyGoal, avatarUrl } = req.body as {
+  const { name, sport, level, goals, injuryConcerns, weeklyGoal, trainingDays, avatarUrl } = req.body as {
     name?: string;
     sport?: string;
     level?: string;
     goals?: string[];
     injuryConcerns?: string[];
     weeklyGoal?: number;
+    trainingDays?: number[];
     avatarUrl?: string | null;
   };
 
   if (level !== undefined && !VALID_LEVELS.includes(level as any)) {
     res.status(400).json({ error: `level must be one of: ${VALID_LEVELS.join(", ")}` });
     return;
+  }
+
+  if (trainingDays !== undefined) {
+    if (
+      !Array.isArray(trainingDays) ||
+      trainingDays.length === 0 ||
+      trainingDays.some((d) => !Number.isInteger(d) || d < 0 || d > 6) ||
+      new Set(trainingDays).size !== trainingDays.length
+    ) {
+      res.status(400).json({ error: "trainingDays must be a non-empty array of unique integers 0–6" });
+      return;
+    }
   }
 
   const [existing] = await db
@@ -84,6 +98,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
         ...(goals !== undefined && { goals }),
         ...(injuryConcerns !== undefined && { injuryConcerns }),
         ...(weeklyGoal !== undefined && { weeklyGoal }),
+        ...(trainingDays !== undefined && { trainingDays }),
         ...(avatarUrl !== undefined && { avatarUrl }),
         updatedAt: new Date(),
       })
@@ -101,6 +116,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
         goals: goals ?? [],
         injuryConcerns: injuryConcerns ?? [],
         weeklyGoal: weeklyGoal ?? 3,
+        trainingDays: trainingDays ?? [0, 1, 2, 3, 4, 5, 6],
         avatarUrl: avatarUrl ?? null,
       })
       .returning();

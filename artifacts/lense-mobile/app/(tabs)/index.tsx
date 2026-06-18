@@ -134,6 +134,7 @@ export default function HomeScreen() {
     return d.toISOString().split("T")[0]!;
   });
   const trainedDaysSet = new Set(allAnalyses.map(a => a.uploadedAt.split("T")[0]));
+  const trainingDaysSet = new Set<number>(profile?.trainingDays ?? [0, 1, 2, 3, 4, 5, 6]);
 
   let insightMsg: string | null = null;
   let insightIcon: React.ComponentProps<typeof Feather>["name"] = "trending-up";
@@ -477,20 +478,31 @@ export default function HomeScreen() {
                   const trained = trainedDaysSet.has(day);
                   const isToday = day === todayStr;
                   const dayIdx = new Date(day + "T12:00:00").getDay();
+                  const isRestDay = !trainingDaysSet.has(dayIdx);
+                  const isPast = day < todayStr;
+                  const isMissed = isPast && !trained && !isRestDay;
                   return (
                     <View key={day} style={{ alignItems: "center", gap: 5 }}>
-                      <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: isToday ? colors.primary : colors.mutedForeground }}>
+                      <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: isRestDay ? colors.border : isToday ? colors.primary : colors.mutedForeground }}>
                         {DAY_LABELS[dayIdx]}
                       </Text>
                       <View style={{
                         width: 22, height: 22, borderRadius: 11,
-                        backgroundColor: trained ? (goalReached ? "#f59e0b" : colors.primary) : "transparent",
-                        borderWidth: trained ? 0 : 1.5,
-                        borderColor: isToday ? colors.primary : colors.border,
+                        backgroundColor: trained
+                          ? (goalReached ? "#f59e0b" : colors.primary)
+                          : isRestDay
+                          ? colors.border + "44"
+                          : "transparent",
+                        borderWidth: trained || isRestDay ? 0 : 1.5,
+                        borderColor: isMissed ? colors.warning + "88" : isToday ? colors.primary : colors.border,
                         alignItems: "center", justifyContent: "center",
+                        opacity: isRestDay ? 0.45 : 1,
                       }}>
-                        {isToday && !trained && (
+                        {isToday && !trained && !isRestDay && (
                           <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.primary }} />
+                        )}
+                        {isRestDay && (
+                          <View style={{ width: 4, height: 1, backgroundColor: colors.mutedForeground, borderRadius: 1, opacity: 0.6 }} />
                         )}
                       </View>
                     </View>
