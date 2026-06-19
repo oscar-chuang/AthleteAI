@@ -40,7 +40,7 @@ import { InsightCard } from "@/components/analysis/InsightCard";
 import { CoachTakeawayCard } from "@/components/analysis/CoachTakeawayCard";
 import { NextFocusCard } from "@/components/analysis/NextFocusCard";
 import { AnimatedLoadingState } from "@/components/analysis/AnimatedLoadingState";
-import { ShareCard } from "@/components/analysis/ShareCard";
+import { ShareCard, SHARE_CARD_DARK, SHARE_CARD_LIGHT } from "@/components/analysis/ShareCard";
 import {
   SHARE_CARD_CAPTURE_OPTIONS,
   HIDDEN_SHARE_CARD_STYLE,
@@ -359,6 +359,7 @@ export default function AnalysisDetailScreen() {
   const [saving, setSaving] = useState(false);
   const [showSharePreview, setShowSharePreview] = useState(false);
   const [selectedShareTipId, setSelectedShareTipId] = useState<string | null>(null);
+  const [shareScheme, setShareScheme] = useState<"dark" | "light">("dark");
   const shareCardRef = useRef<View>(null);
 
   // Goal reached toast
@@ -983,7 +984,7 @@ export default function AnalysisDetailScreen() {
         pointerEvents="none"
         style={HIDDEN_SHARE_CARD_STYLE}
       >
-        <ShareCard analysis={analysis} topTip={selectedShareTip?.title} />
+        <ShareCard analysis={analysis} topTip={selectedShareTip?.title} colorScheme={shareScheme} />
       </View>
 
       {/* ── Share preview modal ── */}
@@ -1016,9 +1017,65 @@ export default function AnalysisDetailScreen() {
               Here's what others will see
             </Text>
 
+            {/* Scheme picker — dark / light thumbnails */}
+            <View style={styles.schemePicker}>
+              {(["dark", "light"] as const).map((scheme) => {
+                const pal      = scheme === "dark" ? SHARE_CARD_DARK : SHARE_CARD_LIGHT;
+                const selected = shareScheme === scheme;
+                return (
+                  <TouchableOpacity
+                    key={scheme}
+                    onPress={() => setShareScheme(scheme)}
+                    activeOpacity={0.75}
+                    style={[
+                      styles.schemePill,
+                      selected && { borderColor: colors.primary },
+                    ]}
+                  >
+                    {/* Mini card */}
+                    <View
+                      style={[
+                        styles.miniCard,
+                        { backgroundColor: pal.cardBg, borderColor: pal.cardBorder },
+                      ]}
+                    >
+                      <View
+                        style={[styles.miniCardBar, { backgroundColor: pal.accent }]}
+                      />
+                      <View style={styles.miniCardLines}>
+                        <View
+                          style={[styles.miniCardLine, { backgroundColor: pal.textPrimary, width: "75%" }]}
+                        />
+                        <View
+                          style={[styles.miniCardLine, { backgroundColor: pal.textMuted, width: "50%", marginTop: 4 }]}
+                        />
+                        <View
+                          style={[styles.miniCardLine, { backgroundColor: pal.textMuted, width: "60%", marginTop: 4 }]}
+                        />
+                      </View>
+                    </View>
+                    {/* Label */}
+                    <View style={styles.schemePillLabel}>
+                      {selected && (
+                        <Feather name="check-circle" size={11} color={colors.primary} />
+                      )}
+                      <Text
+                        style={[
+                          styles.schemePillText,
+                          { color: selected ? colors.primary : colors.mutedForeground },
+                        ]}
+                      >
+                        {scheme === "dark" ? "Dark" : "Light"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
             {/* Card preview */}
             <View style={styles.shareCardPreviewWrap}>
-              <ShareCard analysis={analysis} topTip={selectedShareTip?.title} />
+              <ShareCard analysis={analysis} topTip={selectedShareTip?.title} colorScheme={shareScheme} />
             </View>
 
             {/* Tip picker — only shown when there are multiple tips */}
@@ -2400,6 +2457,49 @@ const styles = StyleSheet.create({
   sheetBtnShare: {},
   sheetBtnText: {
     fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+  },
+
+  // Scheme picker
+  schemePicker: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 20,
+  },
+  schemePill: {
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "transparent",
+    padding: 8,
+  },
+  miniCard: {
+    width: 72,
+    height: 90,
+    borderRadius: 8,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  miniCardBar: {
+    height: 22,
+    width: "100%",
+    opacity: 0.75,
+  },
+  miniCardLines: {
+    padding: 8,
+  },
+  miniCardLine: {
+    height: 5,
+    borderRadius: 3,
+  },
+  schemePillLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  schemePillText: {
+    fontSize: 12,
     fontFamily: "Inter_600SemiBold",
   },
 
