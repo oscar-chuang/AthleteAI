@@ -98,7 +98,7 @@ jest.mock("@/hooks/useColors", () => ({
 
 jest.mock("@/lib/authContext", () => ({
   useAuth: () => ({
-    user: { id: "u1", email: "athlete@test.com", name: mockProfile?.name ?? "" },
+    user: { id: "u1", email: "athlete@test.com", name: mockProfile?.name ?? null },
     profile: mockProfile,
     updateProfile: jest.fn(async () => {}),
     logout: jest.fn(),
@@ -225,6 +225,16 @@ describe("HomeScreen — AvatarDisplay in the home header", () => {
 
     // AvatarDisplay derives initials from the name: "Alex Smith" → "AS"
     expect(getByText("AS")).toBeTruthy();
+  });
+
+  it("renders 'Athlete' fallback and does not crash when profile is null", async () => {
+    mockProfile = null;
+
+    const { getByText } = render(<HomeScreen />);
+    await simulateFocus();
+
+    // profile?.name is undefined, user?.name is null → fallback to "Athlete"
+    expect(getByText("Athlete")).toBeTruthy();
   });
 
   it("renders initials inside a coloured circle when a preset avatar is active", async () => {
