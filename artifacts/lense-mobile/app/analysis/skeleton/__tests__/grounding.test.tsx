@@ -763,3 +763,93 @@ describe("scan quality banner — low/medium confidence UI", () => {
     expect(screen.queryByText("Athlete not clearly visible")).toBeNull();
   });
 });
+
+// ─── Completed-drills cleared on re-scan ─────────────────────────────────────
+// When the poll detects biomechanicsApplied=true after a re-scan, the screen
+// must remove the persisted drill_done_<id> key from AsyncStorage and reset
+// completedDrills to empty so stale "Completed" badges never survive into
+// the freshly-grounded session.
+describe("completed-drills cleared when re-scan grounds new tips", () => {
+  const drillTip = {
+    id: "cd-knee",
+    tipType: "injury" as const,
+    severity: "critical",
+    category: "Knee Mechanics",
+    title: "CLEARABLE_DRILL_TIP",
+    description: "Knee caving — fix form.",
+    joints: ["leftKnee"],
+    drill: { name: "Wall Squat", sets: "3", reps: "10", cue: "Track knees over toes" },
+  };
+
+  function drillResp(grounded: boolean) {
+    return {
+      analysis: { id: 1, sport: "weightlifting", biomechanicsApplied: grounded },
+      tips: [drillTip],
+      injuryRisks: [],
+    };
+  }
+
+  beforeEach(() => {
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    // Distinguish video URI lookup from the pre-populated drill completion list.
+    AsyncStorage.getItem.mockImplementation(async (key: string) => {
+      if (key === "video_uri_1") return "file:///video.mp4";
+      if (key === "drill_done_1") return JSON.stringify(["cd-knee"]);
+      return null;
+    });
+    AsyncStorage.removeItem.mockClear();
+    AsyncStorage.setItem.mockClear();
+  });
+
+  afterEach(() => {
+    // Restore the default getItem behaviour so other describe blocks are unaffected.
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    AsyncStorage.getItem.mockReset();
+    AsyncStorage.getItem.mockImplementation(async () => "file:///video.mp4");
+  });
+
+  it("calls AsyncStorage.removeItem for drill_done_<id> when biomechanicsApplied flips true", async () => {
+    let grounded = false;
+    mockApiGet.mockImplementation(() => Promise.resolve(drillResp(grounded)));
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Trigger the scan → PATCH → poll cycle.
+    grounded = true; // server will report grounded on the next poll
+    emit(scanMsg);
+    await flush();
+
+    await act(async () => { jest.advanceTimersByTime(2000); });
+    await flush();
+
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    expect(AsyncStorage.removeItem).toHaveBeenCalledWith("drill_done_1");
+  });
+
+  it("resets completedDrills to empty so the drill button shows 'Mark done' after re-scan", async () => {
+    let grounded = false;
+    mockApiGet.mockImplementation(() => Promise.resolve(drillResp(grounded)));
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Before the scan: tips are not yet grounded (groundedReady=false), but
+    // completedDrills is already loaded from AsyncStorage with "cd-knee" in it.
+    // Trigger scan → grounds tips → clears completedDrills.
+    grounded = true;
+    emit(scanMsg);
+    await flush();
+
+    await act(async () => { jest.advanceTimersByTime(2000); });
+    await flush();
+
+    // Tips are now visible (groundedReady=true). Expand the tip to reach the
+    // drill action button and confirm it reads "Mark done", not "Completed".
+    fireEvent.press(screen.getByText("CLEARABLE_DRILL_TIP"));
+    await flush();
+
+    expect(screen.getByText("Mark done")).toBeTruthy();
+    expect(screen.queryByText("Completed")).toBeNull();
+  });
+});
