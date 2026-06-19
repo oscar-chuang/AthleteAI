@@ -214,11 +214,18 @@ export default function ChatScreen() {
             </View>
             <View>
               <Text style={s.headerTitle}>AI Coach</Text>
-              <Text style={[s.headerSub, { color: colors.mutedForeground }]}>
-                {profile?.sport && profile?.level
-                  ? `${profile.sport} · ${profile.level}`
-                  : "Pro feature"}
-              </Text>
+              <TouchableOpacity
+                onPress={() => router.push("/profile-settings")}
+                activeOpacity={0.7}
+                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+              >
+                <Text style={[s.headerSub, { color: colors.mutedForeground }]}>
+                  {profile?.sport && profile?.level
+                    ? `${profile.sport} · ${profile.level}`
+                    : "Pro feature"}
+                </Text>
+                <Feather name="edit-2" size={10} color={colors.mutedForeground} />
+              </TouchableOpacity>
             </View>
           </View>
           {profile && (
@@ -266,11 +273,20 @@ export default function ChatScreen() {
           </View>
           <View>
             <Text style={s.headerTitle}>AI Coach</Text>
-            <Text style={s.headerSub}>
-              {profile?.sport && profile?.level
-                ? `${profile.sport} · ${profile.level}`
-                : "Online · Ready to help"}
-            </Text>
+            <TouchableOpacity
+              onPress={() => router.push("/profile-settings")}
+              activeOpacity={0.7}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+            >
+              <Text style={s.headerSub}>
+                {profile?.sport && profile?.level
+                  ? `${profile.sport} · ${profile.level}`
+                  : "Online · Ready to help"}
+              </Text>
+              {profile?.sport && profile?.level && (
+                <Feather name="edit-2" size={10} color={colors.mutedForeground} />
+              )}
+            </TouchableOpacity>
           </View>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
