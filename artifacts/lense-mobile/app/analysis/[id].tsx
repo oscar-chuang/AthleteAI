@@ -60,6 +60,7 @@ import { buildSessionSharePayload } from "@/utils/shareUtils";
 const PENDING_CHAT_KEY = "pendingChatMessage";
 const SWIPE_HINT_SEEN_KEY = "swipe_hint_seen";
 const LAST_SHARE_ACTION_KEY = "lastShareAction";
+const SHARE_CARD_SCHEME_KEY = "shareCardScheme";
 
 // Module-level: tracks which analysis IDs have already completed their first ring animation.
 // Persists across component re-mounts (session navigation), so switching sessions and coming
@@ -394,6 +395,13 @@ export default function AnalysisDetailScreen() {
   const [lastShareAction, setLastShareAction] = useState<"save" | "share">("share");
   const [selectedShareTipId, setSelectedShareTipId] = useState<string | null>(null);
   const [shareScheme, setShareScheme] = useState<"dark" | "light">("dark");
+
+  // Load persisted share card scheme on mount
+  useEffect(() => {
+    AsyncStorage.getItem(SHARE_CARD_SCHEME_KEY).then((saved) => {
+      if (saved === "dark" || saved === "light") setShareScheme(saved);
+    }).catch(() => {});
+  }, []);
   const shareCardRef = useRef<View>(null);
   // Remembers the last tip the user picked on the share sheet, keyed by analysis ID.
   // Survives modal close/reopen within the same screen session; not persisted across restarts.
@@ -1151,7 +1159,10 @@ export default function AnalysisDetailScreen() {
                 return (
                   <TouchableOpacity
                     key={scheme}
-                    onPress={() => setShareScheme(scheme)}
+                    onPress={() => {
+                      setShareScheme(scheme);
+                      AsyncStorage.setItem(SHARE_CARD_SCHEME_KEY, scheme).catch(() => {});
+                    }}
                     activeOpacity={0.75}
                     style={[
                       styles.schemePill,
