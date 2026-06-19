@@ -281,3 +281,85 @@ describe("CropModal — Use Photo calls ImageManipulator with the correct crop r
     consoleError.mockRestore();
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 3. Photo-switch reset tests
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("CropModal — crop rect resets correctly when switching to a different photo", () => {
+  it("second Use Photo uses crop rect from second image, not stale state from first", async () => {
+    // Image 1: 400×400 square. minScale = max(320/400, 320/400) = 0.8
+    // computeCropRect(400, 400, 0.8, 0, 0, 320) → { originX:0, originY:0, width:400, height:400 }
+    //
+    // Image 2: 500×320 landscape. minScale = max(320/500, 320/320) = 1
+    // computeCropRect(500, 320, 1, 0, 0, 320) → { originX:90, originY:0, width:320, height:320 }
+    //
+    // If the useEffect reset did NOT fire, the stale scale=0.8 from image 1 would be
+    // applied to image 2, producing a different (wrong) crop:
+    // computeCropRect(500, 320, 0.8, 0, 0, 320) → { originX:50, originY:0, width:400, height:320 }
+
+    const onConfirm = jest.fn();
+
+    const { getByText, rerender } = render(
+      <CropModal
+        visible={true}
+        imageUri="file:///photo1.jpg"
+        imageWidth={400}
+        imageHeight={400}
+        onConfirm={onConfirm}
+        onCancel={jest.fn()}
+      />
+    );
+    await flush();
+
+    // First confirm — crop rect should be for image 1
+    await act(async () => {
+      fireEvent.press(getByText("Use Photo"));
+    });
+    await flush();
+
+    expect(mockManipulateAsync).toHaveBeenCalledTimes(1);
+    const [uri1, actions1] = mockManipulateAsync.mock.calls[0];
+    expect(uri1).toBe("file:///photo1.jpg");
+    expect(actions1[0].crop).toEqual({ originX: 0, originY: 0, width: 400, height: 400 });
+
+    // Close the modal (triggers the prevVisibleRef update)
+    rerender(
+      <CropModal
+        visible={false}
+        imageUri="file:///photo1.jpg"
+        imageWidth={400}
+        imageHeight={400}
+        onConfirm={onConfirm}
+        onCancel={jest.fn()}
+      />
+    );
+    await flush();
+
+    // Reopen with a different (landscape) photo — the justOpened branch should
+    // reset scale to the new minScale=1 and clear translation to 0,0.
+    rerender(
+      <CropModal
+        visible={true}
+        imageUri="file:///photo2.jpg"
+        imageWidth={500}
+        imageHeight={320}
+        onConfirm={onConfirm}
+        onCancel={jest.fn()}
+      />
+    );
+    await flush();
+
+    // Second confirm — crop rect must reflect the second image's dimensions
+    await act(async () => {
+      fireEvent.press(getByText("Use Photo"));
+    });
+    await flush();
+
+    expect(mockManipulateAsync).toHaveBeenCalledTimes(2);
+    const [uri2, actions2] = mockManipulateAsync.mock.calls[1];
+    expect(uri2).toBe("file:///photo2.jpg");
+    // Correct reset → scale=1, tx=0, ty=0 for 500×320 landscape image
+    expect(actions2[0].crop).toEqual({ originX: 90, originY: 0, width: 320, height: 320 });
+  });
+});
