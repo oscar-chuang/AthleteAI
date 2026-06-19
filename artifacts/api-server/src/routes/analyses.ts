@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, analysesTable, profilesTable } from "@workspace/db";
+import { db, analysesTable, profilesTable, completedDrillsTable } from "@workspace/db";
 import { eq, and, desc, ne } from "drizzle-orm";
 import { requireAuth } from "./auth";
 import { analyzeAthletePerformance, detectSportFromFrame, generateCoachingMoments, generateMovementSummary, type AIAnalysisResult, type FlaggedMoment } from "../lib/anthropic";
@@ -568,6 +568,77 @@ router.post("/analyses/:id/movement-summary", requireAuth, async (req: Request, 
     console.error("generateMovementSummary failed:", err);
     res.status(500).json({ error: "Failed to generate movement summary" });
   }
+});
+
+// ─── Completed drills ─────────────────────────────────────────────────────────
+
+router.get("/analyses/:id/drills/completed", requireAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).userId as number;
+  const id = parseInt(String(req.params.id ?? ""), 10);
+  if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
+
+  const [owned] = await db
+    .select({ id: analysesTable.id })
+    .from(analysesTable)
+    .where(and(eq(analysesTable.id, id), eq(analysesTable.userId, userId)))
+    .limit(1);
+  if (!owned) { res.status(404).json({ error: "Analysis not found" }); return; }
+
+  const rows = await db
+    .select()
+    .from(completedDrillsTable)
+    .where(and(eq(completedDrillsTable.userId, userId), eq(completedDrillsTable.analysisId, id)));
+
+  res.json({ completedTipIds: rows.map((r) => r.tipId) });
+});
+
+router.post("/analyses/:id/drills/:tipId/complete", requireAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).userId as number;
+  const id = parseInt(String(req.params.id ?? ""), 10);
+  const tipId = String(req.params.tipId ?? "").trim();
+  if (isNaN(id) || !tipId) { res.status(400).json({ error: "Invalid request" }); return; }
+
+  const [owned] = await db
+    .select({ id: analysesTable.id })
+    .from(analysesTable)
+    .where(and(eq(analysesTable.id, id), eq(analysesTable.userId, userId)))
+    .limit(1);
+  if (!owned) { res.status(404).json({ error: "Analysis not found" }); return; }
+
+  const drillName = typeof req.body?.drillName === "string" ? req.body.drillName.slice(0, 200) : null;
+
+  const existing = await db
+    .select({ id: completedDrillsTable.id })
+    .from(completedDrillsTable)
+    .where(and(
+      eq(completedDrillsTable.userId, userId),
+      eq(completedDrillsTable.analysisId, id),
+      eq(completedDrillsTable.tipId, tipId),
+    ))
+    .limit(1);
+
+  if (!existing.length) {
+    await db.insert(completedDrillsTable).values({ userId, analysisId: id, tipId, drillName });
+  }
+
+  res.json({ success: true });
+});
+
+router.delete("/analyses/:id/drills/:tipId/complete", requireAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).userId as number;
+  const id = parseInt(String(req.params.id ?? ""), 10);
+  const tipId = String(req.params.tipId ?? "").trim();
+  if (isNaN(id) || !tipId) { res.status(400).json({ error: "Invalid request" }); return; }
+
+  await db
+    .delete(completedDrillsTable)
+    .where(and(
+      eq(completedDrillsTable.userId, userId),
+      eq(completedDrillsTable.analysisId, id),
+      eq(completedDrillsTable.tipId, tipId),
+    ));
+
+  res.json({ success: true });
 });
 
 router.delete("/analyses/:id", requireAuth, async (req: Request, res: Response) => {

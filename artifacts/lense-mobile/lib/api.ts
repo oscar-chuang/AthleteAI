@@ -337,6 +337,24 @@ export const analyses = {
     }, 45000),
 };
 
+// ─── Completed Drills ─────────────────────────────────────────────────────────
+
+export const drills = {
+  getCompleted: (analysisId: string) =>
+    request<{ completedTipIds: string[] }>(`/analyses/${analysisId}/drills/completed`),
+
+  markDone: (analysisId: string, tipId: string, drillName?: string) =>
+    request<{ success: boolean }>(`/analyses/${analysisId}/drills/${encodeURIComponent(tipId)}/complete`, {
+      method: "POST",
+      body: JSON.stringify({ drillName }),
+    }),
+
+  markUndone: (analysisId: string, tipId: string) =>
+    request<{ success: boolean }>(`/analyses/${analysisId}/drills/${encodeURIComponent(tipId)}/complete`, {
+      method: "DELETE",
+    }),
+};
+
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 
 export interface ChatRecord {

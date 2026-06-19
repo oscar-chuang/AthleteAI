@@ -15,6 +15,11 @@ jest.mock("@/lib/api", () => ({
     get: (...args: any[]) => mockApiGet(...args),
     update: (...args: any[]) => mockApiUpdate(...args),
   },
+  drills: {
+    getCompleted: jest.fn(async () => ({ completedTipIds: [] })),
+    markDone: jest.fn(async () => ({ success: true })),
+    markUndone: jest.fn(async () => ({ success: true })),
+  },
   jointTrends: {
     get: jest.fn(async () => ({ joints: {}, improvements: [] })),
   },

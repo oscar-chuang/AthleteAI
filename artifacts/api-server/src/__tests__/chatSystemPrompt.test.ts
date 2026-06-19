@@ -58,8 +58,17 @@ const h = vi.hoisted(() => {
     consistencyScore?: number | null;
   };
 
+  type CompletedDrillRow = {
+    userId: number;
+    analysisId: number;
+    tipId: string;
+    drillName: string | null;
+    completedAt: Date;
+  };
+
   let profileStore: ProfileRow[] = [];
   let analysesStore: AnalysisRow[] = [];
+  let completedDrillsStore: CompletedDrillRow[] = [];
 
   function rowsThenable<T>(getRows: () => T[]): any {
     return {
@@ -82,6 +91,13 @@ const h = vi.hoisted(() => {
     userId: col("userId"),
     uploadedAt: col("uploadedAt"),
   };
+  const completedDrillsTable: any = {
+    __name: "completed_drills",
+    userId: col("userId"),
+    analysisId: col("analysisId"),
+    tipId: col("tipId"),
+    completedAt: col("completedAt"),
+  };
 
   function evalCond(row: any, cond: any): boolean {
     if (!cond) return true;
@@ -96,7 +112,10 @@ const h = vi.hoisted(() => {
         from(table: any) {
           return {
             where(cond: any) {
-              const src = table.__name === "profiles" ? profileStore : analysesStore;
+              let src: any[];
+              if (table.__name === "profiles") src = profileStore;
+              else if (table.__name === "completed_drills") src = completedDrillsStore;
+              else src = analysesStore;
               return rowsThenable(() => src.filter((r) => evalCond(r, cond)));
             },
           };
@@ -105,7 +124,7 @@ const h = vi.hoisted(() => {
     },
   };
 
-  return { profileStore, analysesStore, profilesTable, analysesTable, fakeDb };
+  return { profileStore, analysesStore, completedDrillsStore, profilesTable, analysesTable, completedDrillsTable, fakeDb };
 });
 
 // ── module mocks ──────────────────────────────────────────────────────────────
@@ -114,6 +133,7 @@ vi.mock("@workspace/db", () => ({
   db: h.fakeDb,
   profilesTable: h.profilesTable,
   analysesTable: h.analysesTable,
+  completedDrillsTable: h.completedDrillsTable,
   chatMessagesTable: { __name: "chat_messages" },
   pool: { end: vi.fn() },
 }));

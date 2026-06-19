@@ -20,7 +20,7 @@ import { Feather } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { analyses as analysesApi, jointTrends, type TipRecord, type DrillRecord, type RiskRecord, type JointTrendsResponse } from "@/lib/api";
+import { analyses as analysesApi, drills as drillsApi, jointTrends, type TipRecord, type DrillRecord, type RiskRecord, type JointTrendsResponse, type JointDataPoint } from "@/lib/api";
 import JointHistorySheet from "@/components/JointHistorySheet";
 import { scheduleImprovementNotification } from "@/utils/notifications";
 import { useAuth } from "@/lib/authContext";
@@ -598,21 +598,43 @@ export default function SkeletonScreen() {
   }, [id]);
 
   // ── Load + persist completed drills per-analysis ─────────────────────────────
+  // AsyncStorage is the source of truth for the current session UI; the server
+  // is the persistence layer so the AI coach always knows the full history.
   useEffect(() => {
     if (!id) return;
     setCompletedDrills(new Set());
-    AsyncStorage.getItem(`drill_done_${id}`).then((raw) => {
+
+    const loadLocal = AsyncStorage.getItem(`drill_done_${id}`).then((raw) => {
       if (raw) {
-        try { setCompletedDrills(new Set(JSON.parse(raw) as string[])); } catch {}
+        try { return new Set(JSON.parse(raw) as string[]); } catch {}
+      }
+      return new Set<string>();
+    }).catch(() => new Set<string>());
+
+    const loadRemote = drillsApi.getCompleted(id).then((r) => new Set(r.completedTipIds)).catch(() => new Set<string>());
+
+    Promise.all([loadLocal, loadRemote]).then(([local, remote]) => {
+      const merged = new Set([...local, ...remote]);
+      setCompletedDrills(merged);
+      if (merged.size > 0 && id) {
+        AsyncStorage.setItem(`drill_done_${id}`, JSON.stringify([...merged])).catch(() => {});
       }
     }).catch(() => {});
   }, [id]);
 
-  const toggleDrillDone = useCallback((tipId: string) => {
+  const toggleDrillDone = useCallback((tipId: string, drillName?: string) => {
     setCompletedDrills((prev) => {
       const next = new Set(prev);
-      if (next.has(tipId)) next.delete(tipId); else next.add(tipId);
-      if (id) AsyncStorage.setItem(`drill_done_${id}`, JSON.stringify([...next])).catch(() => {});
+      const marking = !next.has(tipId);
+      if (marking) { next.add(tipId); } else { next.delete(tipId); }
+      if (id) {
+        AsyncStorage.setItem(`drill_done_${id}`, JSON.stringify([...next])).catch(() => {});
+        if (marking) {
+          drillsApi.markDone(id, tipId, drillName).catch(() => {});
+        } else {
+          drillsApi.markUndone(id, tipId).catch(() => {});
+        }
+      }
       return next;
     });
   }, [id]);
@@ -1149,7 +1171,7 @@ export default function SkeletonScreen() {
                   <TouchableOpacity
                     style={[ss.markDoneBtn, completedDrills.has(tip.id) && ss.markDoneBtnDone]}
                     activeOpacity={0.8}
-                    onPress={() => toggleDrillDone(tip.id)}
+                    onPress={() => toggleDrillDone(tip.id, tip.drill?.name)}
                   >
                     <Feather
                       name={completedDrills.has(tip.id) ? "check-circle" : "circle"}

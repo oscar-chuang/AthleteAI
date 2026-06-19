@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, and } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
-import { db, chatMessagesTable, analysesTable, profilesTable } from "@workspace/db";
+import { db, chatMessagesTable, analysesTable, profilesTable, completedDrillsTable } from "@workspace/db";
 import { requireAuth } from "./auth";
 
 type TipDrill = {
@@ -41,12 +41,26 @@ export async function buildSystemPrompt(userId: number): Promise<string> {
     .where(eq(profilesTable.userId, userId))
     .limit(1);
 
-  const recentAnalyses = await db
-    .select()
-    .from(analysesTable)
-    .where(eq(analysesTable.userId, userId))
-    .orderBy(desc(analysesTable.uploadedAt))
-    .limit(5);
+  const [recentAnalyses, allCompletedDrills] = await Promise.all([
+    db
+      .select()
+      .from(analysesTable)
+      .where(eq(analysesTable.userId, userId))
+      .orderBy(desc(analysesTable.uploadedAt))
+      .limit(5),
+    db
+      .select()
+      .from(completedDrillsTable)
+      .where(eq(completedDrillsTable.userId, userId))
+      .orderBy(desc(completedDrillsTable.completedAt)),
+  ]);
+
+  const completedByAnalysis = new Map<number, { tipId: string; drillName: string | null; completedAt: Date }[]>();
+  for (const row of allCompletedDrills) {
+    const list = completedByAnalysis.get(row.analysisId) ?? [];
+    list.push({ tipId: row.tipId, drillName: row.drillName, completedAt: row.completedAt });
+    completedByAnalysis.set(row.analysisId, list);
+  }
 
   const athleteName = profile?.name ? `${profile.name}` : "this athlete";
   const sport = profile?.sport || "general sport";
@@ -85,13 +99,15 @@ export async function buildSystemPrompt(userId: number): Promise<string> {
       if (a.improvements?.length) systemPrompt += `\n  Needs work: ${a.improvements.slice(0, 2).join("; ")}`;
 
       const tips = (a.tips ?? []) as Tip[];
+      const doneTipIds = new Set((completedByAnalysis.get(a.id) ?? []).map((c) => c.tipId));
       if (tips.length > 0) {
         systemPrompt += `\n  Coaching tips & drills:`;
         for (const tip of tips) {
           if (!tip.title) continue;
-          systemPrompt += `\n    • [${tip.tipType ?? "tip"}] ${tip.title}`;
+          const done = (tip as any).id && doneTipIds.has((tip as any).id);
+          systemPrompt += `\n    • [${tip.tipType ?? "tip"}] ${tip.title}${done ? " ✓ COMPLETED" : ""}`;
           if (tip.drill?.name) {
-            systemPrompt += `\n      Drill: ${tip.drill.name}`;
+            systemPrompt += `\n      Drill: ${tip.drill.name}${done ? " (done)" : ""}`;
             if (tip.drill.sets || tip.drill.reps) {
               systemPrompt += ` — ${[tip.drill.sets, tip.drill.reps].filter(Boolean).join(" × ")}`;
             }
@@ -103,6 +119,12 @@ export async function buildSystemPrompt(userId: number): Promise<string> {
             }
           }
         }
+      }
+
+      const completedForThis = completedByAnalysis.get(a.id) ?? [];
+      const completedWithName = completedForThis.filter((c) => c.drillName);
+      if (completedWithName.length > 0) {
+        systemPrompt += `\n  Previously completed drills: ${completedWithName.map((c) => c.drillName).join(", ")}`;
       }
     }
   } else {
