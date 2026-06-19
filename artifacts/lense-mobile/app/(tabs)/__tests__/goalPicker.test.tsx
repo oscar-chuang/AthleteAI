@@ -282,4 +282,24 @@ describe("HomeScreen — weekly goal picker", () => {
     // And updateProfile was still called (the attempt happened).
     expect(mockUpdateProfile).toHaveBeenCalledWith({ weeklyGoal: 5 });
   });
+
+  // ── Test 5 ────────────────────────────────────────────────────────────────
+
+  it("closes the sheet when the backdrop is tapped", async () => {
+    const { getByText, getByTestId, queryByText } = render(<HomeScreen />);
+    await simulateFocus();
+
+    // Open the picker sheet.
+    fireEvent.press(getByText("Goal: 3 sessions/week"));
+
+    // The sheet is now visible — the "Weekly Goal" heading should be present.
+    expect(getByText("Weekly Goal")).toBeTruthy();
+
+    // Tap the backdrop (the outer Pressable that covers the dimmed area).
+    fireEvent.press(getByTestId("goal-sheet-backdrop"));
+    await flush();
+
+    // The "Weekly Goal" heading must be gone after dismissal.
+    expect(queryByText("Weekly Goal")).toBeNull();
+  });
 });

@@ -1077,6 +1077,7 @@ export default function HomeScreen() {
         onRequestClose={() => setShowGoalSheet(false)}
       >
         <Pressable
+          testID="goal-sheet-backdrop"
           style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}
           onPress={() => setShowGoalSheet(false)}
         >
