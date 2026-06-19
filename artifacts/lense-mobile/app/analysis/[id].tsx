@@ -23,10 +23,12 @@ import * as Sharing from "expo-sharing";
 import { useColors } from "@/hooks/useColors";
 import {
   analyses as analysesApi,
+  profile as profileApi,
   type AnalysisRecord,
   type TipRecord,
   type RiskRecord,
 } from "@/lib/api";
+import { useAuth } from "@/lib/authContext";
 import { ScoreRing } from "@/components/ScoreRing";
 import { ScoreCard, getScoreBand } from "@/components/analysis/ScoreCard";
 import { SectionHeader } from "@/components/analysis/SectionHeader";
@@ -37,6 +39,13 @@ import { AnimatedLoadingState } from "@/components/analysis/AnimatedLoadingState
 import { ShareCard } from "@/components/analysis/ShareCard";
 
 const PENDING_CHAT_KEY = "pendingChatMessage";
+
+function getWeekKey(): string {
+  const d = new Date();
+  const sunday = new Date(d);
+  sunday.setDate(d.getDate() - d.getDay());
+  return sunday.toISOString().split("T")[0]!;
+}
 
 const SCORE_KEYS = [
   "technique",
@@ -322,6 +331,8 @@ export default function AnalysisDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
+  const { profile } = useAuth();
+
   const [analysis, setAnalysis] = useState<AnalysisRecord | null>(null);
   const [tips, setTips] = useState<TipRecord[]>([]);
   const [risks, setRisks] = useState<RiskRecord[]>([]);
@@ -338,6 +349,13 @@ export default function AnalysisDetailScreen() {
   const [sharing, setSharing] = useState(false);
   const [showSharePreview, setShowSharePreview] = useState(false);
   const shareCardRef = useRef<View>(null);
+
+  // Goal reached toast
+  const [goalToast, setGoalToast] = useState<{ count: number; goal: number } | null>(null);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTranslate = useRef(new Animated.Value(60)).current;
+  const prevStatusRef = useRef<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sibling session IDs for prev/next navigation — sorted newest-first
   const [siblingIds, setSiblingIds] = useState<string[]>([]);
@@ -480,6 +498,77 @@ export default function AnalysisDetailScreen() {
       setLoading(false);
     }
   }, [id]);
+
+  function dismissToast() {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    Animated.parallel([
+      Animated.timing(toastOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+      Animated.timing(toastTranslate, { toValue: 60, duration: 250, useNativeDriver: true }),
+    ]).start(() => setGoalToast(null));
+  }
+
+  // Clean up auto-dismiss timer if component unmounts while toast is visible
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  async function checkGoalToast() {
+    // Uses the same AsyncStorage keys and "just crossed" detection as the Home confetti
+    const weekKey      = getWeekKey();
+    const celebratedKey = `confetti_celebrated_${weekKey}`;
+    const pendingKey    = `confetti_pending_${weekKey}`;
+    const prevCountKey  = `confetti_prev_count_${weekKey}`;
+    try {
+      const statsResult = await profileApi.stats();
+      const currentCount = statsResult.thisWeekCount ?? 0;
+      const weeklyGoal   = profile?.weeklyGoal ?? 3;
+
+      const [celebrated, pending, prevCountStr] = await Promise.all([
+        AsyncStorage.getItem(celebratedKey),
+        AsyncStorage.getItem(pendingKey),
+        AsyncStorage.getItem(prevCountKey),
+      ]);
+      const prevCount = prevCountStr !== null ? parseInt(prevCountStr, 10) : null;
+
+      // Mirror the Home screen's "just crossed" condition exactly:
+      //   - an explicit pending flag written by analyze.tsx on upload, OR
+      //   - the stored prev-count snapshot was below the goal
+      const justCrossed =
+        pending !== null ||
+        (prevCount !== null && prevCount < weeklyGoal);
+
+      if (!celebrated && weeklyGoal > 0 && currentCount >= weeklyGoal && justCrossed) {
+        await Promise.all([
+          AsyncStorage.setItem(celebratedKey, "true"),
+          AsyncStorage.removeItem(pendingKey),
+          AsyncStorage.setItem(prevCountKey, String(currentCount)),
+        ]);
+        setGoalToast({ count: currentCount, goal: weeklyGoal });
+        Animated.parallel([
+          Animated.timing(toastOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.spring(toastTranslate, { toValue: 0, useNativeDriver: true, speed: 14, bounciness: 6 }),
+        ]).start();
+        toastTimerRef.current = setTimeout(() => dismissToast(), 3500);
+      }
+    } catch {
+      // toast is non-critical — swallow errors silently
+    }
+  }
+
+  // Detect the exact moment status transitions to 'complete' to fire the toast
+  useEffect(() => {
+    if (!analysis) return;
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = analysis.status;
+    if (analysis.status === "complete" && prev !== null && prev !== "complete") {
+      checkGoalToast();
+    }
+  }, [analysis?.status]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1566,6 +1655,40 @@ export default function AnalysisDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* ── Goal reached toast ── */}
+      {goalToast && (
+        <Animated.View
+          style={[
+            styles.goalToast,
+            {
+              backgroundColor: colors.card,
+              borderColor: "#f59e0b55",
+              bottom: bottomPad + 16,
+              opacity: toastOpacity,
+              transform: [{ translateY: toastTranslate }],
+            },
+          ]}
+          pointerEvents="box-none"
+        >
+          <Text style={styles.goalToastEmoji}>🎉</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.goalToastTitle, { color: colors.foreground }]}>
+              Weekly goal reached!
+            </Text>
+            <Text style={[styles.goalToastSub, { color: colors.mutedForeground }]}>
+              {goalToast.count} of {goalToast.goal} sessions done this week
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={dismissToast}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.7}
+          >
+            <Feather name="x" size={16} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -1912,6 +2035,28 @@ const styles = StyleSheet.create({
     marginTop: 6,
     textAlign: "right",
   },
+
+  // Goal reached toast
+  goalToast: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  goalToastEmoji: { fontSize: 20 },
+  goalToastTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  goalToastSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
 
   // Share preview modal
   shareModalBackdrop: {
