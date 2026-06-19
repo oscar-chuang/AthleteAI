@@ -37,6 +37,7 @@ import {
 } from "@/lib/api";
 import { getSportConfig, JOINT_DISPLAY, SPORT_ICONS, type MetricKey } from "@/constants/sportConfig";
 import JointHistorySheet from "@/components/JointHistorySheet";
+import MovementDimensionHistorySheet from "@/components/MovementDimensionHistorySheet";
 
 const RISK_COLOR_MAP = ["#22c55e", "#f59e0b", "#ef4444"] as const;
 const RISK_LABEL_MAP = ["Safe", "Caution", "High Risk"] as const;
@@ -195,6 +196,7 @@ export default function ProgressScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [selectedJoint, setSelectedJoint] = useState<string | null>(null);
+  const [selectedDimension, setSelectedDimension] = useState<(typeof MOVEMENT_DIMENSIONS)[number] | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
@@ -590,6 +592,19 @@ export default function ProgressScreen() {
             (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
           )}
           onClose={() => setSelectedJoint(null)}
+        />
+      )}
+
+      {/* Movement dimension history bottom sheet — opened from the Movement Quality section */}
+      {selectedDimension && (
+        <MovementDimensionHistorySheet
+          dimensionKey={selectedDimension.key}
+          label={selectedDimension.label}
+          color={selectedDimension.color}
+          data={[...filteredMovementHistory].sort(
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+          )}
+          onClose={() => setSelectedDimension(null)}
         />
       )}
 
@@ -1390,15 +1405,18 @@ export default function ProgressScreen() {
                 {selectedSport ? ` · ${capitalize(selectedSport)}` : ""}
               </Text>
             </View>
-            {MOVEMENT_DIMENSIONS.map(({ key, label, color }) => {
+            {MOVEMENT_DIMENSIONS.map((dim) => {
+              const { key, label, color } = dim;
               const scores = filteredMovementHistory.map((d) => d[key] as number);
               const latest = scores[scores.length - 1] ?? 0;
               const first = scores[0] ?? 0;
               const delta = Math.round(latest - first);
               const improved = delta > 0;
               return (
-                <View
+                <TouchableOpacity
                   key={key}
+                  activeOpacity={0.75}
+                  onPress={() => setSelectedDimension(dim)}
                   style={{
                     backgroundColor: colors.card,
                     borderRadius: colors.radius,
@@ -1439,7 +1457,8 @@ export default function ProgressScreen() {
                     )}
                   </View>
                   <ScoreSparkline scores={scores} color={color} />
-                </View>
+                  <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
+                </TouchableOpacity>
               );
             })}
           </View>
