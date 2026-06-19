@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { buildGoalShareMessage } from "../../utils/shareUtils";
+import { computeScheduleSummary } from "../../utils/scheduleUtils";
 import {
   View,
   Text,
@@ -52,7 +53,6 @@ const QUICK_ACTIONS: { label: string; icon: React.ComponentProps<typeof Feather>
   { label: "Compare",       icon: "users",          route: "/(tabs)/compare"  },
 ];
 
-const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 
 const STATUS_LABEL: Record<string, string> = {
   pending:    "Queued",
@@ -297,9 +297,7 @@ export default function HomeScreen() {
   });
   const trainedDaysSet = new Set(allAnalyses.map(a => a.uploadedAt.split("T")[0]));
   const trainingDaysSet = new Set<number>(profile?.trainingDays ?? [0, 1, 2, 3, 4, 5, 6]);
-  const scheduleSummary = trainingDaysSet.size === 7
-    ? null
-    : Array.from(trainingDaysSet).sort((a, b) => a - b).map(d => DAY_LABELS[d]).join(" · ");
+  const scheduleSummary = computeScheduleSummary(Array.from(trainingDaysSet));
 
   let insightMsg: string | null = null;
   let insightIcon: React.ComponentProps<typeof Feather>["name"] = "trending-up";
