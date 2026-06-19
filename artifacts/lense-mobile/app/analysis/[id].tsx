@@ -41,6 +41,10 @@ import { CoachTakeawayCard } from "@/components/analysis/CoachTakeawayCard";
 import { NextFocusCard } from "@/components/analysis/NextFocusCard";
 import { AnimatedLoadingState } from "@/components/analysis/AnimatedLoadingState";
 import { ShareCard } from "@/components/analysis/ShareCard";
+import {
+  SHARE_CARD_CAPTURE_OPTIONS,
+  HIDDEN_SHARE_CARD_STYLE,
+} from "@/utils/shareCardCapture";
 
 const PENDING_CHAT_KEY = "pendingChatMessage";
 
@@ -551,11 +555,12 @@ export default function AnalysisDetailScreen() {
     if (!analysis || sharing) return;
     setSharing(true);
     try {
-      const uri = await captureRef(shareCardRef, {
-        format: "png",
-        quality: 1,
-        result: "tmpfile",
-      });
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert("Sharing not available", "Your device doesn't support sharing.");
+        return;
+      }
+      const uri = await captureRef(shareCardRef, SHARE_CARD_CAPTURE_OPTIONS);
       setShowSharePreview(false);
 
       const deepLink = `athleteai://analysis/${id}`;
@@ -966,15 +971,15 @@ export default function AnalysisDetailScreen() {
         </View>
       </View>
 
-      {/* Hidden off-screen share card — captured by react-native-view-shot */}
+      {/* Hidden share card — captured by react-native-view-shot.
+          Style comes from HIDDEN_SHARE_CARD_STYLE (utils/shareCardCapture.ts).
+          DO NOT swap back to top/left:-9999 — Android composits only on-screen
+          views; off-screen placement produces a blank PNG. */}
       <View
         ref={shareCardRef}
         collapsable={false}
-        style={{
-          position: "absolute",
-          top:      -9999,
-          left:     -9999,
-        }}
+        pointerEvents="none"
+        style={HIDDEN_SHARE_CARD_STYLE}
       >
         <ShareCard analysis={analysis} topTip={selectedShareTip?.title} />
       </View>
