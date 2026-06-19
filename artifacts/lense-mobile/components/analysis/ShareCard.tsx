@@ -154,10 +154,13 @@ export interface ShareCardProps {
   topTip?:     string;
   /** @default "dark" */
   colorScheme?: "dark" | "light";
+  /** Override the palette accent with the user's chosen theme colour. */
+  accent?:      string;
 }
 
-export function ShareCard({ analysis, topTip, colorScheme = "dark" }: ShareCardProps) {
-  const palette      = colorScheme === "light" ? SHARE_CARD_LIGHT : SHARE_CARD_DARK;
+export function ShareCard({ analysis, topTip, colorScheme = "dark", accent }: ShareCardProps) {
+  const base         = colorScheme === "light" ? SHARE_CARD_LIGHT : SHARE_CARD_DARK;
+  const palette      = accent ? { ...base, accent } : base;
   const overallScore = analysis.overallScore ?? 0;
   const overallColor = scoreBandColor(overallScore);
   const sportLabel   = analysis.sport.charAt(0).toUpperCase() + analysis.sport.slice(1);

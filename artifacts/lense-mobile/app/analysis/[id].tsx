@@ -1129,7 +1129,7 @@ export default function AnalysisDetailScreen() {
         pointerEvents="none"
         style={HIDDEN_SHARE_CARD_STYLE}
       >
-        <ShareCard analysis={analysis} topTip={selectedShareTip?.title} colorScheme={shareScheme} />
+        <ShareCard analysis={analysis} topTip={selectedShareTip?.title} colorScheme={shareScheme} accent={colors.primary} />
       </View>
 
       {/* ── Share preview modal ── */}
@@ -1203,7 +1203,7 @@ export default function AnalysisDetailScreen() {
                       ]}
                     >
                       <View
-                        style={[styles.miniCardBar, { backgroundColor: pal.accent }]}
+                        style={[styles.miniCardBar, { backgroundColor: colors.primary }]}
                       />
                       <View style={styles.miniCardLines}>
                         <View
@@ -1238,7 +1238,7 @@ export default function AnalysisDetailScreen() {
 
             {/* Card preview */}
             <View style={styles.shareCardPreviewWrap}>
-              <ShareCard analysis={analysis} topTip={selectedShareTip?.title} colorScheme={shareScheme} />
+              <ShareCard analysis={analysis} topTip={selectedShareTip?.title} colorScheme={shareScheme} accent={colors.primary} />
             </View>
 
             {/* Tip picker — only shown when there are multiple tips */}
