@@ -310,6 +310,9 @@ export default function RecordingTipsModal({ visible, onClose, onContinue }: Pro
             onPress={handleContinue}
             disabled={!acknowledged}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Continue"
+            accessibilityState={{ disabled: !acknowledged }}
           >
             <Text style={s.continueBtnText}>Continue</Text>
           </TouchableOpacity>
