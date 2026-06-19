@@ -50,6 +50,18 @@ jest.mock("react-native-safe-area-context", () => ({
 jest.mock("@expo/vector-icons", () => ({ Feather: () => null }));
 jest.mock("expo-image", () => ({ Image: () => null }));
 
+jest.mock("expo-intent-launcher", () => ({
+  startActivityAsync: (...args: unknown[]) => mockStartActivityAsync(...args),
+}));
+
+jest.mock("expo-file-system", () => ({
+  copyAsync:          jest.fn(async () => {}),
+  deleteAsync:        jest.fn(async () => {}),
+  getContentUriAsync: (...args: unknown[]) => mockGetContentUriAsync(...args),
+  documentDirectory:  "file:///docs/",
+  cacheDirectory:     "file:///cache/",
+}));
+
 jest.mock("react-native-view-shot", () => ({
   captureRef: (...args: unknown[]) => mockCaptureRef(...args),
 }));
@@ -58,16 +70,6 @@ jest.mock("expo-sharing", () => ({
   isAvailableAsync: (...args: unknown[]) => mockIsAvailableAsync(...args),
   shareAsync:       (...args: unknown[]) => mockShareAsync(...args),
 }));
-
-// Android share path uses FileSystem.getContentUriAsync + IntentLauncher.
-jest.mock("expo-file-system", () => ({
-  getContentUriAsync: (...args: unknown[]) => mockGetContentUriAsync(...args),
-}));
-
-jest.mock("expo-intent-launcher", () => ({
-  startActivityAsync: (...args: unknown[]) => mockStartActivityAsync(...args),
-}));
-
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
   __esModule: true,
@@ -215,7 +217,7 @@ beforeEach(() => {
     injuryRisks: [],
   });
 
-  // Force the Android code path so handleDoShare exercises Sharing.shareAsync.
+  // Force the Android code path so handleDoShare exercises IntentLauncher.
   Object.defineProperty(Platform, "OS", { value: "android", configurable: true });
 });
 
@@ -241,9 +243,9 @@ describe("AnalysisDetailScreen — share preview modal", () => {
 
     // Modal title is now visible.
     expect(screen.getByText("Share your session")).toBeTruthy();
-    // Neither captureRef nor shareAsync have been called yet.
+    // Neither captureRef nor startActivityAsync have been called yet.
     expect(mockCaptureRef).not.toHaveBeenCalled();
-    expect(mockShareAsync).not.toHaveBeenCalled();
+    expect(mockStartActivityAsync).not.toHaveBeenCalled();
   });
 
   it("pressing Cancel closes the modal and never calls captureRef or shareAsync", async () => {
@@ -262,10 +264,10 @@ describe("AnalysisDetailScreen — share preview modal", () => {
     expect(screen.queryByText("Share your session")).toBeNull();
     // No share attempt was made.
     expect(mockCaptureRef).not.toHaveBeenCalled();
-    expect(mockShareAsync).not.toHaveBeenCalled();
+    expect(mockStartActivityAsync).not.toHaveBeenCalled();
   });
 
-  it("pressing the Share CTA calls captureRef then the native share intent and closes the modal", async () => {
+  it("pressing the Share CTA calls captureRef then IntentLauncher and closes the modal", async () => {
     render(<AnalysisDetailScreen />);
     await simulateFocus();
 
@@ -280,9 +282,13 @@ describe("AnalysisDetailScreen — share preview modal", () => {
 
     expect(mockCaptureRef).toHaveBeenCalledTimes(1);
 <<<<<<< HEAD
+<<<<<<< HEAD
     // On Android the share path uses IntentLauncher.startActivityAsync, not
     // Sharing.shareAsync.  getContentUriAsync converts the tmp file path first.
     expect(mockGetContentUriAsync).toHaveBeenCalledTimes(1);
+=======
+    // On Android the code goes through IntentLauncher, not Sharing.shareAsync.
+>>>>>>> 88b2570 (Add ability to share analysis previews using native device share functionality)
     expect(mockStartActivityAsync).toHaveBeenCalledTimes(1);
 =======
     // Android path: IntentLauncher.startActivityAsync, not Sharing.shareAsync.
