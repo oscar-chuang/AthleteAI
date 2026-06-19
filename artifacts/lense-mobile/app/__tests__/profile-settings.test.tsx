@@ -139,6 +139,24 @@ describe("ProfileSettingsScreen — discard-changes prompt", () => {
     );
   });
 
+  it("shows the 'Discard changes?' Alert after tapping a sport chip", async () => {
+    const { getByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    // Tap the "Soccer" chip — profile sport is "Running", so this makes isDirty true.
+    fireEvent.press(getByText("Soccer"));
+    await flush();
+
+    const { preventDefault } = fireBeforeRemove();
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(Alert.alert).toHaveBeenCalledWith(
+      "Discard changes?",
+      expect.any(String),
+      expect.any(Array)
+    );
+  });
+
   it("does NOT show an Alert after saving the edits and then closing", async () => {
     const { getByPlaceholderText, getByText } = render(<ProfileSettingsScreen />);
     await flush();
