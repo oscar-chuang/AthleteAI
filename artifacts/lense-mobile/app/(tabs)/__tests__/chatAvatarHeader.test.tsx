@@ -240,7 +240,7 @@ describe("ChatScreen — sport/level tag in the AI Coach header", () => {
 
     // The TouchableOpacity wrapping the sport/level text fires
     // router.push("/profile-settings") when pressed.
-    fireEvent.press(getByText("Running · intermediate"));
+    fireEvent.press(getByText("Running · Intermediate"));
 
     expect(mockPush).toHaveBeenCalledWith("/profile-settings");
   });
@@ -255,7 +255,7 @@ describe("ChatScreen — sport/level tag in the AI Coach header", () => {
 
     // The paywall header also wraps the sport/level text in a TouchableOpacity
     // that navigates to /profile-settings.
-    fireEvent.press(getByText("Running · intermediate"));
+    fireEvent.press(getByText("Running · Intermediate"));
 
     expect(mockPush).toHaveBeenCalledWith("/profile-settings");
   });

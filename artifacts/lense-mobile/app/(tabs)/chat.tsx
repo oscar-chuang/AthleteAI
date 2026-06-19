@@ -27,6 +27,13 @@ import { AvatarDisplay } from "@/app/profile-settings";
 
 const PENDING_KEY = "pendingChatMessage";
 
+function toTitleCase(value: string): string {
+  return value
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 function TypingIndicator({ color }: { color: string }) {
   const dots = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
   useEffect(() => {
@@ -221,7 +228,7 @@ export default function ChatScreen() {
               >
                 <Text style={[s.headerSub, { color: colors.mutedForeground }]}>
                   {profile?.sport && profile?.level
-                    ? `${profile.sport} · ${profile.level}`
+                    ? `${toTitleCase(profile.sport)} · ${toTitleCase(profile.level)}`
                     : "Pro feature"}
                 </Text>
                 <Feather name="edit-2" size={10} color={colors.mutedForeground} />
@@ -280,7 +287,7 @@ export default function ChatScreen() {
             >
               <Text style={s.headerSub}>
                 {profile?.sport && profile?.level
-                  ? `${profile.sport} · ${profile.level}`
+                  ? `${toTitleCase(profile.sport)} · ${toTitleCase(profile.level)}`
                   : "Online · Ready to help"}
               </Text>
               {profile?.sport && profile?.level && (
