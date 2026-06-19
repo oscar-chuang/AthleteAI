@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Animated,
+  StyleSheet,
 } from "react-native";
 import Svg, {
   Line,
@@ -15,21 +16,12 @@ import Svg, {
   Circle,
   Text as SvgText,
   Rect,
-  G,
 } from "react-native-svg";
 
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { type JointDataPoint } from "@/lib/api";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const AnimatedG: React.ComponentType<any> = (() => {
-  try {
-    return Animated.createAnimatedComponent(G);
-  } catch {
-    return G;
-  }
-})();
 
 const JOINT_HISTORY_DISPLAY: Record<string, string> = {
   leftKnee: "Left Knee",
@@ -86,7 +78,7 @@ export default function JointHistorySheet({
     if (fadeAnim.current) fadeAnim.current.stop();
     fadeAnim.current = Animated.timing(tooltipOpacity, {
       toValue: 0,
-      duration: 100,
+      duration: 200,
       useNativeDriver: true,
     });
     fadeAnim.current.start(({ finished }) => {
@@ -118,7 +110,7 @@ export default function JointHistorySheet({
       tooltipOpacity.setValue(0);
       fadeAnim.current = Animated.timing(tooltipOpacity, {
         toValue: 1,
-        duration: 150,
+        duration: 250,
         useNativeDriver: true,
       });
       fadeAnim.current.start();
@@ -131,7 +123,6 @@ export default function JointHistorySheet({
 
   const handleBackgroundPress = useCallback(() => {
     if (selectedIndex !== null) {
-      setSelectedIndex(null);
       dismissTooltip();
     }
   }, [selectedIndex, dismissTooltip]);
@@ -368,133 +359,126 @@ export default function JointHistorySheet({
               </Text>
             </View>
           ) : (
-            <Svg width={sw - 48} height={totalSvgH + 72} style={{ overflow: "visible" }}>
-              {/* Transparent dismiss area — clears selection when tapping chart background */}
-              <Rect
-                x={0}
-                y={0}
-                width={sw - 48}
-                height={totalSvgH + 72}
-                fill="transparent"
-                onPress={handleBackgroundPress}
-              />
+            <Pressable onPress={handleBackgroundPress} style={{ position: "relative" }}>
+              <Svg width={sw - 48} height={totalSvgH + 72} style={{ overflow: "visible" }}>
+                {/* Y-axis grid + labels */}
+                {yTicks.map((tick, ti) => {
+                  const y = toY(tick);
+                  return (
+                    <React.Fragment key={ti}>
+                      <Line
+                        x1={CHART_PAD_L}
+                        y1={y}
+                        x2={CHART_PAD_L + chartW}
+                        y2={y}
+                        stroke="#2a2a40"
+                        strokeWidth={1}
+                      />
+                      <SvgText
+                        x={CHART_PAD_L - 4}
+                        y={y + 3}
+                        fontSize={8}
+                        fill="#55556e"
+                        fontFamily="Inter_400Regular"
+                        textAnchor="end"
+                      >
+                        {Math.round(tick)}°
+                      </SvgText>
+                    </React.Fragment>
+                  );
+                })}
 
-              {/* Y-axis grid + labels */}
-              {yTicks.map((tick, ti) => {
-                const y = toY(tick);
-                return (
-                  <React.Fragment key={ti}>
-                    <Line
-                      x1={CHART_PAD_L}
-                      y1={y}
-                      x2={CHART_PAD_L + chartW}
-                      y2={y}
-                      stroke="#2a2a40"
-                      strokeWidth={1}
-                    />
-                    <SvgText
-                      x={CHART_PAD_L - 4}
-                      y={y + 3}
-                      fontSize={8}
-                      fill="#55556e"
-                      fontFamily="Inter_400Regular"
-                      textAnchor="end"
-                    >
-                      {Math.round(tick)}°
-                    </SvgText>
-                  </React.Fragment>
-                );
-              })}
+                {/* Area fill */}
+                {areaPath && <Path d={areaPath} fill="#6c63ff18" />}
 
-              {/* Area fill */}
-              {areaPath && <Path d={areaPath} fill="#6c63ff18" />}
+                {/* Line */}
+                {data.length > 1 && (
+                  <Polyline
+                    points={polyPts}
+                    fill="none"
+                    stroke="#6c63ff"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                )}
 
-              {/* Line */}
-              {data.length > 1 && (
-                <Polyline
-                  points={polyPts}
-                  fill="none"
-                  stroke="#6c63ff"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              )}
-
-              {/* Data points — risk-coloured; tappable; selected point gets highlight ring */}
-              {data.map((d, i) => {
-                const dotColor = RISK_COLOR_MAP[d.risk] ?? "#6c63ff";
-                const isCurrent = i === currentIdx;
-                const isSelected = selectedIndex === i;
-                const cx = toX(i);
-                const cy = toY(d.angle);
-                const dotR = isSelected ? 8 : isCurrent ? 6 : 4;
-                return (
-                  <React.Fragment key={i}>
-                    {/* Outer glow ring for current/latest session */}
-                    {isCurrent && !isSelected && (
-                      <Circle cx={cx} cy={cy} r={10} fill="#6c63ff22" />
-                    )}
-                    {/* Selection highlight ring */}
-                    {isSelected && (
+                {/* Data points — risk-coloured; tappable; selected point gets highlight ring */}
+                {data.map((d, i) => {
+                  const dotColor = RISK_COLOR_MAP[d.risk] ?? "#6c63ff";
+                  const isCurrent = i === currentIdx;
+                  const isSelected = selectedIndex === i;
+                  const cx = toX(i);
+                  const cy = toY(d.angle);
+                  const dotR = isSelected ? 8 : isCurrent ? 6 : 4;
+                  return (
+                    <React.Fragment key={i}>
+                      {/* Outer glow ring for current/latest session */}
+                      {isCurrent && !isSelected && (
+                        <Circle cx={cx} cy={cy} r={10} fill="#6c63ff22" />
+                      )}
+                      {/* Selection highlight ring */}
+                      {isSelected && (
+                        <Circle
+                          cx={cx}
+                          cy={cy}
+                          r={14}
+                          fill={dotColor + "30"}
+                          stroke={dotColor}
+                          strokeWidth={1.5}
+                        />
+                      )}
+                      {/* Hit-target circle (transparent, larger) */}
                       <Circle
                         cx={cx}
                         cy={cy}
-                        r={14}
-                        fill={dotColor + "30"}
-                        stroke={dotColor}
-                        strokeWidth={1.5}
+                        r={18}
+                        fill="transparent"
+                        onPress={() => handleDotPress(i)}
+                        testID="dot-hit-target"
                       />
-                    )}
-                    {/* Hit-target circle (transparent, larger) */}
-                    <Circle
-                      cx={cx}
-                      cy={cy}
-                      r={18}
-                      fill="transparent"
-                      onPress={() => handleDotPress(i)}
-                    />
-                    {/* Visible dot */}
-                    <Circle
-                      cx={cx}
-                      cy={cy}
-                      r={dotR}
-                      fill={dotColor}
-                      stroke={isCurrent || isSelected ? "#0e0e1a" : "none"}
-                      strokeWidth={isCurrent || isSelected ? 2 : 0}
-                    />
-                  </React.Fragment>
-                );
-              })}
+                      {/* Visible dot */}
+                      <Circle
+                        cx={cx}
+                        cy={cy}
+                        r={dotR}
+                        fill={dotColor}
+                        stroke={isCurrent || isSelected ? "#0e0e1a" : "none"}
+                        strokeWidth={isCurrent || isSelected ? 2 : 0}
+                      />
+                    </React.Fragment>
+                  );
+                })}
 
-              {/* X-axis date labels */}
-              {(() => {
-                const labels: { i: number; text: string }[] = [];
-                if (data.length === 1) {
-                  labels.push({ i: 0, text: formatDate(data[0]!.date) });
-                } else if (data.length === 2) {
-                  labels.push({ i: 0, text: formatDate(data[0]!.date) });
-                  labels.push({ i: 1, text: formatDate(data[1]!.date) });
-                } else {
-                  labels.push({ i: 0, text: formatDate(data[0]!.date) });
-                  labels.push({ i: data.length - 1, text: formatDate(data[data.length - 1]!.date) });
-                }
-                return labels.map(({ i, text }) => (
-                  <SvgText
-                    key={i}
-                    x={toX(i)}
-                    y={CHART_PAD_T + CHART_H_INNER + 20}
-                    fontSize={9}
-                    fill="#55556e"
-                    fontFamily="Inter_400Regular"
-                    textAnchor={i === 0 ? "start" : i === data.length - 1 ? "end" : "middle"}
-                  >
-                    {text}
-                  </SvgText>
-                ));
-              })()}
+                {/* X-axis date labels */}
+                {(() => {
+                  const labels: { i: number; text: string }[] = [];
+                  if (data.length === 1) {
+                    labels.push({ i: 0, text: formatDate(data[0]!.date) });
+                  } else if (data.length === 2) {
+                    labels.push({ i: 0, text: formatDate(data[0]!.date) });
+                    labels.push({ i: 1, text: formatDate(data[1]!.date) });
+                  } else {
+                    labels.push({ i: 0, text: formatDate(data[0]!.date) });
+                    labels.push({ i: data.length - 1, text: formatDate(data[data.length - 1]!.date) });
+                  }
+                  return labels.map(({ i, text }) => (
+                    <SvgText
+                      key={i}
+                      x={toX(i)}
+                      y={CHART_PAD_T + CHART_H_INNER + 20}
+                      fontSize={9}
+                      fill="#55556e"
+                      fontFamily="Inter_400Regular"
+                      textAnchor={i === 0 ? "start" : i === data.length - 1 ? "end" : "middle"}
+                    >
+                      {text}
+                    </SvgText>
+                  ));
+                })()}
+              </Svg>
 
-              {/* Tooltip — rendered last so it sits on top of everything */}
+              {/* Tooltip overlay — Animated.View floats above the SVG chart */}
               {displayedIndex !== null &&
                 (() => {
                   const sel = data[displayedIndex]!;
@@ -506,7 +490,6 @@ export default function JointHistorySheet({
                   const tooltipW = 130;
                   const tooltipH = canNavigate ? 84 : 68;
                   const arrowH = 7;
-                  const cornerR = 8;
                   const svgW = sw - 48;
                   const rawTx = cx - tooltipW / 2;
                   const tx = Math.max(4, Math.min(rawTx, svgW - tooltipW - 4));
@@ -515,6 +498,7 @@ export default function JointHistorySheet({
                     ? cy - tooltipH - arrowH - 12
                     : cy + 14 + arrowH;
                   const arrowX = cx - tx;
+                  const cornerR = 8;
                   const clampedArrowX = Math.max(
                     cornerR + 4,
                     Math.min(arrowX, tooltipW - cornerR - 4)
@@ -527,95 +511,65 @@ export default function JointHistorySheet({
                   }
 
                   return (
-                    <AnimatedG opacity={tooltipOpacity} onPress={canNavigate ? handleTooltipPress : undefined}>
-                      {/* Shadow rect */}
-                      <Rect
-                        x={tx + 2}
-                        y={ty + 2}
-                        width={tooltipW}
-                        height={tooltipH}
-                        rx={cornerR}
-                        ry={cornerR}
-                        fill="rgba(0,0,0,0.35)"
-                      />
-                      {/* Background */}
-                      <Rect
-                        x={tx}
-                        y={ty}
-                        width={tooltipW}
-                        height={tooltipH}
-                        rx={cornerR}
-                        ry={cornerR}
-                        fill="#1a1a2e"
-                        stroke={dotColor}
-                        strokeWidth={1.2}
-                      />
-                      {/* Arrow pointing to dot */}
+                    <Animated.View
+                      key="tooltip"
+                      testID="joint-tooltip"
+                      style={[
+                        tooltipStyles.container,
+                        {
+                          left: tx,
+                          top: ty,
+                          width: tooltipW,
+                          height: tooltipH,
+                          borderColor: dotColor,
+                          opacity: tooltipOpacity,
+                        },
+                      ]}
+                    >
+                      <Pressable
+                        onPress={canNavigate ? handleTooltipPress : undefined}
+                        style={tooltipStyles.inner}
+                      >
+                      {/* Arrow pointing toward dot */}
                       {placeAbove ? (
-                        <Path
-                          d={`M ${tx + clampedArrowX - 6} ${ty + tooltipH} L ${tx + clampedArrowX} ${ty + tooltipH + arrowH} L ${tx + clampedArrowX + 6} ${ty + tooltipH} Z`}
-                          fill="#1a1a2e"
-                          stroke={dotColor}
-                          strokeWidth={1.2}
+                        <View
+                          style={[
+                            tooltipStyles.arrowDown,
+                            {
+                              left: clampedArrowX - 6,
+                              borderTopColor: dotColor,
+                            },
+                          ]}
                         />
                       ) : (
-                        <Path
-                          d={`M ${tx + clampedArrowX - 6} ${ty} L ${tx + clampedArrowX} ${ty - arrowH} L ${tx + clampedArrowX + 6} ${ty} Z`}
-                          fill="#1a1a2e"
-                          stroke={dotColor}
-                          strokeWidth={1.2}
+                        <View
+                          style={[
+                            tooltipStyles.arrowUp,
+                            {
+                              left: clampedArrowX - 6,
+                              borderBottomColor: dotColor,
+                            },
+                          ]}
                         />
                       )}
-                      {/* Angle — large */}
-                      <SvgText
-                        x={tx + tooltipW / 2}
-                        y={ty + 22}
-                        fontSize={18}
-                        fontFamily="Inter_700Bold"
-                        fill={dotColor}
-                        textAnchor="middle"
-                      >
+                      <Text style={[tooltipStyles.angle, { color: dotColor }]}>
                         {Math.round(sel.angle)}°
-                      </SvgText>
-                      {/* Risk label */}
-                      <SvgText
-                        x={tx + tooltipW / 2}
-                        y={ty + 38}
-                        fontSize={10}
-                        fontFamily="Inter_600SemiBold"
-                        fill={dotColor}
-                        textAnchor="middle"
-                      >
+                      </Text>
+                      <Text style={[tooltipStyles.risk, { color: dotColor }]}>
                         {rLabel}
-                      </SvgText>
-                      {/* Date · sport */}
-                      <SvgText
-                        x={tx + tooltipW / 2}
-                        y={ty + 55}
-                        fontSize={9}
-                        fontFamily="Inter_400Regular"
-                        fill="#8888aa"
-                        textAnchor="middle"
-                      >
+                      </Text>
+                      <Text style={tooltipStyles.meta}>
                         {formatDate(sel.date)} · {sel.sport}
-                      </SvgText>
+                      </Text>
                       {/* "Tap to open →" hint — only shown when navigation is available */}
                       {canNavigate && (
-                        <SvgText
-                          x={tx + tooltipW / 2}
-                          y={ty + 72}
-                          fontSize={9}
-                          fontFamily="Inter_500Medium"
-                          fill="#6c63ff"
-                          textAnchor="middle"
-                        >
-                          tap to open →
-                        </SvgText>
+                        <Text style={tooltipStyles.navHint}>tap to open →</Text>
                       )}
-                    </AnimatedG>
+                      </Pressable>
+                    </Animated.View>
                   );
                 })()}
-            </Svg>
+            </Pressable>
           )}
 
           <Text
@@ -634,3 +588,70 @@ export default function JointHistorySheet({
     </Modal>
   );
 }
+
+const tooltipStyles = StyleSheet.create({
+  container: {
+    position: "absolute",
+    backgroundColor: "#1a1a2e",
+    borderRadius: 8,
+    borderWidth: 1.2,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  arrowDown: {
+    position: "absolute",
+    bottom: -7,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 7,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+  },
+  arrowUp: {
+    position: "absolute",
+    top: -7,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderBottomWidth: 7,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+  },
+  angle: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+  },
+  risk: {
+    fontSize: 10,
+    fontFamily: "Inter_600SemiBold",
+    marginTop: 1,
+  },
+  meta: {
+    fontSize: 9,
+    fontFamily: "Inter_400Regular",
+    color: "#8888aa",
+    marginTop: 2,
+  },
+  inner: {
+    flex: 1,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    paddingVertical: 6,
+    width: "100%" as const,
+  },
+  navHint: {
+    fontSize: 9,
+    fontFamily: "Inter_500Medium",
+    color: "#6c63ff",
+    marginTop: 3,
+  },
+});
