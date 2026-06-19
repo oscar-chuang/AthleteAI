@@ -985,6 +985,8 @@ export default function ProfileSettingsScreen() {
               return (
                 <TouchableOpacity
                   key={n}
+                  testID={`weekly-goal-btn-${n}`}
+                  accessibilityState={{ selected: active }}
                   style={[
                     s.weeklyBtn,
                     {

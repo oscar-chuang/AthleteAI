@@ -299,6 +299,85 @@ describe("ProfileSettingsScreen — Remove photo button", () => {
   });
 });
 
+// ─── Training-day toggle auto-syncs weekly goal ───────────────────────────────
+
+describe("ProfileSettingsScreen — training-day toggle auto-updates weekly goal", () => {
+  beforeEach(() => {
+    // Start with all 7 days selected and a goal intentionally different from 7,
+    // so any single deselection crosses the "shouldSuggestGoal" threshold.
+    mockProfile.trainingDays = [0, 1, 2, 3, 4, 5, 6];
+    mockProfile.weeklyGoal = 3;
+  });
+
+  it("auto-updates the weekly goal display to match the new training-day count", async () => {
+    const { getByText, getByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    // Before toggling, the "3" chip is selected and "6" is not.
+    expect(getByTestId("weekly-goal-btn-3").props.accessibilityState.selected).toBe(true);
+    expect(getByTestId("weekly-goal-btn-6").props.accessibilityState.selected).toBe(false);
+
+    // Toggle off Friday (dayIdx=5, label "F" is unique on the row) →
+    // trainingDays: 7→6, weeklyGoal auto-syncs 3→6.
+    await act(async () => {
+      fireEvent.press(getByText("F"));
+    });
+    await flush();
+
+    // The "6" chip is now selected and "3" is no longer selected.
+    expect(getByTestId("weekly-goal-btn-6").props.accessibilityState.selected).toBe(true);
+    expect(getByTestId("weekly-goal-btn-3").props.accessibilityState.selected).toBe(false);
+
+    // updateProfile is called with the auto-synced weekly goal — confirms the
+    // change reached the server, not just the local UI state.
+    expect(mockUpdateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ weeklyGoal: 6 })
+    );
+  });
+
+  it("shows the inline hint banner with the correct suggested count", async () => {
+    const { getByText, queryByText, getAllByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    // Hint is absent before any toggle.
+    expect(queryByText(/match your training days/i)).toBeNull();
+
+    // Toggle off Friday → 6 training days selected → hint appears.
+    await act(async () => {
+      fireEvent.press(getByText("F"));
+    });
+    await flush();
+
+    // Banner body text is present.
+    expect(getByText(/We set your weekly goal to/i)).toBeTruthy();
+    expect(getByText(/match your training days/i)).toBeTruthy();
+    // The suggested number (6) appears in both the goal chip row and the hint
+    // banner, confirming the banner shows the correct count.
+    expect(getAllByText("6").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("dismisses the hint banner when a different goal number is tapped", async () => {
+    const { getByText, queryByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    // Toggle off Friday → hint for "6" appears.
+    await act(async () => {
+      fireEvent.press(getByText("F"));
+    });
+    await flush();
+
+    expect(queryByText(/match your training days/i)).toBeTruthy();
+
+    // Tap "5" to override the auto-suggested goal → hint must disappear.
+    await act(async () => {
+      fireEvent.press(getByText("5"));
+    });
+    await flush();
+
+    expect(queryByText(/match your training days/i)).toBeNull();
+  });
+});
+
 // ─── Preset color swatch selection ────────────────────────────────────────────
 
 describe("ProfileSettingsScreen — preset color swatches", () => {
