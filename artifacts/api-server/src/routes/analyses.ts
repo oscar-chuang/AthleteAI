@@ -486,6 +486,13 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
     return;
   }
 
+  // Stale completed-drill records (tipIds from the previous scan) are now orphaned
+  // because the re-scan will regenerate tips with new IDs. Delete them before
+  // responding so the client can rely on PATCH success meaning drills are cleared.
+  await db.delete(completedDrillsTable)
+    .where(eq(completedDrillsTable.analysisId, row.id))
+    .catch((err) => { console.error(`Failed to clear completed drills for id=${id}:`, err); });
+
   res.json({ success: true, improvements });
 
   // Mark as processing so the detail screen's poll resumes and picks up the

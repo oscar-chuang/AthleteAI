@@ -23,8 +23,8 @@ const h = vi.hoisted(() => {
   // behaviour under test, so the fake must really honour predicates — otherwise the
   // test would just re-assert the route's own logic.
   type Row = Record<string, any>;
-  const store: Record<string, Row[]> = { analyses: [], profiles: [] };
-  const seq: Record<string, number> = { analyses: 0, profiles: 0 };
+  const store: Record<string, Row[]> = { analyses: [], profiles: [], completedDrills: [] };
+  const seq: Record<string, number> = { analyses: 0, profiles: 0, completedDrills: 0 };
 
   const col = (name: string) => ({ __col: name });
   const analysesTable: any = {
@@ -33,6 +33,7 @@ const h = vi.hoisted(() => {
     jointRisks: col("jointRisks"),
   };
   const profilesTable: any = { __name: "profiles", userId: col("userId") };
+  const completedDrillsTable: any = { __name: "completedDrills", analysisId: col("analysisId") };
 
   function evalCond(row: Row, cond: any): boolean {
     if (!cond) return true;
@@ -105,7 +106,7 @@ const h = vi.hoisted(() => {
     },
   };
 
-  return { aiCalls, deferred, store, seq, analysesTable, profilesTable, fakeDb };
+  return { aiCalls, deferred, store, seq, analysesTable, profilesTable, completedDrillsTable, fakeDb };
 });
 
 function aiResult(tag: string) {
@@ -140,7 +141,7 @@ vi.mock("drizzle-orm", () => ({
   desc: (col: any) => ({ op: "desc", key: col.__col }),
 }));
 
-vi.mock("@workspace/db", () => ({ db: h.fakeDb, analysesTable: h.analysesTable, profilesTable: h.profilesTable }));
+vi.mock("@workspace/db", () => ({ db: h.fakeDb, analysesTable: h.analysesTable, profilesTable: h.profilesTable, completedDrillsTable: h.completedDrillsTable }));
 
 // Imports that depend on the mocks must come after the vi.mock calls.
 import express from "express";
@@ -160,8 +161,10 @@ const flush = async (n = 5) => { for (let i = 0; i < n; i++) await new Promise((
 beforeEach(() => {
   h.store.analyses = [];
   h.store.profiles = [];
+  h.store.completedDrills = [];
   h.seq.analyses = 0;
   h.seq.profiles = 0;
+  h.seq.completedDrills = 0;
   h.aiCalls.create = [];
   h.aiCalls.biomech = [];
   vi.clearAllMocks();
@@ -549,5 +552,66 @@ describe("analyses route — improvement notifications", () => {
 
     expect(patched.status).toBe(200);
     expect(patched.body.improvements).toEqual([]);
+  });
+});
+
+describe("analyses route — completed drills cleared on re-scan", () => {
+  it("deletes completed_drills rows for the analysis when a re-scan PATCH carries measured data", async () => {
+    const app = makeApp();
+
+    // Create the analysis and let the create-time AI run settle.
+    const created = await request(app).post("/analyses").send({ title: "Squat", sport: "weightlifting" });
+    expect(created.status).toBe(201);
+    const id = Number(created.body.analysis.id);
+    await flush();
+    h.aiCalls.create[0]!.resolve(aiResult("createtime"));
+    await flush();
+
+    // Seed two completed-drill rows for this analysis (simulating prior scan drills).
+    h.store.completedDrills.push(
+      { id: ++h.seq.completedDrills, userId: TEST_USER_ID, analysisId: id, tipId: "1", completedAt: new Date() },
+      { id: ++h.seq.completedDrills, userId: TEST_USER_ID, analysisId: id, tipId: "2", completedAt: new Date() },
+    );
+    // Seed a drill for a different analysis — must not be deleted.
+    const otherId = 999;
+    h.store.completedDrills.push(
+      { id: ++h.seq.completedDrills, userId: TEST_USER_ID, analysisId: otherId, tipId: "3", completedAt: new Date() },
+    );
+    expect(h.store.completedDrills.length).toBe(3);
+
+    // Re-scan PATCH with measured data.
+    const patched = await request(app)
+      .patch(`/analyses/${id}`)
+      .send({ jointAngles: { leftKnee: 88 }, jointRisks: { leftKnee: 2 } });
+    expect(patched.status).toBe(200);
+    await flush();
+
+    // Rows for this analysis must be gone; the other analysis' row must survive.
+    const remaining = h.store.completedDrills;
+    expect(remaining.filter((r: any) => r.analysisId === id).length).toBe(0);
+    expect(remaining.filter((r: any) => r.analysisId === otherId).length).toBe(1);
+  });
+
+  it("does NOT delete completed_drills when the PATCH is a sport-only correction (no measured data)", async () => {
+    const app = makeApp();
+
+    const created = await request(app).post("/analyses").send({ title: "Squat", sport: "weightlifting" });
+    expect(created.status).toBe(201);
+    const id = Number(created.body.analysis.id);
+    await flush();
+    h.aiCalls.create[0]!.resolve(aiResult("createtime"));
+    await flush();
+
+    h.store.completedDrills.push(
+      { id: ++h.seq.completedDrills, userId: TEST_USER_ID, analysisId: id, tipId: "1", completedAt: new Date() },
+    );
+
+    // Sport-only correction — no joint angles, no frame.
+    const patched = await request(app).patch(`/analyses/${id}`).send({ sport: "running" });
+    expect(patched.status).toBe(200);
+    await flush();
+
+    // Drills must be untouched.
+    expect(h.store.completedDrills.filter((r: any) => r.analysisId === id).length).toBe(1);
   });
 });
