@@ -211,3 +211,247 @@ describe("portrait 9:16 video in matching portrait 9:16 canvas (exact fit)", () 
     expect(pt.y).toBeCloseTo(0, 1);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Crop-locked (person-selected) projection path
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// When a person is selected, `drawSkeleton` switches to crop-local landmarks
+// and maps them to full-frame-normalised coordinates before projecting:
+//
+//   fx = (p.x * cropW + cropX0) / VW
+//   fy = (p.y * cropH + cropY0) / VH
+//
+// The resulting (fx, fy) is then projected through the same containRect /
+// projectLandmark pipeline as the non-locked path.  This section guards the
+// same four aspect-ratio combinations as the full-frame tests above.
+//
+// Two crop geometries are tested for each aspect ratio:
+//   • Centred half-size crop  — cropX0 = VW/4, cropY0 = VH/4, cropW = VW/2, cropH = VH/2
+//   • Top-left quarter crop   — cropX0 = 0,    cropY0 = 0,    cropW = VW/2, cropH = VH/2
+
+/** Reproduce the WebView's toFull() for the person-locked crop path. */
+function projectCrop(
+  lmX: number,
+  lmY: number,
+  cropX0: number,
+  cropY0: number,
+  cropW: number,
+  cropH: number,
+  videoW: number,
+  videoH: number,
+  canvasW: number,
+  canvasH: number,
+): { x: number; y: number } {
+  const fx = (lmX * cropW + cropX0) / videoW;
+  const fy = (lmY * cropH + cropY0) / videoH;
+  const rect = containRect(canvasW, canvasH, videoW / videoH);
+  return projectLandmark({ x: fx, y: fy }, rect);
+}
+
+/** Assert that a point lies inside the video rect (not in the letterbox bars). */
+function expectInsideVideoRect(
+  pt: { x: number; y: number },
+  rect: ReturnType<typeof containRect>,
+) {
+  expect(pt.x).toBeGreaterThanOrEqual(rect.left - 0.01);
+  expect(pt.x).toBeLessThanOrEqual(rect.left + rect.width + 0.01);
+  expect(pt.y).toBeGreaterThanOrEqual(rect.top - 0.01);
+  expect(pt.y).toBeLessThanOrEqual(rect.top + rect.height + 0.01);
+}
+
+// ─── Crop-locked: portrait 9:16 video in landscape 16:9 canvas ───────────────
+// Canvas 1280×720 (pillarboxed) — video rect: left≈437.5, top=0, w≈405, h=720
+describe("crop-locked: portrait 9:16 video in landscape 16:9 canvas (pillarboxed)", () => {
+  const [VW, VH, CW, CH] = [360, 640, 1280, 720];
+  const rect = containRect(CW, CH, VW / VH);
+
+  describe("centred half-size crop", () => {
+    const [cropX0, cropY0, cropW, cropH] = [VW / 4, VH / 4, VW / 2, VH / 2];
+
+    it("center crop landmark (0.5, 0.5) maps to the canvas center", () => {
+      // fx = (0.5*VW/2 + VW/4) / VW = (VW/4 + VW/4) / VW = 0.5
+      // fy = same → screen = canvas center
+      const pt = projectCrop(0.5, 0.5, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+      expect(pt.x).toBeCloseTo(CW / 2, 1);
+      expect(pt.y).toBeCloseTo(CH / 2, 1);
+    });
+
+    it("all four crop corners project inside the video rect", () => {
+      for (const [lx, ly] of [[0, 0], [1, 0], [1, 1], [0, 1]] as [number, number][]) {
+        const pt = projectCrop(lx, ly, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+        expectInsideVideoRect(pt, rect);
+      }
+    });
+  });
+
+  describe("top-left quarter crop", () => {
+    const [cropX0, cropY0, cropW, cropH] = [0, 0, VW / 2, VH / 2];
+
+    it("center crop landmark maps to the top-left quadrant of the video rect", () => {
+      // fx = (0.5*VW/2 + 0) / VW = 0.25 → screen x = rect.left + 0.25 * rect.width
+      const pt = projectCrop(0.5, 0.5, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+      const expectedX = rect.left + 0.25 * rect.width;
+      const expectedY = rect.top + 0.25 * rect.height;
+      expect(pt.x).toBeCloseTo(expectedX, 1);
+      expect(pt.y).toBeCloseTo(expectedY, 1);
+    });
+
+    it("top-left crop corner (0, 0) maps to the video rect origin", () => {
+      const pt = projectCrop(0, 0, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+      expect(pt.x).toBeCloseTo(rect.left, 1);
+      expect(pt.y).toBeCloseTo(rect.top, 1);
+    });
+
+    it("all four crop corners project inside the video rect", () => {
+      for (const [lx, ly] of [[0, 0], [1, 0], [1, 1], [0, 1]] as [number, number][]) {
+        const pt = projectCrop(lx, ly, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+        expectInsideVideoRect(pt, rect);
+      }
+    });
+  });
+});
+
+// ─── Crop-locked: ultra-wide 21:9 video in landscape 16:9 canvas ─────────────
+// Canvas 1280×720 (letterboxed) — video rect: left=0, top≈85.7, w=1280, h≈548.6
+describe("crop-locked: ultra-wide 21:9 video in landscape 16:9 canvas (letterboxed)", () => {
+  const [VW, VH, CW, CH] = [2560, 1080, 1280, 720];
+  const rect = containRect(CW, CH, VW / VH);
+
+  describe("centred half-size crop", () => {
+    const [cropX0, cropY0, cropW, cropH] = [VW / 4, VH / 4, VW / 2, VH / 2];
+
+    it("center crop landmark (0.5, 0.5) maps to the canvas center", () => {
+      const pt = projectCrop(0.5, 0.5, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+      expect(pt.x).toBeCloseTo(CW / 2, 1);
+      expect(pt.y).toBeCloseTo(CH / 2, 1);
+    });
+
+    it("all four crop corners project inside the video rect", () => {
+      for (const [lx, ly] of [[0, 0], [1, 0], [1, 1], [0, 1]] as [number, number][]) {
+        const pt = projectCrop(lx, ly, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+        expectInsideVideoRect(pt, rect);
+      }
+    });
+  });
+
+  describe("top-left quarter crop", () => {
+    const [cropX0, cropY0, cropW, cropH] = [0, 0, VW / 2, VH / 2];
+
+    it("center crop landmark maps to the top-left quadrant of the video rect", () => {
+      const pt = projectCrop(0.5, 0.5, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+      const expectedX = rect.left + 0.25 * rect.width;
+      const expectedY = rect.top + 0.25 * rect.height;
+      expect(pt.x).toBeCloseTo(expectedX, 1);
+      expect(pt.y).toBeCloseTo(expectedY, 1);
+    });
+
+    it("top-left crop corner (0, 0) maps to the video rect origin", () => {
+      const pt = projectCrop(0, 0, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+      expect(pt.x).toBeCloseTo(rect.left, 1);
+      expect(pt.y).toBeCloseTo(rect.top, 1);
+    });
+
+    it("all four crop corners project inside the video rect", () => {
+      for (const [lx, ly] of [[0, 0], [1, 0], [1, 1], [0, 1]] as [number, number][]) {
+        const pt = projectCrop(lx, ly, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+        expectInsideVideoRect(pt, rect);
+      }
+    });
+  });
+});
+
+// ─── Crop-locked: standard 16:9 video in matching 16:9 canvas ────────────────
+// Aspect ratios match — exact fit, no bars. video rect = full canvas.
+describe("crop-locked: standard 16:9 video in matching 16:9 canvas (exact fit)", () => {
+  const [VW, VH, CW, CH] = [1280, 720, 1280, 720];
+  const rect = containRect(CW, CH, VW / VH);
+
+  describe("centred half-size crop", () => {
+    const [cropX0, cropY0, cropW, cropH] = [VW / 4, VH / 4, VW / 2, VH / 2];
+
+    it("center crop landmark (0.5, 0.5) maps to the canvas center", () => {
+      const pt = projectCrop(0.5, 0.5, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+      expect(pt.x).toBeCloseTo(CW / 2, 1);
+      expect(pt.y).toBeCloseTo(CH / 2, 1);
+    });
+
+    it("all four crop corners project inside the video rect", () => {
+      for (const [lx, ly] of [[0, 0], [1, 0], [1, 1], [0, 1]] as [number, number][]) {
+        const pt = projectCrop(lx, ly, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+        expectInsideVideoRect(pt, rect);
+      }
+    });
+  });
+
+  describe("top-left quarter crop", () => {
+    const [cropX0, cropY0, cropW, cropH] = [0, 0, VW / 2, VH / 2];
+
+    it("top-left crop corner (0, 0) maps to the canvas origin (no bars)", () => {
+      const pt = projectCrop(0, 0, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+      expect(pt.x).toBeCloseTo(0, 1);
+      expect(pt.y).toBeCloseTo(0, 1);
+    });
+
+    it("bottom-right crop corner (1, 1) maps to the canvas center", () => {
+      // fx = (1*VW/2 + 0)/VW = 0.5 → x = CW/2; fy same → y = CH/2
+      const pt = projectCrop(1, 1, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+      expect(pt.x).toBeCloseTo(CW / 2, 1);
+      expect(pt.y).toBeCloseTo(CH / 2, 1);
+    });
+
+    it("all four crop corners project inside the video rect", () => {
+      for (const [lx, ly] of [[0, 0], [1, 0], [1, 1], [0, 1]] as [number, number][]) {
+        const pt = projectCrop(lx, ly, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+        expectInsideVideoRect(pt, rect);
+      }
+    });
+  });
+});
+
+// ─── Crop-locked: square 1:1 video in a square canvas ────────────────────────
+// Both square — exact fit, no bars.
+describe("crop-locked: square 1:1 video in square canvas (exact fit)", () => {
+  const [VW, VH, CW, CH] = [640, 640, 720, 720];
+  const rect = containRect(CW, CH, VW / VH);
+
+  describe("centred half-size crop", () => {
+    const [cropX0, cropY0, cropW, cropH] = [VW / 4, VH / 4, VW / 2, VH / 2];
+
+    it("center crop landmark (0.5, 0.5) maps to the canvas center", () => {
+      const pt = projectCrop(0.5, 0.5, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+      expect(pt.x).toBeCloseTo(CW / 2, 1);
+      expect(pt.y).toBeCloseTo(CH / 2, 1);
+    });
+
+    it("all four crop corners project inside the video rect", () => {
+      for (const [lx, ly] of [[0, 0], [1, 0], [1, 1], [0, 1]] as [number, number][]) {
+        const pt = projectCrop(lx, ly, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+        expectInsideVideoRect(pt, rect);
+      }
+    });
+  });
+
+  describe("top-left quarter crop", () => {
+    const [cropX0, cropY0, cropW, cropH] = [0, 0, VW / 2, VH / 2];
+
+    it("top-left crop corner (0, 0) maps to the canvas origin", () => {
+      const pt = projectCrop(0, 0, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+      expect(pt.x).toBeCloseTo(0, 1);
+      expect(pt.y).toBeCloseTo(0, 1);
+    });
+
+    it("bottom-right crop corner (1, 1) maps to the canvas center", () => {
+      const pt = projectCrop(1, 1, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+      expect(pt.x).toBeCloseTo(CW / 2, 1);
+      expect(pt.y).toBeCloseTo(CH / 2, 1);
+    });
+
+    it("all four crop corners project inside the video rect", () => {
+      for (const [lx, ly] of [[0, 0], [1, 0], [1, 1], [0, 1]] as [number, number][]) {
+        const pt = projectCrop(lx, ly, cropX0, cropY0, cropW, cropH, VW, VH, CW, CH);
+        expectInsideVideoRect(pt, rect);
+      }
+    });
+  });
+});
