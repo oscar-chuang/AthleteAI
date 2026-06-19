@@ -205,6 +205,18 @@ export default function HomeScreen() {
       if (currentWeekGoal > 0 && statsResult) {
         const weekKey = getWeekKey();
 
+        // If the server's celebration flag is from a previous week, clear it.
+        // The mobile owns week-key generation so this comparison is timezone-safe.
+        // Fire-and-forget: the gate still works correctly with the stale in-memory
+        // value (stale ≠ weekKey → alreadyCelebratedOnServer = false → confetti
+        // can fire). The server column is corrected in the background.
+        if (
+          profile?.weeklyGoalCelebratedAt != null &&
+          profile.weeklyGoalCelebratedAt !== weekKey
+        ) {
+          updateProfile({ weeklyGoalCelebratedAt: null }).catch(() => {});
+        }
+
         // Retry any previously failed server-side persistence (e.g. network error).
         await retryCelebrationSync(weekKey, AsyncStorage, async (wk) => {
           await updateProfile({ weeklyGoalCelebratedAt: wk });

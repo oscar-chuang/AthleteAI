@@ -209,3 +209,4 @@ describe("PATCH /profile — weeklyGoalCelebratedAt persistence", () => {
     expect(res.body.profile.weeklyGoalCelebratedAt).toBeNull();
   });
 });
+
