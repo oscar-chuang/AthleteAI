@@ -360,6 +360,20 @@ ${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto">
         if(bw>0.08&&bh>0.10){ focusNX=bx+bw/2;focusNY=by+bh/2;cropHalfX=bw/2;cropHalfY=bh/2;personLocked=true; }
       }
     }
+    // ── Store full-frame normalised landmark tick for live playback ─────────
+    try{
+      const VW=video.videoWidth||640, VH=video.videoHeight||360;
+      frameTicks.push({
+        t:+(video.currentTime||0).toFixed(3),
+        lm:rawLm.map(function(p){
+          var fx=personLocked?(p.x*cropW+cropX0)/Math.max(1,VW):p.x;
+          var fy=personLocked?(p.y*cropH+cropY0)/Math.max(1,VH):p.y;
+          return{x:+fx.toFixed(4),y:+fy.toFixed(4),v:+((p.visibility||0)).toFixed(3)};
+        }),
+        angles:{leftKnee:jr[25]?jr[25].deg:undefined,rightKnee:jr[26]?jr[26].deg:undefined,leftHip:jr[23]?jr[23].deg:undefined,rightHip:jr[24]?jr[24].deg:undefined,leftElbow:jr[13]?jr[13].deg:undefined,rightElbow:jr[14]?jr[14].deg:undefined},
+        jr:{leftKnee:jr[25]?{deg:jr[25].deg,lvl:jr[25].lvl}:undefined,rightKnee:jr[26]?{deg:jr[26].deg,lvl:jr[26].lvl}:undefined,leftHip:jr[23]?{deg:jr[23].deg,lvl:jr[23].lvl}:undefined,rightHip:jr[24]?{deg:jr[24].deg,lvl:jr[24].lvl}:undefined,leftElbow:jr[13]?{deg:jr[13].deg,lvl:jr[13].lvl}:undefined,rightElbow:jr[14]?{deg:jr[14].deg,lvl:jr[14].lvl}:undefined}
+      });
+    }catch(e){}
   }
 
   function detect(){
@@ -375,6 +389,7 @@ ${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto">
   }
 
   // ── Seek-driven scan ────────────────────────────────────────────────────────
+  let frameTicks=[];
   let busy=false, scanning=false, singleFrame=false, scanPos=0, duration=0, stepTimer=0;
   const SCAN_STEP=0.4;
 
@@ -416,7 +431,10 @@ ${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto">
     const risks={leftKnee:baseJr[25]?baseJr[25].lvl:0,rightKnee:baseJr[26]?baseJr[26].lvl:0,leftHip:baseJr[23]?baseJr[23].lvl:0,rightHip:baseJr[24]?baseJr[24].lvl:0,leftElbow:baseJr[13]?baseJr[13].lvl:0,rightElbow:baseJr[14]?baseJr[14].lvl:0};
     // Include per-landmark visibility scores so the native layer can compute a scan quality badge.
     const visibility=clearest.cap&&clearest.cap.lm?clearest.cap.lm.map(l=>l.v??0):[];
-    post({type:"scanComplete",angles,risks,frame:worstFrameB64||clearest.full||"",visibility});
+    // Sub-sample to max 150 ticks evenly so payload stays < 500 KB.
+    var MAX_FT=150;
+    var sampledTicks=frameTicks.length<=MAX_FT?frameTicks:Array.from({length:MAX_FT},function(_,i){return frameTicks[Math.round(i*(frameTicks.length-1)/(MAX_FT-1))];});
+    post({type:"scanComplete",angles,risks,frame:worstFrameB64||clearest.full||"",visibility,frameTicks:sampledTicks});
   }
 
   // ── MediaPipe init + gating ──────────────────────────────────────────────────
@@ -729,6 +747,7 @@ export default function SkeletonScreen() {
   const [captures,    setCaptures]    = useState<Capture[]>([]);
   const [scanDone,    setScanDone]    = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
+  const [hasFrameTicks, setHasFrameTicks] = useState(false);
   // Current frozen frame shown in the hero + which joints are emphasised on it.
   const [hero, setHero] = useState<{ capture: Capture; emphasize: JointKey[] } | null>(null);
   const [expandedTipId, setExpandedTipId] = useState<string | null>(null);
@@ -887,6 +906,7 @@ export default function SkeletonScreen() {
       const msg = JSON.parse(event.nativeEvent.data);
       if (msg.type === "meta" && msg.vw > 0 && msg.vh > 0) {
         setVideoAspect(msg.vw / msg.vh);
+        if (id) AsyncStorage.setItem(`videoAspect_${id}`, String(msg.vw / msg.vh)).catch(() => {});
         return;
       }
       if (msg.type === "progress") {
@@ -919,6 +939,13 @@ export default function SkeletonScreen() {
         // so don't re-PATCH/re-poll — that would flip `refining` on and momentarily
         // hide the grounded tips behind the refinement spinner. Only first-time scans
         // (not yet grounded) need to ground the AI tips on the measured data.
+        if (id) {
+          const ticks = msg.frameTicks ?? [];
+          AsyncStorage.setItem(`frameTicks_${id}`, JSON.stringify(ticks)).catch(() => {});
+          if (Array.isArray(ticks) && ticks.length > 0) {
+            setHasFrameTicks(true);
+          }
+        }
         if (id && !groundedReady) {
           runBiomechanics(id, {
             jointAngles: angles,
@@ -1537,6 +1564,16 @@ export default function SkeletonScreen() {
             </Text>
           )}
         </View>
+        {videoUri && scanDone && hasFrameTicks && (
+          <TouchableOpacity
+            style={[ss.headerBtn, { backgroundColor: "#6c63ff22", borderColor: "#6c63ff55" }]}
+            onPress={() => router.push(`/analysis/live/${id}` as any)}
+            activeOpacity={0.8}
+          >
+            <Feather name="play-circle" size={13} color="#a78bfa" />
+            <Text style={[ss.headerBtnText, { color: "#a78bfa" }]}>Breakdown</Text>
+          </TouchableOpacity>
+        )}
         {videoUri && scanDone && (
           <TouchableOpacity style={ss.headerBtn} onPress={() => router.push(`/analysis/person-select/${id}` as any)} activeOpacity={0.8}>
             <Feather name="users" size={13} color="#fff" />

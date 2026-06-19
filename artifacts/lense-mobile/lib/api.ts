@@ -235,6 +235,57 @@ export interface JointRisks {
   rightElbow?: number;
 }
 
+export interface FrameTickJR {
+  deg: number;
+  lvl: number;
+}
+
+export interface FrameTick {
+  t: number;
+  lm: { x: number; y: number; v: number }[];
+  angles: Partial<Record<JointKey, number>>;
+  jr: Partial<Record<JointKey, FrameTickJR>>;
+}
+
+export interface FlaggedMoment {
+  t: number;
+  joints: JointKey[];
+  angles: Partial<Record<JointKey, number>>;
+  risks: Partial<Record<JointKey, number>>;
+}
+
+export interface CoachingMoment {
+  id: string;
+  timestamp: number;
+  joints: JointKey[];
+  whatWeNoticed: string;
+  whyItMatters: string;
+  suggestedFix: string;
+  confidence: number;
+  confidenceNote?: string;
+  evidence: { joint?: string; angle?: number; timestamp?: number };
+  riskLevel: number;
+}
+
+export interface MovementSummary {
+  flowScore: number;
+  efficiencyScore: number;
+  bodyControlScore: number;
+  consistencyScore: number;
+  rhythmScore: number;
+  overallScore: number;
+  topStrengths: string[];
+  topImprovements: string[];
+  mostImportantFix: string;
+  coachSummary: string;
+}
+
+export interface TickStats {
+  joints: Record<string, { avgAngle: number; maxRisk: number; timesFlag: number }>;
+  totalTicks: number;
+  duration: number;
+}
+
 export const analyses = {
   list: () =>
     request<{ analyses: AnalysisRecord[] }>("/analyses"),
@@ -270,6 +321,18 @@ export const analyses = {
       method: "POST",
       body: JSON.stringify({ imageBase64 }),
     }, 25000),
+
+  coachingMoments: (id: string, flaggedMoments?: FlaggedMoment[]) =>
+    request<{ moments: CoachingMoment[] }>(`/analyses/${id}/coaching-moments`, {
+      method: "POST",
+      body: JSON.stringify({ flaggedMoments: flaggedMoments ?? [] }),
+    }, 45000),
+
+  movementSummary: (id: string, tickStats?: TickStats) =>
+    request<{ summary: MovementSummary }>(`/analyses/${id}/movement-summary`, {
+      method: "POST",
+      body: JSON.stringify({ tickStats: tickStats ?? null }),
+    }, 45000),
 };
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────

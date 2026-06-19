@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { db, analysesTable, profilesTable } from "@workspace/db";
 import { eq, and, desc, ne } from "drizzle-orm";
 import { requireAuth } from "./auth";
-import { analyzeAthletePerformance, detectSportFromFrame, type AIAnalysisResult } from "../lib/anthropic";
+import { analyzeAthletePerformance, detectSportFromFrame, generateCoachingMoments, generateMovementSummary, type AIAnalysisResult, type FlaggedMoment } from "../lib/anthropic";
 import { resizeThumbnail, THUMBNAIL_MAX_WIDTH } from "../lib/resize-thumbnail";
 
 const router: IRouter = Router();
@@ -77,6 +77,9 @@ function formatAnalysis(a: typeof analysesTable.$inferSelect) {
     jointAngles: a.jointAngles ?? undefined,
     jointRisks: a.jointRisks ?? undefined,
     biomechanicsApplied: a.biomechanicsApplied,
+    coachingMoments: (a.coachingMoments as object[] | null) ?? undefined,
+    movementSummary: (a.movementSummary as object | null) ?? undefined,
+    movementSummaryAt: a.movementSummaryAt?.toISOString() ?? undefined,
     uploadedAt: a.uploadedAt.toISOString(),
   };
 }
@@ -436,6 +439,120 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
         .where(eq(analysesTable.id, row.id))
         .catch(() => {});
     });
+});
+
+router.post("/analyses/:id/coaching-moments", requireAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).userId as number;
+  const id = parseInt(String(req.params.id ?? ""), 10);
+  if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
+
+  const [row] = await db
+    .select()
+    .from(analysesTable)
+    .where(and(eq(analysesTable.id, id), eq(analysesTable.userId, userId)));
+
+  if (!row) { res.status(404).json({ error: "Analysis not found" }); return; }
+
+  if (row.coachingMoments && Array.isArray(row.coachingMoments) && row.coachingMoments.length > 0) {
+    res.json({ moments: row.coachingMoments });
+    return;
+  }
+
+  const flaggedMoments: FlaggedMoment[] = Array.isArray(req.body?.flaggedMoments)
+    ? (req.body.flaggedMoments as FlaggedMoment[]).slice(0, 30)
+    : [];
+
+  if (flaggedMoments.length === 0 && row.jointRisks) {
+    const risks = row.jointRisks as Record<string, number>;
+    const angles = (row.jointAngles ?? {}) as Record<string, number>;
+    const hasRisk = Object.values(risks).some((v) => (v as number) >= 1);
+    if (hasRisk) {
+      const syntheticAngles: Partial<Record<import("../lib/anthropic").JointKey, number>> = {};
+      const syntheticRisks: Partial<Record<import("../lib/anthropic").JointKey, number>> = {};
+      for (const [j, lvl] of Object.entries(risks)) {
+        if ((lvl as number) >= 1 && angles[j] != null) {
+          syntheticAngles[j as import("../lib/anthropic").JointKey] = angles[j]!;
+          syntheticRisks[j as import("../lib/anthropic").JointKey] = lvl as number;
+        }
+      }
+      flaggedMoments.push({ t: 0, joints: Object.keys(syntheticRisks) as import("../lib/anthropic").JointKey[], angles: syntheticAngles, risks: syntheticRisks });
+    }
+  }
+
+  const existingTips = Array.isArray(row.tips) ? row.tips as object[] : [];
+
+  try {
+    const moments = await generateCoachingMoments(row.sport, row.title, flaggedMoments, existingTips);
+    await db.update(analysesTable)
+      .set({ coachingMoments: moments })
+      .where(eq(analysesTable.id, id));
+    res.json({ moments });
+  } catch (err) {
+    console.error("generateCoachingMoments failed:", err);
+    res.status(500).json({ error: "Failed to generate coaching moments" });
+  }
+});
+
+router.post("/analyses/:id/movement-summary", requireAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).userId as number;
+  const id = parseInt(String(req.params.id ?? ""), 10);
+  if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
+
+  const [row] = await db
+    .select()
+    .from(analysesTable)
+    .where(and(eq(analysesTable.id, id), eq(analysesTable.userId, userId)));
+
+  if (!row) { res.status(404).json({ error: "Analysis not found" }); return; }
+
+  if (row.movementSummary && typeof row.movementSummary === "object" && (row.movementSummary as { overallScore?: number }).overallScore != null) {
+    res.json({ summary: row.movementSummary });
+    return;
+  }
+
+  const scores = {
+    technique: row.techniqueScore ?? undefined,
+    power: row.powerScore ?? undefined,
+    balance: row.balanceScore ?? undefined,
+    consistency: row.consistencyScore ?? undefined,
+    mobility: row.mobilityScore ?? undefined,
+    speed: row.speedScore ?? undefined,
+    overall: row.overallScore ?? undefined,
+  };
+
+  const incomingStats = req.body?.tickStats as { joints?: Record<string, { avgAngle: number; maxRisk: number; timesFlag: number }> } | null;
+  const jointAngles = (row.jointAngles ?? {}) as Record<string, number>;
+  const jointRisks = (row.jointRisks ?? {}) as Record<string, number>;
+
+  let jointStats: Array<{ joint: string; avgAngle: number; maxRisk: number; timesFlag: number }> = [];
+  if (incomingStats?.joints) {
+    jointStats = Object.entries(incomingStats.joints).map(([j, s]) => ({
+      joint: j,
+      avgAngle: s.avgAngle,
+      maxRisk: s.maxRisk,
+      timesFlag: s.timesFlag,
+    }));
+  } else {
+    jointStats = Object.entries(jointAngles).map(([j, angle]) => ({
+      joint: j,
+      avgAngle: angle,
+      maxRisk: jointRisks[j] ?? 0,
+      timesFlag: (jointRisks[j] ?? 0) >= 1 ? 1 : 0,
+    }));
+  }
+
+  try {
+    const summary = await generateMovementSummary(
+      row.sport, row.title, scores, jointStats, row.strengths ?? [], row.improvements ?? []
+    );
+    await db.update(analysesTable)
+      .set({ movementSummary: summary, movementSummaryAt: new Date() })
+      .where(eq(analysesTable.id, id));
+    res.json({ summary });
+  } catch (err) {
+    console.error("generateMovementSummary failed:", err);
+    res.status(500).json({ error: "Failed to generate movement summary" });
+  }
 });
 
 router.delete("/analyses/:id", requireAuth, async (req: Request, res: Response) => {
