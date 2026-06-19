@@ -479,6 +479,35 @@ describe("buildSystemPrompt — recent session data appears in coaching context"
     expect(prompt).toContain("no completed analyses yet");
   });
 
+  it("omits the 'Recent training data' header when every session is processing or failed", async () => {
+    addAnalysis({
+      status: "processing",
+      title: "Morning Session",
+      overallScore: 65,
+      strengths: ["Good warm-up"],
+    });
+    addAnalysis({
+      status: "failed",
+      title: "Afternoon Session",
+      overallScore: 70,
+      improvements: ["Needs retry"],
+    });
+    addAnalysis({
+      status: "processing",
+      title: "Evening Session",
+      overallScore: 60,
+      strengths: ["Solid effort"],
+    });
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).not.toContain("Recent training data");
+    expect(prompt).toContain("no completed analyses yet");
+    expect(prompt).not.toContain("Morning Session");
+    expect(prompt).not.toContain("Afternoon Session");
+    expect(prompt).not.toContain("Evening Session");
+  });
+
   it("includes data from multiple completed sessions", async () => {
     addAnalysis({
       status: "complete",
