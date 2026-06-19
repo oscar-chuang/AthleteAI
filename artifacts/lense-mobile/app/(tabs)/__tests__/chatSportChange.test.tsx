@@ -254,3 +254,80 @@ describe("ChatScreen — sport-change propagates to suggestion chips", () => {
     expect(mockChatSuggestions).toHaveBeenCalledTimes(2);
   });
 });
+
+// ─── Header subtitle reflects profile sport/level ─────────────────────────────
+//
+// The Coach header subtitle (`sport · level`) is derived directly from
+// authContext.profile.  When the user saves new profile settings the context
+// updates synchronously (setUserProfile is called inside updateProfile right
+// after the API responds), so the header must reflect the change on the very
+// next render — no focus event, no app reload required.
+
+describe("ChatScreen — Coach header subtitle reflects current profile", () => {
+  // ── Test 1 ─────────────────────────────────────────────────────────────────
+
+  it("displays the initial sport and level in the header subtitle", async () => {
+    mockProfile = {
+      sport: "running",
+      level: "intermediate",
+      name: "Test Athlete",
+      avatarUrl: null,
+    };
+
+    const { getByText } = render(<ChatScreen />);
+    await simulateFocus();
+
+    // The header subtitle must show the concatenated sport · level string.
+    expect(getByText("running · intermediate")).toBeTruthy();
+  });
+
+  // ── Test 2 ─────────────────────────────────────────────────────────────────
+
+  it("updates the header subtitle immediately when profile sport/level change", async () => {
+    mockProfile = {
+      sport: "running",
+      level: "intermediate",
+      name: "Test Athlete",
+      avatarUrl: null,
+    };
+
+    const { getByText, rerender } = render(<ChatScreen />);
+    await simulateFocus();
+
+    // Baseline: running · intermediate is visible.
+    expect(getByText("running · intermediate")).toBeTruthy();
+
+    // Athlete opens profile settings and saves a new sport + level.
+    // AuthContext calls setUserProfile synchronously, which triggers a rerender.
+    mockProfile = {
+      sport: "swimming",
+      level: "advanced",
+      name: "Test Athlete",
+      avatarUrl: null,
+    };
+
+    // Rerender mirrors the React context update that follows setUserProfile().
+    rerender(<ChatScreen />);
+    await flush();
+
+    // The header subtitle must show the new values immediately — no focus
+    // event or app reload should be needed.
+    expect(getByText("swimming · advanced")).toBeTruthy();
+  });
+
+  // ── Test 3 ─────────────────────────────────────────────────────────────────
+
+  it("falls back to 'Online · Ready to help' when profile has no sport/level", async () => {
+    mockProfile = {
+      sport: "",
+      level: "",
+      name: "Test Athlete",
+      avatarUrl: null,
+    };
+
+    const { getByText } = render(<ChatScreen />);
+    await simulateFocus();
+
+    expect(getByText("Online · Ready to help")).toBeTruthy();
+  });
+});
