@@ -19,7 +19,7 @@
 import React from "react";
 import { View, Text } from "react-native";
 import { render } from "@testing-library/react-native";
-import type { AnalysisRecord, TipRecord, RiskRecord } from "@/lib/api";
+import type { AnalysisRecord, TipRecord, RiskRecord, DrillRecord } from "@/lib/api";
 import { formatBiomechanicsText } from "@/utils/formatBiomechanics";
 import { SCORE_KEYS, SCORE_META, scoreForKey } from "../scoreGrid";
 
@@ -445,6 +445,202 @@ describe("Section 9 — Joint Health", () => {
       );
       expect(getByTestId("risk-joint-r3").props.children).toBe("rightAnkle");
     });
+  });
+});
+
+// ─── Section 5: Why It Matters ───────────────────────────────────────────────
+// Mirrors the conditional block in [id].tsx:
+//   topTip = sortedTips[0]
+//   renders when (topTip?.whyItMatters || topTip?.description) is truthy
+//   displays: topTip.whyItMatters ?? topTip.description
+
+function WhyItMattersSection({ topTip }: { topTip: TipRecord | undefined }) {
+  if (!topTip?.whyItMatters && !topTip?.description) return null;
+  return (
+    <View testID="why-it-matters">
+      <Text testID="why-it-matters-text">
+        {formatBiomechanicsText(topTip.whyItMatters ?? topTip.description)}
+      </Text>
+    </View>
+  );
+}
+
+const TIP_WITH_WHY: TipRecord = {
+  id: "tw1",
+  tipType: "performance",
+  category: "Technique",
+  severity: "critical",
+  title: "Reduce heel-strike loading",
+  description: "Landing on your heel increases braking forces by up to 30%.",
+  whyItMatters: "Persistent heel-striking elevates shin-splint risk.",
+};
+
+const TIP_NO_WHY: TipRecord = {
+  id: "tw2",
+  tipType: "performance",
+  category: "Posture",
+  severity: "warning",
+  title: "Relax your shoulder tension",
+  description: "Tense shoulders waste energy and restrict arm swing.",
+};
+
+describe("Section 5 — Why It Matters", () => {
+  it("renders when whyItMatters is present", () => {
+    const { getByTestId } = render(<WhyItMattersSection topTip={TIP_WITH_WHY} />);
+    expect(getByTestId("why-it-matters")).not.toBeNull();
+  });
+
+  it("shows the whyItMatters text when present", () => {
+    const { getByTestId } = render(<WhyItMattersSection topTip={TIP_WITH_WHY} />);
+    const text = getByTestId("why-it-matters-text").props.children as string;
+    expect(text).toContain("Persistent heel-striking elevates shin-splint risk.");
+  });
+
+  it("falls back to description when whyItMatters is absent", () => {
+    const { getByTestId } = render(<WhyItMattersSection topTip={TIP_NO_WHY} />);
+    const text = getByTestId("why-it-matters-text").props.children as string;
+    expect(text).toContain("Tense shoulders waste energy and restrict arm swing.");
+  });
+
+  it("still renders using description fallback", () => {
+    const { getByTestId } = render(<WhyItMattersSection topTip={TIP_NO_WHY} />);
+    expect(getByTestId("why-it-matters")).not.toBeNull();
+  });
+
+  it("does NOT render when both whyItMatters and description are absent", () => {
+    const tipNoText = {
+      ...TIP_NO_WHY,
+      description: undefined as any,
+      whyItMatters: undefined,
+    };
+    const { queryByTestId } = render(<WhyItMattersSection topTip={tipNoText} />);
+    expect(queryByTestId("why-it-matters")).toBeNull();
+  });
+
+  it("does NOT render when topTip is undefined", () => {
+    const { queryByTestId } = render(<WhyItMattersSection topTip={undefined} />);
+    expect(queryByTestId("why-it-matters")).toBeNull();
+  });
+});
+
+// ─── Section 6: Try This Drill ────────────────────────────────────────────────
+// Mirrors the conditional block in [id].tsx:
+//   firstDrill = tips.find(t => t.drill)?.drill
+//   renders when firstDrill is truthy
+//   shows: name, sets · reps, and optionally cue (in quotes)
+
+function TryThisDrillSection({ tips }: { tips: TipRecord[] }) {
+  const firstDrill: DrillRecord | undefined = tips.find((t) => t.drill)?.drill;
+  if (!firstDrill) return null;
+  return (
+    <View testID="try-this-drill">
+      <Text testID="drill-name">{firstDrill.name}</Text>
+      <Text testID="drill-sets-reps">{`${firstDrill.sets} · ${firstDrill.reps}`}</Text>
+      {firstDrill.cue ? (
+        <Text testID="drill-cue">{`"${firstDrill.cue}"`}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+const DRILL: DrillRecord = {
+  name: "Wall ankle stretch",
+  sets: "3 sets",
+  reps: "30 seconds each",
+  cue: "Keep your heel flat on the ground throughout.",
+};
+
+const DRILL_NO_CUE: DrillRecord = {
+  name: "Calf raise",
+  sets: "4 sets",
+  reps: "15 reps",
+  cue: "",
+};
+
+const TIP_WITH_DRILL: TipRecord = {
+  id: "td1",
+  tipType: "injury",
+  category: "Mobility",
+  severity: "warning",
+  title: "Improve ankle dorsiflexion",
+  description: "Tight calves limit ankle range of motion.",
+  drill: DRILL,
+};
+
+const TIP_WITH_DRILL_NO_CUE: TipRecord = {
+  ...TIP_WITH_DRILL,
+  id: "td2",
+  drill: DRILL_NO_CUE,
+};
+
+const TIP_WITHOUT_DRILL: TipRecord = {
+  id: "td3",
+  tipType: "performance",
+  category: "Posture",
+  severity: "info",
+  title: "Relax upper body",
+  description: "Tense shoulders waste energy.",
+};
+
+describe("Section 6 — Try This Drill", () => {
+  it("renders when at least one tip has a drill", () => {
+    const { getByTestId } = render(
+      <TryThisDrillSection tips={[TIP_WITHOUT_DRILL, TIP_WITH_DRILL]} />,
+    );
+    expect(getByTestId("try-this-drill")).not.toBeNull();
+  });
+
+  it("renders the drill name", () => {
+    const { getByTestId } = render(<TryThisDrillSection tips={[TIP_WITH_DRILL]} />);
+    expect(getByTestId("drill-name").props.children).toBe("Wall ankle stretch");
+  });
+
+  it("renders sets and reps joined by a middle dot", () => {
+    const { getByTestId } = render(<TryThisDrillSection tips={[TIP_WITH_DRILL]} />);
+    expect(getByTestId("drill-sets-reps").props.children).toBe("3 sets · 30 seconds each");
+  });
+
+  it("renders the cue line when cue is non-empty", () => {
+    const { getByTestId } = render(<TryThisDrillSection tips={[TIP_WITH_DRILL]} />);
+    const cueText = getByTestId("drill-cue").props.children as string;
+    expect(cueText).toContain("Keep your heel flat on the ground throughout.");
+  });
+
+  it("does NOT render the cue line when cue is an empty string", () => {
+    const { queryByTestId } = render(
+      <TryThisDrillSection tips={[TIP_WITH_DRILL_NO_CUE]} />,
+    );
+    expect(queryByTestId("drill-cue")).toBeNull();
+  });
+
+  it("does NOT render when no tip has a drill", () => {
+    const { queryByTestId } = render(
+      <TryThisDrillSection tips={[TIP_WITHOUT_DRILL]} />,
+    );
+    expect(queryByTestId("try-this-drill")).toBeNull();
+  });
+
+  it("does NOT render when tips array is empty", () => {
+    const { queryByTestId } = render(<TryThisDrillSection tips={[]} />);
+    expect(queryByTestId("try-this-drill")).toBeNull();
+  });
+
+  it("uses the first tip that has a drill (skips tips without one)", () => {
+    const secondDrill: DrillRecord = {
+      name: "Hip hinge",
+      sets: "3 sets",
+      reps: "10 reps",
+      cue: "",
+    };
+    const tipSecondDrill: TipRecord = {
+      ...TIP_WITHOUT_DRILL,
+      id: "td4",
+      drill: secondDrill,
+    };
+    const { getByTestId } = render(
+      <TryThisDrillSection tips={[TIP_WITHOUT_DRILL, TIP_WITH_DRILL, tipSecondDrill]} />,
+    );
+    expect(getByTestId("drill-name").props.children).toBe("Wall ankle stretch");
   });
 });
 
