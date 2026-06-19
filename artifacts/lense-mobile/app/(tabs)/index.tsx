@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { buildGoalShareMessage } from "../../utils/shareUtils";
 import {
   View,
   Text,
@@ -189,9 +190,11 @@ export default function HomeScreen() {
   }, [goalSheetSaving, weeklyGoal, updateProfile]);
 
   const handleShareGoal = useCallback(async () => {
-    const sport = profile?.sport ? ` (${profile.sport})` : "";
-    const streakLine = streakDays > 1 ? ` ${streakDays}-day streak and counting!` : "";
-    const message = `I hit my weekly training goal on AthleteAI! 🏆 ${thisWeek} session${thisWeek !== 1 ? "s" : ""} this week${sport}.${streakLine}`;
+    const message = buildGoalShareMessage({
+      sessionCount: thisWeek,
+      sport: profile?.sport,
+      streakDays,
+    });
     try {
       await Share.share({ message });
     } catch {
