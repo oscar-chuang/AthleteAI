@@ -193,7 +193,7 @@ const getScoreProfile = (sport: string) =>
   SPORT_SCORE_PROFILE[sport.toLowerCase()] ??
   "Score each metric based on what is typical for this sport — make sure the scores reflect the unique demands of the sport, not generic fitness. Key metrics should score differently than secondary ones.";
 
-const SYSTEM_PROMPT = `You are a friendly sports coach helping everyday athletes improve. Write all text fields in plain, easy-to-understand language — like you're talking to a motivated athlete who is NOT a scientist or medical professional. Avoid jargon. When you need a technical term, explain it in simple words in the same sentence. Keep sentences short and direct. You MUST respond with ONLY a raw JSON object — no markdown, no code fences, no explanation, no text before or after. Your entire response must be parseable by JSON.parse().
+export const SYSTEM_PROMPT = `You are a friendly sports coach helping everyday athletes improve. Write all text fields in plain, easy-to-understand language — like you're talking to a motivated athlete who is NOT a scientist or medical professional. Avoid jargon. When you need a technical term, explain it in simple words in the same sentence. Keep sentences short and direct. You MUST respond with ONLY a raw JSON object — no markdown, no code fences, no explanation, no text before or after. Your entire response must be parseable by JSON.parse().
 
 The JSON shape is exactly:
 {
@@ -389,15 +389,22 @@ function collectFlaggedJoints(risks?: JointRisks | null): JointKey[] {
     .sort((a, b) => (risks[b] ?? 0) - (risks[a] ?? 0));
 }
 
-export async function analyzeAthletePerformance(
-  sport: string,
-  title: string,
-  videoUrl?: string | null,
-  athleteProfile?: AthleteProfile | null,
-  jointAngles?: JointAngles | null,
-  jointRisks?: JointRisks | null,
-  frameBase64?: string | null
-): Promise<AIAnalysisResult> {
+export interface BuildAnalysisPromptParams {
+  sport: string;
+  title: string;
+  athleteProfile?: AthleteProfile | null;
+  jointAngles?: JointAngles | null;
+  jointRisks?: JointRisks | null;
+  frameBase64?: string | null;
+}
+
+/**
+ * Builds the user-turn prompt sent to Claude for an analysis session.
+ * Exported so tests can assert that required fields (e.g. drillFeelCue) are
+ * always requested without making a live API call.
+ */
+export function buildAnalysisUserPrompt(params: BuildAnalysisPromptParams): string {
+  const { sport, title, athleteProfile, jointAngles, jointRisks, frameBase64 } = params;
   const research = getResearch(sport);
   const scoreProfile = getScoreProfile(sport);
 
@@ -422,7 +429,7 @@ export async function analyzeAthletePerformance(
     ? `The image above is the highest-risk frame captured during the biomechanics scan. Use what you SPECIFICALLY OBSERVE in this image — body position, alignment, posture, joint angles visible to the eye, symmetry — as the primary basis for your tips. Do not give generic ${sport} advice; every tip must reference something you can see or measure.`
     : `No video frame is available. Base your analysis on the joint angle measurements and sport context below.`;
 
-  const userPrompt = `${sport.toUpperCase()} SESSION: "${title}"
+  return `${sport.toUpperCase()} SESSION: "${title}"
 ${athleteCtx ? `\nAthlete context:\n${athleteCtx}` : ""}
 
 ${frameNote}
@@ -463,6 +470,19 @@ ${hasData
 - Scores must vary meaningfully — do NOT cluster in the 70s
 - Do NOT include overallScore — it is computed separately
 - Respond with ONLY the JSON object`;
+}
+
+export async function analyzeAthletePerformance(
+  sport: string,
+  title: string,
+  videoUrl?: string | null,
+  athleteProfile?: AthleteProfile | null,
+  jointAngles?: JointAngles | null,
+  jointRisks?: JointRisks | null,
+  frameBase64?: string | null
+): Promise<AIAnalysisResult> {
+  const userPrompt = buildAnalysisUserPrompt({ sport, title, athleteProfile, jointAngles, jointRisks, frameBase64 });
+  const hasFrame = !!frameBase64;
 
   // Build message content — include image if we have the worst frame
   const userContent: Anthropic.MessageParam["content"] = hasFrame
