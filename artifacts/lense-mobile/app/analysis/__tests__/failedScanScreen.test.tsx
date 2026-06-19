@@ -215,4 +215,13 @@ describe("AnalysisDetailScreen — failed-scan state", () => {
 
     expect(mockRouterPush).toHaveBeenCalledWith("/(tabs)/analyze");
   });
+
+  it("calls router.back() when 'Go back' is tapped", async () => {
+    const { getByText } = render(<AnalysisDetailScreen />);
+    await simulateFocus();
+
+    fireEvent.press(getByText("Go back"));
+
+    expect(mockRouterBack).toHaveBeenCalledTimes(1);
+  });
 });
