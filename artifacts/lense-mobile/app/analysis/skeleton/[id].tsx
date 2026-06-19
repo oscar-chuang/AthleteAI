@@ -498,8 +498,8 @@ export default function SkeletonScreen() {
   // id, so an older poll could clobber the newer scan. Each runBiomechanics call captures
   // a fresh token and only writes state while it is still the latest.
   const runTokenRef = useRef(0);
-  const checkInHourRef = useRef(profile?.checkInHour ?? 9);
-  useEffect(() => { checkInHourRef.current = profile?.checkInHour ?? 9; }, [profile?.checkInHour]);
+  const checkInHourRef = useRef<number | undefined>(profile?.checkInHour);
+  useEffect(() => { checkInHourRef.current = profile?.checkInHour; }, [profile?.checkInHour]);
 
   const [videoUri, setVideoUri]         = useState<string | undefined>();
   const [sport, setSport]               = useState("");

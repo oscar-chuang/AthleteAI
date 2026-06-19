@@ -1,5 +1,38 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const CHECK_IN_HOUR_KEY = "check_in_hour";
+
+export async function persistCheckInHour(hour: number): Promise<void> {
+  try {
+    await AsyncStorage.setItem(CHECK_IN_HOUR_KEY, String(hour));
+  } catch {
+    // non-fatal
+  }
+}
+
+export async function clearPersistedCheckInHour(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(CHECK_IN_HOUR_KEY);
+  } catch {
+    // non-fatal
+  }
+}
+
+async function resolveCheckInHour(explicit: number | undefined): Promise<number> {
+  if (explicit !== undefined) return explicit;
+  try {
+    const stored = await AsyncStorage.getItem(CHECK_IN_HOUR_KEY);
+    if (stored !== null) {
+      const parsed = Number(stored);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  } catch {
+    // fall through to default
+  }
+  return 9;
+}
 
 const IMPROVEMENT_NOTIFICATION_ID = "joint-improvement";
 
@@ -54,7 +87,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
 export async function scheduleImprovementNotification(
   improvements: Array<{ joint: string; oldRisk: number; newRisk: number }>,
   sport: string,
-  checkInHour = 9,
+  checkInHour?: number,
 ): Promise<void> {
   if (Platform.OS === "web") return;
   if (!improvements.length) return;
@@ -77,7 +110,8 @@ export async function scheduleImprovementNotification(
       ? `Your ${jointLabel} is down to ${newRiskLabel} — keep it up!`
       : `Your ${jointLabel} and ${extraCount} other joint${extraCount > 1 ? "s" : ""} improved — keep it up!`;
 
-  const safeHour = Math.min(22, Math.max(6, Math.round(checkInHour)));
+  const resolvedHour = await resolveCheckInHour(checkInHour);
+  const safeHour = Math.min(22, Math.max(6, Math.round(resolvedHour)));
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(safeHour, 0, 0, 0);

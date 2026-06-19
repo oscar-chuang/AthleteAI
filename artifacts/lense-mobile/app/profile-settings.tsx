@@ -21,6 +21,7 @@ import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/lib/authContext";
 import { useTheme } from "@/lib/themeContext";
 import { CropModal, type CropResult } from "@/components/CropModal";
+import { persistCheckInHour } from "@/utils/notifications";
 
 const SPORTS = [
   "Powerlifting", "Olympic Weightlifting", "Running", "Swimming",
@@ -284,6 +285,7 @@ export default function ProfileSettingsScreen() {
     setCheckInSaving(true);
     try {
       await updateProfile({ checkInHour: h });
+      persistCheckInHour(h).catch(() => {});
       setCheckInSavedFor(h);
       setTimeout(() => setCheckInSavedFor(null), 1500);
     } catch {

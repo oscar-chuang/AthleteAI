@@ -6,6 +6,7 @@ import React, {
   useCallback,
 } from "react";
 import { auth, profile as profileApi, setToken, clearToken, getToken, ApiError, registerUnauthorizedHandler, type Profile, type SubscriptionRecord } from "./api";
+import { clearPersistedCheckInHour } from "@/utils/notifications";
 
 interface AuthUser {
   id: string;
@@ -105,6 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function logout() {
     await clearToken();
+    clearPersistedCheckInHour().catch(() => {});
     setHasStoredToken(false);
     setUser(null);
     setUserProfile(null);
