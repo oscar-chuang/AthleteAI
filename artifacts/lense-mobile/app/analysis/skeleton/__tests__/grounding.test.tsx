@@ -545,3 +545,80 @@ describe("askCoach — conflict warning in pending message", () => {
     expect(calls[0]![1]).not.toContain("open injury risk");
   });
 });
+
+// ─── Joint history sheet — delta badge interaction ────────────────────────────
+// These tests verify that tapping a tappable delta badge opens the
+// JointHistorySheet for the correct joint, and that the sheet is absent when
+// no trend data exists.
+describe("joint history sheet — delta badge interaction", () => {
+  // Two sorted entries for leftKnee: analysis "0" is the previous session,
+  // analysis "1" is the current one. The component sorts by date then looks
+  // one slot back from the current id to derive prevAngles.
+  const trendsWithHistory = {
+    joints: {
+      leftKnee: [
+        { analysisId: "0", date: "2026-06-01T00:00:00.000Z", angle: 80, risk: 1 },
+        { analysisId: "1", date: "2026-06-19T00:00:00.000Z", angle: 88, risk: 2 },
+      ],
+    },
+    improvements: [],
+  };
+
+  let mockJointTrendsGet: jest.Mock;
+
+  beforeEach(() => {
+    const api = require("@/lib/api");
+    mockJointTrendsGet = api.jointTrends.get as jest.Mock;
+    mockJointTrendsGet.mockReset();
+  });
+
+  it("tapping a tappable delta badge opens the history sheet for the correct joint", async () => {
+    mockApiGet.mockResolvedValue(resp(true));
+    mockJointTrendsGet.mockResolvedValue(trendsWithHistory);
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Emit a scan result so scanResult.angles.leftKnee = 88 — required for the
+    // delta badge to compute a non-null value to render.
+    emit(scanMsg);
+    await flush();
+
+    // Let the PATCH + poll round settle (2 s poll delay).
+    await act(async () => { jest.advanceTimersByTime(2000); });
+    await flush();
+
+    // prevAngles.leftKnee = 80, currentDeg = 88 → delta = +8°.
+    // hasHistory = true (trendsWithHistory.joints.leftKnee.length > 0) →
+    // badge is a tappable TouchableOpacity.
+    // Both tips share leftKnee so two badges render — press the first one.
+    // The handler calls e.stopPropagation(), so we must supply that method.
+    fireEvent.press(screen.getAllByText("+8°")[0]!, { stopPropagation: jest.fn() });
+    await flush();
+
+    // JointHistorySheet renders with "Left Knee" as its header label
+    // (JOINT_HISTORY_DISPLAY["leftKnee"] = "Left Knee", which is distinct from
+    // the chip label JOINT_LABEL["leftKnee"] = "L Knee").
+    expect(screen.getByText("Left Knee")).toBeTruthy();
+  });
+
+  it("does not render the history sheet when no trend data exists for the joint", async () => {
+    mockApiGet.mockResolvedValue(resp(true));
+    mockJointTrendsGet.mockResolvedValue({ joints: {}, improvements: [] });
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Emit scan result — even with scanResult set, prevAngles is empty so
+    // renderDeltaBadge returns null (no previous angle to compare against),
+    // meaning there is no tappable badge and historyJoint is never set.
+    emit(scanMsg);
+    await flush();
+
+    await act(async () => { jest.advanceTimersByTime(2000); });
+    await flush();
+
+    // The JointHistorySheet header label "Left Knee" must not appear anywhere.
+    expect(screen.queryByText("Left Knee")).toBeNull();
+  });
+});
