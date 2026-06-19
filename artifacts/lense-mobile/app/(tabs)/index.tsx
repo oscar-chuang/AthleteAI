@@ -35,6 +35,7 @@ import {
 } from "@/lib/api";
 import { ConfettiBurst } from "@/components/ConfettiBurst";
 import { buildDeltaMap } from "@/lib/sessionDelta";
+import { WeekDotRow } from "@/components/WeekDotRow";
 
 const SCORE_KEYS = ["technique", "power", "balance", "consistency", "mobility", "speed"] as const;
 
@@ -645,42 +646,14 @@ export default function HomeScreen() {
                   </Text>
                 )}
               </View>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 12 }}>
-                {lastSevenDays.map((day) => {
-                  const trained = trainedDaysSet.has(day);
-                  const isToday = day === todayStr;
-                  const dayIdx = new Date(day + "T12:00:00").getDay();
-                  const isRestDay = !trainingDaysSet.has(dayIdx);
-                  const isPast = day < todayStr;
-                  const isMissed = isPast && !trained && !isRestDay;
-                  return (
-                    <View key={day} style={{ alignItems: "center", gap: 5 }}>
-                      <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: isRestDay ? colors.border : isToday ? colors.primary : colors.mutedForeground }}>
-                        {DAY_LABELS[dayIdx]}
-                      </Text>
-                      <View style={{
-                        width: 22, height: 22, borderRadius: 11,
-                        backgroundColor: trained
-                          ? (goalReached ? "#f59e0b" : colors.primary)
-                          : isRestDay
-                          ? colors.border + "44"
-                          : "transparent",
-                        borderWidth: trained || isRestDay ? 0 : 1.5,
-                        borderColor: isMissed ? colors.warning + "88" : isToday ? colors.primary : colors.border,
-                        alignItems: "center", justifyContent: "center",
-                        opacity: isRestDay ? 0.45 : 1,
-                      }}>
-                        {isToday && !trained && !isRestDay && (
-                          <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.primary }} />
-                        )}
-                        {isRestDay && (
-                          <View style={{ width: 4, height: 1, backgroundColor: colors.mutedForeground, borderRadius: 1, opacity: 0.6 }} />
-                        )}
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
+              <WeekDotRow
+                  lastSevenDays={lastSevenDays}
+                  todayStr={todayStr}
+                  trainedDaysSet={trainedDaysSet}
+                  trainingDaysSet={trainingDaysSet}
+                  goalReached={goalReached}
+                  colors={colors}
+                />
             </View>
           </View>
         )}
