@@ -509,6 +509,13 @@ export default function SkeletonScreen() {
   const [showSources, setShowSources] = useState(false);
   const [qualityBannerDismissed, setQualityBannerDismissed] = useState(false);
 
+  useEffect(() => {
+    if (!id) return;
+    AsyncStorage.getItem(`scanQualityDismissed_${id}`).then((val) => {
+      if (val === "1") setQualityBannerDismissed(true);
+    });
+  }, [id]);
+
   const [scanResult,  setScanResult]  = useState<{ angles: Partial<AngleMap>; risks: RiskMap } | null>(null);
   const [captures,    setCaptures]    = useState<Capture[]>([]);
   const [scanDone,    setScanDone]    = useState(false);
@@ -1296,7 +1303,10 @@ export default function SkeletonScreen() {
           </View>
           <TouchableOpacity
             testID="scan-quality-banner-dismiss"
-            onPress={() => setQualityBannerDismissed(true)}
+            onPress={() => {
+              setQualityBannerDismissed(true);
+              if (id) AsyncStorage.setItem(`scanQualityDismissed_${id}`, "1");
+            }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             activeOpacity={0.7}
           >
