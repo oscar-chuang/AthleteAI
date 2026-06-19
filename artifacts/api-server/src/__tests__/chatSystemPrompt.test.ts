@@ -8,6 +8,8 @@
  *   2. The returned prompt embeds the sport read from the DB, so Claude's
  *      coaching context is always current.
  *   3. When there is no profile the prompt still returns a safe default.
+ *   4. Feel cues (drillFeelCue) on a tip's drill are injected into the prompt
+ *      alongside the coaching cue — dropping them is a regression.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -15,6 +17,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // ── hoisted mock infrastructure ───────────────────────────────────────────────
 // vi.mock factories are hoisted, so all shared state must be created here.
 const h = vi.hoisted(() => {
+  type TipDrill = {
+    name?: string;
+    sets?: string;
+    reps?: string;
+    cue?: string;
+    drillFeelCue?: string;
+  };
+
+  type Tip = {
+    tipType?: string;
+    title?: string;
+    drill?: TipDrill;
+  };
+
   type ProfileRow = {
     userId: number;
     name: string | null;
@@ -24,8 +40,26 @@ const h = vi.hoisted(() => {
     injuryConcerns: string[] | null;
   };
 
+  type AnalysisRow = {
+    userId: number;
+    status: string;
+    sport: string;
+    uploadedAt: Date;
+    title: string;
+    tips?: Tip[] | null;
+    strengths?: string[] | null;
+    improvements?: string[] | null;
+    overallScore?: number | null;
+    techniqueScore?: number | null;
+    balanceScore?: number | null;
+    powerScore?: number | null;
+    mobilityScore?: number | null;
+    speedScore?: number | null;
+    consistencyScore?: number | null;
+  };
+
   let profileStore: ProfileRow[] = [];
-  let analysesStore: { userId: number; status: string; sport: string; uploadedAt: Date; title: string }[] = [];
+  let analysesStore: AnalysisRow[] = [];
 
   function rowsThenable<T>(getRows: () => T[]): any {
     return {
@@ -113,6 +147,36 @@ function clearAnalyses() {
   h.analysesStore.length = 0;
 }
 
+type TipDrill = {
+  name?: string;
+  sets?: string;
+  reps?: string;
+  cue?: string;
+  drillFeelCue?: string;
+};
+
+type Tip = {
+  tipType?: string;
+  title?: string;
+  drill?: TipDrill;
+};
+
+function addAnalysis(overrides: {
+  status?: string;
+  sport?: string;
+  title?: string;
+  tips?: Tip[];
+} = {}) {
+  h.analysesStore.push({
+    userId: USER_ID,
+    status: overrides.status ?? "complete",
+    sport: overrides.sport ?? "running",
+    uploadedAt: new Date("2026-01-01"),
+    title: overrides.title ?? "Test Session",
+    tips: overrides.tips ?? null,
+  });
+}
+
 // ── tests ─────────────────────────────────────────────────────────────────────
 
 describe("buildSystemPrompt — reads latest profile on every call", () => {
@@ -166,5 +230,130 @@ describe("buildSystemPrompt — reads latest profile on every call", () => {
     expect(prompt).toContain("Alex");
     expect(prompt).toContain("advanced");
     expect(prompt).toContain("volleyball");
+  });
+});
+
+describe("buildSystemPrompt — feel cues appear in the system prompt", () => {
+  beforeEach(() => {
+    setProfile("basketball");
+    clearAnalyses();
+  });
+
+  it("includes drillFeelCue in the prompt when a tip has one", async () => {
+    addAnalysis({
+      tips: [
+        {
+          tipType: "technique",
+          title: "Improve hip hinge",
+          drill: {
+            name: "Romanian Deadlift",
+            sets: "3 sets",
+            reps: "10 reps",
+            cue: "Push hips back, keep spine neutral",
+            drillFeelCue: "Feel your hamstrings load like a spring",
+          },
+        },
+      ],
+    });
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).toContain("Feel your hamstrings load like a spring");
+  });
+
+  it("includes the coaching cue alongside the feel cue", async () => {
+    addAnalysis({
+      tips: [
+        {
+          tipType: "power",
+          title: "Explosive knee drive",
+          drill: {
+            name: "High Knees",
+            sets: "3 sets",
+            reps: "20 reps",
+            cue: "Drive knee to chest height",
+            drillFeelCue: "Feel the ground push back against each step",
+          },
+        },
+      ],
+    });
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).toContain("Drive knee to chest height");
+    expect(prompt).toContain("Feel the ground push back against each step");
+  });
+
+  it("omits the Feel line when drillFeelCue is absent", async () => {
+    addAnalysis({
+      tips: [
+        {
+          tipType: "balance",
+          title: "Single-leg stance",
+          drill: {
+            name: "Single-leg hold",
+            sets: "2 sets",
+            reps: "30 s",
+            cue: "Soft knee, eyes on a fixed point",
+          },
+        },
+      ],
+    });
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).toContain("Soft knee, eyes on a fixed point");
+    expect(prompt).not.toContain("Feel:");
+  });
+
+  it("includes feel cues from multiple tips in the same analysis", async () => {
+    addAnalysis({
+      tips: [
+        {
+          tipType: "technique",
+          title: "Hip rotation",
+          drill: {
+            name: "Band rotation",
+            cue: "Rotate from the hips, not the shoulders",
+            drillFeelCue: "Feel tension build across your core",
+          },
+        },
+        {
+          tipType: "mobility",
+          title: "Ankle dorsiflexion",
+          drill: {
+            name: "Wall ankle stretch",
+            cue: "Keep heel flat on the floor",
+            drillFeelCue: "Feel the stretch behind your shin",
+          },
+        },
+      ],
+    });
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).toContain("Feel tension build across your core");
+    expect(prompt).toContain("Feel the stretch behind your shin");
+  });
+
+  it("does not include feel cues from an incomplete analysis", async () => {
+    addAnalysis({
+      status: "processing",
+      tips: [
+        {
+          tipType: "technique",
+          title: "Shoulder alignment",
+          drill: {
+            name: "Wall slides",
+            cue: "Slide arms up without shrugging",
+            drillFeelCue: "Feel shoulder blades glide together",
+          },
+        },
+      ],
+    });
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).not.toContain("Feel shoulder blades glide together");
   });
 });
