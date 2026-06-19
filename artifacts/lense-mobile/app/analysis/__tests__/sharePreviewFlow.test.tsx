@@ -19,19 +19,21 @@
 
 import React from "react";
 import { render, act, screen, fireEvent } from "@testing-library/react-native";
-import { Platform } from "react-native";
+import { Platform, Alert } from "react-native";
 
 // ─── Capture useFocusEffect callback ──────────────────────────────────────────
 let mockFocusCallback: (() => (() => void) | void) | null = null;
 
 // ─── Controlled mock functions ─────────────────────────────────────────────────
-const mockAnalysesGet          = jest.fn();
-const mockAnalysesList         = jest.fn();
-const mockCaptureRef           = jest.fn();
-const mockIsAvailableAsync     = jest.fn();
-const mockShareAsync           = jest.fn();
-const mockStartActivityAsync   = jest.fn();
-const mockGetContentUriAsync   = jest.fn();
+const mockAnalysesGet              = jest.fn();
+const mockAnalysesList             = jest.fn();
+const mockCaptureRef               = jest.fn();
+const mockIsAvailableAsync         = jest.fn();
+const mockShareAsync               = jest.fn();
+const mockStartActivityAsync       = jest.fn();
+const mockGetContentUriAsync       = jest.fn();
+const mockRequestPermissionsAsync  = jest.fn();
+const mockSaveToLibraryAsync       = jest.fn();
 
 // ─── Module mocks ──────────────────────────────────────────────────────────────
 
@@ -102,6 +104,11 @@ jest.mock("@/utils/formatBiomechanics", () => ({
 jest.mock("@/utils/shareCardCapture", () => ({
   SHARE_CARD_CAPTURE_OPTIONS: { format: "png", quality: 1, result: "tmpfile" },
   HIDDEN_SHARE_CARD_STYLE:    { position: "absolute", opacity: 0 },
+}));
+
+jest.mock("@/utils/mediaLibrary", () => ({
+  requestPermissionsAsync: (...args: unknown[]) => mockRequestPermissionsAsync(...args),
+  saveToLibraryAsync:      (...args: unknown[]) => mockSaveToLibraryAsync(...args),
 }));
 
 jest.mock("@/lib/api", () => ({
@@ -193,15 +200,20 @@ async function simulateFocus() {
 
 // ─── Setup / teardown ─────────────────────────────────────────────────────────
 
+let alertSpy: jest.SpyInstance;
+
 beforeEach(() => {
   jest.useFakeTimers();
   mockFocusCallback = null;
+  alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
 
   mockCaptureRef.mockReset();
   mockIsAvailableAsync.mockReset();
   mockShareAsync.mockReset();
   mockStartActivityAsync.mockReset();
   mockGetContentUriAsync.mockReset();
+  mockRequestPermissionsAsync.mockReset();
+  mockSaveToLibraryAsync.mockReset();
   mockAnalysesGet.mockReset();
   mockAnalysesList.mockResolvedValue({ analyses: [] });
 
@@ -210,6 +222,8 @@ beforeEach(() => {
   mockShareAsync.mockResolvedValue(undefined);
   mockGetContentUriAsync.mockResolvedValue("content://tmp/share-card.png");
   mockStartActivityAsync.mockResolvedValue(undefined);
+  mockRequestPermissionsAsync.mockResolvedValue({ status: "granted" });
+  mockSaveToLibraryAsync.mockResolvedValue(undefined);
 
   mockAnalysesGet.mockResolvedValue({
     analysis:    COMPLETE_ANALYSIS,
@@ -224,6 +238,7 @@ beforeEach(() => {
 afterEach(() => {
   jest.runOnlyPendingTimers();
   jest.useRealTimers();
+  alertSpy.mockRestore();
   // Restore Platform.OS to the default test value.
   Object.defineProperty(Platform, "OS", { value: "ios", configurable: true });
 });
@@ -328,5 +343,31 @@ describe("AnalysisDetailScreen — share preview modal", () => {
     // Clean up: let the first share complete so no pending promise leaks.
     await act(async () => { releaseCaptureRef(); });
     await flush();
+  });
+
+  it("pressing Save to photos calls captureRef and saveToLibraryAsync once, and the modal stays open", async () => {
+    render(<AnalysisDetailScreen />);
+    await simulateFocus();
+
+    fireEvent.press(screen.getByRole("button", { name: "Share analysis" }));
+    await flush();
+
+    // Modal is open.
+    expect(screen.getByText("Share your session")).toBeTruthy();
+
+    // Tap the Save to photos button.
+    fireEvent.press(screen.getByText("Save to photos"));
+    await flush();
+
+    // captureRef must have been called exactly once to capture the card.
+    expect(mockCaptureRef).toHaveBeenCalledTimes(1);
+    // saveToLibraryAsync must have been called exactly once with the captured URI.
+    expect(mockSaveToLibraryAsync).toHaveBeenCalledTimes(1);
+    expect(mockSaveToLibraryAsync).toHaveBeenCalledWith("file:///tmp/share-card.png");
+    // The modal must still be visible — Save to photos does not close it.
+    expect(screen.getByText("Share your session")).toBeTruthy();
+    // The native share sheet was not invoked.
+    expect(mockStartActivityAsync).not.toHaveBeenCalled();
+    expect(mockShareAsync).not.toHaveBeenCalled();
   });
 });
