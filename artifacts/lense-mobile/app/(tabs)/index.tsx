@@ -752,6 +752,7 @@ export default function HomeScreen() {
                 onLayout={(e) => setBarContainerWidth(e.nativeEvent.layout.width)}
               >
                 <Animated.View
+                  testID="progress-bar-fill"
                   style={[
                     s.progressBarFill,
                     {
