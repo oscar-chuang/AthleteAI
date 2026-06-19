@@ -1449,7 +1449,8 @@ export default function AnalysisDetailScreen() {
                 strokeWidth={8}
                 color={overallBand.color}
                 label="OVERALL"
-                animate
+                animate={!ringAnimationDone.has(analysis.id)}
+                onAnimationComplete={() => ringAnimationDone.add(analysis.id)}
               />
             </View>
 

@@ -14,6 +14,7 @@ interface Props {
   label?: string;
   children?: React.ReactNode;
   animate?: boolean;
+  onAnimationComplete?: () => void;
 }
 
 /**
@@ -30,6 +31,7 @@ export function ScoreRing({
   label,
   children,
   animate = false,
+  onAnimationComplete,
 }: Props) {
   const r = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * r;
@@ -52,6 +54,14 @@ export function ScoreRing({
   // skip re-running the 800ms count-up when the parent re-renders without
   // changing the score (e.g. a context update).
   const lastAnimatedScore = useRef<number | null>(null);
+
+  // Keep the latest callback in a ref so the effect closure always reads the
+  // current version without needing to list it as a dependency (avoids
+  // re-running the animation whenever the parent re-renders a new inline fn).
+  // Assigned directly during render — no effect needed; the ref is always
+  // up-to-date by the time any animation callback fires.
+  const onAnimationCompleteRef = useRef(onAnimationComplete);
+  onAnimationCompleteRef.current = onAnimationComplete;
 
   useEffect(() => {
     if (!animate) {
@@ -96,6 +106,8 @@ export function ScoreRing({
       scoreAnim.removeListener(listenerId);
       // Haptic pulse on animation complete (silently skipped on web)
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      // Notify parent so it can persist "animation done" state outside this instance
+      onAnimationCompleteRef.current?.();
     });
 
     return () => {

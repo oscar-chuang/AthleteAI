@@ -146,7 +146,18 @@ jest.mock("../../../utils/scheduleUtils", () => ({
 // ShareCard: the forwarded-ref version lives off-screen for capture; the plain
 // version renders inside the modal.  We stub both to a lightweight element so
 // the test stays fast while still asserting the card is present in the tree.
-// index.tsx imports the named export { ShareCard } from analysis/ShareCard.
+// index.tsx imports the default export from @/components/ShareCard (the
+// standalone home-screen card); @/components/analysis/ShareCard is used by
+// the analysis detail screen and is kept separately below.
+jest.mock("@/components/ShareCard", () => {
+  const { forwardRef } = jest.requireActual("react");
+  const { View }       = jest.requireActual("react-native");
+  const MockCard = forwardRef((_props: any, _ref: any) =>
+    <View testID="share-card-preview" />,
+  );
+  return { __esModule: true, default: MockCard };
+});
+
 jest.mock("@/components/analysis/ShareCard", () => {
   const { forwardRef } = jest.requireActual("react");
   const { View }       = jest.requireActual("react-native");

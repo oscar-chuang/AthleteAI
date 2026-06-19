@@ -91,6 +91,43 @@ describe("ScoreRing count-up animation", () => {
   });
 });
 
+// ─── ScoreRing onAnimationComplete callback ──────────────────────────────────
+
+describe("ScoreRing onAnimationComplete callback", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("calls onAnimationComplete after the 800ms animation finishes", async () => {
+    const onDone = jest.fn();
+    render(<ScoreRing score={75} color="#6c63ff" animate onAnimationComplete={onDone} />);
+
+    // Must not have fired before animation completes.
+    expect(onDone).not.toHaveBeenCalled();
+
+    await act(async () => {
+      jest.advanceTimersByTime(900);
+    });
+
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call onAnimationComplete when animate=false", async () => {
+    const onDone = jest.fn();
+    render(<ScoreRing score={75} color="#6c63ff" animate={false} onAnimationComplete={onDone} />);
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    expect(onDone).not.toHaveBeenCalled();
+  });
+});
+
 // ─── ScoreRing custom children ───────────────────────────────────────────────
 
 describe("ScoreRing custom children", () => {
