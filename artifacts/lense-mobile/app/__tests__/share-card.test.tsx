@@ -188,14 +188,14 @@ describe("ShareCard — color scheme palette", () => {
     const { getByTestId } = render(
       <ShareCard analysis={BASE_ANALYSIS} colorScheme="dark" />,
     );
-    const card = getByTestId("share-card");
+    const card = getByTestId("share-card-dark");
     const flat = StyleSheet.flatten(card.props.style) as FlatStyle;
     expect(flat.backgroundColor).toBe(SHARE_CARD_DARK.cardBg);
   });
 
   it("applies the dark-palette background when colorScheme is omitted (default is dark)", () => {
     const { getByTestId } = render(<ShareCard analysis={BASE_ANALYSIS} />);
-    const card = getByTestId("share-card");
+    const card = getByTestId("share-card-dark");
     const flat = StyleSheet.flatten(card.props.style) as FlatStyle;
     expect(flat.backgroundColor).toBe(SHARE_CARD_DARK.cardBg);
   });
@@ -204,7 +204,7 @@ describe("ShareCard — color scheme palette", () => {
     const { getByTestId } = render(
       <ShareCard analysis={BASE_ANALYSIS} colorScheme="light" />,
     );
-    const card = getByTestId("share-card");
+    const card = getByTestId("share-card-light");
     const flat = StyleSheet.flatten(card.props.style) as FlatStyle;
     expect(flat.backgroundColor).toBe(SHARE_CARD_LIGHT.cardBg);
   });
