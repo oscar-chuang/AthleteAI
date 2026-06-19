@@ -31,6 +31,7 @@ const mockProgressList = jest.fn();
 const mockAchievementsList = jest.fn();
 const mockProfileStats = jest.fn();
 const mockJointTrendsGet = jest.fn();
+const mockAnalysesGet = jest.fn();
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -99,6 +100,9 @@ jest.mock("@/lib/api", () => ({
   jointTrends: {
     get: (...args: any[]) => mockJointTrendsGet(...args),
   },
+  analyses: {
+    get: (...args: any[]) => mockAnalysesGet(...args),
+  },
 }));
 
 import ProgressScreen from "../progress";
@@ -133,6 +137,7 @@ beforeEach(() => {
   mockAchievementsList.mockResolvedValue(EMPTY_ACHIEVEMENTS);
   mockProfileStats.mockRejectedValue(new Error("not needed"));
   mockJointTrendsGet.mockRejectedValue(new Error("not needed"));
+  mockAnalysesGet.mockRejectedValue(new Error("not found"));
   (AsyncStorage.getAllKeys as jest.Mock).mockResolvedValue([]);
   (AsyncStorage.multiGet  as jest.Mock).mockResolvedValue([]);
 });
@@ -225,5 +230,66 @@ describe("Progress — loadDrillsDone", () => {
 
     expect(getByText("1")).toBeTruthy();
     expect(getByText(DRILLS_LABEL_SINGULAR)).toBeTruthy();
+  });
+
+  // ── Test 6 ────────────────────────────────────────────────────────────────
+
+  it("shows breakdown when at least one analysis fetch succeeds even if others fail", async () => {
+    (AsyncStorage.getAllKeys as jest.Mock).mockResolvedValue([
+      "drill_done_analysis-ok",
+      "drill_done_analysis-fail",
+    ]);
+    (AsyncStorage.multiGet as jest.Mock).mockResolvedValue([
+      ["drill_done_analysis-ok",   JSON.stringify(["drill-c1", "drill-p1"])],
+      ["drill_done_analysis-fail", JSON.stringify(["drill-c2"])],
+    ]);
+
+    // Only the first analysis fetch succeeds; the second rejects
+    mockAnalysesGet
+      .mockResolvedValueOnce({
+        analysis: { id: "analysis-ok" },
+        tips: [
+          { id: "drill-c1", tipType: "injury" },
+          { id: "drill-p1", tipType: "performance" },
+        ],
+        injuryRisks: [],
+      })
+      .mockRejectedValueOnce(new Error("not found"));
+
+    const { getByText, getAllByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // Total should include drills from both analyses (3)
+    expect(getByText("3")).toBeTruthy();
+    expect(getByText(DRILLS_LABEL_PLURAL)).toBeTruthy();
+    // Breakdown must be visible — "Corrective" and "Performance" labels appear
+    expect(getByText("Corrective")).toBeTruthy();
+    expect(getByText("Performance")).toBeTruthy();
+    // Corrective=1 and Performance=1 — both counts should appear
+    expect(getAllByText("1").length).toBeGreaterThanOrEqual(2);
+  });
+
+  // ── Test 7 ────────────────────────────────────────────────────────────────
+
+  it("hides breakdown when all analysis fetches fail", async () => {
+    (AsyncStorage.getAllKeys as jest.Mock).mockResolvedValue([
+      "drill_done_analysis-a",
+      "drill_done_analysis-b",
+    ]);
+    (AsyncStorage.multiGet as jest.Mock).mockResolvedValue([
+      ["drill_done_analysis-a", JSON.stringify(["drill1"])],
+      ["drill_done_analysis-b", JSON.stringify(["drill2"])],
+    ]);
+
+    // All fetches reject — mockAnalysesGet is already set to reject in beforeEach
+
+    const { getByText, queryByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    expect(getByText("2")).toBeTruthy();
+    expect(getByText(DRILLS_LABEL_PLURAL)).toBeTruthy();
+    // Breakdown rows should not appear (Corrective / Performance labels absent)
+    expect(queryByText("Corrective")).toBeNull();
+    expect(queryByText("Performance")).toBeNull();
   });
 });

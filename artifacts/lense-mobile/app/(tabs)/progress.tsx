@@ -261,11 +261,13 @@ export default function ProgressScreen() {
 
         let corrective = 0;
         let performance = 0;
+        let atLeastOneFulfilled = false;
 
         results.forEach((result, idx) => {
           const analysisId = Object.keys(analysisCompletedTips)[idx]!;
           const completedIds = new Set(analysisCompletedTips[analysisId]);
           if (result.status === "fulfilled") {
+            atLeastOneFulfilled = true;
             for (const tip of result.value.tips) {
               if (completedIds.has(tip.id)) {
                 if (tip.tipType === "injury") {
@@ -278,8 +280,9 @@ export default function ProgressScreen() {
           }
         });
 
-        // Only show breakdown if we were able to classify at least one drill
-        if (corrective + performance > 0) {
+        // Show breakdown if at least one analysis fetch succeeded, even if the
+        // classified count is zero (partial fetch is more informative than hiding)
+        if (atLeastOneFulfilled) {
           setDrillsCorrective(corrective);
           setDrillsPerformance(performance);
         } else {
