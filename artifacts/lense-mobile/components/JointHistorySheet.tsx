@@ -529,6 +529,7 @@ export default function JointHistorySheet({
                       <Pressable
                         onPress={canNavigate ? handleTooltipPress : undefined}
                         style={tooltipStyles.inner}
+                        testID="tooltip-pressable"
                       >
                       {/* Arrow pointing toward dot */}
                       {placeAbove ? (
