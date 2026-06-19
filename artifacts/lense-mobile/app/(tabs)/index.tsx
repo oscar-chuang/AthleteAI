@@ -16,6 +16,7 @@ import {
   Modal,
   Pressable,
 } from "react-native";
+import * as Sharing from "expo-sharing";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -37,6 +38,7 @@ import { ConfettiBurst } from "@/components/ConfettiBurst";
 import { checkConfettiGate } from "@/utils/confettiGate";
 import { buildDeltaMap } from "@/lib/sessionDelta";
 import { WeekDotRow } from "@/components/WeekDotRow";
+import ShareCard, { type ViewShotHandle } from "@/components/ShareCard";
 
 const SCORE_KEYS = ["technique", "power", "balance", "consistency", "mobility", "speed"] as const;
 
@@ -84,6 +86,7 @@ export default function HomeScreen() {
   const trophyScale = useRef(new Animated.Value(1)).current;
   const barScaleAnim = useRef(new Animated.Value(0)).current;
   const [barContainerWidth, setBarContainerWidth] = useState(0);
+  const shareCardRef = useRef<ViewShotHandle>(null);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, profile, updateProfile } = useAuth();
@@ -212,10 +215,32 @@ export default function HomeScreen() {
       sport: profile?.sport,
       streakDays,
     });
+
     try {
-      await Share.share({ message });
+      const sharingAvailable = await Sharing.isAvailableAsync();
+      if (sharingAvailable && shareCardRef.current) {
+        const uri = await shareCardRef.current.capture();
+        if (Platform.OS === "ios") {
+          // iOS Share sheet supports both a text message and an image URL together
+          await Share.share({ message, url: uri });
+        } else {
+          // Android: share the card image via expo-sharing (native image intent)
+          await Sharing.shareAsync(uri, {
+            mimeType: "image/png",
+            dialogTitle: "Share your weekly goal",
+          });
+        }
+      } else {
+        // Web or sharing unavailable — plain text fallback
+        await Share.share({ message });
+      }
     } catch {
-      // user dismissed or share unavailable — no-op
+      // User dismissed or capture failed — plain text fallback
+      try {
+        await Share.share({ message });
+      } catch {
+        // no-op
+      }
     }
   }, [profile?.sport, thisWeek, streakDays]);
 
@@ -844,6 +869,21 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Off-screen share card — rendered for capture, never visible to the user */}
+      <View
+        style={{ position: "absolute", top: -1000, left: 0, opacity: 0 }}
+        pointerEvents="none"
+        collapsable={false}
+      >
+        <ShareCard
+          ref={shareCardRef}
+          sessions={thisWeek}
+          weeklyGoal={weeklyGoal}
+          streakDays={streakDays}
+          sport={profile?.sport ?? undefined}
+        />
+      </View>
 
       {showConfetti && (
         <ConfettiBurst onComplete={() => setShowConfetti(false)} />
