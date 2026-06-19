@@ -343,8 +343,10 @@ describe("ProfileSettingsScreen — training-day toggle auto-updates weekly goal
     const { getByText, queryByText, getAllByText } = render(<ProfileSettingsScreen />);
     await flush();
 
-    // Hint is absent before any toggle.
-    expect(queryByText(/match your training days/i)).toBeNull();
+    // Hint is absent before any toggle (the mismatch nudge text says
+    // "doesn't match your training days" — different from the inline hint
+    // which says "to match your training days").
+    expect(queryByText(/to match your training days/i)).toBeNull();
 
     // Toggle off Friday → 6 training days selected → hint appears.
     await act(async () => {
@@ -354,7 +356,7 @@ describe("ProfileSettingsScreen — training-day toggle auto-updates weekly goal
 
     // Banner body text is present.
     expect(getByText(/We set your weekly goal to/i)).toBeTruthy();
-    expect(getByText(/match your training days/i)).toBeTruthy();
+    expect(getByText(/to match your training days/i)).toBeTruthy();
     // The suggested number (6) appears in both the goal chip row and the hint
     // banner, confirming the banner shows the correct count.
     expect(getAllByText("6").length).toBeGreaterThanOrEqual(2);
@@ -370,7 +372,7 @@ describe("ProfileSettingsScreen — training-day toggle auto-updates weekly goal
     });
     await flush();
 
-    expect(queryByText(/match your training days/i)).toBeTruthy();
+    expect(queryByText(/to match your training days/i)).toBeTruthy();
 
     // Tap "5" to override the auto-suggested goal → hint must disappear.
     await act(async () => {
@@ -378,7 +380,7 @@ describe("ProfileSettingsScreen — training-day toggle auto-updates weekly goal
     });
     await flush();
 
-    expect(queryByText(/match your training days/i)).toBeNull();
+    expect(queryByText(/to match your training days/i)).toBeNull();
   });
 });
 
