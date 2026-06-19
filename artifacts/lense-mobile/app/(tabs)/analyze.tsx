@@ -97,6 +97,7 @@ export default function AnalyzeScreen() {
   const canUnlimited = useCanAccessFeature("unlimitedAnalyses");
 
   const [analysisList, setAnalysisList] = useState<AnalysisRecord[]>([]);
+  const [analysesWithTicks, setAnalysesWithTicks] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -130,6 +131,23 @@ export default function AnalyzeScreen() {
       ]);
       setAnalysisList(analyses);
       if (trendsResult) setJointTrendsData(trendsResult);
+
+      // Check which complete analyses have frameTicks stored locally
+      const tickIds = await Promise.all(
+        analyses
+          .filter(a => a.status === "complete")
+          .map(async a => {
+            try {
+              const raw = await AsyncStorage.getItem(`frameTicks_${a.id}`);
+              if (!raw) return null;
+              const parsed: unknown[] = JSON.parse(raw);
+              return Array.isArray(parsed) && parsed.length > 0 ? a.id : null;
+            } catch {
+              return null;
+            }
+          })
+      );
+      setAnalysesWithTicks(new Set(tickIds.filter((id): id is string => id !== null)));
     } catch {
       setLoadError(true);
     } finally {
@@ -434,6 +452,8 @@ export default function AnalyzeScreen() {
     limitRow:        { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingBottom: 12 },
     limitText:       { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
     limitBold:       { fontFamily: "Inter_600SemiBold", color: colors.foreground },
+    breakdownChip:     { flexDirection: "row", alignItems: "center", gap: 3, alignSelf: "flex-start", marginTop: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: colors.primary + "66", backgroundColor: colors.primary + "14" },
+    breakdownChipText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: colors.primary },
   });
 
   const ListHeader = (
@@ -756,6 +776,18 @@ export default function AnalyzeScreen() {
                       </View>
                     );
                   })()}
+                  {analysesWithTicks.has(item.id) && (
+                    <TouchableOpacity
+                      testID={`breakdown-chip-${item.id}`}
+                      style={s.breakdownChip}
+                      onPress={(e) => { e.stopPropagation(); router.push(`/analysis/live/${item.id}` as any); }}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Feather name="play" size={9} color={colors.primary} />
+                      <Text style={s.breakdownChipText}>Breakdown</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
                 {isProcessing ? (
                   <View style={s.processingBadge}>
