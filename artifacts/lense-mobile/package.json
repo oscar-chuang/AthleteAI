@@ -68,6 +68,7 @@
     "expo-av": "^16.0.8",
     "expo-file-system": "~19.0.23",
     "expo-image-manipulator": "^56.0.19",
+    "expo-intent-launcher": "^56.0.4",
     "expo-media-library": "^56.0.7",
     "expo-notifications": "^56.0.18",
     "expo-screen-orientation": "^9.0.9",

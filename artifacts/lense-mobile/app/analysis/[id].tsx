@@ -22,6 +22,8 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
+import * as IntentLauncher from "expo-intent-launcher";
+import * as FileSystem from "expo-file-system";
 import { useSharePreview } from "@/hooks/useSharePreview";
 import { useCardStagger } from "@/hooks/useCardStagger";
 
@@ -669,15 +671,16 @@ export default function AnalysisDetailScreen() {
       if (Platform.OS === "ios") {
         await Share.share({ url: uri, message: shareMessage });
       } else {
-        const isShareAvailable = await Sharing.isAvailableAsync();
-        if (isShareAvailable) {
-          await Sharing.shareAsync(uri, {
-            mimeType: "image/png",
-            dialogTitle: "Share your session",
-          });
-        } else {
-          await Share.share({ message: shareMessage });
-        }
+        const contentUri = await FileSystem.getContentUriAsync(uri);
+        await IntentLauncher.startActivityAsync("android.intent.action.SEND", {
+          type: "image/png",
+          extra: {
+            "android.intent.extra.STREAM": contentUri,
+            "android.intent.extra.TEXT": shareMessage,
+            "android.intent.extra.SUBJECT": `My ${analysis.sport} session on AthleteAI`,
+          },
+          flags: 1,
+        });
       }
     } catch {
       Alert.alert("Couldn't share", "Something went wrong. Please try again.");
