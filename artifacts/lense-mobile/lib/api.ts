@@ -409,6 +409,29 @@ export const jointTrends = {
     request<JointTrendsResponse>(`/analyses/joint-trends${sport ? `?sport=${encodeURIComponent(sport)}` : ""}`),
 };
 
+// ─── Movement Summary History ──────────────────────────────────────────────────
+
+export interface MovementSummaryDataPoint {
+  analysisId: string;
+  date: string;
+  sport: string;
+  flowScore: number;
+  efficiencyScore: number;
+  bodyControlScore: number;
+  consistencyScore: number;
+  rhythmScore: number;
+  overallScore: number;
+}
+
+export interface MovementSummaryHistoryResponse {
+  history: MovementSummaryDataPoint[];
+}
+
+export const movementSummaryHistory = {
+  get: (sport?: string) =>
+    request<MovementSummaryHistoryResponse>(`/analyses/movement-summary-history${sport ? `?sport=${encodeURIComponent(sport)}` : ""}`),
+};
+
 // ─── Progress ─────────────────────────────────────────────────────────────────
 
 export interface ProgressRecord {

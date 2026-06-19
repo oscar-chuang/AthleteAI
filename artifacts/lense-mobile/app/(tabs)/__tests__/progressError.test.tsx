@@ -104,6 +104,9 @@ jest.mock("@/lib/api", () => ({
   jointTrends: {
     get: (...args: any[]) => mockJointTrendsGet(...args),
   },
+  movementSummaryHistory: {
+    get: jest.fn().mockResolvedValue({ history: [] }),
+  },
   analyses: {
     get: jest.fn().mockResolvedValue({ analysis: {}, tips: [], injuryRisks: [] }),
   },

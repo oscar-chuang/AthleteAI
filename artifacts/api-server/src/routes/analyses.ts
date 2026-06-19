@@ -294,6 +294,61 @@ router.get("/analyses/joint-trends", requireAuth, async (req: Request, res: Resp
   res.json({ joints: jointHistory, improvements });
 });
 
+// ─── Movement summary score history ───────────────────────────────────────────
+// Returns per-session movement summary dimension scores for the requesting user.
+// Only sessions that already have a completed movementSummary (overallScore set)
+// are included. Optionally filter by ?sport=<sport>.
+// IMPORTANT: must be declared before GET /analyses/:id for the same reason as
+// joint-trends — to prevent Express from treating the path as an :id value.
+router.get("/analyses/movement-summary-history", requireAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).userId as number;
+  const sport = typeof req.query.sport === "string" ? req.query.sport.toLowerCase() : undefined;
+
+  type SummaryShape = {
+    flowScore?: number;
+    efficiencyScore?: number;
+    bodyControlScore?: number;
+    consistencyScore?: number;
+    rhythmScore?: number;
+    overallScore?: number;
+  };
+
+  const rows = await db
+    .select({
+      id: analysesTable.id,
+      sport: analysesTable.sport,
+      uploadedAt: analysesTable.uploadedAt,
+      movementSummary: analysesTable.movementSummary,
+    })
+    .from(analysesTable)
+    .where(eq(analysesTable.userId, userId))
+    .orderBy(analysesTable.uploadedAt);
+
+  const history = rows
+    .filter((r) => {
+      if (!r.movementSummary || typeof r.movementSummary !== "object") return false;
+      const ms = r.movementSummary as SummaryShape;
+      return ms.overallScore != null;
+    })
+    .filter((r) => !sport || r.sport.toLowerCase() === sport)
+    .map((r) => {
+      const ms = r.movementSummary as SummaryShape;
+      return {
+        analysisId: String(r.id),
+        date: r.uploadedAt.toISOString(),
+        sport: r.sport,
+        flowScore: ms.flowScore ?? 0,
+        efficiencyScore: ms.efficiencyScore ?? 0,
+        bodyControlScore: ms.bodyControlScore ?? 0,
+        consistencyScore: ms.consistencyScore ?? 0,
+        rhythmScore: ms.rhythmScore ?? 0,
+        overallScore: ms.overallScore ?? 0,
+      };
+    });
+
+  res.json({ history });
+});
+
 router.get("/analyses/:id", requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).userId as number;
   const id = parseInt(String(req.params.id ?? ""), 10);

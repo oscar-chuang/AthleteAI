@@ -22,6 +22,7 @@ import {
   achievements as achievementsApi,
   profile as profileApi,
   jointTrends as jointTrendsApi,
+  movementSummaryHistory as movementSummaryHistoryApi,
   analyses as analysesApi,
   type ProgressRecord,
   type AchievementRecord,
@@ -31,6 +32,7 @@ import {
   type SportEntry,
   type PersonalRecordEntry,
   type JointImprovement,
+  type MovementSummaryDataPoint,
 } from "@/lib/api";
 import { getSportConfig, JOINT_DISPLAY, SPORT_ICONS, type MetricKey } from "@/constants/sportConfig";
 import JointHistorySheet from "@/components/JointHistorySheet";
@@ -38,8 +40,44 @@ import JointHistorySheet from "@/components/JointHistorySheet";
 const RISK_COLOR_MAP = ["#22c55e", "#f59e0b", "#ef4444"] as const;
 const RISK_LABEL_MAP = ["Safe", "Caution", "High Risk"] as const;
 
+// Movement quality dimension config — colors match the live skeleton screen
+const MOVEMENT_DIMENSIONS: { key: keyof MovementSummaryDataPoint; label: string; color: string }[] = [
+  { key: "flowScore",         label: "Flow",        color: "#6c63ff" },
+  { key: "efficiencyScore",   label: "Efficiency",  color: "#22c55e" },
+  { key: "bodyControlScore",  label: "Control",     color: "#f59e0b" },
+  { key: "consistencyScore",  label: "Consistency", color: "#06b6d4" },
+  { key: "rhythmScore",       label: "Rhythm",      color: "#a78bfa" },
+];
+
 const JOINT_SPARKLINE_W = 64;
 const JOINT_SPARKLINE_H = 28;
+
+function ScoreSparkline({ scores, color }: { scores: number[]; color: string }) {
+  if (scores.length < 2) {
+    return (
+      <View style={{ width: JOINT_SPARKLINE_W, height: JOINT_SPARKLINE_H, alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ fontSize: 9, color }}>—</Text>
+      </View>
+    );
+  }
+  const min = Math.max(0, Math.min(...scores) - 5);
+  const max = Math.min(100, Math.max(...scores) + 5);
+  const range = max - min || 1;
+  const step = JOINT_SPARKLINE_W / (scores.length - 1);
+  const pts = scores.map((v, i) => {
+    const x = i * step;
+    const y = JOINT_SPARKLINE_H - ((v - min) / range) * JOINT_SPARKLINE_H;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const lastX = (scores.length - 1) * step;
+  const lastY = JOINT_SPARKLINE_H - ((scores[scores.length - 1]! - min) / range) * JOINT_SPARKLINE_H;
+  return (
+    <Svg width={JOINT_SPARKLINE_W} height={JOINT_SPARKLINE_H} style={{ overflow: "visible" }}>
+      <Polyline points={pts} fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx={lastX} cy={lastY} r={3} fill={color} />
+    </Svg>
+  );
+}
 
 function JointSparkline({ data, color }: { data: JointDataPoint[]; color: string }) {
   if (data.length < 2) {
@@ -141,6 +179,7 @@ export default function ProgressScreen() {
   const [achievements, setAchievements] = useState<AchievementRecord[]>([]);
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [allTrends, setAllTrends] = useState<JointTrendsResponse | null>(null);
+  const [allMovementHistory, setAllMovementHistory] = useState<MovementSummaryDataPoint[]>([]);
   const [personalRecords, setPersonalRecords] = useState<Record<string, PersonalRecordEntry>>({});
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
@@ -255,17 +294,19 @@ export default function ProgressScreen() {
   const loadData = useCallback(async () => {
     setError(false);
     try {
-      const [{ entries: e }, { sports }, { achievements: a }, st, tr] = await Promise.all([
+      const [{ entries: e }, { sports }, { achievements: a }, st, tr, mh] = await Promise.all([
         progressApi.list(),
         progressApi.sports(),
         achievementsApi.list(),
         profileApi.stats().catch(() => null),
         jointTrendsApi.get().catch(() => null),
+        movementSummaryHistoryApi.get().catch(() => null),
       ]);
       setAllEntries(e);
       setAchievements(a);
       if (st) setStats(st);
       if (tr) setAllTrends(tr);
+      if (mh) setAllMovementHistory(mh.history);
 
       // Auto-select the most-common sport if not already selected
       if (sports.length > 0) {
@@ -344,6 +385,14 @@ export default function ProgressScreen() {
     if (!cutoff) return movementEntries;
     return movementEntries.filter((e) => new Date(e.date) >= cutoff);
   }, [movementEntries, period]);
+
+  // ── Derived: movement summary history filtered by sport + period ─────────────
+  const filteredMovementHistory = useMemo((): MovementSummaryDataPoint[] => {
+    const cutoff = periodCutoff(period);
+    return allMovementHistory
+      .filter((d) => !selectedSport || d.sport.toLowerCase() === selectedSport)
+      .filter((d) => !cutoff || new Date(d.date) >= cutoff);
+  }, [allMovementHistory, selectedSport, period]);
 
   // ── Derived: joint trends filtered by sport + available joints ───────────────
   const filteredTrends = useMemo((): JointTrendsResponse | null => {
@@ -992,6 +1041,71 @@ export default function ProgressScreen() {
                     </View>
                   </View>
                 </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {/* ── Movement Quality Trends ── */}
+        {filteredMovementHistory.length >= 1 && (
+          <View style={s.section}>
+            <View style={s.sectionRow}>
+              <Text style={s.sectionTitle}>Movement Quality</Text>
+              <Text style={s.sectionCount}>
+                {filteredMovementHistory.length} session{filteredMovementHistory.length === 1 ? "" : "s"}
+                {selectedSport ? ` · ${capitalize(selectedSport)}` : ""}
+              </Text>
+            </View>
+            {MOVEMENT_DIMENSIONS.map(({ key, label, color }) => {
+              const scores = filteredMovementHistory.map((d) => d[key] as number);
+              const latest = scores[scores.length - 1] ?? 0;
+              const first = scores[0] ?? 0;
+              const delta = Math.round(latest - first);
+              const improved = delta > 0;
+              return (
+                <View
+                  key={key}
+                  style={{
+                    backgroundColor: colors.card,
+                    borderRadius: colors.radius,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    marginBottom: 10,
+                    padding: 14,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
+                      {label}
+                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+                      <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color }}>
+                        {Math.round(latest)}
+                      </Text>
+                      <View style={{ backgroundColor: color + "22", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
+                        <Text style={{ fontSize: 10, fontFamily: "Inter_600SemiBold", color }}>
+                          {getScoreBand(latest)}
+                        </Text>
+                      </View>
+                    </View>
+                    {scores.length >= 2 && (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 }}>
+                        <Feather
+                          name={delta >= 0 ? "arrow-up-right" : "arrow-down-right"}
+                          size={12}
+                          color={improved ? colors.success : colors.mutedForeground}
+                        />
+                        <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: improved ? colors.success : colors.mutedForeground }}>
+                          {delta >= 0 ? "+" : ""}{delta} over {scores.length} scan{scores.length === 1 ? "" : "s"}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <ScoreSparkline scores={scores} color={color} />
+                </View>
               );
             })}
           </View>
