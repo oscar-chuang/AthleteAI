@@ -1,5 +1,5 @@
 import React from "react";
-import { act, fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 
 // ─── Dependency mocks ──────────────────────────────────────────────────────────
 
@@ -157,12 +157,11 @@ describe("CropModal — cancel path", () => {
     const { getByText } = render(
       <CropModal {...BASE_PROPS} onConfirm={onConfirm} onCancel={onCancel} />
     );
-    await flush();
+    await waitFor(() => expect(getByText("Cancel")).toBeTruthy());
 
     fireEvent.press(getByText("Cancel"));
-    await flush();
+    await waitFor(() => expect(onCancel).toHaveBeenCalledTimes(1));
 
-    expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onConfirm).not.toHaveBeenCalled();
     expect(mockManipulateAsync).not.toHaveBeenCalled();
   });
@@ -173,7 +172,7 @@ describe("CropModal — cancel path", () => {
     const { getByText } = render(
       <CropModal {...BASE_PROPS} onCancel={onCancel} />
     );
-    await flush();
+    await waitFor(() => expect(getByText("Use Photo")).toBeTruthy());
 
     await act(async () => {
       fireEvent.press(getByText("Use Photo"));
