@@ -59,6 +59,7 @@ import { buildSessionSharePayload } from "@/utils/shareUtils";
 
 const PENDING_CHAT_KEY = "pendingChatMessage";
 const SWIPE_HINT_SEEN_KEY = "swipe_hint_seen";
+const LAST_SHARE_ACTION_KEY = "lastShareAction";
 
 // Module-level: tracks which analysis IDs have already completed their first ring animation.
 // Persists across component re-mounts (session navigation), so switching sessions and coming
@@ -390,6 +391,7 @@ export default function AnalysisDetailScreen() {
   const [pollExhausted, setPollExhausted] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [lastShareAction, setLastShareAction] = useState<"save" | "share">("share");
   const [selectedShareTipId, setSelectedShareTipId] = useState<string | null>(null);
   const [shareScheme, setShareScheme] = useState<"dark" | "light">("dark");
   const shareCardRef = useRef<View>(null);
@@ -469,6 +471,13 @@ export default function AnalysisDetailScreen() {
       if (saved) setNote(saved);
     });
   }, [id]);
+
+  // Load last-used share action preference
+  useEffect(() => {
+    AsyncStorage.getItem(LAST_SHARE_ACTION_KEY).then((saved) => {
+      if (saved === "save" || saved === "share") setLastShareAction(saved);
+    }).catch(() => {});
+  }, []);
 
   // Load sibling IDs for prev/next navigation (newest first, complete only)
   useEffect(() => {
@@ -689,6 +698,8 @@ export default function AnalysisDetailScreen() {
           flags: 1,
         });
       }
+      setLastShareAction("share");
+      AsyncStorage.setItem(LAST_SHARE_ACTION_KEY, "share").catch(() => {});
     } catch {
       Alert.alert("Couldn't share", "Something went wrong. Please try again.");
     } finally {
@@ -716,6 +727,8 @@ export default function AnalysisDetailScreen() {
         result: "tmpfile",
       });
       await MediaLibrary.saveToLibraryAsync(uri);
+      setLastShareAction("save");
+      AsyncStorage.setItem(LAST_SHARE_ACTION_KEY, "save").catch(() => {});
       Alert.alert("Saved!", "Your share card has been saved to your camera roll.");
     } catch {
       Alert.alert("Couldn't save", "Something went wrong. Please try again.");
@@ -1266,15 +1279,17 @@ export default function AnalysisDetailScreen() {
               style={[
                 styles.sheetBtn,
                 styles.sheetBtnSave,
-                { borderColor: colors.border, backgroundColor: colors.background, marginBottom: 10, width: "100%" },
+                lastShareAction === "save"
+                  ? { backgroundColor: colors.primary, marginBottom: 10, width: "100%" }
+                  : { borderColor: colors.border, backgroundColor: colors.background, marginBottom: 10, width: "100%" },
               ]}
             >
               {saving ? (
-                <ActivityIndicator size="small" color={colors.foreground} />
+                <ActivityIndicator size="small" color={lastShareAction === "save" ? "#fff" : colors.foreground} />
               ) : (
                 <>
-                  <Feather name="download" size={15} color={colors.foreground} />
-                  <Text style={[styles.sheetBtnText, { color: colors.foreground }]}>
+                  <Feather name="download" size={15} color={lastShareAction === "save" ? "#fff" : colors.foreground} />
+                  <Text style={[styles.sheetBtnText, { color: lastShareAction === "save" ? "#fff" : colors.foreground }]}>
                     Save to photos
                   </Text>
                 </>
@@ -1305,15 +1320,17 @@ export default function AnalysisDetailScreen() {
                 style={[
                   styles.sheetBtn,
                   styles.sheetBtnShare,
-                  { backgroundColor: colors.primary },
+                  lastShareAction === "share"
+                    ? { backgroundColor: colors.primary }
+                    : { borderColor: colors.border, backgroundColor: colors.background, borderWidth: 1 },
                 ]}
               >
                 {sharing ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={lastShareAction === "share" ? "#fff" : colors.foreground} />
                 ) : (
                   <>
-                    <Feather name="share-2" size={15} color="#fff" />
-                    <Text style={[styles.sheetBtnText, { color: "#fff" }]}>
+                    <Feather name="share-2" size={15} color={lastShareAction === "share" ? "#fff" : colors.foreground} />
+                    <Text style={[styles.sheetBtnText, { color: lastShareAction === "share" ? "#fff" : colors.foreground }]}>
                       Share
                     </Text>
                   </>
