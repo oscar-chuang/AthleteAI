@@ -505,6 +505,97 @@ describe("askCoach — completed-drill context in pending message", () => {
   });
 });
 
+// ─── 'What's next?' progression card ─────────────────────────────────────────
+// These tests verify that after a drill is marked done the "WHAT'S NEXT?"
+// card appears with the correct progression cue, and that tapping
+// "Ask Coach to plan my progression" stores the right pending chat message.
+describe("'What's next?' card — appears after marking drill done", () => {
+  const nextTip = {
+    id: "nx-knee",
+    tipType: "injury" as const,
+    severity: "warning",
+    category: "Knee Mechanics",
+    title: "NEXT_STEP_TIP",
+    description: "Fix knee valgus.",
+    joints: ["leftKnee"],
+    drill: { name: "Hip Hinge Drill", sets: "3", reps: "10", cue: "Push knees out" },
+  };
+
+  function nextResp() {
+    return {
+      analysis: { id: 1, sport: "weightlifting", biomechanicsApplied: true },
+      tips: [nextTip],
+      injuryRisks: [],
+    };
+  }
+
+  function getPendingChatCalls() {
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    return (AsyncStorage.setItem.mock.calls as [string, string][]).filter(
+      ([key]) => key === "pendingChatMessage"
+    );
+  }
+
+  beforeEach(() => {
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    AsyncStorage.setItem.mockClear();
+  });
+
+  it("shows the WHAT'S NEXT? label after tapping Mark done", async () => {
+    mockApiGet.mockResolvedValue(nextResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Expand the tip
+    fireEvent.press(screen.getByText("NEXT_STEP_TIP"));
+    await flush();
+
+    // Card is absent before marking done
+    expect(screen.queryByText("WHAT'S NEXT?")).toBeNull();
+
+    fireEvent.press(screen.getByText("Mark done"));
+    await flush();
+
+    expect(screen.getByText("WHAT'S NEXT?")).toBeTruthy();
+  });
+
+  it("shows the correct +1 set progression cue after marking done", async () => {
+    mockApiGet.mockResolvedValue(nextResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    fireEvent.press(screen.getByText("NEXT_STEP_TIP"));
+    await flush();
+    fireEvent.press(screen.getByText("Mark done"));
+    await flush();
+
+    // drill.sets = "3" → injury kind → "Progress to 4 sets, or slow the eccentric…"
+    expect(screen.getByText(/Progress to 4 sets/)).toBeTruthy();
+  });
+
+  it("stores the progression pending message when 'Ask Coach to plan my progression' is tapped", async () => {
+    mockApiGet.mockResolvedValue(nextResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    fireEvent.press(screen.getByText("NEXT_STEP_TIP"));
+    await flush();
+    fireEvent.press(screen.getByText("Mark done"));
+    await flush();
+
+    fireEvent.press(screen.getByText("Ask Coach to plan my progression"));
+    await flush();
+
+    const calls = getPendingChatCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![1]).toContain("already completed this drill");
+    expect(calls[0]![1]).toContain("progression");
+  });
+});
+
 // ─── askCoach — conflict warning in pending message ───────────────────────────
 // These tests verify that when a performance tip shares a joint with an open
 // injury tip, the pre-fill message stored in AsyncStorage includes the warning
