@@ -1553,7 +1553,7 @@ export default function SkeletonScreen() {
             );
           }).filter(Boolean);
           return (
-            <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+            <Svg testID="scrub-overlay" style={StyleSheet.absoluteFill} pointerEvents="none">
               {bones}
               {dots}
               {angleLabels}
@@ -1640,6 +1640,7 @@ export default function SkeletonScreen() {
             </Text>
           </View>
           <View
+            testID="scrubber-track"
             style={ss.scrubberTrack}
             onLayout={(e) => { scrubTrackWidthRef.current = e.nativeEvent.layout.width; }}
             {...scrubPanResponder.panHandlers}
