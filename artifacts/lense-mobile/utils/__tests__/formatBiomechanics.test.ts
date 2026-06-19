@@ -323,6 +323,44 @@ describe("formatBiomechanicsText", () => {
     });
   });
 
+  describe("double-translation prevention (single-pass guarantee)", () => {
+    it("hyperextension → overextending, not 'hyperstraightening'", () => {
+      expect(formatBiomechanicsText("hyperextension")).toBe("Overextending");
+    });
+
+    it("lumbar hyperextension compound takes priority over generic extension", () => {
+      expect(formatBiomechanicsText("lumbar hyperextension")).toBe(
+        "Lower back arching too much"
+      );
+    });
+
+    it("compound 'hip flexion' is not re-scanned — replacement is emitted verbatim", () => {
+      expect(formatBiomechanicsText("hip flexion")).toBe("Hip bending forward");
+    });
+
+    it("compound 'lateral flexion' wins over both lateral and flexion standalone rules", () => {
+      expect(formatBiomechanicsText("lateral flexion")).toBe("Side bending");
+    });
+
+    it("replacement of one term is not fed into subsequent rules", () => {
+      const result = formatBiomechanicsText(
+        "hyperextension causes stress fracture risk"
+      );
+      expect(result).toBe(
+        "Overextending causes bone stress injury risk"
+      );
+    });
+
+    it("multiple overlapping-risk terms in one sentence each translate exactly once", () => {
+      const result = formatBiomechanicsText(
+        "lumbar hyperextension and hyperextension combined"
+      );
+      expect(result).toBe(
+        "Lower back arching too much and overextending combined"
+      );
+    });
+  });
+
   describe("case-insensitivity", () => {
     it("handles all-caps term", () => {
       expect(formatBiomechanicsText("KNEE VALGUS")).toBe("Knee caving inward");

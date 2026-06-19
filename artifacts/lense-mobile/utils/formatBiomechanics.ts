@@ -137,8 +137,8 @@ const TERM_MAP: Array<[RegExp, string]> = [
   [/abduction/gi, "moving out to the side"],
   [/adduction/gi, "moving inward"],
   [/flexion/gi, "bending"],
-  [/extension/gi, "straightening"],
   [/hyperextension/gi, "overextending"],
+  [/extension/gi, "straightening"],
   [/valgus/gi, "inward angle"],
   [/varus/gi, "outward angle"],
 
@@ -163,12 +163,52 @@ const TERM_MAP: Array<[RegExp, string]> = [
   [/cadence/gi, "step rate"],
 ];
 
+interface Span {
+  start: number;
+  end: number;
+  replacement: string;
+  priority: number;
+}
+
 export function formatBiomechanicsText(raw: string): string {
   if (!raw) return raw;
-  let result = raw;
-  for (const [pattern, replacement] of TERM_MAP) {
-    result = result.replace(pattern, replacement);
+
+  const spans: Span[] = [];
+
+  for (let i = 0; i < TERM_MAP.length; i++) {
+    const [pattern, replacement] = TERM_MAP[i];
+    pattern.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(raw)) !== null) {
+      spans.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        replacement,
+        priority: i,
+      });
+      if (!pattern.global) break;
+    }
   }
+
+  spans.sort((a, b) => a.start - b.start || a.priority - b.priority);
+
+  const selected: Span[] = [];
+  let cursor = 0;
+  for (const span of spans) {
+    if (span.start >= cursor) {
+      selected.push(span);
+      cursor = span.end;
+    }
+  }
+
+  let result = "";
+  let pos = 0;
+  for (const { start, end, replacement } of selected) {
+    result += raw.slice(pos, start) + replacement;
+    pos = end;
+  }
+  result += raw.slice(pos);
+
   if (result.length > 0) {
     result = result.charAt(0).toUpperCase() + result.slice(1);
   }
