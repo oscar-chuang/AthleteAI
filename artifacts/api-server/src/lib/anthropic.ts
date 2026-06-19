@@ -265,11 +265,16 @@ Use these ACTUAL measurements to drive your scoring — they are real numbers fr
 - If ANY joint is HIGH RISK, the overall injury risks section must name that joint specifically`;
 }
 
-export async function detectSportFromFrame(imageBase64: string): Promise<string> {
+export interface SportDetectionResult {
+  sport: string;
+  movementType: string;
+}
+
+export async function detectSportFromFrame(imageBase64: string): Promise<SportDetectionResult> {
   const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
   const message = await withRetry(() => client.messages.create({
     model: "claude-opus-4-5",
-    max_tokens: 20,
+    max_tokens: 60,
     messages: [{
       role: "user",
       content: [
@@ -279,7 +284,7 @@ export async function detectSportFromFrame(imageBase64: string): Promise<string>
         },
         {
           type: "text",
-          text: 'What sport is being performed in this image? Reply with ONLY a single sport name in lowercase (e.g. "fencing", "tennis", "basketball", "running", "weightlifting", "swimming", "gymnastics", "wrestling", "boxing", "golf", "cycling", "soccer", "volleyball", "baseball", "badminton", "rowing", "rugby", "lacrosse", "hockey"). If you cannot clearly identify a sport, reply "unknown". No other text.',
+          text: 'Identify the sport and specific movement being performed. Reply with ONLY two values separated by a pipe character: the sport name in lowercase, then the specific movement type in Title Case. Examples: "basketball|Jump Shot", "volleyball|Spike Approach", "running|Sprint Start", "weightlifting|Clean and Jerk", "tennis|Forehand Groundstroke", "swimming|Freestyle Stroke", "gymnastics|Back Handspring". Valid sports: fencing, tennis, basketball, running, weightlifting, swimming, gymnastics, wrestling, boxing, golf, cycling, soccer, volleyball, baseball, badminton, rowing, rugby, lacrosse, hockey. If you cannot identify the sport use "unknown|Unknown Movement". No other text.',
         },
       ],
     }]
@@ -288,9 +293,58 @@ export async function detectSportFromFrame(imageBase64: string): Promise<string>
     .filter((b) => b.type === "text")
     .map((b) => (b as { type: "text"; text: string }).text)
     .join("")
-    .trim()
-    .toLowerCase();
-  return raw.replace(/[^a-z\s]/g, "").trim() || "unknown";
+    .trim();
+
+  const pipeIdx = raw.indexOf("|");
+  if (pipeIdx === -1) {
+    const sport = raw.toLowerCase().replace(/[^a-z\s]/g, "").trim() || "unknown";
+    return { sport, movementType: "General" };
+  }
+
+  const sport = raw.slice(0, pipeIdx).toLowerCase().replace(/[^a-z\s]/g, "").trim() || "unknown";
+  const movementType = raw.slice(pipeIdx + 1).trim().replace(/[^\w\s]/g, "").trim() || "General";
+  return { sport, movementType };
+}
+
+export async function generateProgressSummary(
+  sport: string,
+  movementType: string | null,
+  sessions: Array<{ date: string; overallScore: number; techniqueScore?: number | null }>,
+  jointImprovements: Array<{ joint: string; deltaDeg: number; improved: boolean }>,
+  personalBest: number,
+): Promise<string> {
+  if (sessions.length < 2) {
+    const movement = movementType && movementType !== "General" ? ` ${movementType}` : "";
+    return `You have ${sessions.length === 1 ? "1 session" : "no sessions"} recorded for ${sport}${movement}. Complete more sessions to unlock your personalized progress summary.`;
+  }
+
+  const recent = sessions.slice(-5);
+  const first = recent[0]!;
+  const last = recent[recent.length - 1]!;
+  const delta = Math.round(last.overallScore - first.overallScore);
+  const movement = movementType && movementType !== "General" ? ` ${movementType}` : "";
+  const bestJoint = jointImprovements.filter(j => j.improved).sort((a, b) => Math.abs(b.deltaDeg) - Math.abs(a.deltaDeg))[0];
+
+  const prompt = `You are a sports coach giving a brief, encouraging progress summary to an athlete.
+Sport: ${sport}${movement ? `, Movement: ${movement}` : ""}
+Recent ${recent.length} sessions: scores from ${Math.round(first.overallScore)} to ${Math.round(last.overallScore)} (${delta >= 0 ? "+" : ""}${delta} points)
+Personal best overall score: ${Math.round(personalBest)}
+Total sessions: ${sessions.length}
+${bestJoint ? `Best improving joint: ${bestJoint.joint} improved ${Math.abs(bestJoint.deltaDeg)}°` : ""}
+
+Write EXACTLY 2-3 short sentences summarizing this athlete's recent ${sport}${movement} progress. Be specific: name the sport, movement type, and actual numbers. Be encouraging but honest. Plain English only, no jargon. No markdown. No prefix like "Summary:" — just the sentences.`;
+
+  const message = await withRetry(() => client.messages.create({
+    model: "claude-haiku-4-5",
+    max_tokens: 120,
+    messages: [{ role: "user", content: prompt }],
+  }));
+
+  return message.content
+    .filter((b) => b.type === "text")
+    .map((b) => (b as { type: "text"; text: string }).text)
+    .join("")
+    .trim();
 }
 
 // Keep only valid, de-duplicated joint keys the model returned.

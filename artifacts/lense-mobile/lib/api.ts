@@ -157,6 +157,7 @@ export interface AnalysisRecord {
   userId: string;
   title: string;
   sport: string;
+  movementType?: string;
   status: "pending" | "processing" | "complete" | "failed";
   videoUrl?: string;
   thumbnailUrl?: string;
@@ -293,6 +294,7 @@ export const analyses = {
   create: (data: {
     title: string;
     sport: string;
+    movementType?: string;
     videoUrl?: string;
     duration?: number;
     jointAngles?: Record<string, number>;
@@ -307,7 +309,7 @@ export const analyses = {
       `/analyses/${id}`
     ),
 
-  update: (id: string, data: { jointAngles?: JointAngles; jointRisks?: JointRisks; frameBase64?: string; sport?: string }) =>
+  update: (id: string, data: { jointAngles?: JointAngles; jointRisks?: JointRisks; frameBase64?: string; sport?: string; movementType?: string }) =>
     request<{ success: boolean; improvements?: Array<{ joint: string; oldRisk: number; newRisk: number }> }>(`/analyses/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -317,7 +319,7 @@ export const analyses = {
     request<{ success: boolean }>(`/analyses/${id}`, { method: "DELETE" }),
 
   detectSport: (imageBase64: string) =>
-    request<{ sport: string }>("/analyses/detect-sport", {
+    request<{ sport: string; movementType: string }>("/analyses/detect-sport", {
       method: "POST",
       body: JSON.stringify({ imageBase64 }),
     }, 25000),
@@ -384,8 +386,8 @@ export interface JointTrendsResponse {
 }
 
 export const jointTrends = {
-  get: () =>
-    request<JointTrendsResponse>("/analyses/joint-trends"),
+  get: (sport?: string) =>
+    request<JointTrendsResponse>(`/analyses/joint-trends${sport ? `?sport=${encodeURIComponent(sport)}` : ""}`),
 };
 
 // ─── Progress ─────────────────────────────────────────────────────────────────
@@ -394,6 +396,7 @@ export interface ProgressRecord {
   id: string;
   title: string;
   sport: string;
+  movementType: string | null;
   date: string;
   overallScore: number;
   techniqueScore?: number;
@@ -404,9 +407,40 @@ export interface ProgressRecord {
   speedScore?: number;
 }
 
+export interface SportEntry {
+  sport: string;
+  count: number;
+  movementTypes: string[];
+}
+
+export interface PersonalRecordEntry {
+  value: number;
+  date: string;
+  movementType: string | null;
+}
+
 export const progress = {
-  list: () =>
-    request<{ entries: ProgressRecord[] }>("/progress"),
+  list: (sport?: string, movementType?: string) => {
+    const params = new URLSearchParams();
+    if (sport) params.set("sport", sport);
+    if (movementType) params.set("movementType", movementType);
+    const qs = params.toString();
+    return request<{ entries: ProgressRecord[] }>(`/progress${qs ? `?${qs}` : ""}`);
+  },
+
+  sports: () =>
+    request<{ sports: SportEntry[] }>("/progress/sports"),
+
+  personalRecords: (sport?: string) =>
+    request<{ records: Record<string, PersonalRecordEntry> }>(
+      `/progress/personal-records${sport ? `?sport=${encodeURIComponent(sport)}` : ""}`
+    ),
+
+  summary: (sport: string, movementType?: string) => {
+    const params = new URLSearchParams({ sport });
+    if (movementType) params.set("movementType", movementType);
+    return request<{ summary: string; cached: boolean }>(`/progress/summary?${params.toString()}`);
+  },
 };
 
 // ─── Achievements ──────────────────────────────────────────────────────────────
@@ -416,9 +450,11 @@ export interface AchievementRecord {
   title: string;
   description: string;
   icon: string;
+  category: string;
   progress: number;
   total: number;
   unlocked: boolean;
+  sport: string | null;
   unlockedAt?: string;
 }
 

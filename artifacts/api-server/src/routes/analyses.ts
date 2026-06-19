@@ -61,6 +61,7 @@ function formatAnalysis(a: typeof analysesTable.$inferSelect) {
     userId: String(a.userId),
     title: a.title,
     sport: a.sport,
+    movementType: a.movementType ?? undefined,
     status: a.status,
     videoUrl: a.videoUrl ?? undefined,
     thumbnailUrl: a.thumbnailUrl ?? undefined,
@@ -96,8 +97,8 @@ router.get("/analyses", requireAuth, async (req: Request, res: Response) => {
 
 router.post("/analyses", requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).userId as number;
-  const { title, sport, videoUrl, duration } = req.body as {
-    title?: string; sport?: string; videoUrl?: string; duration?: number;
+  const { title, sport, videoUrl, duration, movementType } = req.body as {
+    title?: string; sport?: string; videoUrl?: string; duration?: number; movementType?: string;
   };
 
   if (!title || !sport) {
@@ -120,6 +121,11 @@ router.post("/analyses", requireAuth, async (req: Request, res: Response) => {
     }
   }
 
+  const sanitizedMovementType =
+    typeof movementType === "string" && movementType.trim().length > 0 && movementType.trim().length <= 80
+      ? movementType.trim()
+      : null;
+
   const [row] = await db.insert(analysesTable).values({
     userId,
     title,
@@ -127,6 +133,7 @@ router.post("/analyses", requireAuth, async (req: Request, res: Response) => {
     status: "processing",
     videoUrl: videoUrl ?? null,
     duration: duration ?? null,
+    movementType: sanitizedMovementType,
   }).returning();
 
   res.status(201).json({ analysis: formatAnalysis(row!) });
@@ -201,11 +208,11 @@ router.post("/analyses/detect-sport", requireAuth, async (req: Request, res: Res
   const { imageBase64 } = req.body as { imageBase64?: string };
   if (!imageBase64) { res.status(400).json({ error: "imageBase64 required" }); return; }
   try {
-    const sport = await detectSportFromFrame(imageBase64);
-    res.json({ sport });
+    const result = await detectSportFromFrame(imageBase64);
+    res.json({ sport: result.sport, movementType: result.movementType });
   } catch (err) {
     console.error("Sport detection failed:", err);
-    res.json({ sport: "unknown" });
+    res.json({ sport: "unknown", movementType: "General" });
   }
 });
 
@@ -333,6 +340,7 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
     jointRisks?: Record<string, unknown>;
     frameBase64?: unknown;
     sport?: unknown;
+    movementType?: unknown;
   };
 
   // Validate the measured payload before trusting it. Only the six tracked joints
@@ -346,6 +354,10 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
   const newSport =
     typeof body.sport === "string" && body.sport.trim().length > 0 && body.sport.trim().length <= MAX_SPORT_LENGTH
       ? body.sport.trim().toLowerCase()
+      : null;
+  const newMovementType =
+    typeof body.movementType === "string" && body.movementType.trim().length > 0 && body.movementType.trim().length <= 80
+      ? body.movementType.trim()
       : null;
 
   const hasMeasuredData = !!jointAngles || !!jointRisks || !!frameBase64;
@@ -379,19 +391,22 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
     }
   }
 
-  // Sport-only correction (no measured data): persist the corrected sport without
-  // re-running. The authoritative grounded run happens when the skeleton scan later
-  // PATCHes joint angles, and it will use this corrected sport. Re-running here as a
-  // second biomechanics run would race the skeleton run (neither is guarded against
-  // the other), so we deliberately defer it. Surface a real DB failure so the client
-  // doesn't clear its mismatch warning on a write that never landed.
-  if (newSport && !hasMeasuredData) {
+  // Sport-only correction (no measured data): persist the corrected sport and/or
+  // movement type without re-running. The authoritative grounded run happens when the
+  // skeleton scan later PATCHes joint angles, and it will use this corrected sport.
+  // Re-running here as a second biomechanics run would race the skeleton run (neither
+  // is guarded against the other), so we deliberately defer it. Surface a real DB
+  // failure so the client doesn't clear its mismatch warning on a write that never landed.
+  if ((newSport || newMovementType) && !hasMeasuredData) {
     try {
       await db.update(analysesTable)
-        .set({ sport: newSport })
+        .set({
+          ...(newSport ? { sport: newSport } : {}),
+          ...(newMovementType ? { movementType: newMovementType } : {}),
+        })
         .where(eq(analysesTable.id, row.id));
     } catch (err) {
-      console.error(`Sport correction failed for id=${id}:`, err);
+      console.error(`Sport/movement correction failed for id=${id}:`, err);
       res.status(500).json({ error: "Failed to update sport" });
       return;
     }
@@ -399,9 +414,9 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
     return;
   }
 
-  // Nothing actionable: no measured scan data and no sport correction. Reject rather
-  // than kick off a "biomechanics" run with no joints/frame (which would wrongly set
-  // biomechanicsApplied=true).
+  // Nothing actionable: no measured scan data and no sport/movement correction.
+  // Reject rather than kick off a "biomechanics" run with no joints/frame (which
+  // would wrongly set biomechanicsApplied=true).
   if (!hasMeasuredData) {
     res.status(400).json({ error: "No measured data or sport correction provided" });
     return;

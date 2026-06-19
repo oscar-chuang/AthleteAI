@@ -27,6 +27,7 @@ export const analysesTable = pgTable("analyses", {
   coachingMoments: jsonb("coaching_moments").$type<object[]>(),
   movementSummary: jsonb("movement_summary").$type<object>(),
   movementSummaryAt: timestamp("movement_summary_at"),
+  movementType: text("movement_type"),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
 });
 

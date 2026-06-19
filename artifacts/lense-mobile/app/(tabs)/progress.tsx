@@ -18,16 +18,20 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
-import { progress as progressApi, achievements as achievementsApi, profile as profileApi, jointTrends as jointTrendsApi, type ProgressRecord, type AchievementRecord, type ProfileStats, type JointTrendsResponse, type JointDataPoint, type JointImprovement } from "@/lib/api";
-
-const JOINT_DISPLAY: Record<string, string> = {
-  leftKnee: "Left Knee",
-  rightKnee: "Right Knee",
-  leftHip: "Left Hip",
-  rightHip: "Right Hip",
-  leftElbow: "Left Elbow",
-  rightElbow: "Right Elbow",
-};
+import {
+  progress as progressApi,
+  achievements as achievementsApi,
+  profile as profileApi,
+  jointTrends as jointTrendsApi,
+  type ProgressRecord,
+  type AchievementRecord,
+  type ProfileStats,
+  type JointTrendsResponse,
+  type JointDataPoint,
+  type SportEntry,
+  type PersonalRecordEntry,
+} from "@/lib/api";
+import { getSportConfig, JOINT_DISPLAY, SPORT_ICONS, type MetricKey } from "@/constants/sportConfig";
 
 const RISK_COLOR_MAP = ["#22c55e", "#f59e0b", "#ef4444"] as const;
 const RISK_LABEL_MAP = ["Safe", "Caution", "High Risk"] as const;
@@ -68,7 +72,6 @@ const FULL_CHART_PADDING_LEFT = 36;
 const FULL_CHART_PADDING_RIGHT = 8;
 const FULL_CHART_PADDING_TOP = 8;
 const FULL_CHART_PADDING_BOTTOM = 32;
-
 const TOOLTIP_W = 108;
 const TOOLTIP_H = 64;
 
@@ -114,7 +117,6 @@ export function JointFullChart({
 
   const chartW = width - FULL_CHART_PADDING_LEFT - FULL_CHART_PADDING_RIGHT;
   const chartH = JOINT_CHART_H - FULL_CHART_PADDING_TOP - FULL_CHART_PADDING_BOTTOM;
-
   if (data.length === 0) return null;
 
   const angles = data.map((d) => d.angle);
@@ -126,15 +128,12 @@ export function JointFullChart({
     if (data.length === 1) return FULL_CHART_PADDING_LEFT + chartW / 2;
     return FULL_CHART_PADDING_LEFT + (i / (data.length - 1)) * chartW;
   }
-
   function toY(angle: number) {
     return FULL_CHART_PADDING_TOP + chartH - ((angle - minAngle) / range) * chartH;
   }
 
   const yTicks = [minAngle, minAngle + range * 0.25, minAngle + range * 0.5, minAngle + range * 0.75, maxAngle];
-
   const polyPts = data.map((d, i) => `${toX(i).toFixed(1)},${toY(d.angle).toFixed(1)}`).join(" ");
-
   const areaPath = data.length > 1
     ? [
         `M ${toX(0).toFixed(1)} ${toY(data[0]!.angle).toFixed(1)}`,
@@ -157,8 +156,6 @@ export function JointFullChart({
     xLabels.push({ i: data.length - 1, text: formatDate(data[data.length - 1]!.date) });
   }
 
-  const totalH = JOINT_CHART_H;
-
   const selectedPoint = selectedIdx != null ? (data[selectedIdx] ?? null) : null;
   const dotCx = selectedIdx != null ? toX(selectedIdx) : 0;
   const dotCy = selectedPoint != null ? toY(selectedPoint.angle) : 0;
@@ -170,51 +167,22 @@ export function JointFullChart({
 
   return (
     <View style={{ position: "relative" }}>
-      <Svg width={width} height={totalH} style={{ overflow: "visible" }}>
+      <Svg width={width} height={JOINT_CHART_H} style={{ overflow: "visible" }}>
         {yTicks.map((tick, ti) => {
           const y = toY(tick);
           return (
             <React.Fragment key={ti}>
-              <Line
-                x1={FULL_CHART_PADDING_LEFT}
-                y1={y}
-                x2={FULL_CHART_PADDING_LEFT + chartW}
-                y2={y}
-                stroke={colors.border}
-                strokeWidth={1}
-              />
-              <SvgText
-                x={FULL_CHART_PADDING_LEFT - 4}
-                y={y + 3}
-                fontSize={8}
-                fill={colors.mutedForeground}
-                fontFamily="Inter_400Regular"
-                textAnchor="end"
-              >
+              <Line x1={FULL_CHART_PADDING_LEFT} y1={y} x2={FULL_CHART_PADDING_LEFT + chartW} y2={y} stroke={colors.border} strokeWidth={1} />
+              <SvgText x={FULL_CHART_PADDING_LEFT - 4} y={y + 3} fontSize={8} fill={colors.mutedForeground} fontFamily="Inter_400Regular" textAnchor="end">
                 {Math.round(tick)}°
               </SvgText>
             </React.Fragment>
           );
         })}
-
-        {areaPath && (
-          <Path
-            d={areaPath}
-            fill={colors.primary + "18"}
-          />
-        )}
-
+        {areaPath && <Path d={areaPath} fill={colors.primary + "18"} />}
         {data.length > 1 && (
-          <Polyline
-            points={polyPts}
-            fill="none"
-            stroke={colors.primary}
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          <Polyline points={polyPts} fill="none" stroke={colors.primary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         )}
-
         {data.map((d, i) => {
           const dotColor = RISK_COLOR_MAP[d.risk] ?? colors.primary;
           const cx = toX(i);
@@ -223,35 +191,16 @@ export function JointFullChart({
           const isSelected = selectedIdx === i;
           return (
             <React.Fragment key={i}>
-              <Circle
-                cx={cx}
-                cy={cy}
-                r={isSelected ? 7 : isLast ? 6 : 4}
-                fill={dotColor}
+              <Circle cx={cx} cy={cy} r={isSelected ? 7 : isLast ? 6 : 4} fill={dotColor}
                 stroke={isSelected ? colors.card : isLast ? colors.card : "none"}
-                strokeWidth={isSelected || isLast ? 2 : 0}
-              />
-              <Circle
-                cx={cx}
-                cy={cy}
-                r={18}
-                fill="transparent"
-                onPress={() => handleDotPress(i)}
-              />
+                strokeWidth={isSelected || isLast ? 2 : 0} />
+              <Circle cx={cx} cy={cy} r={18} fill="transparent" onPress={() => handleDotPress(i)} />
             </React.Fragment>
           );
         })}
-
         {xLabels.map(({ i, text }) => (
-          <SvgText
-            key={i}
-            x={toX(i)}
-            y={FULL_CHART_PADDING_TOP + chartH + 18}
-            fontSize={8}
-            fill={colors.mutedForeground}
-            fontFamily="Inter_400Regular"
-            textAnchor={i === 0 ? "start" : i === data.length - 1 ? "end" : "middle"}
-          >
+          <SvgText key={i} x={toX(i)} y={FULL_CHART_PADDING_TOP + chartH + 18} fontSize={8} fill={colors.mutedForeground}
+            fontFamily="Inter_400Regular" textAnchor={i === 0 ? "start" : i === data.length - 1 ? "end" : "middle"}>
             {text}
           </SvgText>
         ))}
@@ -328,8 +277,7 @@ export function JointFullChart({
   );
 }
 
-const METRICS = ["overall", "technique", "power", "balance", "consistency", "mobility", "speed"] as const;
-type MetricKey = typeof METRICS[number];
+const ALL_METRICS: MetricKey[] = ["overall", "technique", "power", "balance", "consistency", "mobility", "speed"];
 type Period = "1W" | "1M" | "3M" | "All";
 
 const METRIC_KEY_MAP: Record<MetricKey, keyof ProgressRecord> = {
@@ -342,25 +290,8 @@ const METRIC_KEY_MAP: Record<MetricKey, keyof ProgressRecord> = {
   speed:        "speedScore",
 };
 
-const PB_METRICS: MetricKey[] = ["technique", "power", "balance", "consistency", "mobility", "speed"];
-
-const SPORT_ICONS: Record<string, string> = {
-  running: "activity", weightlifting: "trending-up", basketball: "circle",
-  golf: "flag", tennis: "circle", swimming: "droplet", crossfit: "zap",
-  boxing: "shield", soccer: "circle", gymnastics: "star", cycling: "navigation",
-  fencing: "zap", rowing: "anchor", volleyball: "circle", baseball: "circle",
-  wrestling: "shield", rugby: "circle", hockey: "circle", yoga: "heart",
-  other: "video", default: "video",
-};
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CHART_H = 160;
-
-function getMetricColor(key: MetricKey, primary: string, success: string, warning: string) {
-  if (key === "power" || key === "speed") return success;
-  if (key === "mobility") return warning;
-  return primary;
-}
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 function getScoreColor(score: number, colors: ReturnType<typeof useColors>) {
   if (score >= 80) return colors.success;
@@ -382,6 +313,10 @@ function formatDateLong(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function formatDateShort(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+}
+
 function periodCutoff(period: Period): Date | null {
   if (period === "All") return null;
   const d = new Date();
@@ -391,46 +326,78 @@ function periodCutoff(period: Period): Date | null {
   return d;
 }
 
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export default function ProgressScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { scrollTo } = useLocalSearchParams<{ scrollTo?: string }>();
   const scrollViewRef = useRef<ScrollView>(null);
-  const trendsYRef    = useRef<number>(0);
-  const [activeMetric, setActiveMetric]   = useState<MetricKey>("overall");
-  const [period, setPeriod]               = useState<Period>("All");
-  const [entries, setEntries]             = useState<ProgressRecord[]>([]);
-  const [achievements, setAchievements]   = useState<AchievementRecord[]>([]);
-  const [stats, setStats]                 = useState<ProfileStats | null>(null);
-  const [trends, setTrends]               = useState<JointTrendsResponse | null>(null);
-  const [loading, setLoading]             = useState(true);
-  const [refreshing, setRefreshing]       = useState(false);
-  const [error, setError]                 = useState(false);
-  const [selectedJoint, setSelectedJoint] = useState<string | null>(null);
+  const trendsYRef = useRef<number>(0);
+
+  const [selectedSport, setSelectedSport] = useState<string | null>(null);
+  const [selectedMovementType, setSelectedMovementType] = useState<string | null>(null);
+  const [activeMetric, setActiveMetric] = useState<MetricKey>("overall");
+  const [period, setPeriod] = useState<Period>("All");
+
+  const [allEntries, setAllEntries] = useState<ProgressRecord[]>([]);
+  const [sportsList, setSportsList] = useState<SportEntry[]>([]);
+  const [achievements, setAchievements] = useState<AchievementRecord[]>([]);
+  const [stats, setStats] = useState<ProfileStats | null>(null);
+  const [allTrends, setAllTrends] = useState<JointTrendsResponse | null>(null);
+  const [personalRecords, setPersonalRecords] = useState<Record<string, PersonalRecordEntry>>({});
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
   const [drillsDoneCount, setDrillsDoneCount] = useState(0);
 
-  const topPad    = Platform.OS === "web" ? 67 : insets.top;
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
+  const [selectedJoint, setSelectedJoint] = useState<string | null>(null);
+
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
   const chartWidth = SCREEN_WIDTH - 56;
-  const lineColor  = getMetricColor(activeMetric, colors.primary, colors.success, colors.warning);
+
+  // Sport config derived from selected sport
+  const sportConfig = useMemo(
+    () => getSportConfig(selectedSport ?? "other"),
+    [selectedSport]
+  );
+  const accentColor = selectedSport ? sportConfig.accentColor : colors.primary;
+
+  // Metrics available for selected sport
+  const availableMetrics = useMemo(
+    () => (selectedSport ? sportConfig.metrics : ALL_METRICS),
+    [selectedSport, sportConfig]
+  );
+
+  // Joints available for selected sport
+  const availableJoints = useMemo(
+    () => (selectedSport ? sportConfig.joints : Object.keys(JOINT_DISPLAY)),
+    [selectedSport, sportConfig]
+  );
+
+  // Movement types for selected sport from sports list
+  const availableMovementTypes = useMemo(() => {
+    if (!selectedSport) return [];
+    const entry = sportsList.find((s) => s.sport === selectedSport);
+    return entry?.movementTypes ?? [];
+  }, [selectedSport, sportsList]);
 
   const loadDrillsDone = useCallback(async () => {
     try {
       const keys = await AsyncStorage.getAllKeys();
       const drillKeys = keys.filter((k) => k.startsWith("drill_done_"));
-      if (drillKeys.length === 0) {
-        setDrillsDoneCount(0);
-        return;
-      }
+      if (drillKeys.length === 0) { setDrillsDoneCount(0); return; }
       const pairs = await AsyncStorage.multiGet(drillKeys);
       let total = 0;
       for (const [, val] of pairs) {
         if (val) {
-          try {
-            const ids = JSON.parse(val) as string[];
-            total += ids.length;
-          } catch {}
+          try { const ids = JSON.parse(val) as string[]; total += ids.length; } catch {}
         }
       }
       setDrillsDoneCount(total);
@@ -440,16 +407,23 @@ export default function ProgressScreen() {
   const loadData = useCallback(async () => {
     setError(false);
     try {
-      const [{ entries: e }, { achievements: a }, st, tr] = await Promise.all([
+      const [{ entries: e }, { sports }, { achievements: a }, st, tr] = await Promise.all([
         progressApi.list(),
+        progressApi.sports(),
         achievementsApi.list(),
         profileApi.stats().catch(() => null),
         jointTrendsApi.get().catch(() => null),
       ]);
-      setEntries(e);
+      setAllEntries(e);
       setAchievements(a);
       if (st) setStats(st);
-      if (tr) setTrends(tr);
+      if (tr) setAllTrends(tr);
+
+      // Auto-select the most-common sport if not already selected
+      if (sports.length > 0) {
+        setSportsList(sports);
+        setSelectedSport((prev) => prev ?? sports[0]!.sport);
+      }
     } catch {
       setError(true);
     } finally {
@@ -459,78 +433,148 @@ export default function ProgressScreen() {
     await loadDrillsDone();
   }, [loadDrillsDone]);
 
+  // Load personal records and AI summary when sport/movement changes
+  const loadSportSpecific = useCallback(async (sport: string | null, movementType: string | null) => {
+    if (!sport) return;
+
+    const [prResult] = await Promise.all([
+      progressApi.personalRecords(sport).catch(() => null),
+    ]);
+    if (prResult) setPersonalRecords(prResult.records);
+
+    // AI summary in background
+    setAiSummaryLoading(true);
+    setAiSummary(null);
+    progressApi.summary(sport, movementType ?? undefined)
+      .then(({ summary }) => setAiSummary(summary))
+      .catch(() => setAiSummary(null))
+      .finally(() => setAiSummaryLoading(false));
+  }, []);
+
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
-  // When deep-linked from an improvement notification, scroll to the joint trends
-  // section once data has finished loading.
+  useEffect(() => {
+    loadSportSpecific(selectedSport, selectedMovementType);
+  }, [selectedSport, selectedMovementType, loadSportSpecific]);
+
+  // Reset metric to first available when sport changes
+  useEffect(() => {
+    if (!availableMetrics.includes(activeMetric)) {
+      setActiveMetric(availableMetrics[0] ?? "overall");
+    }
+  }, [availableMetrics, activeMetric]);
+
+  // Reset movement type when sport changes
+  useEffect(() => {
+    setSelectedMovementType(null);
+  }, [selectedSport]);
+
+  // Scroll to trends on deep-link
   useEffect(() => {
     if (scrollTo !== "trends" || loading) return;
-    if (!trends || Object.keys(trends.joints).length === 0) return;
     const y = trendsYRef.current;
     if (y > 0) {
       setTimeout(() => {
         scrollViewRef.current?.scrollTo({ y, animated: true });
       }, 150);
     }
-  }, [scrollTo, loading, trends]);
+  }, [scrollTo, loading]);
+
+  // ── Derived: entries filtered by sport + movement type + period ──────────────
+  const sportEntries = useMemo(() => {
+    if (!selectedSport) return allEntries;
+    return allEntries.filter((e) => e.sport.toLowerCase() === selectedSport);
+  }, [allEntries, selectedSport]);
+
+  const movementEntries = useMemo(() => {
+    if (!selectedMovementType) return sportEntries;
+    return sportEntries.filter((e) => e.movementType === selectedMovementType);
+  }, [sportEntries, selectedMovementType]);
 
   const filteredEntries = useMemo(() => {
     const cutoff = periodCutoff(period);
-    if (!cutoff) return entries;
-    return entries.filter(e => new Date(e.date) >= cutoff);
-  }, [entries, period]);
+    if (!cutoff) return movementEntries;
+    return movementEntries.filter((e) => new Date(e.date) >= cutoff);
+  }, [movementEntries, period]);
 
-  const sportStats = useMemo(() => {
-    const map: Record<string, { count: number; totalScore: number }> = {};
-    for (const e of entries) {
-      const sp = (e.sport || "other").toLowerCase();
-      if (!map[sp]) map[sp] = { count: 0, totalScore: 0 };
-      map[sp]!.count++;
-      map[sp]!.totalScore += e.overallScore;
+  // ── Derived: joint trends filtered by sport + available joints ───────────────
+  const filteredTrends = useMemo((): JointTrendsResponse | null => {
+    if (!allTrends) return null;
+    const jointsToShow = new Set(availableJoints as string[]);
+    const filteredJoints: Record<string, JointDataPoint[]> = {};
+
+    for (const [joint, history] of Object.entries(allTrends.joints)) {
+      if (!jointsToShow.has(joint)) continue;
+      const sportHistory = selectedSport
+        ? history.filter((p) => p.sport.toLowerCase() === selectedSport)
+        : history;
+      if (sportHistory.length > 0) filteredJoints[joint] = sportHistory;
     }
-    return Object.entries(map)
-      .map(([sport, { count, totalScore }]) => ({
-        sport,
-        count,
-        avgScore: Math.round(totalScore / count),
-      }))
-      .sort((a, b) => b.count - a.count);
-  }, [entries]);
 
-  const maxSportCount = sportStats[0]?.count ?? 1;
+    const filteredImprovements = allTrends.improvements.filter((imp) =>
+      jointsToShow.has(imp.joint)
+    );
 
+    return { joints: filteredJoints, improvements: filteredImprovements };
+  }, [allTrends, selectedSport, availableJoints]);
+
+  // ── Score chart values ───────────────────────────────────────────────────────
   const values = filteredEntries.map(
     (p) => (p[METRIC_KEY_MAP[activeMetric]] as number | undefined) ?? p.overallScore
   );
   const minVal = values.length ? Math.max(0, Math.min(...values) - 8) : 0;
   const maxVal = values.length ? Math.min(100, Math.max(...values) + 8) : 100;
-  const range  = maxVal - minVal || 1;
+  const range = maxVal - minVal || 1;
+  const lineColor = accentColor;
 
   function toY(val: number) {
     return CHART_H - ((val - minVal) / range) * CHART_H;
   }
 
   const pointSpacing = values.length > 1 ? chartWidth / (values.length - 1) : 0;
-  const personalBests = stats?.personalBests ?? {};
-  const hasPBs = PB_METRICS.some(k => (personalBests[k] ?? 0) > 0);
-
   const currentScore = values[values.length - 1] ?? 0;
-  const firstScore   = values[0] ?? 0;
-  const gained       = Math.round(currentScore - firstScore);
-  const gainPct      = firstScore > 0 ? Math.round((gained / firstScore) * 100) : 0;
-
+  const firstScore = values[0] ?? 0;
+  const gained = Math.round(currentScore - firstScore);
+  const gainPct = firstScore > 0 ? Math.round((gained / firstScore) * 100) : 0;
   const sessionLog = [...filteredEntries].reverse();
 
   const mostImproved = (() => {
-    if (!trends?.improvements?.length) return null;
-    const positives = trends.improvements.filter((i) => i.improved && i.deltaDeg > 0);
+    if (!filteredTrends?.improvements?.length) return null;
+    const positives = filteredTrends.improvements.filter((i) => i.improved && i.deltaDeg > 0);
     if (!positives.length) return null;
     return positives.reduce((best, cur) => (cur.deltaDeg > best.deltaDeg ? cur : best));
   })();
 
-  const s = StyleSheet.create({
+  // ── Achievements grouped by sport ────────────────────────────────────────────
+  const groupedAchievements = useMemo(() => {
+    const groups: { label: string; sport: string | null; items: AchievementRecord[] }[] = [];
+    const globalItems = achievements.filter((a) => a.sport === null);
+    const sportMap = new Map<string, AchievementRecord[]>();
+    for (const a of achievements.filter((a) => a.sport !== null)) {
+      const sp = a.sport!;
+      if (!sportMap.has(sp)) sportMap.set(sp, []);
+      sportMap.get(sp)!.push(a);
+    }
+
+    if (selectedSport) {
+      const sportItems = sportMap.get(selectedSport) ?? [];
+      if (sportItems.length > 0) {
+        groups.push({ label: capitalize(selectedSport), sport: selectedSport, items: sportItems });
+      }
+      groups.push({ label: "All Sports", sport: null, items: globalItems });
+    } else {
+      for (const [sport, items] of sportMap.entries()) {
+        groups.push({ label: capitalize(sport), sport, items });
+      }
+      groups.push({ label: "All Sports", sport: null, items: globalItems });
+    }
+
+    return groups.filter((g) => g.items.length > 0);
+  }, [achievements, selectedSport]);
+
+  const s = useMemo(() => StyleSheet.create({
     container:        { flex: 1, backgroundColor: colors.background },
-    header:           { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 16 },
+    header:           { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 12 },
     title:            { fontSize: 28, fontFamily: "Inter_700Bold", color: colors.foreground },
     subtitle:         { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 4 },
     section:          { paddingHorizontal: 20, marginBottom: 24 },
@@ -543,50 +587,37 @@ export default function ProgressScreen() {
     summaryLabel:     { fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.5 },
     periodRow:        { flexDirection: "row", gap: 6, marginBottom: 14 },
     periodBtn:        { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
-    periodBtnActive:  { borderColor: lineColor },
     periodBtnText:    { fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground },
-    periodBtnTextActive: { color: lineColor },
     metricPicker:     { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 14 },
     metricChip:       { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
-    metricChipActive: { backgroundColor: lineColor + "22", borderColor: lineColor },
     metricChipText:   { fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, textTransform: "capitalize" },
-    metricChipTextActive: { color: lineColor },
     chartContainer:   { backgroundColor: colors.card, borderRadius: colors.radius, borderWidth: 1, borderColor: colors.border, padding: 16, overflow: "hidden" },
     chartHeader:      { flexDirection: "row", alignItems: "baseline", gap: 8, marginBottom: 12 },
     chartScore:       { fontSize: 28, fontFamily: "Inter_700Bold" },
     chartBand:        { fontSize: 12, fontFamily: "Inter_500Medium" },
     chartLabels:      { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
     chartLabel:       { fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-    pbGrid:           { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-    pbCell:           { width: "31%", backgroundColor: colors.card, borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
-    pbScore:          { fontSize: 24, fontFamily: "Inter_700Bold" },
-    pbLabel:          { fontSize: 9, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 },
-    pbBadge:          { fontSize: 8, fontFamily: "Inter_700Bold", marginTop: 3 },
-    sportBarRow:      { marginBottom: 14 },
-    sportBarLabel:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 5 },
-    sportBarBg:       { height: 6, backgroundColor: colors.border, borderRadius: 3 },
-    sportBarFill:     { height: 6, borderRadius: 3 },
     logCard:          { backgroundColor: colors.card, borderRadius: colors.radius, marginBottom: 10, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
     logIconBg:        { width: 44, height: 44, borderRadius: 11, alignItems: "center", justifyContent: "center" },
     logTitle:         { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground },
     logMeta:          { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 1, textTransform: "capitalize" },
+    logMovement:      { fontSize: 11, color: colors.primary, fontFamily: "Inter_500Medium", marginTop: 2 },
     logMetrics:       { flexDirection: "row", gap: 6, marginTop: 5, flexWrap: "wrap" },
     logMetricPill:    { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
     logMetricText:    { fontSize: 10, fontFamily: "Inter_600SemiBold" },
     scoreCircle:      { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", borderWidth: 2 },
     scoreText:        { fontSize: 15, fontFamily: "Inter_700Bold" },
-    achGrid:          { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-    achCard:          { width: "47%", backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center", gap: 10 },
+    achCard:          { backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center", gap: 10 },
     achCardUnlocked:  { borderColor: colors.primary + "55", backgroundColor: colors.primary + "08" },
     achCardLocked:    { opacity: 0.5 },
-    achTitle:         { fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.foreground },
-    achDesc:          { fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 1 },
+    achTitle:         { fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.foreground },
+    achDesc:          { fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 1 },
     achProgress:      { fontSize: 10, color: colors.primary, fontFamily: "Inter_600SemiBold", marginTop: 3 },
     emptyCard:        { backgroundColor: colors.card, borderRadius: colors.radius, padding: 32, borderWidth: 1, borderColor: colors.border, alignItems: "center", gap: 12 },
     emptyText:        { color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" },
     emptyBtn:         { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 20 },
     emptyBtnText:     { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 },
-  });
+  }), [colors, topPad]);
 
   if (loading) {
     return (
@@ -595,6 +626,12 @@ export default function ProgressScreen() {
       </View>
     );
   }
+
+  const sportSubtitle = selectedSport
+    ? `${sportEntries.length} ${capitalize(selectedSport)} session${sportEntries.length === 1 ? "" : "s"}`
+    : allEntries.length > 0
+      ? `${allEntries.length} session${allEntries.length === 1 ? "" : "s"} logged`
+      : "Track your improvement over time";
 
   return (
     <View style={s.container}>
@@ -610,16 +647,15 @@ export default function ProgressScreen() {
           />
         }
       >
+        {/* ── Header ── */}
         <View style={s.header}>
           <Text style={s.title}>Progress</Text>
-          <Text style={s.subtitle}>
-            {entries.length > 0 ? `${entries.length} session${entries.length === 1 ? "" : "s"} logged` : "Track your improvement over time"}
-          </Text>
+          <Text style={s.subtitle}>{sportSubtitle}</Text>
         </View>
 
         {/* ── Error banner ── */}
         {error && !refreshing && (
-          <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.warning + "14", borderRadius: colors.radius, padding: 14, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: colors.warning + "44" }}>
+          <View style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: colors.warning + "14", borderRadius: colors.radius, padding: 14, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: colors.warning + "44" }}>
             <Feather name="wifi-off" size={16} color={colors.warning} />
             <Text style={{ flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: colors.foreground, lineHeight: 18 }}>
               Couldn't load your progress. Pull down to try again.
@@ -627,7 +663,126 @@ export default function ProgressScreen() {
           </View>
         )}
 
-        {/* ── Streak & weekly pulse ── */}
+        {/* ── Sport Selector ── */}
+        {sportsList.length >= 2 && (
+          <View style={{ marginBottom: 16 }}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 20, gap: 8, flexDirection: "row" }}
+            >
+              {sportsList.map(({ sport, count }) => {
+                const isActive = selectedSport === sport;
+                const cfg = getSportConfig(sport);
+                const accent = cfg.accentColor;
+                const iconName = (SPORT_ICONS[sport] ?? SPORT_ICONS.default) as any;
+                return (
+                  <TouchableOpacity
+                    key={sport}
+                    onPress={() => setSelectedSport(sport)}
+                    activeOpacity={0.8}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 7,
+                      paddingHorizontal: 14,
+                      paddingVertical: 9,
+                      borderRadius: 24,
+                      backgroundColor: isActive ? accent + "20" : colors.card,
+                      borderWidth: 1.5,
+                      borderColor: isActive ? accent : colors.border,
+                    }}
+                  >
+                    <Feather name={iconName} size={13} color={isActive ? accent : colors.mutedForeground} />
+                    <Text style={{ fontSize: 13, fontFamily: isActive ? "Inter_600SemiBold" : "Inter_400Regular", color: isActive ? accent : colors.foreground, textTransform: "capitalize" }}>
+                      {sport}
+                    </Text>
+                    <View style={{ backgroundColor: isActive ? accent + "30" : colors.border, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 }}>
+                      <Text style={{ fontSize: 10, fontFamily: "Inter_600SemiBold", color: isActive ? accent : colors.mutedForeground }}>
+                        {count}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* ── Movement Type Sub-filter ── */}
+        {availableMovementTypes.length >= 2 && (
+          <View style={{ marginBottom: 14, paddingHorizontal: 20 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, flexDirection: "row" }}>
+              <TouchableOpacity
+                onPress={() => setSelectedMovementType(null)}
+                activeOpacity={0.8}
+                style={{
+                  paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16,
+                  backgroundColor: !selectedMovementType ? accentColor + "20" : colors.card,
+                  borderWidth: 1, borderColor: !selectedMovementType ? accentColor : colors.border,
+                }}
+              >
+                <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: !selectedMovementType ? accentColor : colors.mutedForeground }}>
+                  All Movements
+                </Text>
+              </TouchableOpacity>
+              {availableMovementTypes.map((mt) => {
+                const isActive = selectedMovementType === mt;
+                return (
+                  <TouchableOpacity
+                    key={mt}
+                    onPress={() => setSelectedMovementType(isActive ? null : mt)}
+                    activeOpacity={0.8}
+                    style={{
+                      paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16,
+                      backgroundColor: isActive ? accentColor + "20" : colors.card,
+                      borderWidth: 1, borderColor: isActive ? accentColor : colors.border,
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: isActive ? accentColor : colors.mutedForeground }}>
+                      {mt}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* ── AI Summary Card ── */}
+        {selectedSport && (aiSummary || aiSummaryLoading) && (
+          <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: accentColor + "12", borderRadius: colors.radius, padding: 16, borderWidth: 1, borderColor: accentColor + "44" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: aiSummaryLoading ? 0 : 8 }}>
+              <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: accentColor + "25", alignItems: "center", justifyContent: "center" }}>
+                <Feather name="bar-chart-2" size={15} color={accentColor} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: accentColor, textTransform: "uppercase", letterSpacing: 0.6 }}>
+                  AI Progress Insight
+                </Text>
+                {selectedMovementType && (
+                  <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 1 }}>
+                    {selectedMovementType}
+                  </Text>
+                )}
+              </View>
+            </View>
+            {aiSummaryLoading ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <ActivityIndicator size="small" color={accentColor} />
+                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>
+                  Generating insight…
+                </Text>
+              </View>
+            ) : aiSummary ? (
+              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: colors.foreground, lineHeight: 20 }}>
+                {aiSummary}
+              </Text>
+            ) : null}
+          </View>
+        )}
+
+        {/* ── Streak & Weekly Pulse ── */}
         {stats && (
           <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 20, marginBottom: 20 }}>
             {stats.streak > 0 && (
@@ -648,19 +803,10 @@ export default function ProgressScreen() {
                 </Text>
               </View>
             </View>
-            {(stats.personalBests.overall ?? 0) > 0 && (
-              <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.success + "14", borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: colors.success + "33" }}>
-                <Feather name="award" size={18} color={colors.success} />
-                <View>
-                  <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: colors.success }}>{Math.round(stats.personalBests.overall)}</Text>
-                  <Text style={{ fontSize: 10, color: colors.success + "88", fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5 }}>Best score</Text>
-                </View>
-              </View>
-            )}
           </View>
         )}
 
-        {/* ── Drills completed ── */}
+        {/* ── Drills Completed ── */}
         {drillsDoneCount > 0 && (
           <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, flexDirection: "row", alignItems: "center", gap: 14, borderWidth: 1, borderColor: colors.success + "44" }}>
             <View style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: colors.success + "20", alignItems: "center", justifyContent: "center" }}>
@@ -675,20 +821,29 @@ export default function ProgressScreen() {
           </View>
         )}
 
-        {/* ── Personal Records ── */}
-        {hasPBs && (
+        {/* ── Personal Records (sport-scoped) ── */}
+        {selectedSport && Object.keys(personalRecords).length > 0 && (
           <View style={s.section}>
-            <Text style={[s.sectionTitle, { marginBottom: 14 }]}>Personal Records</Text>
-            <View style={s.pbGrid}>
-              {PB_METRICS.map((k) => {
-                const pb = Math.round(personalBests[k] ?? 0);
-                if (pb === 0) return null;
-                const col = getScoreColor(pb, colors);
+            <View style={s.sectionRow}>
+              <Text style={s.sectionTitle}>Personal Records</Text>
+              <Text style={s.sectionCount}>{capitalize(selectedSport)}</Text>
+            </View>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+              {availableMetrics.filter((k) => k !== "overall").map((k) => {
+                const rec = personalRecords[k];
+                if (!rec || rec.value === 0) return null;
+                const col = getScoreColor(rec.value, colors);
                 return (
-                  <View key={k} style={[s.pbCell, { borderColor: col + "44" }]}>
-                    <Text style={[s.pbScore, { color: col }]}>{pb}</Text>
-                    <Text style={s.pbLabel}>{k}</Text>
-                    <Text style={[s.pbBadge, { color: col }]}>PB</Text>
+                  <View key={k} style={{ width: "31%", backgroundColor: colors.card, borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: col + "44", alignItems: "center" }}>
+                    <Feather name="award" size={14} color={col} style={{ marginBottom: 4 }} />
+                    <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: col }}>{Math.round(rec.value)}</Text>
+                    <Text style={{ fontSize: 9, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2, textAlign: "center" }}>{k}</Text>
+                    <Text style={{ fontSize: 8, color: col + "99", fontFamily: "Inter_400Regular", marginTop: 2 }}>{formatDateShort(rec.date)}</Text>
+                    {rec.movementType && rec.movementType !== "General" && (
+                      <Text style={{ fontSize: 8, color: accentColor, fontFamily: "Inter_500Medium", marginTop: 2, textAlign: "center" }} numberOfLines={1}>
+                        {rec.movementType}
+                      </Text>
+                    )}
                   </View>
                 );
               }).filter(Boolean)}
@@ -696,7 +851,7 @@ export default function ProgressScreen() {
           </View>
         )}
 
-        {/* ── Summary cards ── */}
+        {/* ── Summary Stats ── */}
         {filteredEntries.length > 0 && (
           <View style={s.summaryRow}>
             <View style={s.summaryCard}>
@@ -720,7 +875,7 @@ export default function ProgressScreen() {
           </View>
         )}
 
-        {/* ── Most improved joint ── */}
+        {/* ── Most Improved Joint ── */}
         {mostImproved && (
           <Pressable
             onPress={() => {
@@ -752,41 +907,59 @@ export default function ProgressScreen() {
                 {JOINT_DISPLAY[mostImproved.joint] ?? mostImproved.joint} +{Math.round(mostImproved.deltaDeg)}°
               </Text>
               <Text style={{ fontSize: 11, color: colors.success + "88", fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                Most improved · tap to view trend
+                Most improved{selectedSport ? ` · ${capitalize(selectedSport)}` : ""} · tap to view trend
               </Text>
             </View>
             <Feather name="chevron-right" size={14} color={colors.success + "88"} />
           </Pressable>
         )}
 
-        {/* ── Trend chart ── */}
-        {entries.length > 0 && (
+        {/* ── Trend Chart ── */}
+        {allEntries.length > 0 && (
           <View style={s.section}>
             {/* Period selector */}
             <View style={s.periodRow}>
               {(["1W", "1M", "3M", "All"] as Period[]).map((p) => (
                 <TouchableOpacity
                   key={p}
-                  style={[s.periodBtn, period === p && s.periodBtnActive, period === p && { backgroundColor: lineColor + "18" }]}
+                  style={[
+                    s.periodBtn,
+                    period === p && { borderColor: lineColor, backgroundColor: lineColor + "18" },
+                  ]}
                   onPress={() => setPeriod(p)}
                   activeOpacity={0.8}
                 >
-                  <Text style={[s.periodBtnText, period === p && s.periodBtnTextActive]}>{p}</Text>
+                  <Text style={[s.periodBtnText, period === p && { color: lineColor }]}>{p}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
+            {/* Metric picker — sport-scoped */}
+            {selectedSport && (
+              <View style={{ marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Feather name={SPORT_ICONS[selectedSport] as any ?? "video"} size={12} color={accentColor} />
+                <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: accentColor, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  {capitalize(selectedSport)} metrics
+                </Text>
+              </View>
+            )}
             <View style={s.metricPicker}>
-              {METRICS.map((m) => (
-                <TouchableOpacity
-                  key={m}
-                  style={[s.metricChip, activeMetric === m && s.metricChipActive]}
-                  onPress={() => setActiveMetric(m)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[s.metricChipText, activeMetric === m && s.metricChipTextActive]}>{m}</Text>
-                </TouchableOpacity>
-              ))}
+              {availableMetrics.map((m) => {
+                const isActive = activeMetric === m;
+                return (
+                  <TouchableOpacity
+                    key={m}
+                    style={[
+                      s.metricChip,
+                      isActive && { backgroundColor: lineColor + "22", borderColor: lineColor },
+                    ]}
+                    onPress={() => setActiveMetric(m)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[s.metricChipText, isActive && { color: lineColor }]}>{m}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             <View style={s.chartContainer}>
@@ -794,7 +967,7 @@ export default function ProgressScreen() {
                 <View style={{ paddingVertical: 32, alignItems: "center", gap: 8 }}>
                   <Feather name="calendar" size={28} color={colors.mutedForeground} />
                   <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
-                    No sessions in this period
+                    No {selectedSport ? capitalize(selectedSport) + " " : ""}sessions in this period
                   </Text>
                   <TouchableOpacity onPress={() => setPeriod("All")} activeOpacity={0.8}>
                     <Text style={{ fontSize: 12, color: colors.primary, fontFamily: "Inter_500Medium" }}>Show all sessions</Text>
@@ -840,11 +1013,7 @@ export default function ProgressScreen() {
                     {values.length > 1 && (
                       <Polyline
                         points={values.map((v, i) => `${i * pointSpacing},${toY(v)}`).join(" ")}
-                        fill="none"
-                        stroke={lineColor}
-                        strokeWidth={2.5}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                        fill="none" stroke={lineColor} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"
                       />
                     )}
 
@@ -880,36 +1049,32 @@ export default function ProgressScreen() {
           </View>
         )}
 
-        {/* ── Joint Angle Trends ── */}
-        {trends && Object.keys(trends.joints).length > 0 && (
-          <View
-            style={s.section}
-            onLayout={(e) => { trendsYRef.current = e.nativeEvent.layout.y; }}
-          >
+        {/* ── Joint Angle Trends (sport-scoped) ── */}
+        {filteredTrends && Object.keys(filteredTrends.joints).length > 0 && (
+          <View style={s.section} onLayout={(e) => { trendsYRef.current = e.nativeEvent.layout.y; }}>
             <View style={s.sectionRow}>
               <Text style={s.sectionTitle}>Joint Angle Trends</Text>
-              <Text style={s.sectionCount}>{Object.keys(trends.joints).length} joint{Object.keys(trends.joints).length === 1 ? "" : "s"}</Text>
+              <Text style={s.sectionCount}>
+                {Object.keys(filteredTrends.joints).length} joint{Object.keys(filteredTrends.joints).length === 1 ? "" : "s"}
+                {selectedSport ? ` · ${capitalize(selectedSport)}` : ""}
+              </Text>
             </View>
 
-            {/* Improvement callouts */}
-            {trends.improvements.filter((imp) => imp.improved).map((imp) => {
+            {filteredTrends.improvements.filter((imp) => imp.improved).map((imp) => {
               const absD = Math.abs(imp.deltaDeg);
               const label = JOINT_DISPLAY[imp.joint] ?? imp.joint;
               return (
-                <View
-                  key={imp.joint}
-                  style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.success + "14", borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: colors.success + "33", marginBottom: 10 }}
-                >
+                <View key={imp.joint} style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.success + "14", borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: colors.success + "33", marginBottom: 10 }}>
                   <Feather name="trending-up" size={16} color={colors.success} />
                   <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: colors.success, flex: 1 }} numberOfLines={2}>
                     Your {label.toLowerCase()} angle improved by {absD}° over {imp.sessions} session{imp.sessions === 1 ? "" : "s"}
+                    {selectedSport ? ` of ${capitalize(selectedSport)}` : ""}
                   </Text>
                 </View>
               );
             })}
 
-            {/* Per-joint rows */}
-            {Object.entries(trends.joints).map(([joint, history]) => {
+            {Object.entries(filteredTrends.joints).map(([joint, history]) => {
               const label = JOINT_DISPLAY[joint] ?? joint;
               const last = history[history.length - 1]!;
               const first = history[0]!;
@@ -917,7 +1082,7 @@ export default function ProgressScreen() {
               const latestRisk = last.risk;
               const riskColor = RISK_COLOR_MAP[latestRisk] ?? colors.mutedForeground;
               const riskLabel = RISK_LABEL_MAP[latestRisk] ?? "";
-              const imp = trends.improvements.find((i) => i.joint === joint);
+              const imp = filteredTrends.improvements.find((i) => i.joint === joint);
               const isExpanded = selectedJoint === joint;
               const fullChartWidth = SCREEN_WIDTH - 40 - 28;
 
@@ -926,9 +1091,8 @@ export default function ProgressScreen() {
                   key={joint}
                   activeOpacity={0.82}
                   onPress={() => setSelectedJoint(isExpanded ? null : joint)}
-                  style={{ backgroundColor: colors.card, borderRadius: colors.radius, borderWidth: 1, borderColor: isExpanded ? colors.primary + "66" : colors.border, marginBottom: 10, overflow: "hidden" }}
+                  style={{ backgroundColor: colors.card, borderRadius: colors.radius, borderWidth: 1, borderColor: isExpanded ? accentColor + "66" : colors.border, marginBottom: 10, overflow: "hidden" }}
                 >
-                  {/* Summary row */}
                   <View style={{ padding: 14, flexDirection: "row", alignItems: "center", gap: 12 }}>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>{label}</Text>
@@ -951,6 +1115,7 @@ export default function ProgressScreen() {
                         </View>
                       )}
                     </View>
+
                     {isExpanded ? (
                       <Feather name="chevron-up" size={16} color={colors.mutedForeground} />
                     ) : (
@@ -961,12 +1126,12 @@ export default function ProgressScreen() {
                     )}
                   </View>
 
-                  {/* Expanded full chart */}
                   {isExpanded && (
                     <View style={{ paddingHorizontal: 14, paddingBottom: 14, borderTopWidth: 1, borderTopColor: colors.border }}>
                       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 12, paddingBottom: 8 }}>
                         <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>
                           {history.length} scan{history.length === 1 ? "" : "s"} · angle history
+                          {selectedSport ? ` · ${capitalize(selectedSport)}` : ""}
                         </Text>
                         <View style={{ flexDirection: "row", gap: 10 }}>
                           {([0, 1, 2] as const).map((risk) => (
@@ -986,39 +1151,7 @@ export default function ProgressScreen() {
           </View>
         )}
 
-        {/* ── Sport Breakdown ── */}
-        {sportStats.length >= 2 && (
-          <View style={s.section}>
-            <View style={s.sectionRow}>
-              <Text style={s.sectionTitle}>By Sport</Text>
-              <Text style={s.sectionCount}>{sportStats.length} sport{sportStats.length === 1 ? "" : "s"}</Text>
-            </View>
-            {sportStats.map(({ sport, count, avgScore }) => {
-              const barColor = getScoreColor(avgScore, colors);
-              const barPct = (count / maxSportCount) * 100;
-              return (
-                <View key={sport} style={s.sportBarRow}>
-                  <View style={s.sportBarLabel}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <Feather name={(SPORT_ICONS[sport] ?? SPORT_ICONS.default) as any} size={13} color={colors.mutedForeground} />
-                      <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: colors.foreground, textTransform: "capitalize" }}>
-                        {sport}
-                      </Text>
-                    </View>
-                    <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
-                      {count} session{count === 1 ? "" : "s"} · avg {avgScore}
-                    </Text>
-                  </View>
-                  <View style={s.sportBarBg}>
-                    <View style={[s.sportBarFill, { width: `${barPct}%` as any, backgroundColor: barColor }]} />
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        {/* ── Session Log ── */}
+        {/* ── Session Log (sport + movement type filtered) ── */}
         <View style={s.section}>
           <View style={s.sectionRow}>
             <Text style={s.sectionTitle}>Session Log</Text>
@@ -1027,12 +1160,10 @@ export default function ProgressScreen() {
             )}
           </View>
 
-          {entries.length === 0 ? (
+          {allEntries.length === 0 ? (
             <View style={s.emptyCard}>
               <Feather name="trending-up" size={32} color={colors.mutedForeground} />
-              <Text style={s.emptyText}>
-                Complete your first analysis to start tracking progress.
-              </Text>
+              <Text style={s.emptyText}>Complete your first analysis to start tracking progress.</Text>
               <TouchableOpacity style={s.emptyBtn} onPress={() => router.push("/(tabs)/analyze")} activeOpacity={0.85}>
                 <Text style={s.emptyBtnText}>Analyze a Video</Text>
               </TouchableOpacity>
@@ -1040,20 +1171,26 @@ export default function ProgressScreen() {
           ) : filteredEntries.length === 0 ? (
             <View style={s.emptyCard}>
               <Feather name="calendar" size={32} color={colors.mutedForeground} />
-              <Text style={s.emptyText}>No sessions in this time period.</Text>
-              <TouchableOpacity style={s.emptyBtn} onPress={() => setPeriod("All")} activeOpacity={0.85}>
-                <Text style={s.emptyBtnText}>Show All Sessions</Text>
-              </TouchableOpacity>
+              <Text style={s.emptyText}>
+                No {selectedSport ? capitalize(selectedSport) + " " : ""}sessions
+                {selectedMovementType ? ` for ${selectedMovementType}` : ""}
+                {period !== "All" ? ` in this period` : ""}.
+              </Text>
+              {period !== "All" ? (
+                <TouchableOpacity style={s.emptyBtn} onPress={() => setPeriod("All")} activeOpacity={0.85}>
+                  <Text style={s.emptyBtnText}>Show All Time</Text>
+                </TouchableOpacity>
+              ) : selectedMovementType ? (
+                <TouchableOpacity style={s.emptyBtn} onPress={() => setSelectedMovementType(null)} activeOpacity={0.85}>
+                  <Text style={s.emptyBtnText}>Clear Movement Filter</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           ) : (
             sessionLog.map((entry) => {
               const score = entry.overallScore;
               const scoreColor = getScoreColor(score, colors);
               const iconName = (SPORT_ICONS[entry.sport] ?? SPORT_ICONS.default) as any;
-              const isPB = Boolean(
-                personalBests.overall &&
-                Math.round(score) >= Math.round(personalBests.overall)
-              );
               const subMetrics: { key: string; val?: number }[] = [
                 { key: "T", val: entry.techniqueScore },
                 { key: "P", val: entry.powerScore },
@@ -1074,6 +1211,9 @@ export default function ProgressScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={s.logTitle} numberOfLines={1}>{entry.title}</Text>
                     <Text style={s.logMeta}>{entry.sport} · {formatDateLong(entry.date)}</Text>
+                    {entry.movementType && (
+                      <Text style={s.logMovement} numberOfLines={1}>{entry.movementType}</Text>
+                    )}
                     {subMetrics.length > 0 && (
                       <View style={s.logMetrics}>
                         {subMetrics.map((m) => {
@@ -1087,16 +1227,8 @@ export default function ProgressScreen() {
                       </View>
                     )}
                   </View>
-                  <View style={{ alignItems: "flex-end", gap: 4 }}>
-                    {isPB && (
-                      <View style={{ backgroundColor: "#f59e0b22", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#f59e0b" }}>
-                        <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#f59e0b" }}>🏆 PB</Text>
-                      </View>
-                    )}
-                    <View style={[s.scoreCircle, { borderColor: scoreColor }]}>
-                      <Text style={[s.scoreText, { color: scoreColor }]}>{Math.round(score)}</Text>
-                    </View>
-                    <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
+                  <View style={[s.scoreCircle, { borderColor: scoreColor }]}>
+                    <Text style={[s.scoreText, { color: scoreColor }]}>{Math.round(score)}</Text>
                   </View>
                 </TouchableOpacity>
               );
@@ -1104,33 +1236,47 @@ export default function ProgressScreen() {
           )}
         </View>
 
-        {/* ── Achievements ── */}
-        <View style={s.section}>
-          <Text style={[s.sectionTitle, { marginBottom: 14 }]}>Achievements</Text>
-          <View style={s.achGrid}>
-            {achievements.map((a) => (
-              <View
-                key={a.id}
-                style={[s.achCard, a.unlocked ? s.achCardUnlocked : s.achCardLocked]}
-              >
-                <Feather
-                  name={a.icon as any}
-                  size={24}
-                  color={a.unlocked ? colors.primary : colors.mutedForeground}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.achTitle}>{a.title}</Text>
-                  <Text style={s.achDesc}>{a.description}</Text>
-                  {a.unlocked ? (
-                    <Text style={[s.achProgress, { color: colors.success }]}>✓ Unlocked</Text>
+        {/* ── Achievements (grouped by sport) ── */}
+        {groupedAchievements.length > 0 && (
+          <View style={s.section}>
+            <Text style={[s.sectionTitle, { marginBottom: 16 }]}>Achievements</Text>
+            {groupedAchievements.map((group) => (
+              <View key={group.label} style={{ marginBottom: 20 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  {group.sport ? (
+                    <Feather name={(SPORT_ICONS[group.sport] ?? SPORT_ICONS.default) as any} size={12} color={getSportConfig(group.sport).accentColor} />
                   ) : (
-                    <Text style={s.achProgress}>{a.progress}/{a.total}</Text>
+                    <Feather name="globe" size={12} color={colors.mutedForeground} />
                   )}
+                  <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: group.sport ? getSportConfig(group.sport).accentColor : colors.mutedForeground, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                    {group.label}
+                  </Text>
+                  <View style={{ flex: 1, height: 1, backgroundColor: colors.border, marginLeft: 4 }} />
+                  <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+                    {group.items.filter((a) => a.unlocked).length}/{group.items.length}
+                  </Text>
                 </View>
+                {group.items.map((a) => (
+                  <View
+                    key={a.id}
+                    style={[s.achCard, a.unlocked ? s.achCardUnlocked : s.achCardLocked]}
+                  >
+                    <Feather name={a.icon as any} size={22} color={a.unlocked ? colors.primary : colors.mutedForeground} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.achTitle}>{a.title}</Text>
+                      <Text style={s.achDesc}>{a.description}</Text>
+                      {a.unlocked ? (
+                        <Text style={[s.achProgress, { color: colors.success }]}>✓ Unlocked</Text>
+                      ) : (
+                        <Text style={s.achProgress}>{a.progress}/{a.total}</Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
               </View>
             ))}
           </View>
-        </View>
+        )}
       </ScrollView>
     </View>
   );

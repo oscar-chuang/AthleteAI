@@ -27,6 +27,9 @@ import { render, act, within } from "@testing-library/react-native";
 let mockFocusCallback: (() => (() => void) | void) | null = null;
 
 const mockProgressList = jest.fn();
+const mockProgressSports = jest.fn();
+const mockProgressPersonalRecords = jest.fn();
+const mockProgressSummary = jest.fn();
 const mockAchievementsList = jest.fn();
 const mockProfileStats = jest.fn();
 const mockJointTrendsGet = jest.fn();
@@ -87,7 +90,10 @@ jest.mock("@/hooks/useColors", () => ({
 
 jest.mock("@/lib/api", () => ({
   progress: {
-    list: (...args: any[]) => mockProgressList(...args),
+    list:            (...args: any[]) => mockProgressList(...args),
+    sports:          (...args: any[]) => mockProgressSports(...args),
+    personalRecords: (...args: any[]) => mockProgressPersonalRecords(...args),
+    summary:         (...args: any[]) => mockProgressSummary(...args),
   },
   achievements: {
     list: (...args: any[]) => mockAchievementsList(...args),
@@ -146,11 +152,16 @@ async function triggerRefresh(
 
 // ─── Setup / teardown ─────────────────────────────────────────────────────────
 
+const EMPTY_SPORTS = { sports: [] };
+
 beforeEach(() => {
   mockFocusCallback = null;
   mockProgressList.mockReset();
   mockAchievementsList.mockReset();
-  // profile.stats and jointTrends.get are caught internally; default to reject.
+  // These are caught internally; default to success with empty payloads.
+  mockProgressSports.mockResolvedValue(EMPTY_SPORTS);
+  mockProgressPersonalRecords.mockResolvedValue({ records: {} });
+  mockProgressSummary.mockResolvedValue({ summary: "", cached: false });
   mockProfileStats.mockRejectedValue(new Error("not needed"));
   mockJointTrendsGet.mockRejectedValue(new Error("not needed"));
 });
@@ -201,6 +212,7 @@ describe("ProgressScreen — error banner", () => {
 
     // Refresh load succeeds.
     mockProgressList.mockResolvedValueOnce(EMPTY_PROGRESS);
+    mockProgressSports.mockResolvedValueOnce(EMPTY_SPORTS);
 
     await triggerRefresh(UNSAFE_getByType);
 

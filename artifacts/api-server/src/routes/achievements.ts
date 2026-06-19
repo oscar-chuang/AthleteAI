@@ -7,9 +7,10 @@ const router: IRouter = Router();
 
 function mk(
   id: string, title: string, description: string,
-  icon: string, category: string, progress: number, total: number
+  icon: string, category: string, progress: number, total: number,
+  sport: string | null = null,
 ) {
-  return { id, title, description, icon, category, progress: Math.min(progress, total), total, unlocked: progress >= total };
+  return { id, title, description, icon, category, progress: Math.min(progress, total), total, unlocked: progress >= total, sport };
 }
 
 router.get("/achievements", requireAuth, async (req: Request, res: Response) => {
@@ -53,6 +54,13 @@ router.get("/achievements", requireAuth, async (req: Request, res: Response) => 
     consistency: rows.length ? Math.max(...rows.map((r) => r.consistencyScore ?? 0)) : 0,
   };
 
+  // Per-sport session counts
+  const sportCounts = new Map<string, number>();
+  for (const r of rows) {
+    const sp = r.sport.toLowerCase();
+    sportCounts.set(sp, (sportCounts.get(sp) ?? 0) + 1);
+  }
+
   // Distinct sports
   const sports = new Set(rows.map((r) => r.sport.toLowerCase()));
 
@@ -70,7 +78,7 @@ router.get("/achievements", requireAuth, async (req: Request, res: Response) => 
   }).length;
 
   const achievements = [
-    // ── Volume ──────────────────────────────────────────────────────────────
+    // ── Volume (global) ─────────────────────────────────────────────────────────
     mk("vol-1",   "First Steps",        "Complete your first AI analysis",   "play-circle",   "Volume", total,  1),
     mk("vol-5",   "Getting Serious",    "Complete 5 analyses",               "trending-up",   "Volume", total,  5),
     mk("vol-10",  "Consistent Athlete", "Complete 10 analyses",              "award",         "Volume", total, 10),
@@ -78,7 +86,17 @@ router.get("/achievements", requireAuth, async (req: Request, res: Response) => 
     mk("vol-50",  "Elite Volume",       "Complete 50 analyses",              "zap",           "Volume", total, 50),
     mk("vol-100", "Centurion",          "Complete 100 analyses",             "shield",        "Volume", total,100),
 
-    // ── Performance ─────────────────────────────────────────────────────────
+    // ── Per-sport volume (sport-specific) ───────────────────────────────────────
+    ...Array.from(sportCounts.entries()).flatMap(([sport, count]) => {
+      const label = sport.charAt(0).toUpperCase() + sport.slice(1);
+      return [
+        mk(`sport-vol-${sport}-1`,  `${label} Debut`,    `Complete your first ${label} analysis`,  "play-circle",  "Sport Volume", count,  1, sport),
+        mk(`sport-vol-${sport}-5`,  `${label} Regular`,  `Complete 5 ${label} analyses`,           "trending-up",  "Sport Volume", count,  5, sport),
+        mk(`sport-vol-${sport}-10`, `${label} Veteran`,  `Complete 10 ${label} analyses`,          "award",        "Sport Volume", count, 10, sport),
+      ];
+    }),
+
+    // ── Performance (global) ────────────────────────────────────────────────────
     mk("score-70",   "Solid Form",       "Score 70+ overall in any session",   "check-circle",     "Performance", Math.round(pb.overall),     70),
     mk("score-80",   "Strong Performer", "Score 80+ overall in any session",   "target",           "Performance", Math.round(pb.overall),     80),
     mk("score-90",   "Near Perfect",     "Score 90+ overall in any session",   "crosshair",        "Performance", Math.round(pb.overall),     90),
@@ -89,24 +107,24 @@ router.get("/achievements", requireAuth, async (req: Request, res: Response) => 
     mk("mob-85",     "Flexible Beast",   "Score 85+ on Mobility",              "maximize-2",       "Performance", Math.round(pb.mobility),    85),
     mk("con-85",     "Mr. Consistent",   "Score 85+ on Consistency",           "refresh-cw",       "Performance", Math.round(pb.consistency), 85),
 
-    // ── Consistency ─────────────────────────────────────────────────────────
+    // ── Consistency (global) ────────────────────────────────────────────────────
     mk("streak-3",  "On a Roll",      "Analyze on 3 consecutive days",   "zap",      "Consistency", streak,  3),
     mk("streak-7",  "Week Warrior",   "Analyze on 7 consecutive days",   "calendar", "Consistency", streak,  7),
     mk("streak-14", "Fortnight Pro",  "Analyze on 14 consecutive days",  "sun",      "Consistency", streak, 14),
     mk("streak-30", "Unstoppable",    "Analyze on 30 consecutive days",  "award",    "Consistency", streak, 30),
 
-    // ── Explorer ────────────────────────────────────────────────────────────
+    // ── Explorer (global) ───────────────────────────────────────────────────────
     mk("sport-2", "Multi-Sport",         "Analyze 2 different sports",   "shuffle", "Explorer", sports.size, 2),
     mk("sport-4", "Versatile Athlete",   "Analyze 4 different sports",   "globe",   "Explorer", sports.size, 4),
     mk("sport-6", "Renaissance Athlete", "Analyze 6 different sports",   "star",    "Explorer", sports.size, 6),
 
-    // ── Growth ──────────────────────────────────────────────────────────────
+    // ── Growth (global) ─────────────────────────────────────────────────────────
     mk("improve-10", "Rising Star",  "Improve your overall score by 10+ points", "arrow-up-circle", "Growth",
        Math.round(Math.max(0, improvement)), 10),
     mk("improve-20", "Breakthrough", "Improve your overall score by 20+ points", "trending-up",     "Growth",
        Math.round(Math.max(0, improvement)), 20),
 
-    // ── Safety ──────────────────────────────────────────────────────────────
+    // ── Safety (global) ─────────────────────────────────────────────────────────
     mk("safe-5",  "Safe Mover",      "Complete 5 low-risk sessions",    "shield", "Safety", safeSessions,  5),
     mk("safe-15", "Injury-Free Pro", "Complete 15 low-risk sessions",   "heart",  "Safety", safeSessions, 15),
   ];
