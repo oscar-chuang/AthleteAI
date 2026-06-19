@@ -109,6 +109,53 @@ describe("ShareCard — topTip conditional rendering", () => {
   });
 });
 
+// ─── 3. Tip-text truncation ───────────────────────────────────────────────────
+
+const LONG_TIP =
+  "Keep your hips square to the target and drive through with your rear leg, " +
+  "ensuring your torso stays upright throughout the full range of motion to " +
+  "maximise power transfer and reduce knee stress on every stride.";
+
+describe("ShareCard — tip text truncation", () => {
+  it("renders the tip Text node with numberOfLines={2} when the tip is longer than 120 chars", () => {
+    expect(LONG_TIP.length).toBeGreaterThan(120);
+
+    const { UNSAFE_getAllByType } = render(
+      <ShareCard analysis={ANALYSIS} topTip={LONG_TIP} />,
+    );
+
+    const { Text } = require("react-native");
+    const textNodes = UNSAFE_getAllByType(Text);
+
+    const tipNode = textNodes.find(
+      (node: { props: { numberOfLines?: number; children?: unknown } }) =>
+        node.props.numberOfLines === 2 &&
+        node.props.children === LONG_TIP,
+    );
+
+    expect(tipNode).toBeDefined();
+    expect(tipNode!.props.numberOfLines).toBe(2);
+  });
+
+  it("clamps short tips to the same numberOfLines={2} cap", () => {
+    const { UNSAFE_getAllByType } = render(
+      <ShareCard analysis={ANALYSIS} topTip={TOP_TIP} />,
+    );
+
+    const { Text } = require("react-native");
+    const textNodes = UNSAFE_getAllByType(Text);
+
+    const tipNode = textNodes.find(
+      (node: { props: { numberOfLines?: number; children?: unknown } }) =>
+        node.props.numberOfLines === 2 &&
+        node.props.children === TOP_TIP,
+    );
+
+    expect(tipNode).toBeDefined();
+    expect(tipNode!.props.numberOfLines).toBe(2);
+  });
+});
+
 // ─── 3. Capture-options contract ──────────────────────────────────────────────
 
 describe("SHARE_CARD_CAPTURE_OPTIONS — source-linked contract", () => {
