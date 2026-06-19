@@ -163,13 +163,16 @@ ${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto">
   // incorrect letterbox rect and causes the skeleton to drift from the video on
   // non-standard aspect ratios. We track the true rendered size through a
   // ResizeObserver and defer any draw that arrives before the first layout event.
-  let liveW=0, liveH=0, pendingRes=null;
+  let liveW=0, liveH=0, pendingRes=null, layoutFired=false;
   function applyResize(w,h){
     if(w<=0||h<=0)return;
     liveW=w; liveH=h;
     // Update the canvas buffer dimensions now, outside of any active draw,
     // so resizing never discards an in-progress frame.
     if(liveCanvas){liveCanvas.width=w;liveCanvas.height=h;}
+    // Tell the native layer the canvas is measured so it can hide the
+    // "Preparing scan…" placeholder and show real progress.
+    if(!layoutFired){layoutFired=true;post({type:"layoutReady"});}
     // Flush a skeleton draw that arrived before layout was ready.
     if(pendingRes){var r=pendingRes;pendingRes=null;drawSkeleton(r);}
   }
@@ -520,6 +523,7 @@ export default function SkeletonScreen() {
   const [captures,    setCaptures]    = useState<Capture[]>([]);
   const [scanDone,    setScanDone]    = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
+  const [layoutReady, setLayoutReady]   = useState(false);
   const [hasFrameTicks, setHasFrameTicks] = useState(false);
   // Current frozen frame shown in the hero + which joints are emphasised on it.
   const [hero, setHero] = useState<{ capture: Capture; emphasize: JointKey[] } | null>(null);
@@ -704,6 +708,10 @@ export default function SkeletonScreen() {
         if (id) AsyncStorage.setItem(`videoAspect_${id}`, String(msg.vw / msg.vh)).catch(() => {});
         return;
       }
+      if (msg.type === "layoutReady") {
+        setLayoutReady(true);
+        return;
+      }
       if (msg.type === "progress") {
         if (typeof msg.value === "number") setScanProgress(Math.max(0, Math.min(1, msg.value)));
         return;
@@ -771,6 +779,7 @@ export default function SkeletonScreen() {
     setHero(null);
     setScanDone(false);
     setScanProgress(0);
+    setLayoutReady(false);
     setExpandedTipId(null);
     didDeepLinkRef.current = false;
     setRefining(false);
@@ -1270,11 +1279,17 @@ export default function SkeletonScreen() {
       )}
       {/* Progress overlay */}
       <View style={ss.scanOverlay}>
-        <Text style={ss.scanOverlayTitle}>Tracking your movement</Text>
+        <Text style={ss.scanOverlayTitle}>
+          {layoutReady ? "Tracking your movement" : "Preparing scan…"}
+        </Text>
         <View style={ss.progTrack}>
           <View style={[ss.progFill, { width: `${Math.round(scanProgress * 100)}%` }]} />
         </View>
-        <Text style={ss.scanOverlaySub}>{Math.round(scanProgress * 100)}% — measuring joints</Text>
+        <Text style={ss.scanOverlaySub}>
+          {layoutReady
+            ? `${Math.round(scanProgress * 100)}% — measuring joints`
+            : "Waiting for first frame…"}
+        </Text>
       </View>
     </View>
   ) : hero ? (
