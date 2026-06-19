@@ -222,12 +222,14 @@ export default function ChatScreen() {
             </View>
           </View>
           {profile && (
-            <AvatarDisplay
-              avatarUrl={profile.avatarUrl}
-              name={profile.name ?? "Athlete"}
-              size={36}
-              colors={colors}
-            />
+            <TouchableOpacity onPress={() => router.push("/profile-settings")} activeOpacity={0.75}>
+              <AvatarDisplay
+                avatarUrl={profile.avatarUrl}
+                name={profile.name ?? "Athlete"}
+                size={36}
+                colors={colors}
+              />
+            </TouchableOpacity>
           )}
         </View>
         <View style={s.paywall}>
@@ -273,12 +275,14 @@ export default function ChatScreen() {
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
           {profile && (
-            <AvatarDisplay
-              avatarUrl={profile.avatarUrl}
-              name={profile.name ?? "Athlete"}
-              size={36}
-              colors={colors}
-            />
+            <TouchableOpacity onPress={() => router.push("/profile-settings")} activeOpacity={0.75}>
+              <AvatarDisplay
+                avatarUrl={profile.avatarUrl}
+                name={profile.name ?? "Athlete"}
+                size={36}
+                colors={colors}
+              />
+            </TouchableOpacity>
           )}
           <TouchableOpacity
             style={s.clearBtn}
