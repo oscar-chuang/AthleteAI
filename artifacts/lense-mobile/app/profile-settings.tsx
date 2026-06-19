@@ -25,6 +25,7 @@ import { ACCENT_PALETTES } from "@/constants/colors";
 import type { AccentKey } from "@/constants/colors";
 import { CropModal, type CropResult } from "@/components/CropModal";
 import { persistCheckInHour } from "@/utils/notifications";
+import { buildSnapshot, computeIsDirty } from "@/utils/profileDirty";
 
 const SPORTS = [
   "Powerlifting", "Olympic Weightlifting", "Running", "Swimming",
@@ -70,29 +71,9 @@ async function resetGoalToastForWeek(): Promise<void> {
 }
 
 // ─── Discard-prompt dirty-state contract ──────────────────────────────────────
-// Every field that should trigger the "Discard changes?" prompt when the user
-// tries to leave with unsaved edits MUST be listed here.
-//
-// HOW TO ADD A NEW FIELD:
-//   1. Add it to ProfileSnapshot below.
-//   2. Include it in buildSnapshot() so it is serialised automatically.
-//   3. That's it — isDirty is derived from the snapshot, so you cannot
-//      accidentally omit the new field from the comparison.
-//
-// Fields that auto-save on tap (weeklyGoal, trainingDays, checkInHour, avatarUrl)
-// are intentionally excluded: they never have "pending" edits.
+// See utils/profileDirty.ts for the canonical field list and instructions on
+// how to add new fields to the unsaved-changes detection.
 // ─────────────────────────────────────────────────────────────────────────────
-type ProfileSnapshot = {
-  name: string;
-  sport: string;
-  level: string;
-  goals: string[];
-  injuries: string[];
-};
-
-function buildSnapshot(s: ProfileSnapshot): string {
-  return JSON.stringify(s);
-}
 
 const CHECK_IN_HOURS = [6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 22] as const;
 
@@ -226,7 +207,7 @@ export default function ProfileSettingsScreen() {
     })
   );
 
-  const isDirty = buildSnapshot({ name, sport, level, goals, injuries }) !== savedSnapshot.current;
+  const isDirty = computeIsDirty(buildSnapshot({ name, sport, level, goals, injuries }), savedSnapshot.current);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e: any) => {
