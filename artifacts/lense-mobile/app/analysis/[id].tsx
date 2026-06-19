@@ -810,12 +810,14 @@ export default function AnalysisDetailScreen() {
   if (analysis.status === "failed") {
     return (
       <StateScreen
-        icon="x-circle"
-        iconColor={colors.destructive}
-        heading="Analysis failed"
-        body="Something went wrong processing your video. Please try uploading a new clip — shorter clips (under 60s) tend to work best."
-        primaryLabel="Go back"
-        onPrimary={() => router.back()}
+        icon="video-off"
+        iconColor={colors.warning}
+        heading="We couldn't process this video"
+        body={"Try uploading a clearer clip — good lighting, a steady camera, and keeping the action within frame all help. Shorter clips (under 60 s) also work best."}
+        primaryLabel="Try again"
+        onPrimary={() => router.push("/(tabs)/analyze" as any)}
+        secondaryLabel="Go back"
+        onSecondary={() => router.back()}
       />
     );
   }
