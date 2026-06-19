@@ -688,6 +688,33 @@ describe("joint history sheet — delta badge interaction", () => {
     // The JointHistorySheet header label "Left Knee" must not appear anywhere.
     expect(screen.queryByText("Left Knee")).toBeNull();
   });
+
+  it("tapping the backdrop does not close the history sheet", async () => {
+    mockApiGet.mockResolvedValue(resp(true));
+    mockJointTrendsGet.mockResolvedValue(trendsWithHistory);
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    emit(scanMsg);
+    await flush();
+
+    await act(async () => { jest.advanceTimersByTime(2000); });
+    await flush();
+
+    // Open the sheet by tapping the delta badge.
+    fireEvent.press(screen.getAllByText("+8°")[0]!, { stopPropagation: jest.fn() });
+    await flush();
+
+    // Sheet is open — header label is visible.
+    expect(screen.getByText("Left Knee")).toBeTruthy();
+
+    // Tap the backdrop (outer Pressable); the sheet must remain open.
+    fireEvent.press(screen.getByTestId("history-sheet-backdrop"));
+    await flush();
+
+    expect(screen.getByText("Left Knee")).toBeTruthy();
+  });
 });
 
 // ─── Scan quality banner ───────────────────────────────────────────────────────

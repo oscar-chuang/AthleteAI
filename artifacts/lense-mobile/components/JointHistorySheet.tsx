@@ -189,8 +189,8 @@ export default function JointHistorySheet({
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <Pressable
+        testID="history-sheet-backdrop"
         style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.60)", justifyContent: "flex-end" }}
-        onPress={onClose}
       >
         <Pressable
           style={{
