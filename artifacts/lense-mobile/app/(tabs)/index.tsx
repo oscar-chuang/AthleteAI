@@ -113,6 +113,7 @@ export default function HomeScreen() {
   const [barAnimDone, setBarAnimDone]     = useState(false);
   const goalSavedAnim = useRef(new Animated.Value(0)).current;
   const [showGoalSaved, setShowGoalSaved] = useState(false);
+  const [showRestDayTooltip, setShowRestDayTooltip] = useState(false);
 
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
@@ -223,7 +224,7 @@ export default function HomeScreen() {
       setGoalSheetSaving(false);
       setShowGoalSheet(false);
     }
-  }, [goalSheetSaving, weeklyGoal, updateProfile]);
+  }, [goalSheetSaving, weeklyGoal, updateProfile, goalSavedAnim]);
 
   const dismissShareHint = useCallback(async () => {
     await AsyncStorage.setItem("share_hint_shown", "true");
@@ -231,6 +232,11 @@ export default function HomeScreen() {
       setShowShareHint(false);
     });
   }, [shareHintAnim]);
+
+  const dismissRestDayTooltip = useCallback(async () => {
+    setShowRestDayTooltip(false);
+    await AsyncStorage.setItem("rest_day_tooltip_dismissed", "true").catch(() => {});
+  }, []);
 
   const handleShareGoal = useCallback(async () => {
     const message = buildGoalShareMessage({
@@ -290,6 +296,17 @@ export default function HomeScreen() {
     ]);
     pulse.start();
   }, [goalReached, trophyScale]);
+
+  const trainingDaysKey = (profile?.trainingDays ?? [0, 1, 2, 3, 4, 5, 6]).join(",");
+  useEffect(() => {
+    const days = profile?.trainingDays ?? [0, 1, 2, 3, 4, 5, 6];
+    const hasRestDays = days.length < 7;
+    if (!hasRestDays) return;
+    AsyncStorage.getItem("rest_day_tooltip_dismissed").then((val) => {
+      if (!val) setShowRestDayTooltip(true);
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trainingDaysKey]);
 
   // scaleX anchor maths: fill is full-width, anchored to left edge.
   // translateX = -(W/2)*(1 - scaleX)  →  at scaleX=0: -W/2, at scaleX=1: 0
@@ -415,6 +432,11 @@ export default function HomeScreen() {
     achRow:         { flexDirection: "row", gap: 10 },
     achCard:        { backgroundColor: colors.primary + "08", borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: colors.primary + "44", alignItems: "center", width: 90 },
     achTitle:       { fontSize: 10, color: colors.foreground, fontFamily: "Inter_500Medium", marginTop: 6, textAlign: "center" },
+
+    restDayTooltip: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border + "55" },
+    restDayTooltipDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.border + "44", opacity: 0.55 },
+    restDayTooltipText: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground },
+    restDayTooltipDismiss: { padding: 4 },
 
     errorBanner:    { marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.warning + "14", borderRadius: colors.radius, padding: 14, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: colors.warning + "44" },
     upgradeCard:    { backgroundColor: colors.primary + "14", borderRadius: colors.radius, padding: 16, borderWidth: 1, borderColor: colors.primary + "40", flexDirection: "row", alignItems: "center", gap: 14, marginHorizontal: 20, marginBottom: 24 },
@@ -737,6 +759,21 @@ export default function HomeScreen() {
                   goalReached={goalReached}
                   colors={colors}
                 />
+              {showRestDayTooltip && (
+                <View style={s.restDayTooltip} testID="rest-day-tooltip">
+                  <View style={s.restDayTooltipDot} />
+                  <Text style={s.restDayTooltipText}>Grey = rest day (not in your schedule)</Text>
+                  <TouchableOpacity
+                    onPress={dismissRestDayTooltip}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    activeOpacity={0.7}
+                    style={s.restDayTooltipDismiss}
+                    testID="rest-day-tooltip-dismiss"
+                  >
+                    <Feather name="x" size={12} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </View>
         )}
