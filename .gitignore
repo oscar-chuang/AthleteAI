@@ -47,3 +47,4 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+artifacts/lense-mobile/static-build/
