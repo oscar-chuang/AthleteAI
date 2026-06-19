@@ -744,15 +744,22 @@ export default function AnalysisDetailScreen() {
             <Feather name="chevron-left" size={18} color={colors.foreground} />
           </TouchableOpacity>
 
-          <View
-            style={[
-              styles.sportBadge,
-              { backgroundColor: colors.primary + "18", borderColor: colors.primary + "44" },
-            ]}
-          >
-            <Text style={[styles.sportBadgeText, { color: colors.primary }]}>
-              {sportLabel}
-            </Text>
+          <View style={styles.navCenterBadgeCol}>
+            <View
+              style={[
+                styles.sportBadge,
+                { backgroundColor: colors.primary + "18", borderColor: colors.primary + "44" },
+              ]}
+            >
+              <Text style={[styles.sportBadgeText, { color: colors.primary }]}>
+                {sportLabel}
+              </Text>
+            </View>
+            {siblingIds.length > 1 && currIndex >= 0 && (
+              <Text style={[styles.sessionCounter, { color: colors.mutedForeground }]}>
+                {currIndex + 1} of {siblingIds.length}
+              </Text>
+            )}
           </View>
 
           {/* next → */}
@@ -1727,6 +1734,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   sportBadgeText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  navCenterBadgeCol: { alignItems: "center", gap: 2 },
+  sessionCounter: { fontSize: 10, fontFamily: "Inter_400Regular" },
 
   // Hero
   heroCard: {
