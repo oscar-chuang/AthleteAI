@@ -582,6 +582,11 @@ export default function SkeletonScreen() {
   const [hasFrameTicks, setHasFrameTicks] = useState(false);
   const [frameTicks, setFrameTicks] = useState<FrameTick[]>([]);
   const [scrubRatio, setScrubRatio] = useState(0);
+  const scrubLabelOpacity = useRef(new Animated.Value(0)).current;
+  const scrubAnimX      = useRef(new Animated.Value(0)).current;
+  const scrubThumbX     = useRef(Animated.subtract(scrubAnimX, 7)).current;
+  const scrubLabelX     = useRef(Animated.subtract(scrubAnimX, 18)).current;
+  const scrubHideTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Current frozen frame shown in the hero + which joints are emphasised on it.
   const [hero, setHero] = useState<{ capture: Capture; emphasize: JointKey[] } | null>(null);
   const [expandedTipId, setExpandedTipId] = useState<string | null>(null);
@@ -806,6 +811,7 @@ export default function SkeletonScreen() {
             setHasFrameTicks(true);
             setFrameTicks(ticks);
             setScrubRatio(0);
+            scrubAnimX.setValue(0);
           }
         }
         if (id && !groundedReady) {
@@ -866,17 +872,38 @@ export default function SkeletonScreen() {
         onStartShouldSetPanResponder: () => frameTicks.length > 0,
         onMoveShouldSetPanResponder: () => frameTicks.length > 0,
         onPanResponderGrant: (evt) => {
+          if (scrubHideTimer.current) { clearTimeout(scrubHideTimer.current); scrubHideTimer.current = null; }
+          Animated.timing(scrubLabelOpacity, { toValue: 1, duration: 100, useNativeDriver: true }).start();
           const x = evt.nativeEvent.locationX;
-          setScrubRatio(Math.max(0, Math.min(1, x / scrubTrackWidthRef.current)));
+          const w = scrubTrackWidthRef.current;
+          const clamped = Math.max(0, Math.min(w, x));
+          scrubAnimX.setValue(clamped);
+          setScrubRatio(clamped / w);
         },
         onPanResponderMove: (evt) => {
           const x = evt.nativeEvent.locationX;
-          setScrubRatio(Math.max(0, Math.min(1, x / scrubTrackWidthRef.current)));
+          const w = scrubTrackWidthRef.current;
+          const clamped = Math.max(0, Math.min(w, x));
+          scrubAnimX.setValue(clamped);
+          setScrubRatio(clamped / w);
+        },
+        onPanResponderRelease: () => {
+          scrubHideTimer.current = setTimeout(() => {
+            Animated.timing(scrubLabelOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+          }, 500);
+        },
+        onPanResponderTerminate: () => {
+          scrubHideTimer.current = setTimeout(() => {
+            Animated.timing(scrubLabelOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+          }, 500);
         },
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [frameTicks.length],
   );
+
+  // ── Cleanup scrub label hide timer on unmount ───────────────────────────────
+  useEffect(() => () => { if (scrubHideTimer.current) clearTimeout(scrubHideTimer.current); }, []);
 
   // ── Build HTML to disk ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -1639,8 +1666,17 @@ export default function SkeletonScreen() {
                 />
               );
             })}
+            {/* Floating time label above thumb — visible while dragging */}
+            <Animated.View
+              pointerEvents="none"
+              style={[ss.scrubFloatingLabel, { opacity: scrubLabelOpacity, transform: [{ translateX: scrubLabelX as any }] }]}
+            >
+              <Text style={ss.scrubFloatingLabelText}>
+                {scrubTick ? formatScrubTime(scrubTick.t) : "0:00"}
+              </Text>
+            </Animated.View>
             {/* Thumb */}
-            <View style={[ss.scrubberThumb, { left: `${Math.round(scrubRatio * 100)}%` as any }]} />
+            <Animated.View style={[ss.scrubberThumb, { transform: [{ translateX: scrubThumbX as any }] }]} />
           </View>
           <Text style={ss.scrubberHint}>Drag to scrub through frames</Text>
         </View>
@@ -2244,6 +2280,8 @@ const ss = StyleSheet.create({
   scrubberFill:     { height: 4, borderRadius: 2, backgroundColor: "#1e1e30", overflow: "hidden", flexDirection: "row" },
   scrubberProgress: { height: "100%", backgroundColor: "#6c63ff", borderRadius: 2 },
   scrubberTickMark: { position: "absolute", top: "50%", width: 2, height: 10, marginTop: -5, borderRadius: 1, transform: [{ translateX: -1 }] } as any,
-  scrubberThumb:    { position: "absolute", top: "50%", width: 14, height: 14, borderRadius: 7, backgroundColor: "#6c63ff", borderWidth: 2, borderColor: "#0a0a16", marginTop: -7, transform: [{ translateX: -7 }] } as any,
+  scrubberThumb:    { position: "absolute", left: 0, top: "50%", width: 14, height: 14, borderRadius: 7, backgroundColor: "#6c63ff", borderWidth: 2, borderColor: "#0a0a16", marginTop: -7 } as any,
   scrubberHint:     { fontSize: 9, color: "#3a3a5c", fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 6 },
+  scrubFloatingLabel:     { position: "absolute", left: 0, bottom: 26, minWidth: 36, alignItems: "center", backgroundColor: "rgba(108,99,255,0.95)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 } as any,
+  scrubFloatingLabelText: { fontSize: 10, color: "#fff", fontFamily: "Inter_600SemiBold", textAlign: "center" },
 });
