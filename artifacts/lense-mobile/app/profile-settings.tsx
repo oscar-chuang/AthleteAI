@@ -84,6 +84,24 @@ function formatHour(h: number): string {
   return `${h - 12}pm`;
 }
 
+/**
+ * Maximum pixel dimension (width or height) for a raw image before the crop
+ * step. Images larger than this are still accepted — CropModal will scale them
+ * down to 400 × 400 — but we warn the user if the final encoded size is still
+ * unreasonably large (see MAX_AVATAR_DATA_URI_CHARS below).
+ */
+const MAX_RAW_AVATAR_DIMENSION = 1024;
+
+/**
+ * Maximum character length for the full "data:<mime>;base64,…" string that
+ * gets sent to the server. The server compresses further (to 64 × 64 / 20 KB),
+ * but an enormous payload would still waste bandwidth and could time out.
+ * 2 MB of base64 ≈ 1.5 MB of binary — well above what a 400 × 400 JPEG at
+ * 0.7 quality should ever produce, so hitting this guard means something
+ * unexpected happened with the image.
+ */
+const MAX_AVATAR_DATA_URI_CHARS = 2 * 1024 * 1024; // 2 MB of base64 characters
+
 const PRESET_AVATARS = [
   { key: "preset:#6c63ff", color: "#6c63ff" },
   { key: "preset:#22c55e", color: "#22c55e" },
@@ -402,6 +420,14 @@ export default function ProfileSettingsScreen() {
     const width = asset.width ?? 800;
     const height = asset.height ?? 800;
 
+    if (width > MAX_RAW_AVATAR_DIMENSION || height > MAX_RAW_AVATAR_DIMENSION) {
+      Alert.alert(
+        "Large image detected",
+        `This photo is ${width} × ${height} px. It will be scaled down to fit your profile — the crop editor may take a moment to load.`,
+        [{ text: "OK" }]
+      );
+    }
+
     setPendingImageUri(asset.uri);
     setPendingImageWidth(width);
     setPendingImageHeight(height);
@@ -411,6 +437,14 @@ export default function ProfileSettingsScreen() {
   async function handleCropConfirm(cropResult: CropResult) {
     setCropVisible(false);
     const uri = `data:${cropResult.mimeType};base64,${cropResult.base64}`;
+
+    if (uri.length > MAX_AVATAR_DATA_URI_CHARS) {
+      setError(
+        "This image is still too large after processing. Please choose a smaller photo and try again."
+      );
+      return;
+    }
+
     setAvatarUrl(uri);
     setAvatarSaving(true);
     try {
