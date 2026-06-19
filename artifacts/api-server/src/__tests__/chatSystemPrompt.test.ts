@@ -156,10 +156,16 @@ import { buildSystemPrompt } from "../routes/chat";
 
 const USER_ID = 42;
 
-function setProfile(sport: string | null, name = "Test Athlete", level = "intermediate") {
+function setProfile(
+  sport: string | null,
+  name = "Test Athlete",
+  level = "intermediate",
+  goals: string[] | null = null,
+  injuryConcerns: string[] | null = null,
+) {
   h.profileStore.length = 0;
   if (sport !== null) {
-    h.profileStore.push({ userId: USER_ID, name, sport, level, goals: null, injuryConcerns: null });
+    h.profileStore.push({ userId: USER_ID, name, sport, level, goals, injuryConcerns });
   }
 }
 
@@ -534,5 +540,70 @@ describe("buildSystemPrompt — recent session data appears in coaching context"
     expect(prompt).toContain("Endurance Run");
     expect(prompt).toContain("Overall 71");
     expect(prompt).toContain("Steady pace");
+  });
+});
+
+describe("buildSystemPrompt — injury concerns appear in coaching context", () => {
+  beforeEach(() => {
+    clearAnalyses();
+  });
+
+  it("embeds injury concerns in the prompt when the profile has them", async () => {
+    setProfile("tennis", "Test Athlete", "intermediate", null, ["knee pain", "lower back strain"]);
+    const prompt = await buildSystemPrompt(USER_ID);
+    expect(prompt).toContain("knee pain");
+    expect(prompt).toContain("lower back strain");
+  });
+
+  it("reflects new injury concerns and drops the old ones between two successive calls", async () => {
+    setProfile("running", "Test Athlete", "intermediate", null, ["shin splints"]);
+    const prompt1 = await buildSystemPrompt(USER_ID);
+    expect(prompt1).toContain("shin splints");
+
+    // Athlete updates profile — shin splints resolved, new shoulder concern added
+    setProfile("running", "Test Athlete", "intermediate", null, ["rotator cuff soreness"]);
+    const prompt2 = await buildSystemPrompt(USER_ID);
+
+    expect(prompt2).toContain("rotator cuff soreness");
+    // The old concern must NOT bleed into the new prompt
+    expect(prompt2).not.toContain("shin splints");
+  });
+
+  it("filters out the 'No current injuries' sentinel and emits no injury line", async () => {
+    setProfile("cycling", "Test Athlete", "beginner", null, ["No current injuries"]);
+    const prompt = await buildSystemPrompt(USER_ID);
+    expect(prompt).not.toContain("No current injuries");
+    expect(prompt).not.toContain("Active injury concerns");
+  });
+
+  it("emits no injury line when injuryConcerns is null", async () => {
+    setProfile("swimming", "Test Athlete", "advanced", null, null);
+    const prompt = await buildSystemPrompt(USER_ID);
+    expect(prompt).not.toContain("Active injury concerns");
+  });
+
+  it("emits no injury line when injuryConcerns is an empty array", async () => {
+    setProfile("basketball", "Test Athlete", "intermediate", null, []);
+    const prompt = await buildSystemPrompt(USER_ID);
+    expect(prompt).not.toContain("Active injury concerns");
+  });
+
+  it("includes the 'always factor these into advice' instruction alongside the concern list", async () => {
+    setProfile("weightlifting", "Test Athlete", "advanced", null, ["wrist tendinitis"]);
+    const prompt = await buildSystemPrompt(USER_ID);
+    expect(prompt).toContain("wrist tendinitis");
+    expect(prompt).toContain("always factor these into advice");
+  });
+
+  it("carries multiple injury concerns into the prompt and each is individually present", async () => {
+    setProfile("soccer", "Test Athlete", "intermediate", null, [
+      "hamstring tightness",
+      "ankle instability",
+      "hip flexor strain",
+    ]);
+    const prompt = await buildSystemPrompt(USER_ID);
+    expect(prompt).toContain("hamstring tightness");
+    expect(prompt).toContain("ankle instability");
+    expect(prompt).toContain("hip flexor strain");
   });
 });
