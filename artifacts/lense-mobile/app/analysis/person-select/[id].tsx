@@ -237,6 +237,7 @@ export default function PersonSelectScreen() {
   const [mismatch, setMismatch] = useState<string | null>(null);
   const [mismatchDismissed, setMismatchDismissed] = useState(false);
   const [detectedSport, setDetectedSport] = useState<string | null>(null);
+  const [detectedMovementType, setDetectedMovementType] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
 
   const [detectionError, setDetectionError] = useState(false);
@@ -306,8 +307,10 @@ export default function PersonSelectScreen() {
       if (msg.type === "frame" && msg.imageBase64 && sport) {
         setSportChecking(true);
         analysesApi.detectSport(msg.imageBase64)
-          .then(({ sport: detected }) => {
+          .then(({ sport: detected, movementType: detectedMT }) => {
             setSportChecking(false);
+            const mt = detectedMT && detectedMT !== "unknown" ? detectedMT : null;
+            setDetectedMovementType(mt);
             if (!detected || detected === "unknown") return;
             if (!sportsMatch(detected, sport)) {
               setDetectedSport(detected);
@@ -315,6 +318,9 @@ export default function PersonSelectScreen() {
                 `This looks like "${detected}", but the session is set to "${sport}". ` +
                 `Sport changes how your form is scored.`
               );
+            } else if (id && mt) {
+              // Sports match — silently persist the detected movement type
+              analysesApi.update(id, { movementType: mt }).catch(() => {});
             }
           })
           .catch(() => setSportChecking(false));
@@ -329,7 +335,9 @@ export default function PersonSelectScreen() {
     if (!detectedSport || !id || switching) return;
     setSwitching(true);
     try {
-      await analysesApi.update(id, { sport: detectedSport });
+      const patch: { sport: string; movementType?: string } = { sport: detectedSport };
+      if (detectedMovementType) patch.movementType = detectedMovementType;
+      await analysesApi.update(id, patch);
       setSport(detectedSport);
       setMismatch(null);
       setMismatchDismissed(true);
