@@ -1,0 +1,218 @@
+The UI still looks AI-generated.
+
+Do not make incremental improvements.
+
+Do not add more gradients.
+Do not add more cards.
+Do not add more shadows.
+Do not add more glassmorphism.
+Do not add more purple accents.
+
+Instead, perform a complete visual redesign focused on making AthleteAI feel like a professionally designed sports technology product.
+
+Current Problems:
+
+1. The black + purple color scheme feels generic and overused.
+2. The typography looks like default React Native styling.
+3. The layout relies on stacked cards everywhere.
+4. The screens feel vertically crowded.
+5. The app looks like a dashboard rather than a premium consumer product.
+6. Everything has equal visual importance.
+7. There is no strong visual identity.
+
+COLOR SYSTEM REDESIGN
+
+Completely remove the current black + purple aesthetic.
+
+Create a more athletic, premium color palette.
+
+Preferred direction:
+
+Background:
+Off-black (#0B0D0F)
+or
+Warm charcoal (#111315)
+
+Primary Accent:
+Electric blue
+Performance green
+Bright cyan
+
+Secondary Accent:
+Soft orange
+Athletic lime
+Ice blue
+
+Avoid:
+Purple
+Pink
+Neon rainbow colors
+Generic startup gradients
+
+Color should only be used to direct attention.
+
+The interface should look strong even in grayscale.
+
+TYPOGRAPHY REDESIGN
+
+Current typography feels generic.
+
+Replace with a modern, premium font system.
+
+Use:
+Inter
+SF Pro
+Geist
+Manrope
+
+Create a true typography hierarchy:
+
+Massive screen titles
+Strong section headings
+Medium card labels
+Small supporting text
+
+Use fewer font weights.
+
+Increase font size throughout the app.
+
+Reduce text density by 40%.
+
+Every screen should be scannable within 3 seconds.
+
+LAYOUT REDESIGN
+
+Stop stacking cards vertically.
+
+Current layout looks like:
+
+Card
+Card
+Card
+Card
+Card
+Card
+
+This is exactly what AI-generated apps look like.
+
+Instead:
+
+Create visual rhythm.
+
+Mix:
+Hero sections
+Highlight modules
+Side-by-side metrics
+Expandable sections
+Timeline views
+Floating callouts
+Progress strips
+
+Create different visual shapes throughout the app.
+
+Each screen should have:
+One primary focal point
+Two secondary areas
+Everything else de-emphasized
+
+WHITESPACE
+
+Double the amount of whitespace throughout the app.
+
+Use significantly larger spacing between:
+
+Sections
+Cards
+Charts
+Headers
+Buttons
+
+Nothing should feel compressed.
+
+The interface should feel calm and confident.
+
+ANALYSIS SCREEN REDESIGN
+
+The analysis screen currently feels like a ChatGPT response inside a mobile app.
+
+This is the biggest issue.
+
+The user should immediately see:
+
+Overall Performance
+Biggest Strength
+Biggest Improvement Opportunity
+Next Action
+
+These four elements should occupy 80% of the user’s attention.
+
+Everything else becomes secondary.
+
+Do not present information as a report.
+
+Present information like a coach explaining film review.
+
+Replace text-heavy sections with:
+
+Visual indicators
+Timelines
+Highlights
+Annotated movement moments
+
+NAVIGATION REDESIGN
+
+Current navigation feels generic.
+
+Create stronger orientation cues.
+
+The user should always know:
+
+What screen they’re on
+What action comes next
+What progress they’ve made
+
+Reduce visual clutter.
+
+Remove unnecessary labels.
+
+COMPONENT AUDIT
+
+Review every component and identify:
+
+Anything that looks auto-generated.
+Anything that looks like a default UI library component.
+Anything that looks repetitive.
+Anything that looks like a dashboard template.
+
+Replace those components.
+
+BRANDING
+
+Create a stronger AthleteAI identity.
+
+The app should feel:
+
+Athletic
+Modern
+Intelligent
+Technical
+Premium
+
+Not:
+
+Corporate
+Crypto
+SaaS
+Generic AI startup
+
+FINAL TEST
+
+After redesigning:
+
+Take screenshots of every major screen.
+
+Review them critically.
+
+If a screenshot could reasonably be mistaken for a Replit-generated dashboard, redesign it again.
+
+The goal is for someone to see a screenshot and believe a professional product designer spent months refining the interface.
