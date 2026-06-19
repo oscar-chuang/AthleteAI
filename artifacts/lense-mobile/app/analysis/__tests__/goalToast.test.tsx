@@ -53,6 +53,9 @@ const mockAnalysesGet  = jest.fn();
 const mockAnalysesList = jest.fn();
 const mockProfileStats = jest.fn();
 
+// Configurable useAuth return value — lets individual tests vary the cached weeklyGoal.
+const mockUseAuth = jest.fn();
+
 const mockAsyncStorageGetItem    = jest.fn((key: string) => Promise.resolve(mockStorageStore[key] ?? null));
 const mockAsyncStorageSetItem    = jest.fn((key: string, value: string) => {
   mockStorageStore[key] = value;
@@ -148,10 +151,7 @@ jest.mock("@/lib/api", () => ({
 }));
 
 jest.mock("@/lib/authContext", () => ({
-  useAuth: () => ({
-    profile: { weeklyGoal: 3, sport: "running", level: "intermediate", name: "Test Athlete", avatarUrl: null },
-    refreshProfile: jest.fn(async () => {}),
-  }),
+  useAuth: (...args: unknown[]) => mockUseAuth(...args),
   useCanAccessFeature: () => true,
 }));
 
@@ -260,6 +260,12 @@ beforeEach(() => {
   mockAnalysesList.mockResolvedValue({ analyses: [] });
   mockProfileStats.mockResolvedValue({ thisWeekCount: 3 });
   mockProfileGet.mockResolvedValue({ profile: { weeklyGoal: 3, sport: "running" } });
+
+  // Default cached context: weeklyGoal = 3.
+  mockUseAuth.mockReturnValue({
+    profile: { weeklyGoal: 3, sport: "running", level: "intermediate", name: "Test Athlete", avatarUrl: null },
+    refreshProfile: jest.fn(async () => {}),
+  });
 
   mockAsyncStorageGetItem.mockClear();
   mockAsyncStorageSetItem.mockClear();
@@ -372,6 +378,62 @@ describe("AnalysisDetailScreen — 'Weekly goal reached!' toast", () => {
     // Replace the pending flag with a prev-count snapshot that is below the goal.
     delete mockStorageStore[PENDING_KEY];
     mockStorageStore[PREV_COUNT_KEY] = "2"; // prev count 2, goal 3 → just crossed
+
+    mockAnalysesGet
+      .mockResolvedValueOnce({ analysis: PROCESSING_ANALYSIS, tips: [], injuryRisks: [] })
+      .mockResolvedValueOnce({ analysis: COMPLETE_ANALYSIS,   tips: [], injuryRisks: [] });
+
+    const { queryByText } = render(<AnalysisDetailScreen />);
+    await simulateFocus();
+    await simulateFocus();
+
+    expect(queryByText("Weekly goal reached!")).not.toBeNull();
+  });
+
+  // ── Test 7 — mid-week goal change: API goal raised above count ───────────────
+
+  it("does NOT fire when the server returns a higher goal than the cached context (count below new goal)", async () => {
+    // Scenario: user raised their weekly goal mid-week in Settings.
+    //   Cached context (useAuth): weeklyGoal = 3  (stale)
+    //   Server API (profileApi.get): weeklyGoal = 5  (fresh)
+    //   thisWeekCount = 4
+    // The component must use the fresh API value (5), so 4 < 5 → toast should NOT fire.
+    // If it mistakenly used the cached value (3), 4 >= 3 would fire the toast incorrectly.
+    mockProfileStats.mockResolvedValue({ thisWeekCount: 4 });
+    mockProfileGet.mockResolvedValue({ profile: { weeklyGoal: 5, sport: "running" } });
+    // Cached context still says goal = 3.
+    mockUseAuth.mockReturnValue({
+      profile: { weeklyGoal: 3, sport: "running", level: "intermediate", name: "Test Athlete", avatarUrl: null },
+      refreshProfile: jest.fn(async () => {}),
+    });
+
+    mockAnalysesGet
+      .mockResolvedValueOnce({ analysis: PROCESSING_ANALYSIS, tips: [], injuryRisks: [] })
+      .mockResolvedValueOnce({ analysis: COMPLETE_ANALYSIS,   tips: [], injuryRisks: [] });
+
+    const { queryByText } = render(<AnalysisDetailScreen />);
+    await simulateFocus();
+    await simulateFocus();
+
+    expect(queryByText("Weekly goal reached!")).toBeNull();
+  });
+
+  // ── Test 8 — mid-week goal change: API goal lowered below count ──────────────
+
+  it("fires when the server returns a lower goal than the cached context (count meets new goal)", async () => {
+    // Scenario: user lowered their weekly goal mid-week in Settings.
+    //   Cached context (useAuth): weeklyGoal = 5  (stale)
+    //   Server API (profileApi.get): weeklyGoal = 3  (fresh)
+    //   thisWeekCount = 4
+    // The component must use the fresh API value (3), so 4 >= 3 → toast SHOULD fire.
+    // If it mistakenly used the cached value (5), 4 < 5 would suppress the toast incorrectly.
+    mockProfileStats.mockResolvedValue({ thisWeekCount: 4 });
+    mockProfileGet.mockResolvedValue({ profile: { weeklyGoal: 3, sport: "running" } });
+    // Cached context says the old (higher) goal = 5.
+    mockUseAuth.mockReturnValue({
+      profile: { weeklyGoal: 5, sport: "running", level: "intermediate", name: "Test Athlete", avatarUrl: null },
+      refreshProfile: jest.fn(async () => {}),
+    });
 
     mockAnalysesGet
       .mockResolvedValueOnce({ analysis: PROCESSING_ANALYSIS, tips: [], injuryRisks: [] })
