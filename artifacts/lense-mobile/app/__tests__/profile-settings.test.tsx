@@ -59,6 +59,15 @@ jest.mock("@/lib/authContext", () => ({
   }),
 }));
 
+jest.mock("@react-native-async-storage/async-storage", () => ({
+  __esModule: true,
+  default: {
+    getItem:    jest.fn(async () => null),
+    setItem:    jest.fn(async () => {}),
+    removeItem: jest.fn(async () => {}),
+  },
+}));
+
 jest.mock("@/hooks/useColors", () => ({
   useColors: () => ({
     background: "#0a0a0a",
@@ -69,6 +78,7 @@ jest.mock("@/hooks/useColors", () => ({
     mutedForeground: "#888888",
     destructive: "#ff4d6d",
     success: "#22c55e",
+    warning: "#f59e0b",
     radius: 12,
   }),
 }));
@@ -105,8 +115,10 @@ beforeEach(() => {
   mockDispatch.mockClear();
   mockUpdateProfile.mockClear();
   mockUpdateProfile.mockResolvedValue(undefined);
-  // Reset profile to default (no photo) before each test.
+  // Reset profile to defaults before each test so tests are order-independent.
   mockProfile.avatarUrl = null;
+  mockProfile.weeklyGoal = 3;
+  mockProfile.trainingDays = [0, 1, 2, 3, 4, 5, 6];
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
 });
 
@@ -334,5 +346,73 @@ describe("ProfileSettingsScreen — preset color swatches", () => {
 
     expect(mockUpdateProfile).toHaveBeenCalledWith({ avatarUrl: PRESET_KEY });
     expect(queryByText("Remove photo")).toBeNull();
+  });
+});
+
+// ─── Mismatch nudge ────────────────────────────────────────────────────────────
+
+describe("ProfileSettingsScreen — goal/training-days mismatch nudge", () => {
+  it("shows the nudge when weeklyGoal does not match trainingDays length on mount", async () => {
+    mockProfile.weeklyGoal = 5;
+    mockProfile.trainingDays = [1, 2, 3]; // 3 days, goal=5 → mismatch
+
+    const { getByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    expect(getByTestId("mismatch-nudge")).toBeTruthy();
+  });
+
+  it("does NOT show the nudge when weeklyGoal matches trainingDays length on mount", async () => {
+    mockProfile.weeklyGoal = 3;
+    mockProfile.trainingDays = [1, 2, 3]; // 3 days, goal=3 → match
+
+    const { queryByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    expect(queryByTestId("mismatch-nudge")).toBeNull();
+  });
+
+  it("tapping 'Update to N' calls updateProfile with the correct weeklyGoal", async () => {
+    mockProfile.weeklyGoal = 5;
+    mockProfile.trainingDays = [1, 2, 3]; // 3 days
+
+    const { getByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.press(getByTestId("mismatch-fix-btn"));
+    });
+    await flush();
+
+    expect(mockUpdateProfile).toHaveBeenCalledWith({ weeklyGoal: 3 });
+  });
+
+  it("tapping 'Update to N' hides the nudge", async () => {
+    mockProfile.weeklyGoal = 5;
+    mockProfile.trainingDays = [1, 2, 3];
+
+    const { getByTestId, queryByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.press(getByTestId("mismatch-fix-btn"));
+    });
+    await flush();
+
+    expect(queryByTestId("mismatch-nudge")).toBeNull();
+  });
+
+  it("tapping 'Dismiss' hides the nudge without calling updateProfile", async () => {
+    mockProfile.weeklyGoal = 5;
+    mockProfile.trainingDays = [1, 2, 3];
+
+    const { getByTestId, queryByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    fireEvent.press(getByTestId("mismatch-dismiss-btn"));
+    await flush();
+
+    expect(queryByTestId("mismatch-nudge")).toBeNull();
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
   });
 });

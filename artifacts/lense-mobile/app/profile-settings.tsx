@@ -236,6 +236,13 @@ export default function ProfileSettingsScreen() {
   const [goalSavedFor, setGoalSavedFor] = useState<number | null>(null);
   const [goalAutoSuggestedFor, setGoalAutoSuggestedFor] = useState<number | null>(null);
   const goalAutoSuggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True when the stored weeklyGoal doesn't match the number of training days on
+  // first load. The nudge is dismissed once the user fixes or ignores it.
+  const [showMismatchNudge, setShowMismatchNudge] = useState(() => {
+    const days = profile?.trainingDays ?? [0, 1, 2, 3, 4, 5, 6];
+    const goal = profile?.weeklyGoal ?? 3;
+    return days.length !== goal;
+  });
   const [daysSaving, setDaysSaving] = useState(false);
   const [checkInSaving, setCheckInSaving] = useState(false);
   const [checkInSavedFor, setCheckInSavedFor] = useState<number | null>(null);
@@ -244,6 +251,12 @@ export default function ProfileSettingsScreen() {
   const [pendingImageUri, setPendingImageUri] = useState<string | null>(null);
   const [pendingImageWidth, setPendingImageWidth] = useState(0);
   const [pendingImageHeight, setPendingImageHeight] = useState(0);
+
+  async function handleMismatchFix() {
+    const correctedGoal = trainingDays.length as typeof WEEKLY_GOAL_OPTIONS[number];
+    setShowMismatchNudge(false);
+    await handleWeeklyGoalTap(correctedGoal);
+  }
 
   async function handleTrainingDayToggle(dayIdx: number) {
     if (daysSaving) return;
@@ -256,6 +269,7 @@ export default function ProfileSettingsScreen() {
     const suggestedGoal = next.length as typeof WEEKLY_GOAL_OPTIONS[number];
     const shouldSuggestGoal = suggestedGoal !== weeklyGoal;
     setTrainingDays(next);
+    setShowMismatchNudge(false);
     if (shouldSuggestGoal) {
       setWeeklyGoal(suggestedGoal);
     }
@@ -292,6 +306,7 @@ export default function ProfileSettingsScreen() {
     if (goalSaving || n === weeklyGoal) return;
     const prev = weeklyGoal;
     setWeeklyGoal(n);
+    setShowMismatchNudge(false);
     if (goalAutoSuggestTimerRef.current) {
       clearTimeout(goalAutoSuggestTimerRef.current);
       goalAutoSuggestTimerRef.current = null;
@@ -1018,6 +1033,69 @@ export default function ProfileSettingsScreen() {
                 <Text style={{ fontFamily: "Inter_600SemiBold" }}>{goalAutoSuggestedFor}</Text>
                 {" "}to match your training days. Tap any number above to override.
               </Text>
+            </View>
+          )}
+          {showMismatchNudge && goalAutoSuggestedFor === null && (
+            <View
+              testID="mismatch-nudge"
+              style={{
+                marginTop: 12,
+                backgroundColor: colors.warning + "14",
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: colors.warning + "44",
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                gap: 8,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 7 }}>
+                <Feather name="alert-triangle" size={13} color={colors.warning} style={{ marginTop: 2 }} />
+                <Text style={{ flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: colors.foreground, lineHeight: 17 }}>
+                  Your weekly goal (
+                  <Text style={{ fontFamily: "Inter_600SemiBold" }}>{weeklyGoal}</Text>
+                  ) doesn't match your training days (
+                  <Text style={{ fontFamily: "Inter_600SemiBold" }}>{trainingDays.length}</Text>
+                  ). Want to fix it?
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TouchableOpacity
+                  testID="mismatch-fix-btn"
+                  onPress={handleMismatchFix}
+                  disabled={goalSaving}
+                  activeOpacity={0.8}
+                  style={{
+                    paddingHorizontal: 14,
+                    paddingVertical: 7,
+                    borderRadius: 8,
+                    backgroundColor: colors.warning + "22",
+                    borderWidth: 1,
+                    borderColor: colors.warning + "66",
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.warning }}>
+                    Update to {trainingDays.length}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  testID="mismatch-dismiss-btn"
+                  onPress={() => setShowMismatchNudge(false)}
+                  activeOpacity={0.7}
+                  style={{
+                    paddingHorizontal: 14,
+                    paddingVertical: 7,
+                    borderRadius: 8,
+                    backgroundColor: colors.card,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>
+                    Dismiss
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
         </View>
