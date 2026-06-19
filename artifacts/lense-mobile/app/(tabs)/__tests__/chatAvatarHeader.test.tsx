@@ -1,16 +1,19 @@
 /**
- * Unit tests: AvatarDisplay appears correctly in the AI Coach header.
+ * Unit tests: AvatarDisplay in the AI Coach header.
+ *
+ * Covers two concerns:
+ *   1. Rendering — initials fallback and preset-colour circle.
+ *   2. Navigation — tapping the avatar calls router.push("/profile-settings")
+ *      for both the Pro header (canAccess = true) and the paywall header
+ *      (canAccess = false).
  *
  * Uses the REAL AvatarDisplay (not mocked) so the tests exercise the actual
- * rendering logic — initials fallback when avatarUrl is null, and coloured
- * circle when avatarUrl is a preset colour string.
- *
- * All other dependencies of ChatScreen / profile-settings are stubbed to the
- * minimum needed for a successful render.
+ * rendering logic. All other dependencies are stubbed to the minimum needed
+ * for a successful render.
  */
 
 import React from "react";
-import { render, act } from "@testing-library/react-native";
+import { render, act, fireEvent } from "@testing-library/react-native";
 
 // ─── Module-level mock state ──────────────────────────────────────────────────
 
@@ -23,13 +26,20 @@ let mockProfile: {
 
 const mockRefreshProfile = jest.fn(async () => {});
 
+// Shared router mock — lifted to module level so tap tests can assert on it.
+const mockPush = jest.fn();
+
+// Controls whether the user has Pro access (true → main chat header,
+// false → paywall header).
+let mockCanAccess = true;
+
 // Capture useFocusEffect callback so we control when focus fires.
 let mockFocusCallback: (() => (() => void) | void) | null = null;
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: jest.fn(), back: jest.fn(), replace: jest.fn() }),
+  useRouter: () => ({ push: mockPush, back: jest.fn(), replace: jest.fn() }),
   useFocusEffect: (cb: () => (() => void) | void) => {
     mockFocusCallback = cb;
   },
@@ -85,7 +95,7 @@ jest.mock("@/lib/authContext", () => ({
     updateProfile: jest.fn(async () => {}),
     logout: jest.fn(),
   }),
-  useCanAccessFeature: () => true,
+  useCanAccessFeature: () => mockCanAccess,
 }));
 
 jest.mock("@/lib/api", () => ({
@@ -131,7 +141,15 @@ async function simulateFocus() {
 
 beforeEach(() => {
   mockFocusCallback = null;
+  mockCanAccess = true;
+  mockPush.mockClear();
   mockRefreshProfile.mockClear();
+  mockProfile = {
+    name: "Alex Smith",
+    avatarUrl: null,
+    sport: "Running",
+    level: "intermediate",
+  };
 });
 
 afterEach(() => {
@@ -141,14 +159,9 @@ afterEach(() => {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("ChatScreen — AvatarDisplay in the AI Coach header", () => {
-  it("renders initials when the profile has no avatar (avatarUrl is null)", async () => {
-    mockProfile = {
-      name: "Alex Smith",
-      avatarUrl: null,
-      sport: "Running",
-      level: "intermediate",
-    };
+  // ── Rendering ────────────────────────────────────────────────────────────────
 
+  it("renders initials when the profile has no avatar (avatarUrl is null)", async () => {
     const { getByText } = render(<ChatScreen />);
     await simulateFocus();
 
@@ -177,5 +190,37 @@ describe("ChatScreen — AvatarDisplay in the AI Coach header", () => {
     expect(circleView?.props?.style).toMatchObject(
       expect.objectContaining({ backgroundColor: "#22c55e" })
     );
+  });
+
+  // ── Navigation: Pro header (canAccess = true) ─────────────────────────────
+
+  it("navigates to /profile-settings when the avatar is tapped in the Pro (main chat) header", async () => {
+    // mockCanAccess = true → the full chat header is rendered (not paywall).
+    mockCanAccess = true;
+
+    const { getByText } = render(<ChatScreen />);
+    await simulateFocus();
+
+    // The avatar renders initials "AS"; pressing them fires the wrapping
+    // TouchableOpacity's onPress → router.push("/profile-settings").
+    fireEvent.press(getByText("AS"));
+
+    expect(mockPush).toHaveBeenCalledWith("/profile-settings");
+  });
+
+  // ── Navigation: Paywall header (canAccess = false) ────────────────────────
+
+  it("navigates to /profile-settings when the avatar is tapped in the paywall header", async () => {
+    // mockCanAccess = false → the paywall variant of the header is rendered.
+    mockCanAccess = false;
+
+    const { getByText } = render(<ChatScreen />);
+    await simulateFocus();
+
+    // The paywall header also wraps AvatarDisplay in a TouchableOpacity that
+    // navigates to /profile-settings when pressed.
+    fireEvent.press(getByText("AS"));
+
+    expect(mockPush).toHaveBeenCalledWith("/profile-settings");
   });
 });
