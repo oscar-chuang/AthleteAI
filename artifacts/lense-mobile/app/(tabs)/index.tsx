@@ -99,6 +99,7 @@ export default function HomeScreen() {
 
   const [allAnalyses, setAllAnalyses]     = useState<AnalysisRecord[]>([]);
   const [recentAnalyses, setRecentAnalyses] = useState<AnalysisRecord[]>([]);
+  const [analysesWithTicks, setAnalysesWithTicks] = useState<Set<string>>(new Set());
   const [achievements, setAchievements]   = useState<AchievementRecord[]>([]);
   const [stats, setStats]                 = useState<ProfileStats | null>(null);
   const [jointTrendsData, setJointTrendsData] = useState<JointTrendsResponse | null>(null);
@@ -138,6 +139,23 @@ export default function HomeScreen() {
       setAllAnalyses(analyses);
       setRecentAnalyses(analyses.slice(0, 3));
       setAchievements(ach);
+
+      // Check which complete analyses have frameTicks stored locally
+      const tickIds = await Promise.all(
+        analyses
+          .filter(a => a.status === "complete")
+          .map(async a => {
+            try {
+              const raw = await AsyncStorage.getItem(`frameTicks_${a.id}`);
+              if (!raw) return null;
+              const parsed: unknown[] = JSON.parse(raw);
+              return Array.isArray(parsed) && parsed.length > 0 ? a.id : null;
+            } catch {
+              return null;
+            }
+          })
+      );
+      setAnalysesWithTicks(new Set(tickIds.filter((id): id is string => id !== null)));
       if (statsResult) setStats(statsResult);
       if (trendsResult) setJointTrendsData(trendsResult);
 
@@ -473,6 +491,8 @@ export default function HomeScreen() {
     analysisMeta:      { fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 2, textTransform: "capitalize" },
     analysisDeltaBadge:     { alignSelf: "flex-start", marginTop: 4, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, borderWidth: 1, overflow: "hidden" },
     analysisDeltaBadgeText: { fontSize: 9, fontFamily: "Inter_700Bold" },
+    breakdownChip:     { flexDirection: "row", alignItems: "center", gap: 3, alignSelf: "flex-start", marginTop: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: colors.primary + "66", backgroundColor: colors.primary + "14" },
+    breakdownChipText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: colors.primary },
     scoreCircle:       { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", borderWidth: 2 },
     scoreCircleNum:    { fontSize: 14, fontFamily: "Inter_700Bold" },
 
@@ -966,6 +986,18 @@ export default function HomeScreen() {
                         </View>
                       );
                     })()}
+                    {analysesWithTicks.has(a.id) && (
+                      <TouchableOpacity
+                        testID={`breakdown-chip-${a.id}`}
+                        style={s.breakdownChip}
+                        onPress={(e) => { e.stopPropagation(); router.push(`/analysis/live/${a.id}` as any); }}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Feather name="play" size={9} color={colors.primary} />
+                        <Text style={s.breakdownChipText}>Breakdown</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                   {score != null ? (
                     <View style={[s.scoreCircle, { borderColor: scoreColor, backgroundColor: scoreColor + "14" }]}>
