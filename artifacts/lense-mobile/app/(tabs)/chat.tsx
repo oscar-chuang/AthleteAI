@@ -25,6 +25,7 @@ import { chat as chatApi, type ChatRecord, ApiError } from "@/lib/api";
 import { useAuth, useCanAccessFeature } from "@/lib/authContext";
 import { MarkdownText } from "@/components/MarkdownText";
 import { AvatarDisplay } from "@/app/profile-settings";
+import { formatBiomechanicsTextSafe } from "@/utils/formatBiomechanics";
 
 const PENDING_KEY = "pendingChatMessage";
 
@@ -398,7 +399,7 @@ export default function ChatScreen() {
                     {isUser ? (
                       <Text style={s.userText}>{item.content}</Text>
                     ) : (
-                      <MarkdownText text={item.content} baseSize={14} />
+                      <MarkdownText text={formatBiomechanicsTextSafe(item.content)} baseSize={14} />
                     )}
                   </View>
                   {isLast && (

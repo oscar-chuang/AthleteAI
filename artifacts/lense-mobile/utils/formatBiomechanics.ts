@@ -214,3 +214,53 @@ export function formatBiomechanicsText(raw: string): string {
   }
   return result;
 }
+
+/**
+ * Markdown-safe term translator for rendered chat messages.
+ *
+ * The raw `formatBiomechanicsText` applies regexes to the whole string, which
+ * can corrupt markdown link URLs and code spans that happen to contain
+ * anatomical words (e.g. a URL containing "flexion").
+ *
+ * This variant splits the text into protected and unprotected segments before
+ * translating.  Protected segments (returned as-is):
+ *   - Fenced code blocks   ```…```
+ *   - Inline code          `…`
+ *   - Markdown link URLs   the (url) portion of [text](url)
+ *   - Bare autolinks       <https://…>
+ *
+ * Visible text segments (link labels, prose) are translated normally.
+ */
+
+// Matches segments that must NOT be translated, in priority order:
+//   1. Fenced code block  (``` or ~~~, lazy, multiline)
+//   2. Inline code span   (`…`)
+//   3. Markdown link URL  (the closing ](url) — captures from ] onwards)
+//   4. Autolink           (<scheme://…>)
+const PROTECTED_RE =
+  /(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`]+`|\]\([^)]*\)|<[a-z][a-z0-9+\-.]*:\/\/[^>]*>)/gi;
+
+function applyTermMap(text: string): string {
+  let result = text;
+  for (const [pattern, replacement] of TERM_MAP) {
+    result = result.replace(pattern, replacement);
+  }
+  return result;
+}
+
+export function formatBiomechanicsTextSafe(raw: string): string {
+  if (!raw) return raw;
+
+  // split() with a capturing group interleaves unprotected and protected parts:
+  // [unprotected0, protected1, unprotected2, protected3, …]
+  const parts = raw.split(PROTECTED_RE);
+
+  const translated = parts.map((part, i) =>
+    i % 2 === 0 ? applyTermMap(part) : part,
+  );
+
+  const result = translated.join("");
+  return result.length > 0
+    ? result.charAt(0).toUpperCase() + result.slice(1)
+    : result;
+}
