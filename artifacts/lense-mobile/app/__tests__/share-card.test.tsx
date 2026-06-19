@@ -68,6 +68,30 @@ import { ShareCard } from "@/components/analysis/ShareCard";
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
+describe("ShareCard — top tip strip", () => {
+  it("renders the tip text when topTip is provided", () => {
+    const tip = "Keep your hips level through the stride cycle.";
+    const { queryByText } = render(
+      <ShareCard analysis={BASE_ANALYSIS} topTip={tip} />,
+    );
+    expect(queryByText(tip)).not.toBeNull();
+  });
+
+  it("does NOT render any tip text when topTip is omitted", () => {
+    const tip = "Keep your hips level through the stride cycle.";
+    const { queryByText } = render(<ShareCard analysis={BASE_ANALYSIS} />);
+    expect(queryByText(tip)).toBeNull();
+  });
+
+  it("does NOT render any tip text when topTip is an empty string", () => {
+    const { queryByText } = render(
+      <ShareCard analysis={BASE_ANALYSIS} topTip="" />,
+    );
+    // !!'' is false, so the strip must be absent
+    expect(queryByText("")).toBeNull();
+  });
+});
+
 describe("ShareCard — thumbnail vs. fallback", () => {
   it("renders the Image element when thumbnailUrl is provided", () => {
     const { queryByTestId } = render(<ShareCard analysis={WITH_THUMBNAIL} />);
