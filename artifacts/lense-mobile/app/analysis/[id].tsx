@@ -1878,13 +1878,31 @@ export default function AnalysisDetailScreen() {
             opacity: swipeHintOpacity,
           },
         ]}
-        pointerEvents="none"
+        pointerEvents="box-none"
       >
-        <Feather name="chevron-left" size={14} color={colors.background} />
-        <Text style={[styles.swipeHintText, { color: colors.background }]}>
-          Swipe to navigate
-        </Text>
-        <Feather name="chevron-right" size={14} color={colors.background} />
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => {
+            if (!swipeHintVisible.current) return;
+            const target = nextId ?? prevId;
+            if (!target) return;
+            dismissSwipeHint();
+            navigateTo(target);
+          }}
+          style={styles.swipeHintTouchable}
+        >
+          {nextId ? (
+            <>
+              <Feather name="chevron-left" size={14} color={colors.background} />
+              <Text style={[styles.swipeHintText, { color: colors.background }]}>
+                Swipe to navigate
+              </Text>
+              <Feather name="chevron-right" size={14} color={colors.background} />
+            </>
+          ) : (
+            <Feather name="chevron-left" size={14} color={colors.background} />
+          )}
+        </TouchableOpacity>
       </Animated.View>
 
       {/* ── Goal reached toast ── */}
@@ -2292,6 +2310,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Inter_600SemiBold",
     letterSpacing: 0.2,
+  },
+  swipeHintTouchable: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
 
   // Goal reached toast
