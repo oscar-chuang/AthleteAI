@@ -13,6 +13,23 @@ const JOINT_KEYS = ["leftKnee", "rightKnee", "leftHip", "rightHip", "leftElbow",
 const MAX_FRAME_CHARS = 3_000_000;
 const MAX_TITLE_LENGTH = 120;
 const MAX_SPORT_LENGTH = 60;
+// videoUrl must be a real URL, never inline base64. 4096 bytes is well above
+// any plausible URL length and well below any base64-encoded video payload.
+export const MAX_VIDEO_URL_BYTES = 4_096;
+
+/**
+ * Return an error string if `value` looks like an inline base64 payload rather
+ * than a real URL, or if it exceeds the URL length cap. Returns null when valid.
+ */
+export function validateVideoUrl(value: string): string | null {
+  if (value.startsWith("data:")) {
+    return "videoUrl must be a URL, not an inline data URI";
+  }
+  if (Buffer.byteLength(value, "utf8") > MAX_VIDEO_URL_BYTES) {
+    return `videoUrl must be ${MAX_VIDEO_URL_BYTES} bytes or fewer`;
+  }
+  return null;
+}
 
 function sanitizeJointAngles(raw: unknown): Record<string, number> | null {
   if (!raw || typeof raw !== "object") return null;
@@ -91,6 +108,13 @@ router.post("/analyses", requireAuth, async (req: Request, res: Response) => {
   if (sport.length > MAX_SPORT_LENGTH) {
     res.status(400).json({ error: `sport must be ${MAX_SPORT_LENGTH} characters or fewer` });
     return;
+  }
+  if (videoUrl !== undefined && videoUrl !== null) {
+    const videoUrlError = validateVideoUrl(videoUrl);
+    if (videoUrlError) {
+      res.status(400).json({ error: videoUrlError });
+      return;
+    }
   }
 
   const [row] = await db.insert(analysesTable).values({
