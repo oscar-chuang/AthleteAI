@@ -107,4 +107,20 @@ describe("ScoreRing custom children", () => {
     // Numeric score must NOT appear anywhere in the tree.
     expect(queryByText("75")).toBeNull();
   });
+
+  it("suppresses both the numeric score and the label when a custom child is provided", () => {
+    const { Text } = require("react-native");
+    const { getByText, queryByText } = render(
+      <ScoreRing score={75} color="#fff" label="Overall">
+        <Text>Custom</Text>
+      </ScoreRing>,
+    );
+
+    // Custom child must be present.
+    expect(getByText("Custom")).toBeTruthy();
+    // Numeric score must NOT appear anywhere in the tree.
+    expect(queryByText("75")).toBeNull();
+    // Label must NOT appear anywhere in the tree.
+    expect(queryByText("Overall")).toBeNull();
+  });
 });
