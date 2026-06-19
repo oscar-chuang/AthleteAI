@@ -22,7 +22,6 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
-import * as MediaLibrary from "expo-media-library";
 import { useSharePreview } from "@/hooks/useSharePreview";
 
 import { useColors } from "@/hooks/useColors";
@@ -589,8 +588,10 @@ export default function AnalysisDetailScreen() {
 
   async function handleSaveToPhotos() {
     if (!analysis || saving) return;
+    if (Platform.OS === "web") return;
     setSaving(true);
     try {
+      const MediaLibrary = await import("expo-media-library");
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== "granted") {
         Alert.alert(
