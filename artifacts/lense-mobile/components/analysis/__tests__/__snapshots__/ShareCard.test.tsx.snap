@@ -1,0 +1,9 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`ShareCard — snapshots matches snapshot: dark scheme, no tip, no thumbnail 1`] = `null`;
+
+exports[`ShareCard — snapshots matches snapshot: dark scheme, with thumbnail 1`] = `null`;
+
+exports[`ShareCard — snapshots matches snapshot: dark scheme, with tip, no thumbnail 1`] = `null`;
+
+exports[`ShareCard — snapshots matches snapshot: light scheme, with tip, no thumbnail 1`] = `null`;
