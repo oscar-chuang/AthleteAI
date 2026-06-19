@@ -827,3 +827,42 @@ describe("buildSystemPrompt — older-session drills summary", () => {
     expect(prompt).toContain("Calf Raise");
   });
 });
+
+describe("buildSystemPrompt — athlete name appears in coaching context", () => {
+  beforeEach(() => {
+    clearAnalyses();
+  });
+
+  it("embeds the athlete's name from the profile in the returned prompt", async () => {
+    setProfile("tennis", "Maria");
+    const prompt = await buildSystemPrompt(USER_ID);
+    expect(prompt).toContain("Maria");
+  });
+
+  it("reflects a name change between two successive calls and removes the old name", async () => {
+    setProfile("running", "Jordan");
+    const prompt1 = await buildSystemPrompt(USER_ID);
+    expect(prompt1).toContain("Jordan");
+
+    // Athlete updates their name mid-session
+    setProfile("running", "Taylor");
+    const prompt2 = await buildSystemPrompt(USER_ID);
+
+    expect(prompt2).toContain("Taylor");
+    expect(prompt2).not.toContain("Jordan");
+  });
+
+  it("falls back to 'this athlete' when name is null", async () => {
+    h.profileStore.length = 0;
+    h.profileStore.push({
+      userId: USER_ID,
+      name: null,
+      sport: "cycling",
+      level: "intermediate",
+      goals: null,
+      injuryConcerns: null,
+    });
+    const prompt = await buildSystemPrompt(USER_ID);
+    expect(prompt).toContain("this athlete");
+  });
+});
