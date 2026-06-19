@@ -34,6 +34,52 @@ export interface CropResult {
   mimeType: string;
 }
 
+export interface CropRect {
+  originX: number;
+  originY: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Pure function: given image dimensions, the current pan/zoom state, and the
+ * size of the square crop window, returns the safe crop rectangle that should
+ * be passed to ImageManipulator.
+ *
+ * Exported so it can be unit-tested independently of the React component.
+ */
+export function computeCropRect(
+  imageWidth: number,
+  imageHeight: number,
+  scale: number,
+  tx: number,
+  ty: number,
+  cropSize: number
+): CropRect {
+  const displayW = imageWidth * scale;
+  const displayH = imageHeight * scale;
+
+  const imgLeft = cropSize / 2 + tx - displayW / 2;
+  const imgTop  = cropSize / 2 + ty - displayH / 2;
+
+  const originX = Math.max(0, Math.round(-imgLeft / scale));
+  const originY = Math.max(0, Math.round(-imgTop  / scale));
+  const cropW   = Math.round(Math.min(cropSize / scale, imageWidth  - originX));
+  const cropH   = Math.round(Math.min(cropSize / scale, imageHeight - originY));
+
+  const safeOriginX = Math.max(0, Math.min(originX, imageWidth  - 1));
+  const safeOriginY = Math.max(0, Math.min(originY, imageHeight - 1));
+  const safeCropW   = Math.max(1, Math.min(cropW, imageWidth  - safeOriginX));
+  const safeCropH   = Math.max(1, Math.min(cropH, imageHeight - safeOriginY));
+
+  return {
+    originX: safeOriginX,
+    originY: safeOriginY,
+    width:   safeCropW,
+    height:  safeCropH,
+  };
+}
+
 interface CropModalProps {
   visible: boolean;
   imageUri: string;
@@ -174,25 +220,8 @@ export function CropModal({
   const handleConfirm = useCallback(async () => {
     setProcessing(true);
     try {
-      const s = scale.value;
-      const tx = translateX.value;
-      const ty = translateY.value;
-
-      const displayW = imageWidth * s;
-      const displayH = imageHeight * s;
-
-      const imgLeft = CROP_SIZE / 2 + tx - displayW / 2;
-      const imgTop = CROP_SIZE / 2 + ty - displayH / 2;
-
-      const originX = Math.max(0, Math.round(-imgLeft / s));
-      const originY = Math.max(0, Math.round(-imgTop / s));
-      const cropW = Math.round(Math.min(CROP_SIZE / s, imageWidth - originX));
-      const cropH = Math.round(Math.min(CROP_SIZE / s, imageHeight - originY));
-
-      const safeOriginX = Math.max(0, Math.min(originX, imageWidth - 1));
-      const safeOriginY = Math.max(0, Math.min(originY, imageHeight - 1));
-      const safeCropW = Math.max(1, Math.min(cropW, imageWidth - safeOriginX));
-      const safeCropH = Math.max(1, Math.min(cropH, imageHeight - safeOriginY));
+      const { originX: safeOriginX, originY: safeOriginY, width: safeCropW, height: safeCropH } =
+        computeCropRect(imageWidth, imageHeight, scale.value, translateX.value, translateY.value, CROP_SIZE);
 
       const result = await ImageManipulator.manipulateAsync(
         imageUri,
