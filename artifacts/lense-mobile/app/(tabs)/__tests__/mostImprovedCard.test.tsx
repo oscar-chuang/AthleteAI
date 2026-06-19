@@ -20,7 +20,7 @@
  */
 
 import React from "react";
-import { render, act } from "@testing-library/react-native";
+import { render, act, waitFor } from "@testing-library/react-native";
 
 // ─── Module-level mock state ──────────────────────────────────────────────────
 
@@ -121,17 +121,28 @@ const MOST_IMPROVED_LABEL = "Most improved · tap to view trend";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function flush(rounds = 5) {
-  for (let i = 0; i < rounds; i++) {
-    await act(async () => {});
-  }
-}
-
+/**
+ * Fire the captured useFocusEffect callback inside act() so React processes
+ * the initial synchronous state updates. Individual tests use waitFor() to
+ * drain the remaining async chain — this is robust against variable microtask
+ * depth without relying on a fixed flush-round count.
+ */
 async function simulateFocus() {
   await act(async () => {
     mockFocusCallback?.();
   });
-  await flush();
+}
+
+/**
+ * Wait for the screen's title ("Progress") to appear, which signals that
+ * loading has finished and all data-driven state has settled. Use this
+ * before asserting element absence so the check runs after the full async
+ * chain completes rather than catching a transient pre-load state.
+ */
+async function waitForLoaded(queryByText: (text: string) => any) {
+  await waitFor(() => {
+    expect(queryByText("Progress")).toBeTruthy();
+  });
 }
 
 // ─── Setup / teardown ─────────────────────────────────────────────────────────
@@ -166,14 +177,14 @@ describe("ProgressScreen — most improved joint card", () => {
     const { getByText, queryByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    // Card header must mention the winning joint and its delta.
-    expect(getByText("Left Knee +8°")).toBeTruthy();
+    // Wait for the winning joint card to appear — this drains the full async
+    // chain (loadData → setAllTrends → re-render) regardless of microtask depth.
+    await waitFor(() => expect(getByText("Left Knee +8°")).toBeTruthy());
+
     // The 'Most improved' subtitle must be present.
     expect(getByText(MOST_IMPROVED_LABEL)).toBeTruthy();
 
     // The other joints must NOT appear in a 'Most improved' context.
-    // (They may appear elsewhere — asserting just the card label text is absent
-    //  is sufficient: neither runner-up appears as "Joint +Xdeg".)
     expect(queryByText("Right Hip +3°")).toBeNull();
     expect(queryByText("Right Knee +5°")).toBeNull();
   });
@@ -195,7 +206,8 @@ describe("ProgressScreen — most improved joint card", () => {
     const { getByText, queryByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    expect(getByText("Right Knee +6°")).toBeTruthy();
+    await waitFor(() => expect(getByText("Right Knee +6°")).toBeTruthy());
+
     expect(getByText(MOST_IMPROVED_LABEL)).toBeTruthy();
     expect(queryByText("Left Hip +20°")).toBeNull();
   });
@@ -214,6 +226,8 @@ describe("ProgressScreen — most improved joint card", () => {
     const { queryByText } = render(<ProgressScreen />);
     await simulateFocus();
 
+    // Wait for loading to fully complete before asserting absence.
+    await waitForLoaded(queryByText);
     expect(queryByText(MOST_IMPROVED_LABEL)).toBeNull();
   });
 
@@ -231,6 +245,7 @@ describe("ProgressScreen — most improved joint card", () => {
     const { queryByText } = render(<ProgressScreen />);
     await simulateFocus();
 
+    await waitForLoaded(queryByText);
     expect(queryByText(MOST_IMPROVED_LABEL)).toBeNull();
   });
 
@@ -242,6 +257,7 @@ describe("ProgressScreen — most improved joint card", () => {
     const { queryByText } = render(<ProgressScreen />);
     await simulateFocus();
 
+    await waitForLoaded(queryByText);
     expect(queryByText(MOST_IMPROVED_LABEL)).toBeNull();
   });
 });
