@@ -1,5 +1,6 @@
-import colors from "@/constants/colors";
+import { useTheme } from "@/lib/themeContext";
 
 export function useColors() {
-  return { ...colors.light, radius: colors.radius };
+  const { colors } = useTheme();
+  return colors;
 }

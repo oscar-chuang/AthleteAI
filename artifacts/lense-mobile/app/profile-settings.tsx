@@ -19,6 +19,7 @@ import * as ImagePicker from "expo-image-picker";
 
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/lib/authContext";
+import { useTheme } from "@/lib/themeContext";
 
 const SPORTS = [
   "Powerlifting", "Olympic Weightlifting", "Running", "Swimming",
@@ -151,6 +152,7 @@ export function AvatarDisplay({ avatarUrl, name, size, colors }: AvatarDisplayPr
 
 export default function ProfileSettingsScreen() {
   const colors = useColors();
+  const { isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const navigation = useNavigation();
@@ -1029,6 +1031,56 @@ export default function ProfileSettingsScreen() {
               </Text>
             </View>
           )}
+        </View>
+
+        {/* ── Display ── */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Display</Text>
+          <TouchableOpacity
+            onPress={toggleTheme}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              backgroundColor: colors.card,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: colors.border,
+              paddingVertical: 14,
+              paddingHorizontal: 16,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center" }}>
+                <Feather name={isDark ? "moon" : "sun"} size={17} color={colors.primary} />
+              </View>
+              <View>
+                <Text style={{ fontSize: 15, fontFamily: "Inter_500Medium", color: colors.foreground }}>
+                  {isDark ? "Dark Mode" : "Light Mode"}
+                </Text>
+                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 1 }}>
+                  Tap to switch to {isDark ? "light" : "dark"} mode
+                </Text>
+              </View>
+            </View>
+            <View style={{
+              width: 48,
+              height: 28,
+              borderRadius: 14,
+              backgroundColor: isDark ? colors.primary : colors.muted,
+              justifyContent: "center",
+              paddingHorizontal: 3,
+            }}>
+              <View style={{
+                width: 22,
+                height: 22,
+                borderRadius: 11,
+                backgroundColor: isDark ? "#fff" : colors.mutedForeground,
+                alignSelf: isDark ? "flex-end" : "flex-start",
+              }} />
+            </View>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 

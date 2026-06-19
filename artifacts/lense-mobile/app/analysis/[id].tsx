@@ -25,6 +25,7 @@ import * as Sharing from "expo-sharing";
 import * as MediaLibrary from "expo-media-library";
 
 import { useColors } from "@/hooks/useColors";
+import { formatBiomechanicsText } from "@/utils/formatBiomechanics";
 import {
   analyses as analysesApi,
   profile as profileApi,
@@ -36,8 +37,6 @@ import { useAuth } from "@/lib/authContext";
 import { ScoreRing } from "@/components/ScoreRing";
 import { ScoreCard, getScoreBand } from "@/components/analysis/ScoreCard";
 import { SectionHeader } from "@/components/analysis/SectionHeader";
-import { InsightCard } from "@/components/analysis/InsightCard";
-import { CoachTakeawayCard } from "@/components/analysis/CoachTakeawayCard";
 import { NextFocusCard } from "@/components/analysis/NextFocusCard";
 import { AnimatedLoadingState } from "@/components/analysis/AnimatedLoadingState";
 import { ShareCard, SHARE_CARD_DARK, SHARE_CARD_LIGHT } from "@/components/analysis/ShareCard";
@@ -334,7 +333,7 @@ function StateScreen({
 
 // ── Main screen ────────────────────────────────────────────────────────────────
 export default function AnalysisDetailScreen() {
-  const { id, tab } = useLocalSearchParams<{ id: string; tab?: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -347,10 +346,6 @@ export default function AnalysisDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [expandedTip, setExpanded] = useState<string | null>(null);
-  const validTabs = ["scores", "tips", "risks"] as const;
-  const [activeTab, setActiveTab] = useState<"scores" | "tips" | "risks">(
-    validTabs.includes(tab as any) ? (tab as "scores" | "tips" | "risks") : "scores"
-  );
   const [showGuide, setShowGuide] = useState(false);
   const [note, setNote] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -447,7 +442,7 @@ export default function AnalysisDetailScreen() {
 
   function navigateTo(targetId: string) {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
-    router.replace(`/analysis/${targetId}?tab=${activeTab}` as any);
+    router.replace(`/analysis/${targetId}` as any);
   }
 
   // ── Swipe gesture for session navigation ──────────────────────────────────
@@ -1223,6 +1218,11 @@ export default function AnalysisDetailScreen() {
           }
         }}
       >
+        {/* ── Section 1: Quick Summary ── */}
+        <View style={styles.sectionWrap}>
+          <SectionHeader title="Quick Summary" icon="zap" accentColor={colors.primary} />
+        </View>
+
         {/* ── Hero card ── */}
         <Animated.View
           style={[
@@ -1384,7 +1384,7 @@ export default function AnalysisDetailScreen() {
           }}
         >
           <SectionHeader
-            title="Performance Breakdown"
+            title="Your Scores"
             icon="bar-chart-2"
             accentColor={colors.primary}
           />
@@ -1404,552 +1404,249 @@ export default function AnalysisDetailScreen() {
           </View>
         </View>
 
-        {/* ── Coach Takeaway ── */}
-        <CoachTakeawayCard
-          worstMetric={
-            worstMetric.key.charAt(0).toUpperCase() + worstMetric.key.slice(1)
-          }
-          worstScore={worstMetric.score}
-          topTipTitle={topTip?.title}
-        />
+        {/* ── Section 3: Biggest Win ── */}
+        {(analysis.strengths ?? []).length > 0 && (
+          <View style={styles.sectionWrap}>
+            <SectionHeader title="Your Biggest Win" icon="check-circle" accentColor={colors.success} />
+            <View style={[styles.infoCard, { backgroundColor: colors.success + "0e", borderColor: colors.success + "33" }]}>
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: colors.success + "22", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                  <Feather name="trending-up" size={15} color={colors.success} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground, lineHeight: 22 }}>
+                    {formatBiomechanicsText((analysis.strengths ?? [])[0] ?? "")}
+                  </Text>
+                  {(analysis.strengths ?? []).slice(1).map((s, i) => (
+                    <Text key={i} style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 19, marginTop: 5 }}>
+                      • {formatBiomechanicsText(s)}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
 
-        {/* ── Tabs ── */}
-        <View
-          style={[
-            styles.tabRow,
-            { backgroundColor: colors.card },
-          ]}
-        >
-          {(["scores", "tips", "risks"] as const).map((tab) => {
-            const active = activeTab === tab;
-            return (
-              <TouchableOpacity
-                key={tab}
-                style={[
-                  styles.tab,
-                  active && { backgroundColor: colors.primary },
-                ]}
-                onPress={() => setActiveTab(tab)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: active ? "#fff" : colors.mutedForeground },
-                  ]}
-                >
-                  {tab === "scores"
-                    ? "Highlights"
-                    : tab === "risks"
-                    ? "Injury Risk"
-                    : "Tips"}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+        {/* ── Section 4: Biggest Fix ── */}
+        <View style={styles.sectionWrap}>
+          <SectionHeader title="Biggest Fix" icon="alert-circle" accentColor={colors.warning} />
+          <View style={[styles.infoCard, { backgroundColor: colors.warning + "0e", borderColor: colors.warning + "33" }]}>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+              <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: colors.warning + "22", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                <Feather name="arrow-up-circle" size={15} color={colors.warning} />
+              </View>
+              <View style={{ flex: 1 }}>
+                {(analysis.improvements ?? []).length > 0 ? (
+                  <>
+                    <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground, lineHeight: 22 }}>
+                      {formatBiomechanicsText((analysis.improvements ?? [])[0] ?? "")}
+                    </Text>
+                    {(analysis.improvements ?? []).slice(1, 3).map((imp, i) => (
+                      <Text key={i} style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 19, marginTop: 5 }}>
+                        • {formatBiomechanicsText(imp)}
+                      </Text>
+                    ))}
+                  </>
+                ) : (
+                  <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground, lineHeight: 22 }}>
+                    Your {worstMetric.key} score of {Math.round(worstMetric.score)}/100 is your top focus area.
+                  </Text>
+                )}
+              </View>
+            </View>
+          </View>
         </View>
 
-        {/* ── Highlights tab ── */}
-        {activeTab === "scores" && (
+        {/* ── Section 5: Why It Matters ── */}
+        {(topTip?.whyItMatters || topTip?.description) && (
           <View style={styles.sectionWrap}>
-            {/* What you did well */}
-            <SectionHeader
-              title="What you did well"
-              icon="check-circle"
-              accentColor={colors.success}
-            />
-            {(analysis.strengths ?? []).length === 0 ? (
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                No strengths recorded
-              </Text>
-            ) : (
-              (analysis.strengths ?? []).map((str, i) => (
-                <InsightCard
-                  key={i}
-                  text={str}
-                  variant="strength"
-                  reinforcement={
-                    i === 0 ? "Nice work — you're strong here" : undefined
-                  }
-                />
-              ))
-            )}
-
-            <View style={styles.sectionGap} />
-
-            {/* What needs work */}
-            <SectionHeader
-              title="What needs work"
-              icon="alert-circle"
-              accentColor={colors.warning}
-            />
-            {(analysis.improvements ?? []).length === 0 ? (
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                No areas flagged
-              </Text>
-            ) : (
-              (analysis.improvements ?? []).map((imp, i) => (
-                <InsightCard key={i} text={imp} variant="weakness" />
-              ))
-            )}
-
-            {/* Biggest fix */}
-            {worstMetric && (
-              <>
-                <View style={styles.sectionGap} />
-                <SectionHeader
-                  title="Biggest fix"
-                  icon="zap"
-                  accentColor={colors.primary}
-                />
-                <InsightCard
-                  text={`Your ${worstMetric.key} score is ${Math.round(worstMetric.score)}/100 — this is your highest-leverage improvement area. ${SCORE_META[worstMetric.key].desc}.`}
-                  variant="highlight"
-                  reinforcement="Your biggest opportunity is here"
-                />
-              </>
-            )}
-
-            {/* Recommended drill */}
-            {firstDrill && (
-              <>
-                <View style={styles.sectionGap} />
-                <SectionHeader
-                  title="Recommended drill"
-                  icon="activity"
-                  accentColor="#22c55e"
-                />
-                <View
-                  style={[
-                    styles.drillHighlight,
-                    {
-                      backgroundColor: colors.success + "0e",
-                      borderColor: colors.success + "33",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[styles.drillHighlightName, { color: colors.foreground }]}
-                  >
-                    {firstDrill.name}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.drillHighlightMeta,
-                      { color: colors.mutedForeground },
-                    ]}
-                  >
-                    {firstDrill.sets} · {firstDrill.reps}
-                  </Text>
-                  {firstDrill.cue ? (
-                    <Text
-                      style={[
-                        styles.drillHighlightCue,
-                        { color: colors.foreground },
-                      ]}
-                    >
-                      "{firstDrill.cue}"
-                    </Text>
-                  ) : null}
+            <SectionHeader title="Why It Matters" icon="info" accentColor={colors.primary} />
+            <View style={[styles.infoCard, { backgroundColor: colors.primary + "0a", borderColor: colors.primary + "28" }]}>
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                  <Feather name="message-circle" size={15} color={colors.primary} />
                 </View>
-              </>
-            )}
-          </View>
-        )}
-
-        {/* ── Tips tab ── */}
-        {activeTab === "tips" && (
-          <View style={styles.sectionWrap}>
-            {sortedTips.length === 0 ? (
-              <Text
-                style={[
-                  styles.emptyText,
-                  { color: colors.mutedForeground, textAlign: "center", paddingVertical: 24 },
-                ]}
-              >
-                No coaching tips available
-              </Text>
-            ) : (
-              sortedTips.map((tip, idx) => {
-                const cfg =
-                  SEVERITY_CONFIG[
-                    tip.severity as keyof typeof SEVERITY_CONFIG
-                  ] ?? SEVERITY_CONFIG.info;
-                const expanded =
-                  expandedTip === null
-                    ? idx === 0
-                    : expandedTip === tip.id;
-
-                // "Why it matters" — first sentence of description
-                const whyText =
-                  tip.whyItMatters ??
-                  tip.description.split(/(?<=\.)\s+/)[0] ??
-                  "";
-
-                return (
-                  <TouchableOpacity
-                    key={tip.id}
-                    style={[
-                      styles.tipCard,
-                      {
-                        backgroundColor: colors.card,
-                        borderColor: cfg.color + "44",
-                      },
-                    ]}
-                    activeOpacity={0.85}
-                    onPress={() =>
-                      setExpanded(expanded ? `__none_${tip.id}` : tip.id)
-                    }
-                  >
-                    <View style={styles.tipHeader}>
-                      <View
-                        style={[
-                          styles.tipIconWrap,
-                          { backgroundColor: cfg.color + "18" },
-                        ]}
-                      >
-                        <Feather name={cfg.icon} size={14} color={cfg.color} />
-                      </View>
-                      <View style={styles.tipTitleBlock}>
-                        <Text
-                          style={[
-                            styles.tipTitle,
-                            { color: colors.foreground },
-                          ]}
-                        >
-                          {tip.title}
-                        </Text>
-                        <View style={styles.tipBadgeRow}>
-                          <View
-                            style={[
-                              styles.severityBadge,
-                              { backgroundColor: cfg.color + "18" },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.severityBadgeText,
-                                { color: cfg.color },
-                              ]}
-                            >
-                              {cfg.label}
-                            </Text>
-                          </View>
-                          <Text
-                            style={[
-                              styles.tipCategory,
-                              { color: colors.mutedForeground },
-                            ]}
-                          >
-                            {tip.category}
-                          </Text>
-                        </View>
-                      </View>
-                      <Feather
-                        name={expanded ? "chevron-up" : "chevron-down"}
-                        size={16}
-                        color={colors.mutedForeground}
-                      />
-                    </View>
-
-                    {expanded && (
-                      <View style={styles.tipBody}>
-                        {/* Video observation */}
-                        {tip.videoObservation && (
-                          <View
-                            style={[
-                              styles.observationBox,
-                              {
-                                backgroundColor: colors.primary + "12",
-                                borderColor: colors.primary + "33",
-                              },
-                            ]}
-                          >
-                            <Feather
-                              name="eye"
-                              size={13}
-                              color={colors.primary}
-                              style={{ marginTop: 1 }}
-                            />
-                            <View style={{ flex: 1 }}>
-                              <Text
-                                style={[
-                                  styles.observationLabel,
-                                  { color: colors.primary },
-                                ]}
-                              >
-                                Observed in your video
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.observationText,
-                                  { color: colors.foreground },
-                                ]}
-                              >
-                                {tip.videoObservation}
-                              </Text>
-                            </View>
-                          </View>
-                        )}
-
-                        {/* Why it matters */}
-                        {whyText.length > 0 && (
-                          <View
-                            style={[
-                              styles.whyBox,
-                              {
-                                backgroundColor: cfg.color + "0a",
-                                borderLeftColor: cfg.color,
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.whyLabel,
-                                { color: cfg.color },
-                              ]}
-                            >
-                              WHY IT MATTERS
-                            </Text>
-                            <Text
-                              style={[
-                                styles.whyText,
-                                { color: colors.foreground },
-                              ]}
-                            >
-                              {whyText}
-                            </Text>
-                          </View>
-                        )}
-
-                        {/* Full description */}
-                        <Text
-                          style={[
-                            styles.tipDesc,
-                            { color: colors.mutedForeground },
-                          ]}
-                        >
-                          {tip.description}
-                        </Text>
-
-                        {/* Joint chips */}
-                        {(tip.joints?.length ?? 0) > 0 && (
-                          <View style={styles.chipRow}>
-                            {tip.joints!.map((j) => (
-                              <TouchableOpacity
-                                key={j}
-                                style={[
-                                  styles.chip,
-                                  {
-                                    borderColor: cfg.color + "55",
-                                    backgroundColor: cfg.color + "12",
-                                  },
-                                ]}
-                                onPress={() =>
-                                  router.push({
-                                    pathname: "/analysis/skeleton/[id]",
-                                    params: { id: id!, highlightJoint: j },
-                                  } as any)
-                                }
-                                activeOpacity={0.7}
-                              >
-                                <View
-                                  style={[
-                                    styles.chipDot,
-                                    { backgroundColor: cfg.color },
-                                  ]}
-                                />
-                                <Text
-                                  style={[
-                                    styles.chipText,
-                                    { color: cfg.color },
-                                  ]}
-                                >
-                                  {JOINT_LABEL[j] ?? j}
-                                </Text>
-                                <Feather
-                                  name="crosshair"
-                                  size={9}
-                                  color={cfg.color}
-                                  style={{ opacity: 0.6 }}
-                                />
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        )}
-
-                        {/* Drill */}
-                        {tip.drill && (
-                          <View
-                            style={[
-                              styles.drillBox,
-                              {
-                                backgroundColor: colors.success + "0e",
-                                borderColor: colors.success + "33",
-                              },
-                            ]}
-                          >
-                            <View style={styles.drillHeaderRow}>
-                              <Feather
-                                name="activity"
-                                size={12}
-                                color={colors.success}
-                              />
-                              <Text
-                                style={[
-                                  styles.drillLabel,
-                                  { color: colors.success },
-                                ]}
-                              >
-                                HOW TO FIX IT — DRILL
-                              </Text>
-                            </View>
-                            <Text
-                              style={[
-                                styles.drillName,
-                                { color: colors.foreground },
-                              ]}
-                            >
-                              {typeof tip.drill === "string"
-                                ? tip.drill
-                                : tip.drill.name}
-                            </Text>
-                            {typeof tip.drill !== "string" && (
-                              <Text
-                                style={[
-                                  styles.drillMeta,
-                                  { color: colors.mutedForeground },
-                                ]}
-                              >
-                                {tip.drill.sets} · {tip.drill.reps}
-                                {tip.drill.cue
-                                  ? ` — ${tip.drill.cue}`
-                                  : ""}
-                              </Text>
-                            )}
-                          </View>
-                        )}
-
-                        {/* Source */}
-                        {tip.source && (
-                          <View style={[styles.sourceRow, { borderTopColor: colors.border }]}>
-                            <Feather
-                              name="book-open"
-                              size={10}
-                              color={colors.mutedForeground}
-                              style={{ marginTop: 2 }}
-                            />
-                            <Text
-                              style={[
-                                styles.sourceText,
-                                { color: colors.mutedForeground },
-                              ]}
-                            >
-                              {tip.source}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })
-            )}
-          </View>
-        )}
-
-        {/* ── Injury Risk tab ── */}
-        {activeTab === "risks" && (
-          <View style={styles.sectionWrap}>
-            {risks.length === 0 ? (
-              <View style={styles.noRiskWrap}>
-                <View style={[styles.noRiskIcon, { backgroundColor: colors.success + "18" }]}>
-                  <Feather name="shield" size={24} color={colors.success} />
-                </View>
-                <Text style={[styles.noRiskHeading, { color: colors.foreground }]}>
-                  All clear
-                </Text>
-                <Text style={[styles.noRiskSub, { color: colors.mutedForeground }]}>
-                  No significant injury risks detected in this session. Keep moving well!
+                <Text style={{ flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: colors.foreground, lineHeight: 21 }}>
+                  {formatBiomechanicsText(topTip.whyItMatters ?? topTip.description)}
                 </Text>
               </View>
-            ) : (
-              risks.map((risk, idx) => {
-                const clr = risk.riskPercent >= 50
-                  ? colors.destructive
-                  : risk.riskPercent >= 30
-                  ? colors.warning
-                  : colors.success;
-                const rl = getRiskLabel(risk.riskPercent);
-                return (
-                  <View
-                    key={risk.id}
-                    style={[
-                      styles.riskCard,
-                      {
-                        backgroundColor: colors.card,
-                        borderColor: clr + "33",
-                      },
-                    ]}
-                  >
-                    <View style={styles.riskHeaderRow}>
-                      <Text style={[styles.riskJoint, { color: colors.foreground }]}>
-                        {JOINT_LABEL[risk.joint] ?? risk.joint}
-                      </Text>
-                      <View style={styles.riskRightCol}>
-                        <View
-                          style={[
-                            styles.riskBadge,
-                            { backgroundColor: clr + "18" },
-                          ]}
-                        >
-                          <Text style={[styles.riskBadgeText, { color: clr }]}>
-                            {rl.label}
-                          </Text>
-                        </View>
-                        <Text style={[styles.riskPct, { color: clr }]}>
-                          {risk.riskPercent}%
-                        </Text>
-                      </View>
-                    </View>
-
-                    <AnimatedRiskBar pct={risk.riskPercent} color={clr} delay={idx * 80} />
-
-                    {/* What this means */}
-                    <View style={[styles.whatThisMeansBox, { backgroundColor: clr + "08", borderColor: clr + "22" }]}>
-                      <Text style={[styles.whatThisMeansLabel, { color: clr }]}>
-                        WHAT THIS MEANS
-                      </Text>
-                      <Text style={[styles.riskDesc, { color: colors.foreground }]}>
-                        {risk.description}
-                      </Text>
-                    </View>
-
-                    <Text style={[styles.riskPrev, { color: colors.mutedForeground }]}>
-                      <Text style={[styles.prevLabel, { color: colors.primary }]}>
-                        Prevention:{" "}
-                      </Text>
-                      {risk.prevention}
-                    </Text>
-                  </View>
-                );
-              })
-            )}
+            </View>
           </View>
         )}
 
-        {/* ── Next Workout Focus ── */}
-        <View style={[styles.sectionWrap, { paddingBottom: 0 }]}>
-          <SectionHeader
-            title="Next Workout Focus"
-            icon="target"
-            accentColor="#f59e0b"
-          />
+        {/* ── Section 6: Try This Drill ── */}
+        {firstDrill && (
+          <View style={styles.sectionWrap}>
+            <SectionHeader title="Try This Drill" icon="activity" accentColor={colors.success} />
+            <View style={[styles.infoCard, { backgroundColor: colors.success + "0e", borderColor: colors.success + "33" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: colors.success + "22", alignItems: "center", justifyContent: "center" }}>
+                  <Feather name="activity" size={15} color={colors.success} />
+                </View>
+                <Text style={{ flex: 1, fontSize: 16, fontFamily: "Inter_700Bold", color: colors.foreground }}>{firstDrill.name}</Text>
+              </View>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.success, marginBottom: 4 }}>
+                {firstDrill.sets} · {firstDrill.reps}
+              </Text>
+              {firstDrill.cue ? (
+                <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 19, fontStyle: "italic" }}>
+                  "{firstDrill.cue}"
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        )}
+
+        {/* ── Section 7: Next Workout Goal ── */}
+        <View style={styles.sectionWrap}>
+          <SectionHeader title="Next Workout Goal" icon="target" accentColor="#f59e0b" />
           <NextFocusCard
-            focusCue={`Focus on improving your ${worstMetric.key} — ${SCORE_META[worstMetric.key].desc.toLowerCase()}`}
+            focusCue={`Focus on your ${worstMetric.key} — ${SCORE_META[worstMetric.key].desc.toLowerCase()}`}
             drill={firstDrill}
-            goal={`Raise your ${worstMetric.key} score from ${Math.round(worstMetric.score)} to ${Math.min(100, Math.round(worstMetric.score) + 10)} in your next session`}
+            goal={`Raise your ${worstMetric.key} score from ${Math.round(worstMetric.score)} to ${Math.min(100, Math.round(worstMetric.score) + 10)} next session`}
           />
+        </View>
+
+        {/* ── All coaching tips ── */}
+        {sortedTips.length > 0 && (
+          <View style={styles.sectionWrap}>
+            <SectionHeader
+              title="Coaching Tips"
+              icon="zap"
+              accentColor={colors.primary}
+              subtitle={`${sortedTips.length} tip${sortedTips.length !== 1 ? "s" : ""} from your session`}
+            />
+            {sortedTips.map((tip, idx) => {
+              const cfg = SEVERITY_CONFIG[tip.severity as keyof typeof SEVERITY_CONFIG] ?? SEVERITY_CONFIG.info;
+              const expanded = expandedTip === null ? idx === 0 : expandedTip === tip.id;
+              const whyText = tip.whyItMatters ?? "";
+              return (
+                <TouchableOpacity
+                  key={tip.id}
+                  style={[styles.tipCard, { backgroundColor: colors.card, borderColor: cfg.color + "44" }]}
+                  activeOpacity={0.85}
+                  onPress={() => setExpanded(expanded ? `__none_${tip.id}` : tip.id)}
+                >
+                  <View style={styles.tipHeader}>
+                    <View style={[styles.tipIconWrap, { backgroundColor: cfg.color + "18" }]}>
+                      <Feather name={cfg.icon} size={14} color={cfg.color} />
+                    </View>
+                    <View style={styles.tipTitleBlock}>
+                      <Text style={[styles.tipTitle, { color: colors.foreground }]}>{tip.title}</Text>
+                      <View style={styles.tipBadgeRow}>
+                        <View style={[styles.severityBadge, { backgroundColor: cfg.color + "18" }]}>
+                          <Text style={[styles.severityBadgeText, { color: cfg.color }]}>{cfg.label}</Text>
+                        </View>
+                        <Text style={[styles.tipCategory, { color: colors.mutedForeground }]}>{tip.category}</Text>
+                      </View>
+                    </View>
+                    <Feather name={expanded ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
+                  </View>
+                  {expanded && (
+                    <View style={styles.tipBody}>
+                      {tip.videoObservation && (
+                        <View style={[styles.observationBox, { backgroundColor: colors.primary + "12", borderColor: colors.primary + "33" }]}>
+                          <Feather name="eye" size={13} color={colors.primary} style={{ marginTop: 1 }} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.observationLabel, { color: colors.primary }]}>Observed in your video</Text>
+                            <Text style={[styles.observationText, { color: colors.foreground }]}>{formatBiomechanicsText(tip.videoObservation)}</Text>
+                          </View>
+                        </View>
+                      )}
+                      {whyText.length > 0 && (
+                        <View style={[styles.whyBox, { backgroundColor: cfg.color + "0a", borderLeftColor: cfg.color }]}>
+                          <Text style={[styles.whyLabel, { color: cfg.color }]}>WHY IT MATTERS</Text>
+                          <Text style={[styles.whyText, { color: colors.foreground }]}>{formatBiomechanicsText(whyText)}</Text>
+                        </View>
+                      )}
+                      <Text style={[styles.tipDesc, { color: colors.mutedForeground }]}>{formatBiomechanicsText(tip.description)}</Text>
+                      {(tip.joints?.length ?? 0) > 0 && (
+                        <View style={styles.chipRow}>
+                          {tip.joints!.map((j) => (
+                            <TouchableOpacity
+                              key={j}
+                              style={[styles.chip, { borderColor: cfg.color + "55", backgroundColor: cfg.color + "12" }]}
+                              onPress={() => router.push({ pathname: "/analysis/skeleton/[id]", params: { id: id!, highlightJoint: j } } as any)}
+                              activeOpacity={0.7}
+                            >
+                              <View style={[styles.chipDot, { backgroundColor: cfg.color }]} />
+                              <Text style={[styles.chipText, { color: cfg.color }]}>{JOINT_LABEL[j] ?? j}</Text>
+                              <Feather name="crosshair" size={9} color={cfg.color} style={{ opacity: 0.6 }} />
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                      {tip.drill && (
+                        <View style={[styles.drillBox, { backgroundColor: colors.success + "0e", borderColor: colors.success + "33" }]}>
+                          <View style={styles.drillHeaderRow}>
+                            <Feather name="activity" size={12} color={colors.success} />
+                            <Text style={[styles.drillLabel, { color: colors.success }]}>HOW TO FIX IT — DRILL</Text>
+                          </View>
+                          <Text style={[styles.drillName, { color: colors.foreground }]}>
+                            {typeof tip.drill === "string" ? tip.drill : tip.drill.name}
+                          </Text>
+                          {typeof tip.drill !== "string" && (
+                            <Text style={[styles.drillMeta, { color: colors.mutedForeground }]}>
+                              {tip.drill.sets} · {tip.drill.reps}{tip.drill.cue ? ` — ${tip.drill.cue}` : ""}
+                            </Text>
+                          )}
+                        </View>
+                      )}
+                      {tip.source && (
+                        <View style={[styles.sourceRow, { borderTopColor: colors.border }]}>
+                          <Feather name="book-open" size={10} color={colors.mutedForeground} style={{ marginTop: 2 }} />
+                          <Text style={[styles.sourceText, { color: colors.mutedForeground }]}>{tip.source}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+
+        {/* ── Joint Health (Injury Risks) ── */}
+        <View style={styles.sectionWrap}>
+          <SectionHeader title="Joint Health" icon="shield" accentColor={colors.destructive} subtitle="Injury risk levels from this session" />
+          {risks.length === 0 ? (
+            <View style={styles.noRiskWrap}>
+              <View style={[styles.noRiskIcon, { backgroundColor: colors.success + "18" }]}>
+                <Feather name="shield" size={24} color={colors.success} />
+              </View>
+              <Text style={[styles.noRiskHeading, { color: colors.foreground }]}>All clear</Text>
+              <Text style={[styles.noRiskSub, { color: colors.mutedForeground }]}>No significant injury risks detected. Keep moving well!</Text>
+            </View>
+          ) : (
+            risks.map((risk, idx) => {
+              const clr = risk.riskPercent >= 50 ? colors.destructive : risk.riskPercent >= 30 ? colors.warning : colors.success;
+              const rl = getRiskLabel(risk.riskPercent);
+              return (
+                <View key={risk.id} style={[styles.riskCard, { backgroundColor: colors.card, borderColor: clr + "33" }]}>
+                  <View style={styles.riskHeaderRow}>
+                    <Text style={[styles.riskJoint, { color: colors.foreground }]}>{JOINT_LABEL[risk.joint] ?? risk.joint}</Text>
+                    <View style={styles.riskRightCol}>
+                      <View style={[styles.riskBadge, { backgroundColor: clr + "18" }]}>
+                        <Text style={[styles.riskBadgeText, { color: clr }]}>{rl.label}</Text>
+                      </View>
+                      <Text style={[styles.riskPct, { color: clr }]}>{risk.riskPercent}%</Text>
+                    </View>
+                  </View>
+                  <AnimatedRiskBar pct={risk.riskPercent} color={clr} delay={idx * 80} />
+                  <View style={[styles.whatThisMeansBox, { backgroundColor: clr + "08", borderColor: clr + "22" }]}>
+                    <Text style={[styles.whatThisMeansLabel, { color: clr }]}>WHAT THIS MEANS</Text>
+                    <Text style={[styles.riskDesc, { color: colors.foreground }]}>{formatBiomechanicsText(risk.description)}</Text>
+                  </View>
+                  <Text style={[styles.riskPrev, { color: colors.mutedForeground }]}>
+                    <Text style={[styles.prevLabel, { color: colors.primary }]}>Prevention: </Text>
+                    {risk.prevention}
+                  </Text>
+                </View>
+              );
+            })
+          )}
         </View>
 
         {/* ── Session Notes ── */}
@@ -2155,6 +1852,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   scoreGridCell: { width: "48%", flexShrink: 1 },
+
+  // Info card (used by Biggest Win, Biggest Fix, Why It Matters, Try This Drill)
+  infoCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 2,
+  },
 
   // Tabs
   tabRow: {

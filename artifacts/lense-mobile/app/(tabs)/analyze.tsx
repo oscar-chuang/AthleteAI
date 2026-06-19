@@ -64,11 +64,11 @@ const SPORT_ACCENT: Record<string, string> = {
 };
 
 const ANALYSIS_STEPS = [
-  { label: "Scanning video",             icon: "film"     },
-  { label: "Detecting athlete",          icon: "user"     },
-  { label: "Measuring joint angles",     icon: "activity" },
-  { label: "Building your analysis",     icon: "cpu"      },
-  { label: "Generating your report",     icon: "file-text"},
+  { label: "Scanning your video",          icon: "film",      color: "#6366f1" },
+  { label: "Finding the athlete",          icon: "user",      color: "#a855f7" },
+  { label: "Tracking movement",            icon: "activity",  color: "#3b82f6" },
+  { label: "Measuring key positions",      icon: "target",    color: "#10b981" },
+  { label: "Building your coaching plan",  icon: "cpu",       color: "#f59e0b" },
 ];
 
 type SortMode = "newest" | "oldest" | "score-high" | "score-low";
@@ -399,11 +399,14 @@ export default function AnalyzeScreen() {
     noResultsText:   { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
     // Processing overlay
     overlay:         { flex: 1, backgroundColor: "rgba(0,0,0,0.88)", alignItems: "center", justifyContent: "center", padding: 32 },
-    overlayCard:     { backgroundColor: colors.card, borderRadius: 24, padding: 32, alignItems: "center", width: "100%", gap: 6 },
-    overlayTitle:    { fontSize: 19, fontFamily: "Inter_700Bold", color: colors.foreground, marginTop: 16, marginBottom: 4 },
-    overlayStep:     { fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" },
-    stepDots:        { flexDirection: "row", gap: 8, marginTop: 20, marginBottom: 4 },
-    stepDot:         { width: 8, height: 8, borderRadius: 4 },
+    overlayCard:     { backgroundColor: colors.card, borderRadius: 24, padding: 32, alignItems: "center", width: "100%", gap: 10 },
+    overlayIconRing: { width: 84, height: 84, borderRadius: 42, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+    overlayTitle:    { fontSize: 19, fontFamily: "Inter_700Bold", color: colors.foreground, marginTop: 4, marginBottom: 2 },
+    overlayStep:     { fontSize: 14, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+    overlayBarBg:    { width: "100%", height: 6, borderRadius: 3, overflow: "hidden" },
+    overlayBarFill:  { height: 6, borderRadius: 3 },
+    stepDots:        { flexDirection: "row", gap: 6, marginTop: 4, marginBottom: 2, alignItems: "center" },
+    stepDot:         { height: 7, borderRadius: 4 },
     // Sport picker modal
     pickerModal:     { flex: 1, backgroundColor: colors.background },
     pickerHeader:    { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
@@ -533,16 +536,32 @@ export default function AnalyzeScreen() {
       <Modal visible={analyzing} transparent animationType="fade">
         <View style={s.overlay}>
           <View style={s.overlayCard}>
-            <Feather name={ANALYSIS_STEPS[analysisStep]?.icon as any ?? "cpu"} size={36} color={colors.primary} />
+            <View style={[s.overlayIconRing, {
+              backgroundColor: (ANALYSIS_STEPS[analysisStep]?.color ?? colors.primary) + "22",
+              borderColor: (ANALYSIS_STEPS[analysisStep]?.color ?? colors.primary) + "55",
+            }]}>
+              <Feather name={ANALYSIS_STEPS[analysisStep]?.icon as any ?? "cpu"} size={32} color={ANALYSIS_STEPS[analysisStep]?.color ?? colors.primary} />
+            </View>
             <Text style={s.overlayTitle}>Analyzing your video…</Text>
-            <Text style={s.overlayStep}>{ANALYSIS_STEPS[analysisStep]?.label}</Text>
+            <Text style={[s.overlayStep, { color: ANALYSIS_STEPS[analysisStep]?.color ?? colors.primary }]}>
+              {ANALYSIS_STEPS[analysisStep]?.label}
+            </Text>
+            <View style={[s.overlayBarBg, { backgroundColor: colors.border }]}>
+              <View style={[s.overlayBarFill, {
+                backgroundColor: ANALYSIS_STEPS[analysisStep]?.color ?? colors.primary,
+                width: `${((analysisStep + 1) / ANALYSIS_STEPS.length) * 100}%` as any,
+              }]} />
+            </View>
             <View style={s.stepDots}>
-              {ANALYSIS_STEPS.map((_, i) => (
+              {ANALYSIS_STEPS.map((step, i) => (
                 <View
                   key={i}
                   style={[
                     s.stepDot,
-                    { backgroundColor: i <= analysisStep ? colors.primary : colors.border },
+                    {
+                      backgroundColor: i <= analysisStep ? step.color : colors.border,
+                      width: i === analysisStep ? 20 : 7,
+                    },
                   ]}
                 />
               ))}

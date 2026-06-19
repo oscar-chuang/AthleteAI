@@ -488,7 +488,7 @@ export default function HomeScreen() {
         {/* ── Stats row (only when the user has data) ── */}
         {allAnalyses.length > 0 && (
           <View style={s.statsRow}>
-            <View style={s.statCard}>
+            <View style={[s.statCard, { borderTopWidth: 3, borderTopColor: overallColor }]}>
               <View style={[s.overallCircle, { borderColor: overallColor, backgroundColor: overallColor + "1a" }]}>
                 <Text style={[s.overallNum, { color: overallColor }]}>
                   {overallScore != null ? Math.round(overallScore) : "--"}
@@ -508,11 +508,11 @@ export default function HomeScreen() {
               )}
               <Text style={s.statLabel}>Score</Text>
             </View>
-            <View style={s.statCard}>
+            <View style={[s.statCard, { borderTopWidth: 3, borderTopColor: colors.primary }]}>
               <Text style={s.statValue}>{totalSessions}</Text>
               <Text style={s.statLabel}>Sessions</Text>
             </View>
-            <View style={s.statCard}>
+            <View style={[s.statCard, { borderTopWidth: 3, borderTopColor: streakDays > 0 ? "#ff6b35" : colors.success }]}>
               <Text style={[s.statValue, { color: streakDays > 0 ? "#ff6b35" : colors.foreground }]}>
                 {streakDays > 0 ? `${streakDays}` : unlockedCount}
               </Text>

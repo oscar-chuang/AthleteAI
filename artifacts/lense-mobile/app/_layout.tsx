@@ -17,6 +17,7 @@ import { ActivityIndicator, Platform, View } from "react-native";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/lib/authContext";
+import { ThemeProvider, useTheme } from "@/lib/themeContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -35,11 +36,12 @@ const queryClient = new QueryClient();
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isLoading } = useAuth();
+  const { colors } = useTheme();
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#0a0a0f", alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color="#6c63ff" size="large" />
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
   }
@@ -67,12 +69,10 @@ function NotificationListener() {
   useEffect(() => {
     if (Platform.OS === "web") return;
 
-    // Handle tap when app was fully terminated (cold start).
     Notifications.getLastNotificationResponseAsync()
       .then((response) => handleNotificationResponse(response, router))
       .catch(() => {});
 
-    // Handle tap when app is in foreground or background.
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
       handleNotificationResponse(response, router);
     });
@@ -84,6 +84,8 @@ function NotificationListener() {
 }
 
 function RootLayoutNav() {
+  const { colors } = useTheme();
+
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
@@ -96,8 +98,8 @@ function RootLayoutNav() {
         name="analysis/[id]"
         options={{
           headerShown: true,
-          headerStyle: { backgroundColor: "#0a0a0f" },
-          headerTintColor: "#f0f0f8",
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.foreground,
           headerTitle: "Analysis",
           headerBackTitle: "Back",
         }}
@@ -111,6 +113,21 @@ function RootLayoutNav() {
         options={{ headerShown: false, presentation: "modal" }}
       />
     </Stack>
+  );
+}
+
+function AppContent() {
+  const { colors } = useTheme();
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
+      <KeyboardProvider>
+        <AuthGate>
+          <NotificationListener />
+          <RootLayoutNav />
+        </AuthGate>
+      </KeyboardProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -133,18 +150,13 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
-        <AuthProvider>
-          <QueryClientProvider client={queryClient}>
-            <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0a0a0f" }}>
-              <KeyboardProvider>
-                <AuthGate>
-                  <NotificationListener />
-                  <RootLayoutNav />
-                </AuthGate>
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </QueryClientProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <QueryClientProvider client={queryClient}>
+              <AppContent />
+            </QueryClientProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </ErrorBoundary>
     </SafeAreaProvider>
   );
