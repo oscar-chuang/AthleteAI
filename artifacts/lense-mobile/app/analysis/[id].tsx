@@ -47,6 +47,11 @@ import {
 
 const PENDING_CHAT_KEY = "pendingChatMessage";
 
+// Module-level: tracks which analysis IDs have already completed their first ring animation.
+// Persists across component re-mounts (session navigation), so switching sessions and coming
+// back never replays the stagger — and re-focusing the tab never re-fires it either.
+const ringAnimationDone = new Set<string>();
+
 function getWeekKey(): string {
   const d = new Date();
   const sunday = new Date(d);
@@ -374,15 +379,37 @@ export default function AnalysisDetailScreen() {
     Array(SCORE_KEYS.length).fill(false)
   );
   const scoreGridY = useRef<number | null>(null);
+  // Height of the ScrollView's visible area — used to auto-trigger rings when
+  // the grid is already within the initial viewport at scroll y=0.
+  const scrollViewHeight = useRef<number>(0);
 
   // Sibling session IDs for prev/next navigation — sorted newest-first
   const [siblingIds, setSiblingIds] = useState<string[]>([]);
 
   const scrollRef = useRef<ScrollView>(null);
 
-  // Stagger-trigger each sub-score ring when the grid scrolls into view
+  // If this analysis has already played its ring animation (e.g. user returns
+  // to the same session or switches tabs and comes back), show all rings
+  // instantly without replaying the stagger.
+  useEffect(() => {
+    if (!analysis?.id) return;
+    if (ringAnimationDone.has(analysis.id)) {
+      setCardAnimated(Array(SCORE_KEYS.length).fill(true));
+      setCardsVisible(true);
+    }
+  }, [analysis?.id]);
+
+  // Stagger-trigger each sub-score ring when the grid scrolls into view.
+  // Skips the stagger for already-seen analyses (cardsVisible was set to true
+  // immediately above, so this effect fires but exits the already-seen branch).
   useEffect(() => {
     if (!cardsVisible) return;
+    if (analysis?.id && ringAnimationDone.has(analysis.id)) {
+      // Already animated — ensure all rings show immediately (idempotent).
+      setCardAnimated(Array(SCORE_KEYS.length).fill(true));
+      return;
+    }
+    if (analysis?.id) ringAnimationDone.add(analysis.id);
     SCORE_KEYS.forEach((_, i) => {
       setTimeout(() => {
         setCardAnimated((prev) => {
@@ -1218,6 +1245,9 @@ export default function AnalysisDetailScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: bottomPad }}
         scrollEventThrottle={16}
+        onLayout={(e) => {
+          scrollViewHeight.current = e.nativeEvent.layout.height;
+        }}
         onScroll={({ nativeEvent }) => {
           if (cardsVisible || scoreGridY.current === null) return;
           const { contentOffset, layoutMeasurement } = nativeEvent;
@@ -1388,7 +1418,15 @@ export default function AnalysisDetailScreen() {
         <View
           style={styles.sectionWrap}
           onLayout={(e) => {
-            scoreGridY.current = e.nativeEvent.layout.y;
+            const y = e.nativeEvent.layout.y;
+            scoreGridY.current = y;
+            // Auto-trigger if the grid is already within the initial viewport
+            // (scroll position = 0). This fires on every navigation so newly
+            // mounted sessions don't get stuck waiting for a scroll event that
+            // will never come when the grid is already on screen.
+            if (!cardsVisible && scrollViewHeight.current > 0 && y < scrollViewHeight.current) {
+              setCardsVisible(true);
+            }
           }}
         >
           <SectionHeader
