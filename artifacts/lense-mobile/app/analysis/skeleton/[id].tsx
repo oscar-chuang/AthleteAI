@@ -156,15 +156,47 @@ ${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto">
 
   function post(o){ try{window.ReactNativeWebView.postMessage(JSON.stringify(o));}catch(e){} }
 
+  // ── Canvas size tracking via ResizeObserver ───────────────────────────────────
+  // offsetWidth/offsetHeight can be 0 on the first few onResults calls if the
+  // WebView hasn't finished layout yet. Using those stale values produces an
+  // incorrect letterbox rect and causes the skeleton to drift from the video on
+  // non-standard aspect ratios. We track the true rendered size through a
+  // ResizeObserver and defer any draw that arrives before the first layout event.
+  let liveW=0, liveH=0, pendingRes=null;
+  function applyResize(w,h){
+    if(w<=0||h<=0)return;
+    liveW=w; liveH=h;
+    // Update the canvas buffer dimensions now, outside of any active draw,
+    // so resizing never discards an in-progress frame.
+    if(liveCanvas){liveCanvas.width=w;liveCanvas.height=h;}
+    // Flush a skeleton draw that arrived before layout was ready.
+    if(pendingRes){var r=pendingRes;pendingRes=null;drawSkeleton(r);}
+  }
+  if(liveCanvas){
+    if(typeof ResizeObserver!=='undefined'){
+      new ResizeObserver(function(entries){
+        var e=entries[0]; if(!e)return;
+        var r=e.contentRect;
+        applyResize(Math.round(r.width),Math.round(r.height));
+      }).observe(liveCanvas);
+    } else {
+      // Fallback for environments without ResizeObserver: poll until layout is ready.
+      var _poll=setInterval(function(){
+        var w=liveCanvas.offsetWidth,h=liveCanvas.offsetHeight;
+        if(w>0&&h>0){clearInterval(_poll);applyResize(w,h);}
+      },50);
+    }
+  }
+
   // ── Live skeleton overlay drawn on each processed frame ──────────────────────
   // Landmarks from MediaPipe are crop-local (0..1 within the crop) when
   // personLocked=true, or full-frame when not yet locked. We map them back to
   // full-frame normalised coords before projecting onto the visible canvas.
   function drawSkeleton(res){
     if(!liveCanvas||!liveCtx)return;
-    const cW=liveCanvas.offsetWidth||640, cH=liveCanvas.offsetHeight||360;
-    if(liveCanvas.width!==cW)liveCanvas.width=cW;
-    if(liveCanvas.height!==cH)liveCanvas.height=cH;
+    // Defer until the ResizeObserver has measured the canvas at least once.
+    if(liveW<=0||liveH<=0){pendingRes=res;return;}
+    const cW=liveW, cH=liveH;
     liveCtx.clearRect(0,0,cW,cH);
     const lm=res.poseLandmarks; if(!lm)return;
     const VW=video.videoWidth||640, VH=video.videoHeight||360;
