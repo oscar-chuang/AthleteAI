@@ -259,4 +259,38 @@ describe("ChatScreen — sport/level tag in the AI Coach header", () => {
 
     expect(mockPush).toHaveBeenCalledWith("/profile-settings");
   });
+
+  // ── Fallback labels when sport/level are missing ──────────────────────────
+
+  it('navigates to /profile-settings when the "Online · Ready to help" fallback is tapped in the Pro header', async () => {
+    // mockCanAccess = true → full chat header rendered.
+    mockCanAccess = true;
+    // Profile exists but sport and level are empty strings → fallback label shown.
+    mockProfile = { name: "Alex Smith", avatarUrl: null, sport: "", level: "" };
+
+    const { getByText } = render(<ChatScreen />);
+    await simulateFocus();
+
+    // The TouchableOpacity wrapping the fallback text still navigates to
+    // /profile-settings so the user can fill in their sport and level.
+    fireEvent.press(getByText("Online · Ready to help"));
+
+    expect(mockPush).toHaveBeenCalledWith("/profile-settings");
+  });
+
+  it('navigates to /profile-settings when the "Pro feature" fallback is tapped in the paywall header', async () => {
+    // mockCanAccess = false → paywall header rendered.
+    mockCanAccess = false;
+    // Profile exists but sport and level are empty strings → fallback label shown.
+    mockProfile = { name: "Alex Smith", avatarUrl: null, sport: "", level: "" };
+
+    const { getByText } = render(<ChatScreen />);
+    await simulateFocus();
+
+    // The TouchableOpacity wrapping the "Pro feature" fallback also navigates
+    // to /profile-settings so the user can fill in their sport and level.
+    fireEvent.press(getByText("Pro feature"));
+
+    expect(mockPush).toHaveBeenCalledWith("/profile-settings");
+  });
 });
