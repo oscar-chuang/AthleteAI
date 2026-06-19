@@ -622,3 +622,82 @@ describe("joint history sheet — delta badge interaction", () => {
     expect(screen.queryByText("Left Knee")).toBeNull();
   });
 });
+
+// ─── Scan quality banner ───────────────────────────────────────────────────────
+// KEY_LANDMARKS indices: [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]
+// Max index is 28 → landmark array needs ≥ 29 entries.
+// computeScanQuality averages `v` across those indices:
+//   avg < 0.45  → "low"   (dismissible banner)
+//   avg < 0.70  → "medium" (inline note, no banner)
+//   avg ≥ 0.70  → "high"  (no warning)
+function makeLandmarks(v: number) {
+  return Array.from({ length: 29 }, () => ({ x: 0.5, y: 0.5, v }));
+}
+
+describe("scan quality banner — low/medium confidence UI", () => {
+  function qualityCapture(v: number, kind: "worst" | "joint" | "clear" = "worst") {
+    return {
+      type: "capture",
+      capture: {
+        id: "qcap0",
+        kind,
+        time: 1.0,
+        aspect: 0.6,
+        frame: "data:image/jpeg;base64,zzz",
+        lm: makeLandmarks(v),
+        jr: { leftKnee: { deg: 88, lvl: 1 } },
+        joints: ["leftKnee"],
+        maxLvl: 1,
+      },
+    };
+  }
+
+  it("shows the low-confidence banner and 'Re-select athlete' link when avg visibility < 0.45", async () => {
+    mockApiGet.mockResolvedValue(resp(false));
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    emit(qualityCapture(0.3));  // avg = 0.3 → "low"
+    await flush();
+    emit(scanMsg);
+    await flush();
+
+    expect(screen.getByText("Athlete not clearly visible")).toBeTruthy();
+    expect(screen.getByText("Re-select athlete →")).toBeTruthy();
+  });
+
+  it("dismisses the low-confidence banner when the × button is pressed", async () => {
+    mockApiGet.mockResolvedValue(resp(false));
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    emit(qualityCapture(0.3));
+    await flush();
+    emit(scanMsg);
+    await flush();
+
+    expect(screen.getByText("Athlete not clearly visible")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("scan-quality-banner-dismiss"));
+    await flush();
+
+    expect(screen.queryByText("Athlete not clearly visible")).toBeNull();
+  });
+
+  it("shows the medium-confidence inline note (no banner) when avg visibility is 0.45–0.70", async () => {
+    mockApiGet.mockResolvedValue(resp(false));
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    emit(qualityCapture(0.55));  // avg = 0.55 → "medium"
+    await flush();
+    emit(scanMsg);
+    await flush();
+
+    expect(screen.getByText(/Some joints weren't fully visible/)).toBeTruthy();
+    expect(screen.queryByText("Athlete not clearly visible")).toBeNull();
+  });
+});

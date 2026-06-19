@@ -1295,6 +1295,7 @@ export default function SkeletonScreen() {
             </TouchableOpacity>
           </View>
           <TouchableOpacity
+            testID="scan-quality-banner-dismiss"
             onPress={() => setQualityBannerDismissed(true)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             activeOpacity={0.7}
