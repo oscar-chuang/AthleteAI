@@ -443,7 +443,8 @@ ${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto">
     if(scanPos>duration+0.001){ finishScan(); return; }
     const target=Math.max(0,Math.min(duration,scanPos));
     // Watchdog: if a seek produces no frame within 1.8s, skip ahead so we never hang.
-    stepTimer=setTimeout(()=>{ busy=false; scanPos+=SCAN_STEP; gotoStep(); }, 1800);
+    // Emit a heartbeat so the native progress bar keeps moving during the stuck window.
+    stepTimer=setTimeout(()=>{ post({type:"heartbeat",value:duration>0?Math.min(1,scanPos/duration):0}); busy=false; scanPos+=SCAN_STEP; gotoStep(); }, 1800);
     if(Math.abs((video.currentTime||0)-target)<0.02){ detect(); }
     else { try{ video.currentTime=target; }catch(e){ detect(); } }
   }
@@ -768,7 +769,7 @@ export default function SkeletonScreen() {
         setLayoutReady(true);
         return;
       }
-      if (msg.type === "progress") {
+      if (msg.type === "progress" || msg.type === "heartbeat") {
         if (typeof msg.value === "number") setScanProgress(Math.max(0, Math.min(1, msg.value)));
         return;
       }
