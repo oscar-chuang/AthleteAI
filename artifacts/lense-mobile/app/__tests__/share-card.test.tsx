@@ -116,3 +116,61 @@ describe("ShareCard — thumbnail vs. fallback", () => {
     expect(queryByTestId("feather-wind-36")).toBeNull();
   });
 });
+
+// ─── Sport-icon fallback — parameterised over every supported sport ────────────
+//
+// Each row is [sport slug, expected Feather icon name].
+// This table must stay in sync with the SPORT_ICON constant in ShareCard.tsx.
+// If you add a sport there, add a row here too.
+
+const SPORT_ICON_CASES: [string, string][] = [
+  ["running",       "wind"       ],
+  ["swimming",      "droplet"    ],
+  ["cycling",       "zap"        ],
+  ["tennis",        "crosshair"  ],
+  ["football",      "circle"     ],
+  ["soccer",        "circle"     ],
+  ["basketball",    "circle"     ],
+  ["volleyball",    "circle"     ],
+  ["weightlifting", "trending-up"],
+  ["gymnastics",    "star"       ],
+  ["rowing",        "anchor"     ],
+  ["golf",          "flag"       ],
+  ["boxing",        "shield"     ],
+  ["yoga",          "heart"      ],
+];
+
+describe("ShareCard — sport-icon fallback (all supported sports)", () => {
+  it.each(SPORT_ICON_CASES)(
+    'sport "%s" renders Feather icon "%s" at size 36 when no thumbnail is supplied',
+    (sport, expectedIcon) => {
+      const analysis: AnalysisRecord = {
+        ...BASE_ANALYSIS,
+        sport,
+        thumbnailUrl: undefined,
+      };
+      const { queryByTestId } = render(<ShareCard analysis={analysis} />);
+      expect(queryByTestId(`feather-${expectedIcon}-36`)).not.toBeNull();
+    },
+  );
+
+  it('unknown sport renders the "activity" fallback icon at size 36', () => {
+    const analysis: AnalysisRecord = {
+      ...BASE_ANALYSIS,
+      sport: "underwater-polo",
+      thumbnailUrl: undefined,
+    };
+    const { queryByTestId } = render(<ShareCard analysis={analysis} />);
+    expect(queryByTestId("feather-activity-36")).not.toBeNull();
+  });
+
+  it("sport lookup is case-insensitive (RUNNING → wind icon)", () => {
+    const analysis: AnalysisRecord = {
+      ...BASE_ANALYSIS,
+      sport: "RUNNING",
+      thumbnailUrl: undefined,
+    };
+    const { queryByTestId } = render(<ShareCard analysis={analysis} />);
+    expect(queryByTestId("feather-wind-36")).not.toBeNull();
+  });
+});
