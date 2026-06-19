@@ -105,6 +105,7 @@ export default function AnalyzeScreen() {
   const [sortBy, setSortBy] = useState<SortMode>("newest");
   const [jointTrendsData, setJointTrendsData] = useState<JointTrendsResponse | null>(null);
   const [historyJoint, setHistoryJoint] = useState<string | null>(null);
+  const [historyAnalysisId, setHistoryAnalysisId] = useState<string>("");
 
   // Sport picker modal
   const [showSportPicker, setShowSportPicker] = useState(false);
@@ -539,8 +540,8 @@ export default function AnalyzeScreen() {
           data={[...(jointTrendsData.joints[historyJoint] ?? [])].sort(
             (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
           )}
-          currentAnalysisId=""
-          onClose={() => setHistoryJoint(null)}
+          currentAnalysisId={historyAnalysisId}
+          onClose={() => { setHistoryJoint(null); setHistoryAnalysisId(""); }}
         />
       )}
 
@@ -738,7 +739,7 @@ export default function AnalyzeScreen() {
                       return (
                         <TouchableOpacity
                           style={[s.deltaBadge, { borderColor: deltaBadge.color + "88", backgroundColor: deltaBadge.color + "18" }]}
-                          onPress={(e) => { e.stopPropagation(); setHistoryJoint(deltaBadge.jointKey); }}
+                          onPress={(e) => { e.stopPropagation(); setHistoryJoint(deltaBadge.jointKey); setHistoryAnalysisId(item.id); }}
                           activeOpacity={0.7}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >

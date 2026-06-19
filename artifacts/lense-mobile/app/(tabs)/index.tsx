@@ -106,6 +106,7 @@ export default function HomeScreen() {
   const [jointTrendsData, setJointTrendsData] = useState<JointTrendsResponse | null>(null);
   const [latestTips, setLatestTips]       = useState<TipRecord[]>([]);
   const [historyJoint, setHistoryJoint]   = useState<string | null>(null);
+  const [historyAnalysisId, setHistoryAnalysisId] = useState<string>("");
   const [loading, setLoading]             = useState(true);
   const [refreshing, setRefreshing]       = useState(false);
   const [error, setError]                 = useState(false);
@@ -532,8 +533,8 @@ export default function HomeScreen() {
           data={[...(jointTrendsData.joints[historyJoint] ?? [])].sort(
             (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
           )}
-          currentAnalysisId=""
-          onClose={() => setHistoryJoint(null)}
+          currentAnalysisId={historyAnalysisId}
+          onClose={() => { setHistoryJoint(null); setHistoryAnalysisId(""); }}
         />
       )}
       <ScrollView
@@ -966,7 +967,7 @@ export default function HomeScreen() {
                       <DeltaBadge
                         info={deltaBadge}
                         onPress={jointTrendsData?.joints[deltaBadge.jointKey]?.length
-                          ? () => setHistoryJoint(deltaBadge.jointKey)
+                          ? () => { setHistoryJoint(deltaBadge.jointKey); setHistoryAnalysisId(a.id); }
                           : undefined}
                       />
                     )}
