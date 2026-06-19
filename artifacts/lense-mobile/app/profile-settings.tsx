@@ -46,6 +46,31 @@ const INJURIES = [
 
 const WEEKLY_GOAL_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
 
+// ─── Discard-prompt dirty-state contract ──────────────────────────────────────
+// Every field that should trigger the "Discard changes?" prompt when the user
+// tries to leave with unsaved edits MUST be listed here.
+//
+// HOW TO ADD A NEW FIELD:
+//   1. Add it to ProfileSnapshot below.
+//   2. Include it in buildSnapshot() so it is serialised automatically.
+//   3. That's it — isDirty is derived from the snapshot, so you cannot
+//      accidentally omit the new field from the comparison.
+//
+// Fields that auto-save on tap (weeklyGoal, trainingDays, checkInHour, avatarUrl)
+// are intentionally excluded: they never have "pending" edits.
+// ─────────────────────────────────────────────────────────────────────────────
+type ProfileSnapshot = {
+  name: string;
+  sport: string;
+  level: string;
+  goals: string[];
+  injuries: string[];
+};
+
+function buildSnapshot(s: ProfileSnapshot): string {
+  return JSON.stringify(s);
+}
+
 const CHECK_IN_HOURS = [6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 22] as const;
 
 function formatHour(h: number): string {
@@ -154,30 +179,30 @@ export default function ProfileSettingsScreen() {
   const [checkInHour, setCheckInHour] = useState(profile?.checkInHour ?? 9);
   const [avatarUrl, setAvatarUrl] = useState<string | null | undefined>(profile?.avatarUrl);
 
-  const savedName = useRef(profile?.name ?? user?.name ?? "");
-  const savedSport = useRef((() => {
-    if (!profile?.sport) return "";
-    const raw = profile.sport;
-    const match = SPORTS.find((s) => s.toLowerCase() === raw.toLowerCase());
-    return match ?? raw;
-  })());
-  const savedLevel = useRef((() => {
-    if (!profile?.level) return "";
-    const raw = profile.level;
-    const match = LEVELS.find((l) => l.label.toLowerCase() === raw.toLowerCase());
-    return match?.label ?? "";
-  })());
-  const savedGoals = useRef<string[]>(profile?.goals ?? []);
-  const savedInjuries = useRef<string[]>(profile?.injuryConcerns ?? []);
+  // Single serialised snapshot of all discard-prompt fields.
+  // Adding a field to ProfileSnapshot + buildSnapshot() is all that is needed
+  // to bring a new field under the discard-prompt guard.
+  const savedSnapshot = useRef<string>(
+    buildSnapshot({
+      name: profile?.name ?? user?.name ?? "",
+      sport: (() => {
+        if (!profile?.sport) return "";
+        const raw = profile.sport;
+        const match = SPORTS.find((s) => s.toLowerCase() === raw.toLowerCase());
+        return match ?? raw;
+      })(),
+      level: (() => {
+        if (!profile?.level) return "";
+        const raw = profile.level;
+        const match = LEVELS.find((l) => l.label.toLowerCase() === raw.toLowerCase());
+        return match?.label ?? "";
+      })(),
+      goals: profile?.goals ?? [],
+      injuries: profile?.injuryConcerns ?? [],
+    })
+  );
 
-  const isDirty =
-    name !== savedName.current ||
-    sport !== savedSport.current ||
-    level !== savedLevel.current ||
-    goals.length !== savedGoals.current.length ||
-    goals.some((g, i) => g !== savedGoals.current[i]) ||
-    injuries.length !== savedInjuries.current.length ||
-    injuries.some((inj, i) => inj !== savedInjuries.current[i]);
+  const isDirty = buildSnapshot({ name, sport, level, goals, injuries }) !== savedSnapshot.current;
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e: any) => {
@@ -351,11 +376,7 @@ export default function ProfileSettingsScreen() {
         injuryConcerns: injuries,
         weeklyGoal,
       });
-      savedName.current = name;
-      savedSport.current = sport;
-      savedLevel.current = level;
-      savedGoals.current = [...goals];
-      savedInjuries.current = [...injuries];
+      savedSnapshot.current = buildSnapshot({ name, sport, level, goals, injuries });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e: any) {
