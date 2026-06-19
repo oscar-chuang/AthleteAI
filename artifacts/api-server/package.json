@@ -8,6 +8,7 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
     "test": "vitest run",
     "migrate-avatars": "tsx src/scripts/migrate-avatars.ts"
   },
@@ -29,6 +30,9 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.61.1",
+    "@typescript-eslint/parser": "^8.61.1",
+    "eslint": "^10.5.0",
     "@types/bcryptjs": "^3.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",

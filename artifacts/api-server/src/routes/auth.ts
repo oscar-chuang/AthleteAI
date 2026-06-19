@@ -1,4 +1,4 @@
-import { Router, type IRouter, type Request, type Response } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { eq } from "drizzle-orm";
@@ -165,7 +165,7 @@ router.get("/auth/me", async (req: Request, res: Response) => {
 });
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
-export function requireAuth(req: Request, res: Response, next: Function): void {
+export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers["authorization"];
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
   if (!token) { res.status(401).json({ error: "No token provided" }); return; }

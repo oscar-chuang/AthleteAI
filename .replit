@@ -159,12 +159,12 @@ isValidation = true
 name = "lint"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/athlete-mobile lint"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/athlete-mobile lint && pnpm --filter @workspace/api-server lint"
 
 [agent]
 stack = "PNPM_WORKSPACE"
