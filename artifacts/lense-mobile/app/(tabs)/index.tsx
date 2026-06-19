@@ -114,6 +114,7 @@ export default function HomeScreen() {
   const goalSavedAnim = useRef(new Animated.Value(0)).current;
   const [showGoalSaved, setShowGoalSaved] = useState(false);
   const [showRestDayTooltip, setShowRestDayTooltip] = useState(false);
+  const [showSharePreview, setShowSharePreview] = useState(false);
 
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
@@ -238,7 +239,12 @@ export default function HomeScreen() {
     await AsyncStorage.setItem("rest_day_tooltip_dismissed", "true").catch(() => {});
   }, []);
 
-  const handleShareGoal = useCallback(async () => {
+  const handleShareGoal = useCallback(() => {
+    setShowSharePreview(true);
+  }, []);
+
+  const handleShareConfirm = useCallback(async () => {
+    setShowSharePreview(false);
     const message = buildGoalShareMessage({
       sessionCount: thisWeek,
       sport: profile?.sport,
@@ -1065,6 +1071,67 @@ export default function HomeScreen() {
             >
               <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>Cancel</Text>
             </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── Share Card Preview Modal ── */}
+      <Modal
+        visible={showSharePreview}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSharePreview(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}
+          onPress={() => setShowSharePreview(false)}
+        >
+          <Pressable onPress={() => {}} style={{ alignItems: "center", width: "100%" }}>
+            <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: "#fff", marginBottom: 20 }}>
+              Share your achievement
+            </Text>
+
+            {/* Visible card preview */}
+            <ShareCard
+              sessions={thisWeek}
+              weeklyGoal={weeklyGoal}
+              streakDays={streakDays}
+              sport={profile?.sport ?? undefined}
+            />
+
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 24, width: "100%" }}>
+              <TouchableOpacity
+                onPress={() => setShowSharePreview(false)}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1,
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.3)",
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleShareConfirm}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1,
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  backgroundColor: colors.primary,
+                  alignItems: "center",
+                  flexDirection: "row",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+              >
+                <Feather name="share-2" size={16} color="#fff" />
+                <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" }}>Share</Text>
+              </TouchableOpacity>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
