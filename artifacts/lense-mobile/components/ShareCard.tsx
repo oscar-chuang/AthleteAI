@@ -24,6 +24,27 @@ function truncateTip(tip: string): string {
   return tip.slice(0, 77) + "…";
 }
 
+const SPORT_ICON: Record<string, React.ComponentProps<typeof Feather>["name"]> = {
+  running:       "wind",
+  swimming:      "droplet",
+  cycling:       "zap",
+  tennis:        "crosshair",
+  football:      "circle",
+  soccer:        "circle",
+  basketball:    "circle",
+  volleyball:    "circle",
+  weightlifting: "trending-up",
+  gymnastics:    "star",
+  rowing:        "anchor",
+  golf:          "flag",
+  boxing:        "shield",
+  yoga:          "heart",
+};
+
+function sportIcon(sport: string): React.ComponentProps<typeof Feather>["name"] {
+  return SPORT_ICON[sport.toLowerCase()] ?? "activity";
+}
+
 const ShareCard = forwardRef<View, ShareCardProps>(function ShareCard(
   { sessions, weeklyGoal, streakDays, sport, topTip },
   ref,
@@ -34,22 +55,21 @@ const ShareCard = forwardRef<View, ShareCardProps>(function ShareCard(
     <View ref={ref} style={styles.card}>
       <View style={styles.header}>
         <Text style={styles.brand}>AthleteAI</Text>
-        <Text style={styles.sport}>{sport}</Text>
+        <View style={styles.sportBadge}>
+          <Feather name={sportIcon(sport)} size={12} color={ACCENT} />
+          <Text style={styles.sport}>{sport}</Text>
+        </View>
       </View>
 
       <View style={styles.statsRow}>
         <View style={styles.stat}>
           <Text style={styles.statValue}>{sessions}</Text>
-          <Text style={styles.statLabel}>sessions</Text>
-        </View>
-        <View style={styles.stat}>
-          <Text style={styles.statValue}>{weeklyGoal}</Text>
-          <Text style={styles.statLabel}>weekly goal</Text>
+          <Text style={styles.statLabel}>of {weeklyGoal} sessions</Text>
         </View>
         {streakDays > 0 && (
           <View style={styles.stat}>
-            <Text style={styles.statValue}>{streakDays}</Text>
-            <Text style={styles.statLabel}>day streak</Text>
+            <Text style={[styles.statValue, { color: "#ff6b35" }]}>{streakDays}</Text>
+            <Text style={styles.statLabel}>day streak 🔥</Text>
           </View>
         )}
       </View>
@@ -76,7 +96,7 @@ const styles = StyleSheet.create({
     borderColor: BORDER,
     borderRadius: 16,
     padding: 20,
-    width: 300,
+    minWidth: 280,
   },
   header: {
     flexDirection: "row",
@@ -89,28 +109,39 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
+  sportBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: ACCENT + "18",
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
   sport: {
-    color: MUTED,
-    fontSize: 12,
+    color: ACCENT,
+    fontSize: 11,
+    fontWeight: "600",
     textTransform: "capitalize",
   },
   statsRow: {
     flexDirection: "row",
-    gap: 16,
-    marginBottom: 16,
+    gap: 20,
+    marginBottom: 14,
   },
   stat: {
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   statValue: {
     color: TEXT,
-    fontSize: 22,
+    fontSize: 28,
     fontWeight: "700",
+    lineHeight: 32,
   },
   statLabel: {
     color: MUTED,
-    fontSize: 10,
-    marginTop: 2,
+    fontSize: 11,
+    marginTop: 1,
   },
   tipRow: {
     flexDirection: "row",
@@ -119,6 +150,8 @@ const styles = StyleSheet.create({
     backgroundColor: SURFACE,
     borderRadius: 10,
     padding: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
   },
   tipTextWrap: {
     flex: 1,
