@@ -1380,6 +1380,7 @@ export default function AnalysisDetailScreen() {
       </Modal>
 
       <Animated.View
+        testID="swipe-container"
         style={{ flex: 1, transform: [{ translateX: swipeAnim }] }}
         {...panResponder.panHandlers}
       >
@@ -1874,6 +1875,7 @@ export default function AnalysisDetailScreen() {
 
       {/* ── Swipe hint pill ── */}
       <Animated.View
+        testID="swipe-hint-pill"
         style={[
           styles.swipeHint,
           {
