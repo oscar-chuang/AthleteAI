@@ -348,3 +348,154 @@ describe("sortPerformanceTips", () => {
     expect(sortPerformanceTips(tips, new Set(["leftKnee"]))).toHaveLength(2);
   });
 });
+
+// ── Full pipeline integration: computeConflictedJoints → sort → label ────────
+//
+// These tests mirror exactly what the skeleton screen's renderTip() does:
+//
+//   const hasConflict = tjoints.some((j) => conflictedJoints.has(j));
+//   {hasConflict && kind === "injury"      && <Text>⚠ Fix this first</Text>}
+//   {hasConflict && kind === "performance" && <Text>After injury risk is resolved</Text>}
+//
+// They run the full pipeline (computeConflictedJoints → sort helpers) and then
+// apply that exact conditional to derive the label string each tip card would
+// display, asserting on the literal text rather than just the positional order.
+//
+// Label constants — kept in sync with [id].tsx renderTip() ──────────────────
+const INJURY_CONFLICT_LABEL      = "⚠ Fix this first";
+const PERFORMANCE_CONFLICT_LABEL = "After injury risk is resolved";
+
+/**
+ * Mirrors the renderTip() label-derivation logic from the skeleton screen.
+ * Returns the conflict banner text the tip card would display, or null if the
+ * tip is not conflicted (no banner shown).
+ */
+function deriveTipLabel(
+  tip: TipForConflict,
+  kind: "injury" | "performance",
+  conflictedJoints: Set<string>,
+): string | null {
+  const hasConflict = (tip.joints ?? []).some((j) => conflictedJoints.has(j));
+  if (!hasConflict) return null;
+  return kind === "injury" ? INJURY_CONFLICT_LABEL : PERFORMANCE_CONFLICT_LABEL;
+}
+
+describe("full pipeline: computeConflictedJoints → sortInjuryTips / sortPerformanceTips → labels", () => {
+  // Realistic mixed-type tip array:
+  //   • leftKnee  — appears in both an injury tip AND a performance tip → conflicted
+  //   • rightHip  — appears only in an injury tip → not conflicted
+  //   • rightElbow — appears only in a performance tip → not conflicted
+  const allTips: TipForConflict[] = [
+    { tipType: "injury",      severity: "warning", joints: ["rightHip"] },   // non-conflicted injury
+    { tipType: "injury",      severity: "warning", joints: ["leftKnee"] },   // conflicted injury
+    { tipType: "performance", severity: "info",    joints: ["leftKnee"] },   // conflicted performance
+    { tipType: "performance", severity: "info",    joints: ["rightElbow"] }, // non-conflicted performance
+  ];
+
+  const injuryTips      = allTips.filter((t) => t.tipType === "injury");
+  const performanceTips = allTips.filter((t) => t.tipType === "performance" && t.severity === "info");
+
+  it("pipeline: first sorted injury tip shows '⚠ Fix this first', non-conflicted tip shows no label", () => {
+    const conflicted    = computeConflictedJoints(allTips);
+    const sorted        = sortInjuryTips(injuryTips, conflicted);
+
+    // The tip floated to position 0 is the conflicted one → banner present
+    const firstLabel = deriveTipLabel(sorted[0], "injury", conflicted);
+    expect(firstLabel).toBe(INJURY_CONFLICT_LABEL);
+
+    // The tip at the end is the non-conflicted one → no banner
+    const lastLabel = deriveTipLabel(sorted[sorted.length - 1], "injury", conflicted);
+    expect(lastLabel).toBeNull();
+  });
+
+  it("pipeline: last sorted performance tip shows 'After injury risk is resolved', non-conflicted tip shows no label", () => {
+    const conflicted = computeConflictedJoints(allTips);
+    const sorted     = sortPerformanceTips(performanceTips, conflicted);
+
+    // The tip sunk to the last position is the conflicted one → banner present
+    const lastLabel = deriveTipLabel(sorted[sorted.length - 1], "performance", conflicted);
+    expect(lastLabel).toBe(PERFORMANCE_CONFLICT_LABEL);
+
+    // The tip at the front is the non-conflicted one → no banner
+    const firstLabel = deriveTipLabel(sorted[0], "performance", conflicted);
+    expect(firstLabel).toBeNull();
+  });
+
+  it("every label in the sorted injury list is correct: exactly one '⚠ Fix this first', one null", () => {
+    const conflicted = computeConflictedJoints(allTips);
+    const sorted     = sortInjuryTips(injuryTips, conflicted);
+    const labels     = sorted.map((t) => deriveTipLabel(t, "injury", conflicted));
+    expect(labels).toContain(INJURY_CONFLICT_LABEL);
+    expect(labels).toContain(null);
+    expect(labels.filter((l) => l === INJURY_CONFLICT_LABEL)).toHaveLength(1);
+    expect(labels.filter((l) => l === null)).toHaveLength(1);
+  });
+
+  it("every label in the sorted performance list is correct: exactly one 'After injury risk is resolved', one null", () => {
+    const conflicted = computeConflictedJoints(allTips);
+    const sorted     = sortPerformanceTips(performanceTips, conflicted);
+    const labels     = sorted.map((t) => deriveTipLabel(t, "performance", conflicted));
+    expect(labels).toContain(PERFORMANCE_CONFLICT_LABEL);
+    expect(labels).toContain(null);
+    expect(labels.filter((l) => l === PERFORMANCE_CONFLICT_LABEL)).toHaveLength(1);
+    expect(labels.filter((l) => l === null)).toHaveLength(1);
+  });
+
+  it("pipeline with no conflicts: all injury tip labels are null (no 'Fix this first' banner)", () => {
+    const noConflictTips: TipForConflict[] = [
+      { tipType: "injury",      severity: "warning", joints: ["leftHip"] },
+      { tipType: "performance", severity: "info",    joints: ["rightKnee"] },
+    ];
+    const inj        = noConflictTips.filter((t) => t.tipType === "injury");
+    const conflicted = computeConflictedJoints(noConflictTips);
+    const sorted     = sortInjuryTips(inj, conflicted);
+    sorted.forEach((t) => {
+      expect(deriveTipLabel(t, "injury", conflicted)).toBeNull();
+    });
+  });
+
+  it("pipeline with no conflicts: all performance tip labels are null (no 'After injury risk is resolved' banner)", () => {
+    const noConflictTips: TipForConflict[] = [
+      { tipType: "injury",      severity: "warning", joints: ["leftHip"] },
+      { tipType: "performance", severity: "info",    joints: ["rightKnee"] },
+    ];
+    const perf       = noConflictTips.filter((t) => t.tipType === "performance" && t.severity === "info");
+    const conflicted = computeConflictedJoints(noConflictTips);
+    const sorted     = sortPerformanceTips(perf, conflicted);
+    sorted.forEach((t) => {
+      expect(deriveTipLabel(t, "performance", conflicted)).toBeNull();
+    });
+  });
+
+  it("multiple conflicted joints: all shared joints get their tips labelled correctly", () => {
+    const multiConflictTips: TipForConflict[] = [
+      { tipType: "injury",      severity: "warning", joints: ["leftKnee", "rightHip"] },
+      { tipType: "injury",      severity: "warning", joints: ["leftElbow"] },            // not conflicted
+      { tipType: "performance", severity: "info",    joints: ["leftKnee"] },
+      { tipType: "performance", severity: "info",    joints: ["rightHip", "rightElbow"] },
+    ];
+    const inj        = multiConflictTips.filter((t) => t.tipType === "injury");
+    const perf       = multiConflictTips.filter((t) => t.tipType === "performance" && t.severity === "info");
+    const conflicted = computeConflictedJoints(multiConflictTips);
+
+    // leftKnee and rightHip are shared → both in conflictedJoints
+    expect(conflicted.has("leftKnee")).toBe(true);
+    expect(conflicted.has("rightHip")).toBe(true);
+    expect(conflicted.has("leftElbow")).toBe(false);
+    expect(conflicted.has("rightElbow")).toBe(false);
+
+    // Injury tip covering leftKnee+rightHip → conflicted → "Fix this first"
+    const sortedInj = sortInjuryTips(inj, conflicted);
+    expect(deriveTipLabel(sortedInj[0], "injury", conflicted)).toBe(INJURY_CONFLICT_LABEL);
+
+    // Injury tip covering leftElbow only → not conflicted → null
+    const leftElbowInjTip = sortedInj.find((t) => t.joints?.includes("leftElbow"))!;
+    expect(deriveTipLabel(leftElbowInjTip, "injury", conflicted)).toBeNull();
+
+    // Both performance tips cover at least one conflicted joint → both labelled
+    const sortedPerf = sortPerformanceTips(perf, conflicted);
+    sortedPerf.forEach((t) => {
+      expect(deriveTipLabel(t, "performance", conflicted)).toBe(PERFORMANCE_CONFLICT_LABEL);
+    });
+  });
+});
