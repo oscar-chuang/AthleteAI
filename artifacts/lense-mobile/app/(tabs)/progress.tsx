@@ -703,17 +703,41 @@ export default function ProgressScreen() {
 
         {/* ── Most improved joint ── */}
         {mostImproved && (
-          <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.success + "14", borderRadius: colors.radius, padding: 14, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: colors.success + "33" }}>
+          <Pressable
+            onPress={() => {
+              setSelectedJoint(mostImproved.joint);
+              const y = trendsYRef.current;
+              if (y > 0) {
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollTo({ y, animated: true });
+                }, 100);
+              }
+            }}
+            style={({ pressed }) => ({
+              marginHorizontal: 20,
+              marginBottom: 20,
+              backgroundColor: colors.success + "14",
+              borderRadius: colors.radius,
+              padding: 14,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              borderWidth: 1,
+              borderColor: colors.success + "33",
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
             <Feather name="trending-up" size={18} color={colors.success} />
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: colors.success }}>
                 {JOINT_DISPLAY[mostImproved.joint] ?? mostImproved.joint} +{Math.round(mostImproved.deltaDeg)}°
               </Text>
               <Text style={{ fontSize: 11, color: colors.success + "88", fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                Most improved
+                Most improved · tap to view trend
               </Text>
             </View>
-          </View>
+            <Feather name="chevron-right" size={14} color={colors.success + "88"} />
+          </Pressable>
         )}
 
         {/* ── Trend chart ── */}
