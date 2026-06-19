@@ -12,7 +12,6 @@
 
 import React from "react";
 import { render } from "@testing-library/react-native";
-import renderer, { act } from "react-test-renderer";
 
 // ─── RN / Expo mocks ──────────────────────────────────────────────────────────
 
@@ -193,57 +192,39 @@ describe("HIDDEN_SHARE_CARD_STYLE — Android-safe invariants", () => {
 // ─── 3. Snapshot tests ────────────────────────────────────────────────────────
 
 describe("ShareCard — snapshots", () => {
-  it("matches snapshot: dark scheme, with tip, no thumbnail", async () => {
-    let tree: unknown;
-    await act(async () => {
-      tree = renderer
-        .create(
-          <ShareCard analysis={ANALYSIS} topTip={TOP_TIP} colorScheme="dark" />,
-        )
-        .toJSON();
-    });
-    expect(tree).toMatchSnapshot();
+  it("matches snapshot: dark scheme, with tip, no thumbnail", () => {
+    const { toJSON } = render(
+      <ShareCard analysis={ANALYSIS} topTip={TOP_TIP} colorScheme="dark" />,
+    );
+    expect(toJSON()).toMatchSnapshot();
   });
 
-  it("matches snapshot: light scheme, with tip, no thumbnail", async () => {
-    let tree: unknown;
-    await act(async () => {
-      tree = renderer
-        .create(
-          <ShareCard analysis={ANALYSIS} topTip={TOP_TIP} colorScheme="light" />,
-        )
-        .toJSON();
-    });
-    expect(tree).toMatchSnapshot();
+  it("matches snapshot: light scheme, with tip, no thumbnail", () => {
+    const { toJSON } = render(
+      <ShareCard analysis={ANALYSIS} topTip={TOP_TIP} colorScheme="light" />,
+    );
+    expect(toJSON()).toMatchSnapshot();
   });
 
-  it("matches snapshot: dark scheme, no tip, no thumbnail", async () => {
-    let tree: unknown;
-    await act(async () => {
-      tree = renderer
-        .create(<ShareCard analysis={ANALYSIS} colorScheme="dark" />)
-        .toJSON();
-    });
-    expect(tree).toMatchSnapshot();
+  it("matches snapshot: dark scheme, no tip, no thumbnail", () => {
+    const { toJSON } = render(
+      <ShareCard analysis={ANALYSIS} colorScheme="dark" />,
+    );
+    expect(toJSON()).toMatchSnapshot();
   });
 
-  it("matches snapshot: dark scheme, with thumbnail", async () => {
+  it("matches snapshot: dark scheme, with thumbnail", () => {
     const analysisWithThumb: AnalysisRecord = {
       ...ANALYSIS,
       thumbnailUrl: "https://example.com/thumb.jpg",
     };
-    let tree: unknown;
-    await act(async () => {
-      tree = renderer
-        .create(
-          <ShareCard
-            analysis={analysisWithThumb}
-            topTip={TOP_TIP}
-            colorScheme="dark"
-          />,
-        )
-        .toJSON();
-    });
-    expect(tree).toMatchSnapshot();
+    const { toJSON } = render(
+      <ShareCard
+        analysis={analysisWithThumb}
+        topTip={TOP_TIP}
+        colorScheme="dark"
+      />,
+    );
+    expect(toJSON()).toMatchSnapshot();
   });
 });
