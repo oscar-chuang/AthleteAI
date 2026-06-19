@@ -123,6 +123,13 @@ export default function HomeScreen() {
   const [showRestDayTooltip, setShowRestDayTooltip] = useState(false);
   const [showSharePreview, setShowSharePreview] = useState(false);
 
+  // When the server (or a background profile refresh) delivers a new weeklyGoal,
+  // the optimistic localWeeklyGoal is no longer needed — clear it so the label
+  // always reflects the authoritative server value.
+  useEffect(() => {
+    setLocalWeeklyGoal(null);
+  }, [profile?.weeklyGoal]);
+
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
 

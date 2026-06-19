@@ -264,6 +264,37 @@ describe("HomeScreen — weekly goal picker", () => {
 
   // ── Test 4 ────────────────────────────────────────────────────────────────
 
+  it("shows the server value when profile.weeklyGoal changes externally after an optimistic update", async () => {
+    const { getByText, rerender } = render(<HomeScreen />);
+    await simulateFocus();
+
+    // Baseline: goal is 3.
+    expect(getByText("Goal: 3 sessions/week")).toBeTruthy();
+
+    // Simulate optimistic update: user picks 5.
+    fireEvent.press(getByText("Goal: 3 sessions/week"));
+    fireEvent.press(getByText("5"));
+    await flush();
+
+    // Optimistic update succeeded — label now shows 5.
+    expect(getByText("1 / 5")).toBeTruthy();
+
+    // Simulate a background profile refresh that returns a *different* value (4),
+    // e.g. another device changed the goal, or the server corrected it.
+    mockProfile = { ...mockProfile, weeklyGoal: 4 };
+    await act(async () => { rerender(<HomeScreen />); });
+    await flush();
+
+    // localWeeklyGoal (5) must be cleared; the session counter must reflect the
+    // server value (4), not the stale optimistic value (5).
+    // (The "Goal: X sessions/week" label is hidden behind the "Goal saved!"
+    // badge while the fade animation is pending — assert on the always-visible
+    // counter instead.)
+    expect(getByText("1 / 4")).toBeTruthy();
+  });
+
+  // ── Test 5 ────────────────────────────────────────────────────────────────
+
   it("reverts the label to the previous value when updateProfile rejects", async () => {
     mockUpdateProfile = jest.fn(async () => {
       throw new Error("Server error");
