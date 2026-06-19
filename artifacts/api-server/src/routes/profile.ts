@@ -8,7 +8,7 @@ import { computeProfileStats } from "../lib/stats";
 const AVATAR_MAX_PX = 64;
 const AVATAR_MAX_BYTES = 20 * 1024;
 
-async function compressAvatarIfNeeded(avatarUrl: string): Promise<string> {
+export async function compressAvatarIfNeeded(avatarUrl: string): Promise<string> {
   const match = avatarUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
   if (!match) return avatarUrl;
 
