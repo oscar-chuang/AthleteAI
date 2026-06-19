@@ -44,6 +44,7 @@ import { checkConfettiGate } from "@/utils/confettiGate";
 import { buildDeltaMap } from "@/lib/sessionDelta";
 import { WeekDotRow } from "@/components/WeekDotRow";
 import ShareCard, { type ViewShotHandle } from "@/components/ShareCard";
+import { HIDDEN_SHARE_CARD_STYLE } from "@/utils/shareCardCapture";
 
 const SCORE_KEYS = ["technique", "power", "balance", "consistency", "mobility", "speed"] as const;
 
@@ -998,9 +999,15 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
-      {/* Off-screen share card — rendered for capture, never visible to the user */}
+      {/*
+        Off-screen share card — rendered for capture, never visible to the user.
+        Cross-platform note: on Android the compositor skips views that fall
+        outside the window bounds (e.g. top: -1000), producing a blank PNG.
+        HIDDEN_SHARE_CARD_STYLE keeps the view at top:0/left:0 within bounds
+        and hides it with opacity:0 + pointerEvents="none" instead.
+      */}
       <View
-        style={{ position: "absolute", top: -1000, left: 0, opacity: 0 }}
+        style={HIDDEN_SHARE_CARD_STYLE}
         pointerEvents="none"
         collapsable={false}
       >

@@ -1,3 +1,14 @@
+// ─── Cross-platform capture note ─────────────────────────────────────────────
+// This component is rendered off-screen so it can be captured by
+// react-native-view-shot without being visible to the user.
+//
+// Android quirk: if the wrapping View is positioned outside the window bounds
+// (e.g. top: -1000), the compositor skips it and captureRef / capture() returns
+// a blank PNG.  The caller MUST use HIDDEN_SHARE_CARD_STYLE from
+// utils/shareCardCapture.ts (top: 0, left: 0, opacity: 0) so the view stays
+// within the window hierarchy while remaining invisible and non-interactive.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import React, { forwardRef, useRef, useImperativeHandle } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import ViewShot, { type ViewShotRef } from "react-native-view-shot";
