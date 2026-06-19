@@ -6,6 +6,7 @@ import { Alert } from "react-native";
 // Capture the latest beforeRemove listener so tests can fire it manually.
 let capturedBeforeRemove: ((e: any) => void) | undefined;
 const mockDispatch = jest.fn();
+const mockSetAccentColor = jest.fn();
 const mockAddListener = jest.fn((event: string, cb: any) => {
   if (event === "beforeRemove") capturedBeforeRemove = cb;
   return jest.fn(); // returns unsubscribe
@@ -68,6 +69,17 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
   },
 }));
 
+jest.mock("@/lib/themeContext", () => ({
+  useTheme: () => ({
+    isDark: true,
+    toggleTheme: jest.fn(),
+    accentColor: "midnight",
+    setAccentColor: mockSetAccentColor,
+    mode: "dark",
+    setMode: jest.fn(),
+  }),
+}));
+
 jest.mock("@/hooks/useColors", () => ({
   useColors: () => ({
     background: "#0a0a0a",
@@ -85,6 +97,8 @@ jest.mock("@/hooks/useColors", () => ({
 
 // Import after all mocks are set up.
 import ProfileSettingsScreen from "../profile-settings";
+import { ACCENT_PALETTES } from "@/constants/colors";
+import type { AccentKey } from "@/constants/colors";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -114,6 +128,7 @@ beforeEach(() => {
   mockAddListener.mockClear();
   mockDispatch.mockClear();
   mockUpdateProfile.mockClear();
+  mockSetAccentColor.mockClear();
   mockUpdateProfile.mockResolvedValue(undefined);
   // Reset profile to defaults before each test so tests are order-independent.
   mockProfile.avatarUrl = null;
@@ -432,6 +447,36 @@ describe("ProfileSettingsScreen — preset color swatches", () => {
 
     expect(mockUpdateProfile).toHaveBeenCalledWith({ avatarUrl: PRESET_KEY });
     expect(queryByText("Remove photo")).toBeNull();
+  });
+});
+
+// ─── Accent colour swatches ────────────────────────────────────────────────────
+
+describe("ProfileSettingsScreen — accent colour swatches", () => {
+  it("renders a swatch with the palette label for every AccentKey", async () => {
+    const { getByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    for (const key of Object.keys(ACCENT_PALETTES) as AccentKey[]) {
+      expect(getByText(ACCENT_PALETTES[key].label)).toBeTruthy();
+    }
+  });
+
+  it("calls setAccentColor with the correct key when each swatch is pressed", async () => {
+    const { getByLabelText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    for (const key of Object.keys(ACCENT_PALETTES) as AccentKey[]) {
+      mockSetAccentColor.mockClear();
+      const palette = ACCENT_PALETTES[key];
+
+      await act(async () => {
+        fireEvent.press(getByLabelText(palette.label));
+      });
+
+      expect(mockSetAccentColor).toHaveBeenCalledTimes(1);
+      expect(mockSetAccentColor).toHaveBeenCalledWith(key);
+    }
   });
 });
 

@@ -12,6 +12,7 @@ module.exports = {
   testMatch: [
     "**/app/**/__tests__/**/*.test.{ts,tsx}",
     "**/components/**/__tests__/**/*.test.{ts,tsx}",
+    "**/lib/**/__tests__/**/*.test.{ts,tsx}",
   ],
   testTimeout: 30000,
   forceExit: true,
