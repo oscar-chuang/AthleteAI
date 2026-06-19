@@ -225,6 +225,15 @@ export default function HomeScreen() {
           updateProfile({ weeklyGoalCelebratedAt: null }).catch(() => {});
         }
 
+        // Reset the confetti-celebrated flag when the weekly goal changes so
+        // the next session that crosses the new target can fire confetti again.
+        const storedGoalStr = await AsyncStorage.getItem("last_seen_weekly_goal");
+        const storedGoal = storedGoalStr !== null ? parseInt(storedGoalStr, 10) : null;
+        if (storedGoal !== null && storedGoal !== currentWeekGoal) {
+          await AsyncStorage.removeItem(`confetti_celebrated_${weekKey}`);
+        }
+        await AsyncStorage.setItem("last_seen_weekly_goal", String(currentWeekGoal));
+
         // Retry any previously failed server-side persistence (e.g. network error).
         await retryCelebrationSync(weekKey, AsyncStorage, async (wk) => {
           await updateProfile({ weeklyGoalCelebratedAt: wk });
