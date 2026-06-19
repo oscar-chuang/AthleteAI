@@ -99,4 +99,24 @@ describe("RecordingTipsModal — upload gate", () => {
 
     expect(AsyncStorage.setItem).toHaveBeenCalledWith(RECORDING_TIPS_KEY, "true");
   });
+
+  it("resets acknowledged and dontShowAgain when the modal is closed and reopened", () => {
+    const onClose = jest.fn();
+    const { getByRole } = render(
+      <RecordingTipsModal visible onClose={onClose} onContinue={noop} />,
+    );
+
+    fireEvent.press(getByRole("checkbox"));
+    fireEvent(getByRole("switch"), "valueChange", true);
+
+    expect(getByRole("button", { name: "Continue" }).props.accessibilityState?.disabled).toBe(false);
+    expect(getByRole("switch").props.value).toBe(true);
+
+    act(() => { fireEvent.press(getByRole("button", { name: "Close" })); });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    expect(getByRole("button", { name: "Continue" }).props.accessibilityState?.disabled).toBe(true);
+    expect(getByRole("switch").props.value).toBe(false);
+  });
 });
