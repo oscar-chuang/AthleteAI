@@ -28,10 +28,11 @@ function getWeekKey(): string {
 }
 
 import { useColors } from "@/hooks/useColors";
-import { analyses as analysesApi, type AnalysisRecord, ApiError } from "@/lib/api";
+import { analyses as analysesApi, jointTrends, type AnalysisRecord, type JointTrendsResponse, ApiError } from "@/lib/api";
 import { useAuth, useCanAccessFeature } from "@/lib/authContext";
 import { buildDeltaMap } from "@/lib/sessionDelta";
 import RecordingTipsModal, { RECORDING_TIPS_KEY } from "@/components/RecordingTipsModal";
+import JointHistorySheet from "@/components/JointHistorySheet";
 
 const SPORTS = [
   "Weightlifting", "Running", "Basketball", "Golf", "Tennis",
@@ -102,6 +103,8 @@ export default function AnalyzeScreen() {
   const [analysisStep, setAnalysisStep] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortMode>("newest");
+  const [jointTrendsData, setJointTrendsData] = useState<JointTrendsResponse | null>(null);
+  const [historyJoint, setHistoryJoint] = useState<string | null>(null);
 
   // Sport picker modal
   const [showSportPicker, setShowSportPicker] = useState(false);
@@ -119,8 +122,12 @@ export default function AnalyzeScreen() {
   const loadAnalyses = useCallback(async () => {
     setLoadError(false);
     try {
-      const { analyses } = await analysesApi.list();
+      const [{ analyses }, trendsResult] = await Promise.all([
+        analysesApi.list(),
+        jointTrends.get().catch(() => null),
+      ]);
       setAnalysisList(analyses);
+      if (trendsResult) setJointTrendsData(trendsResult);
     } catch {
       setLoadError(true);
     } finally {
@@ -525,6 +532,18 @@ export default function AnalyzeScreen() {
 
   return (
     <View style={s.container}>
+      {/* Joint angle history sheet — opened by tapping a delta badge */}
+      {historyJoint && jointTrendsData?.joints[historyJoint] && (
+        <JointHistorySheet
+          joint={historyJoint}
+          data={[...(jointTrendsData.joints[historyJoint] ?? [])].sort(
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+          )}
+          currentAnalysisId=""
+          onClose={() => setHistoryJoint(null)}
+        />
+      )}
+
       {/* Recording tips gate */}
       <RecordingTipsModal
         visible={showRecordingTips}
@@ -708,13 +727,31 @@ export default function AnalyzeScreen() {
                     {item.sport} · {formatDate(item.uploadedAt)}
                     {item.duration ? ` · ${Math.round(item.duration)}s` : ""}
                   </Text>
-                  {deltaBadge && (
-                    <View style={[s.deltaBadge, { borderColor: deltaBadge.color + "88", backgroundColor: deltaBadge.color + "18" }]}>
+                  {deltaBadge && (() => {
+                    const hasHistory = !!(jointTrendsData?.joints[deltaBadge.jointKey]?.length);
+                    const badgeContent = (
                       <Text style={[s.deltaBadgeText, { color: deltaBadge.color }]}>
                         {deltaBadge.delta > 0 ? "↑" : "↓"}{Math.abs(deltaBadge.delta)}° {deltaBadge.jointLabel}
                       </Text>
-                    </View>
-                  )}
+                    );
+                    if (hasHistory) {
+                      return (
+                        <TouchableOpacity
+                          style={[s.deltaBadge, { borderColor: deltaBadge.color + "88", backgroundColor: deltaBadge.color + "18" }]}
+                          onPress={(e) => { e.stopPropagation(); setHistoryJoint(deltaBadge.jointKey); }}
+                          activeOpacity={0.7}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          {badgeContent}
+                        </TouchableOpacity>
+                      );
+                    }
+                    return (
+                      <View style={[s.deltaBadge, { borderColor: deltaBadge.color + "88", backgroundColor: deltaBadge.color + "18" }]}>
+                        {badgeContent}
+                      </View>
+                    );
+                  })()}
                 </View>
                 {isProcessing ? (
                   <View style={s.processingBadge}>

@@ -2,6 +2,7 @@ import type { AnalysisRecord } from "./api";
 import { JOINT_LABEL } from "@/utils/skeleton";
 
 export interface DeltaBadgeInfo {
+  jointKey: string;
   jointLabel: string;
   delta: number;
   color: string;
@@ -41,20 +42,20 @@ function computeDeltaForPair(
     if (typeof currRisk === "number" && typeof prevRisk === "number") {
       if (currRisk < prevRisk) {
         if (!bestImprovement || absDelta > Math.abs(bestImprovement.delta)) {
-          bestImprovement = { jointLabel: label, delta, color: DELTA_GREEN, sign };
+          bestImprovement = { jointKey: joint, jointLabel: label, delta, color: DELTA_GREEN, sign };
         }
       } else if (currRisk > prevRisk) {
         if (!worstRegression || absDelta > Math.abs(worstRegression.delta)) {
-          worstRegression = { jointLabel: label, delta, color: DELTA_RED, sign };
+          worstRegression = { jointKey: joint, jointLabel: label, delta, color: DELTA_RED, sign };
         }
       } else {
         if (!largestNeutral || absDelta > Math.abs(largestNeutral.delta)) {
-          largestNeutral = { jointLabel: label, delta, color: DELTA_AMBER, sign };
+          largestNeutral = { jointKey: joint, jointLabel: label, delta, color: DELTA_AMBER, sign };
         }
       }
     } else {
       if (!largestNeutral || absDelta > Math.abs(largestNeutral.delta)) {
-        largestNeutral = { jointLabel: label, delta, color: DELTA_AMBER, sign };
+        largestNeutral = { jointKey: joint, jointLabel: label, delta, color: DELTA_AMBER, sign };
       }
     }
   }

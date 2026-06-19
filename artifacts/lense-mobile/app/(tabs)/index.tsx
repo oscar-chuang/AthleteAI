@@ -30,10 +30,13 @@ import {
   analyses as analysesApi,
   achievements as achievementsApi,
   profile as profileApi,
+  jointTrends as jointTrendsApi,
   type AnalysisRecord,
   type AchievementRecord,
   type ProfileStats,
+  type JointTrendsResponse,
 } from "@/lib/api";
+import JointHistorySheet from "@/components/JointHistorySheet";
 import { ConfettiBurst } from "@/components/ConfettiBurst";
 import { checkConfettiGate } from "@/utils/confettiGate";
 import { buildDeltaMap } from "@/lib/sessionDelta";
@@ -96,6 +99,8 @@ export default function HomeScreen() {
   const [recentAnalyses, setRecentAnalyses] = useState<AnalysisRecord[]>([]);
   const [achievements, setAchievements]   = useState<AchievementRecord[]>([]);
   const [stats, setStats]                 = useState<ProfileStats | null>(null);
+  const [jointTrendsData, setJointTrendsData] = useState<JointTrendsResponse | null>(null);
+  const [historyJoint, setHistoryJoint]   = useState<string | null>(null);
   const [loading, setLoading]             = useState(true);
   const [refreshing, setRefreshing]       = useState(false);
   const [error, setError]                 = useState(false);
@@ -117,15 +122,17 @@ export default function HomeScreen() {
       setBarAnimDone(false);
     }
     try {
-      const [{ analyses }, { achievements: ach }, statsResult] = await Promise.all([
+      const [{ analyses }, { achievements: ach }, statsResult, trendsResult] = await Promise.all([
         analysesApi.list(),
         achievementsApi.list(),
         profileApi.stats().catch(() => null),
+        jointTrendsApi.get().catch(() => null),
       ]);
       setAllAnalyses(analyses);
       setRecentAnalyses(analyses.slice(0, 3));
       setAchievements(ach);
       if (statsResult) setStats(statsResult);
+      if (trendsResult) setJointTrendsData(trendsResult);
 
       const currentWeekGoal = profile?.weeklyGoal ?? 3;
 
@@ -414,6 +421,17 @@ export default function HomeScreen() {
 
   return (
     <View style={s.container}>
+      {/* Joint angle history sheet — opened by tapping a delta badge */}
+      {historyJoint && jointTrendsData?.joints[historyJoint] && (
+        <JointHistorySheet
+          joint={historyJoint}
+          data={[...(jointTrendsData.joints[historyJoint] ?? [])].sort(
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+          )}
+          currentAnalysisId=""
+          onClose={() => setHistoryJoint(null)}
+        />
+      )}
       <ScrollView
         style={s.scroll}
         contentContainerStyle={{ paddingBottom: bottomPad }}
@@ -812,13 +830,31 @@ export default function HomeScreen() {
                     <Text style={s.analysisMeta}>
                       {[a.sport, STATUS_LABEL[a.status] ?? a.status].filter(Boolean).join(" · ")}
                     </Text>
-                    {deltaBadge && (
-                      <View style={[s.analysisDeltaBadge, { borderColor: deltaBadge.color + "88", backgroundColor: deltaBadge.color + "18" }]}>
+                    {deltaBadge && (() => {
+                      const hasHistory = !!(jointTrendsData?.joints[deltaBadge.jointKey]?.length);
+                      const badgeContent = (
                         <Text style={[s.analysisDeltaBadgeText, { color: deltaBadge.color }]}>
                           {deltaBadge.delta > 0 ? "↑" : "↓"}{Math.abs(deltaBadge.delta)}° {deltaBadge.jointLabel}
                         </Text>
-                      </View>
-                    )}
+                      );
+                      if (hasHistory) {
+                        return (
+                          <TouchableOpacity
+                            style={[s.analysisDeltaBadge, { borderColor: deltaBadge.color + "88", backgroundColor: deltaBadge.color + "18" }]}
+                            onPress={(e) => { e.stopPropagation(); setHistoryJoint(deltaBadge.jointKey); }}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            {badgeContent}
+                          </TouchableOpacity>
+                        );
+                      }
+                      return (
+                        <View style={[s.analysisDeltaBadge, { borderColor: deltaBadge.color + "88", backgroundColor: deltaBadge.color + "18" }]}>
+                          {badgeContent}
+                        </View>
+                      );
+                    })()}
                   </View>
                   {score != null ? (
                     <View style={[s.scoreCircle, { borderColor: scoreColor, backgroundColor: scoreColor + "14" }]}>
