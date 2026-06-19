@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { TouchableOpacity, Text } from "react-native";
-import { render, fireEvent } from "@testing-library/react-native";
+import { render, fireEvent, waitFor } from "@testing-library/react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { AnalysisRecord } from "@/lib/api";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
@@ -70,6 +71,41 @@ function SchemePicker({ analysis }: { analysis: AnalysisRecord }) {
   );
 }
 
+// ─── Scheme picker with AsyncStorage persistence ──────────────────────────────
+// Mirrors the persistence slice of [id].tsx: reads SHARE_CARD_SCHEME_KEY on
+// mount and writes it back whenever the user presses a button.
+
+const SHARE_CARD_SCHEME_KEY = "shareCardScheme";
+
+function SchemePickerWithStorage({ analysis }: { analysis: AnalysisRecord }) {
+  const [scheme, setScheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    AsyncStorage.getItem(SHARE_CARD_SCHEME_KEY)
+      .then((saved) => {
+        if (saved === "dark" || saved === "light") setScheme(saved);
+      })
+      .catch(() => {});
+  }, []);
+
+  function handleSchemeChange(s: "dark" | "light") {
+    setScheme(s);
+    AsyncStorage.setItem(SHARE_CARD_SCHEME_KEY, s).catch(() => {});
+  }
+
+  return (
+    <>
+      <TouchableOpacity testID="btn-dark"  onPress={() => handleSchemeChange("dark")}>
+        <Text>Dark</Text>
+      </TouchableOpacity>
+      <TouchableOpacity testID="btn-light" onPress={() => handleSchemeChange("light")}>
+        <Text>Light</Text>
+      </TouchableOpacity>
+      <ShareCard analysis={analysis} colorScheme={scheme} />
+    </>
+  );
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("Scheme toggle — ShareCard colorScheme updates on press", () => {
@@ -124,5 +160,71 @@ describe("Scheme toggle — ShareCard colorScheme updates on press", () => {
     fireEvent.press(getByTestId("btn-light"));
     expect(getByTestId("share-card-light")).not.toBeNull();
     expect(queryByTestId("share-card-dark")).toBeNull();
+  });
+});
+
+// ─── Persistence tests ────────────────────────────────────────────────────────
+
+describe("Scheme picker — persisted preference (AsyncStorage)", () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+  });
+
+  it("pre-selects 'light' when AsyncStorage holds 'light' before mount", async () => {
+    await AsyncStorage.setItem(SHARE_CARD_SCHEME_KEY, "light");
+
+    const { getByTestId, queryByTestId } = render(
+      <SchemePickerWithStorage analysis={BASE_ANALYSIS} />,
+    );
+
+    // The useEffect reads AsyncStorage asynchronously; wait for the state update.
+    await waitFor(() => {
+      expect(getByTestId("share-card-light")).not.toBeNull();
+    });
+    expect(queryByTestId("share-card-dark")).toBeNull();
+  });
+
+  it("defaults to 'dark' when AsyncStorage is empty", async () => {
+    const { getByTestId } = render(
+      <SchemePickerWithStorage analysis={BASE_ANALYSIS} />,
+    );
+
+    // Give the effect a chance to run (it will find nothing and leave the default).
+    await waitFor(() => {
+      expect(getByTestId("share-card-dark")).not.toBeNull();
+    });
+  });
+
+  it("saves the chosen scheme to AsyncStorage when a button is pressed", async () => {
+    const { getByTestId } = render(
+      <SchemePickerWithStorage analysis={BASE_ANALYSIS} />,
+    );
+
+    fireEvent.press(getByTestId("btn-light"));
+
+    await waitFor(async () => {
+      const stored = await AsyncStorage.getItem(SHARE_CARD_SCHEME_KEY);
+      expect(stored).toBe("light");
+    });
+  });
+
+  it("overwrites the stored value when the user switches scheme again", async () => {
+    await AsyncStorage.setItem(SHARE_CARD_SCHEME_KEY, "light");
+
+    const { getByTestId } = render(
+      <SchemePickerWithStorage analysis={BASE_ANALYSIS} />,
+    );
+
+    // Wait for the stored "light" to be applied.
+    await waitFor(() => expect(getByTestId("share-card-light")).not.toBeNull());
+
+    // Now switch to dark.
+    fireEvent.press(getByTestId("btn-dark"));
+
+    await waitFor(async () => {
+      const stored = await AsyncStorage.getItem(SHARE_CARD_SCHEME_KEY);
+      expect(stored).toBe("dark");
+    });
+    expect(getByTestId("share-card-dark")).not.toBeNull();
   });
 });
