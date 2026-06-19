@@ -17,6 +17,7 @@ import Svg, {
   G,
 } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { type JointDataPoint } from "@/lib/api";
 
 const JOINT_HISTORY_DISPLAY: Record<string, string> = {
@@ -55,6 +56,7 @@ export default function JointHistorySheet({
   currentAnalysisId?: string;
   onClose: () => void;
 }) {
+  const router = useRouter();
   const { width: sw } = Dimensions.get("window");
   const chartW = sw - 48 - CHART_PAD_L - CHART_PAD_R;
   const label = JOINT_HISTORY_DISPLAY[joint] ?? joint;
@@ -374,8 +376,9 @@ export default function JointHistorySheet({
                   const cy = toY(sel.angle);
                   const dotColor = RISK_COLOR_MAP[sel.risk] ?? "#6c63ff";
                   const rLabel = RISK_LABEL_MAP[sel.risk] ?? "";
+                  const canNavigate = !!sel.analysisId;
                   const tooltipW = 130;
-                  const tooltipH = 68;
+                  const tooltipH = canNavigate ? 84 : 68;
                   const arrowH = 7;
                   const cornerR = 8;
                   const svgW = sw - 48;
@@ -390,8 +393,15 @@ export default function JointHistorySheet({
                     cornerR + 4,
                     Math.min(arrowX, tooltipW - cornerR - 4)
                   );
+
+                  function handleTooltipPress() {
+                    if (!canNavigate) return;
+                    onClose();
+                    router.push(`/analysis/skeleton/${sel.analysisId}` as any);
+                  }
+
                   return (
-                    <G key="tooltip">
+                    <G key="tooltip" onPress={canNavigate ? handleTooltipPress : undefined}>
                       {/* Shadow rect */}
                       <Rect
                         x={tx + 2}
@@ -463,6 +473,19 @@ export default function JointHistorySheet({
                       >
                         {formatDate(sel.date)} · {sel.sport}
                       </SvgText>
+                      {/* "Tap to open →" hint — only shown when navigation is available */}
+                      {canNavigate && (
+                        <SvgText
+                          x={tx + tooltipW / 2}
+                          y={ty + 72}
+                          fontSize={9}
+                          fontFamily="Inter_500Medium"
+                          fill="#6c63ff"
+                          textAnchor="middle"
+                        >
+                          tap to open →
+                        </SvgText>
+                      )}
                     </G>
                   );
                 })()}
