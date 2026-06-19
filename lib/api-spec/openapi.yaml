@@ -24,6 +24,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /health/metrics:
+    get:
+      operationId: healthMetrics
+      tags: [health]
+      summary: Alert event counters
+      description: Returns in-process alert event counters since last process start. Unauthenticated but rate-limited.
+      responses:
+        "200":
+          description: Current alert counters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthMetrics"
+        "429":
+          description: Rate limit exceeded
 components:
   schemas:
     HealthStatus:
@@ -33,4 +48,11 @@ components:
           type: string
       required:
         - status
+    HealthMetrics:
+      type: object
+      properties:
+        thumbnail_resize_failed:
+          type: integer
+      required:
+        - thumbnail_resize_failed
 
