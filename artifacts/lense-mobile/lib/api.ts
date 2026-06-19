@@ -175,6 +175,8 @@ export interface AnalysisRecord {
   jointAngles?: Record<string, number>;
   jointRisks?: Record<string, number>;
   biomechanicsApplied?: boolean;
+  movementSummary?: MovementSummary;
+  movementSummaryAt?: string;
   uploadedAt: string;
 }
 

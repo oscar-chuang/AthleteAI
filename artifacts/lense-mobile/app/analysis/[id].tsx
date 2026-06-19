@@ -1551,6 +1551,34 @@ export default function AnalysisDetailScreen() {
           </View>
         </View>
 
+        {/* ── Movement Quality ── */}
+        {analysis.movementSummary && (
+          <View style={styles.sectionWrap}>
+            <SectionHeader title="Movement Quality" icon="activity" accentColor="#6c63ff" />
+            <View style={styles.movementQualityRow}>
+              {([
+                { label: "Flow",        score: analysis.movementSummary.flowScore,        color: "#6c63ff" },
+                { label: "Efficiency",  score: analysis.movementSummary.efficiencyScore,  color: "#22c55e" },
+                { label: "Control",     score: analysis.movementSummary.bodyControlScore, color: "#f59e0b" },
+                { label: "Consistency", score: analysis.movementSummary.consistencyScore, color: "#06b6d4" },
+                { label: "Rhythm",      score: analysis.movementSummary.rhythmScore,      color: "#a78bfa" },
+              ] as const).map(({ label, score, color }) => (
+                <View key={label} style={styles.movementQualityCell}>
+                  <ScoreRing
+                    score={score}
+                    size={64}
+                    strokeWidth={6}
+                    color={color}
+                  />
+                  <Text style={[styles.movementQualityLabel, { color: colors.mutedForeground }]}>
+                    {label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* ── Section 3: Biggest Win ── */}
         {(analysis.strengths ?? []).length > 0 && (
           <View style={styles.sectionWrap}>
@@ -2037,6 +2065,22 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   scoreGridCell: { width: "48%", flexShrink: 1 },
+
+  movementQualityRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingHorizontal: 4,
+  },
+  movementQualityCell: {
+    alignItems: "center",
+    gap: 6,
+  },
+  movementQualityLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    textAlign: "center",
+  },
 
   // Info card (used by Biggest Win, Biggest Fix, Why It Matters, Try This Drill)
   infoCard: {
