@@ -12,6 +12,8 @@ import {
   Animated,
   Easing,
   Share,
+  Modal,
+  Pressable,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -80,7 +82,7 @@ export default function HomeScreen() {
   const barWidthAnim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, profile } = useAuth();
+  const { user, profile, updateProfile } = useAuth();
   const tier = useTier();
 
   const [allAnalyses, setAllAnalyses]     = useState<AnalysisRecord[]>([]);
@@ -91,6 +93,9 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing]       = useState(false);
   const [error, setError]                 = useState(false);
   const [showConfetti, setShowConfetti]   = useState(false);
+  const [showGoalSheet, setShowGoalSheet] = useState(false);
+  const [goalSheetSaving, setGoalSheetSaving] = useState(false);
+  const [localWeeklyGoal, setLocalWeeklyGoal] = useState<number | null>(null);
 
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
@@ -162,10 +167,26 @@ export default function HomeScreen() {
 
   const streakDays    = stats?.streak ?? 0;
   const thisWeek      = stats?.thisWeekCount ?? profile?.weeklyProgress ?? 0;
-  const weeklyGoal    = profile?.weeklyGoal ?? 3;
+  const weeklyGoal    = localWeeklyGoal ?? profile?.weeklyGoal ?? 3;
   const weekPct       = Math.min((thisWeek / weeklyGoal) * 100, 100);
   const goalReached   = weeklyGoal > 0 && thisWeek >= weeklyGoal;
   const scoreDelta    = stats?.scoreDelta ?? null;
+
+  const handleGoalSelect = useCallback(async (n: number) => {
+    if (goalSheetSaving || n === weeklyGoal) { setShowGoalSheet(false); return; }
+    const prev = weeklyGoal;
+    setLocalWeeklyGoal(n);
+    setGoalSheetSaving(true);
+    try {
+      await updateProfile({ weeklyGoal: n });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    } catch {
+      setLocalWeeklyGoal(prev);
+    } finally {
+      setGoalSheetSaving(false);
+      setShowGoalSheet(false);
+    }
+  }, [goalSheetSaving, weeklyGoal, updateProfile]);
 
   const handleShareGoal = useCallback(async () => {
     const sport = profile?.sport ? ` (${profile.sport})` : "";
@@ -563,7 +584,7 @@ export default function HomeScreen() {
               <View style={{ flexDirection: "row", alignItems: "center", marginTop: 8, justifyContent: "space-between" }}>
                 <TouchableOpacity
                   style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-                  onPress={() => router.push("/profile-settings" as any)}
+                  onPress={() => setShowGoalSheet(true)}
                   activeOpacity={0.7}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
@@ -793,6 +814,88 @@ export default function HomeScreen() {
       {showConfetti && (
         <ConfettiBurst onComplete={() => setShowConfetti(false)} />
       )}
+
+      {/* ── Weekly Goal Picker Sheet ── */}
+      <Modal
+        visible={showGoalSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowGoalSheet(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}
+          onPress={() => setShowGoalSheet(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: colors.background,
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              paddingHorizontal: 24,
+              paddingTop: 20,
+              paddingBottom: insets.bottom + 32,
+              borderTopWidth: 1,
+              borderColor: colors.border,
+            }}
+            onPress={() => {}}
+          >
+            {/* Handle bar */}
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: 20 }} />
+
+            <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 4 }}>
+              Weekly Goal
+            </Text>
+            <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginBottom: 24 }}>
+              How many sessions do you want to complete per week?
+            </Text>
+
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "center" }}>
+              {([1, 2, 3, 4, 5, 6, 7] as const).map((n) => {
+                const isSelected = n === weeklyGoal;
+                return (
+                  <TouchableOpacity
+                    key={n}
+                    onPress={() => handleGoalSelect(n)}
+                    disabled={goalSheetSaving}
+                    activeOpacity={0.8}
+                    style={{
+                      width: 66,
+                      height: 66,
+                      borderRadius: 14,
+                      borderWidth: 2,
+                      borderColor: isSelected ? colors.primary : colors.border,
+                      backgroundColor: isSelected ? colors.primary + "18" : colors.card,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {goalSheetSaving && isSelected ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <>
+                        <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: isSelected ? colors.primary : colors.foreground }}>
+                          {n}
+                        </Text>
+                        <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: isSelected ? colors.primary : colors.mutedForeground, marginTop: 1 }}>
+                          {n === 1 ? "session" : "sessions"}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <TouchableOpacity
+              onPress={() => setShowGoalSheet(false)}
+              style={{ marginTop: 24, alignItems: "center", paddingVertical: 8 }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>Cancel</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
