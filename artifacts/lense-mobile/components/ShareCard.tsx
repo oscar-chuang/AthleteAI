@@ -21,7 +21,7 @@ export interface ShareCardProps {
 
 function truncateTip(tip: string): string {
   if (tip.length <= MAX_TIP_LEN) return tip;
-  return tip.slice(0, 77) + "…";
+  return tip.slice(0, 77) + "\u2026";
 }
 
 const SPORT_ICON: Record<string, React.ComponentProps<typeof Feather>["name"]> = {
@@ -61,13 +61,21 @@ const ShareCard = forwardRef<View, ShareCardProps>(function ShareCard(
         </View>
       </View>
 
-      <View style={styles.statsRow}>
-        <View style={styles.stat}>
+      <View style={styles.stats}>
+        <View style={styles.statItem}>
           <Text style={styles.statValue}>{sessions}</Text>
-          <Text style={styles.statLabel}>of {weeklyGoal} sessions</Text>
+          <Text style={styles.statLabel}>
+            {sessions === 1 ? "session" : "sessions"} this week
+          </Text>
         </View>
+
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>{weeklyGoal}</Text>
+          <Text style={styles.statLabel}>weekly goal</Text>
+        </View>
+
         {streakDays > 0 && (
-          <View style={styles.stat}>
+          <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: "#ff6b35" }]}>{streakDays}</Text>
             <Text style={styles.statLabel}>day streak 🔥</Text>
           </View>
@@ -77,8 +85,8 @@ const ShareCard = forwardRef<View, ShareCardProps>(function ShareCard(
       {displayedTip !== undefined && (
         <View style={styles.tipRow}>
           <Feather name="message-circle" size={12} color={ACCENT} />
-          <View style={styles.tipTextWrap}>
-            <Text style={styles.tipLabel}>Coach's top tip</Text>
+          <View style={styles.tipContent}>
+            <Text style={styles.tipLabel}>{"Coach's top tip"}</Text>
             <Text style={styles.tipText}>{displayedTip}</Text>
           </View>
         </View>
@@ -108,6 +116,7 @@ const styles = StyleSheet.create({
     color: ACCENT,
     fontSize: 15,
     fontWeight: "700",
+    letterSpacing: 0.5,
   },
   sportBadge: {
     flexDirection: "row",
@@ -124,13 +133,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textTransform: "capitalize",
   },
-  statsRow: {
+  stats: {
     flexDirection: "row",
     gap: 20,
     marginBottom: 14,
   },
-  stat: {
-    alignItems: "flex-start",
+  statItem: {
+    alignItems: "center",
   },
   statValue: {
     color: TEXT,
@@ -153,7 +162,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: BORDER,
   },
-  tipTextWrap: {
+  tipContent: {
     flex: 1,
   },
   tipLabel: {

@@ -131,6 +131,11 @@ jest.mock("@/components/analysis/ShareCard", () => ({
   SHARE_CARD_LIGHT: {},
 }));
 
+jest.mock("@/components/ShareCard", () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
 jest.mock("@/components/WeekDotRow", () => ({
   WeekDotRow: () => null,
 }));
