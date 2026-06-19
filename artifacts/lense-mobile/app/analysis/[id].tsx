@@ -23,6 +23,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import * as MediaLibrary from "expo-media-library";
+import { useSharePreview } from "@/hooks/useSharePreview";
 
 import { useColors } from "@/hooks/useColors";
 import { formatBiomechanicsText } from "@/utils/formatBiomechanics";
@@ -352,10 +353,14 @@ export default function AnalysisDetailScreen() {
   const [pollExhausted, setPollExhausted] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [showSharePreview, setShowSharePreview] = useState(false);
   const [selectedShareTipId, setSelectedShareTipId] = useState<string | null>(null);
   const [shareScheme, setShareScheme] = useState<"dark" | "light">("dark");
   const shareCardRef = useRef<View>(null);
+  const {
+    showSharePreview,
+    handleShare: _openSharePreview,
+    handleCancelShare,
+  } = useSharePreview();
 
   // Goal reached toast
   const [goalToast, setGoalToast] = useState<{ count: number; goal: number } | null>(null);
@@ -544,7 +549,7 @@ export default function AnalysisDetailScreen() {
   function handleShare() {
     if (!analysis) return;
     setSelectedShareTipId(topTip?.id ?? null);
-    setShowSharePreview(true);
+    _openSharePreview();
   }
 
   async function handleDoShare() {
@@ -557,19 +562,16 @@ export default function AnalysisDetailScreen() {
         return;
       }
       const uri = await captureRef(shareCardRef, SHARE_CARD_CAPTURE_OPTIONS);
-      setShowSharePreview(false);
+      handleCancelShare();
 
       const deepLink = `athleteai://analysis/${id}`;
       const shareMessage = `Check out my ${analysis.sport} session on AthleteAI!\n${deepLink}`;
 
       if (Platform.OS === "ios") {
-        // iOS: Share.share accepts url (file URI for the image) and message (text + deep link)
         await Share.share({ url: uri, message: shareMessage });
       } else {
-        // Android: Share.share is text-only; include the deep link in the message
-        const isAvailable = await Sharing.isAvailableAsync();
-        if (isAvailable) {
-          // Share the image via expo-sharing, then offer the link via Share
+        const isShareAvailable = await Sharing.isAvailableAsync();
+        if (isShareAvailable) {
           await Sharing.shareAsync(uri, {
             mimeType: "image/png",
             dialogTitle: "Share your session",
@@ -938,7 +940,7 @@ export default function AnalysisDetailScreen() {
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
           <TouchableOpacity
-            onPress={handleShare}
+            onPress={() => { if (analysis) handleShare(); }}
             activeOpacity={0.7}
             disabled={sharing}
             accessibilityRole="button"
@@ -987,7 +989,7 @@ export default function AnalysisDetailScreen() {
         visible={showSharePreview}
         animationType="slide"
         transparent
-        onRequestClose={() => setShowSharePreview(false)}
+        onRequestClose={handleCancelShare}
       >
         <View style={styles.shareModalBackdrop}>
           <View
@@ -1160,7 +1162,7 @@ export default function AnalysisDetailScreen() {
 
             <View style={styles.sheetActions}>
               <TouchableOpacity
-                onPress={() => setShowSharePreview(false)}
+                onPress={handleCancelShare}
                 activeOpacity={0.7}
                 style={[
                   styles.sheetBtn,
