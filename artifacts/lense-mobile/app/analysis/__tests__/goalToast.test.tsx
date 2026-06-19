@@ -137,6 +137,7 @@ jest.mock("@/lib/api", () => ({
     delete: jest.fn(),
   },
   profile: {
+    get:   jest.fn().mockResolvedValue({ profile: { weeklyGoal: 3, sport: "running", level: "intermediate", name: "Test Athlete", avatarUrl: null }, subscription: { plan: "free" } }),
     stats: (...args: unknown[]) => mockProfileStats(...args),
   },
 }));

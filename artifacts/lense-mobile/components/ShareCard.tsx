@@ -9,6 +9,7 @@ export interface ShareCardProps {
   weeklyGoal: number;
   streakDays: number;
   sport?: string;
+  topTip?: string;
 }
 
 export interface ViewShotHandle {
@@ -16,7 +17,7 @@ export interface ViewShotHandle {
 }
 
 const CARD_WIDTH = 320;
-const CARD_HEIGHT = 380;
+const CARD_HEIGHT = 430;
 
 const t = appColors.light;
 const GOLD = t.warning;
@@ -215,6 +216,33 @@ const s = StyleSheet.create({
     color: t.primary,
     fontFamily: "Inter_600SemiBold",
   },
+  tipRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 7,
+    marginHorizontal: 24,
+    marginBottom: 14,
+    backgroundColor: t.primary + "0f",
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: t.primary + "33",
+  },
+  tipLabel: {
+    fontSize: 9,
+    fontFamily: "Inter_600SemiBold",
+    color: t.primary,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 3,
+  },
+  tipText: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: t.foreground,
+    lineHeight: 15,
+    flex: 1,
+  },
   checkDot: {
     position: "absolute",
     top: -4,
@@ -231,7 +259,7 @@ const s = StyleSheet.create({
 });
 
 const ShareCard = forwardRef<ViewShotHandle, ShareCardProps>(
-  ({ sessions, weeklyGoal, streakDays, sport }, ref) => {
+  ({ sessions, weeklyGoal, streakDays, sport, topTip }, ref) => {
     const shotRef = useRef<ViewShotRef>(null);
 
     useImperativeHandle(ref, () => ({
@@ -295,6 +323,16 @@ const ShareCard = forwardRef<ViewShotHandle, ShareCardProps>(
               ) : null}
             </View>
           </View>
+
+          {topTip ? (
+            <View style={s.tipRow}>
+              <Feather name="message-circle" size={12} color={t.primary} style={{ marginTop: 1 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.tipLabel}>Coach's top tip</Text>
+                <Text style={s.tipText}>{topTip.length > 80 ? topTip.slice(0, 77) + "…" : topTip}</Text>
+              </View>
+            </View>
+          ) : null}
 
           <View style={s.divider} />
           <View style={s.footer}>

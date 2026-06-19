@@ -36,6 +36,7 @@ import {
   type AchievementRecord,
   type ProfileStats,
   type JointTrendsResponse,
+  type TipRecord,
 } from "@/lib/api";
 import JointHistorySheet from "@/components/JointHistorySheet";
 import { ConfettiBurst } from "@/components/ConfettiBurst";
@@ -100,6 +101,7 @@ export default function HomeScreen() {
   const [achievements, setAchievements]   = useState<AchievementRecord[]>([]);
   const [stats, setStats]                 = useState<ProfileStats | null>(null);
   const [jointTrendsData, setJointTrendsData] = useState<JointTrendsResponse | null>(null);
+  const [latestTips, setLatestTips]       = useState<TipRecord[]>([]);
   const [historyJoint, setHistoryJoint]   = useState<string | null>(null);
   const [loading, setLoading]             = useState(true);
   const [refreshing, setRefreshing]       = useState(false);
@@ -137,6 +139,15 @@ export default function HomeScreen() {
       setAchievements(ach);
       if (statsResult) setStats(statsResult);
       if (trendsResult) setJointTrendsData(trendsResult);
+
+      const firstComplete = analyses.find(a => a.status === "complete");
+      if (firstComplete) {
+        analysesApi.get(firstComplete.id)
+          .then(({ tips }) => setLatestTips(tips))
+          .catch(() => {});
+      } else {
+        setLatestTips([]);
+      }
 
       const currentWeekGoal = profile?.weeklyGoal ?? 3;
 
@@ -195,6 +206,18 @@ export default function HomeScreen() {
 
   const latestComplete = recentAnalyses.find((a) => a.status === "complete");
   const overallScore   = latestComplete?.overallScore ?? null;
+
+  const topTip = useMemo((): string | undefined => {
+    const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+    if (latestTips.length === 0) return undefined;
+    const sorted = [...latestTips].sort((a, b) => {
+      const typeOrder = (t: string) => (t === "injury" ? 0 : 1);
+      const typeDiff = typeOrder(a.tipType) - typeOrder(b.tipType);
+      if (typeDiff !== 0) return typeDiff;
+      return (SEVERITY_ORDER[a.severity] ?? 3) - (SEVERITY_ORDER[b.severity] ?? 3);
+    });
+    return sorted[0]?.title;
+  }, [latestTips]);
   const overallColor   = overallScore != null ? getScoreColor(overallScore) : colors.primary;
 
   const streakDays    = stats?.streak ?? 0;
@@ -987,6 +1010,7 @@ export default function HomeScreen() {
           weeklyGoal={weeklyGoal}
           streakDays={streakDays}
           sport={profile?.sport ?? undefined}
+          topTip={topTip}
         />
       </View>
 
