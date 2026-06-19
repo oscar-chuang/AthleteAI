@@ -288,4 +288,45 @@ describe("AnalysisDetailScreen — share preview modal", () => {
     // Modal closes after the share completes.
     expect(screen.queryByText("Share your session")).toBeNull();
   });
+
+  it("Share CTA is disabled while a share is in progress — second press is a no-op", async () => {
+    // Make captureRef return a promise that never resolves so the component
+    // stays in the "sharing" state (sharing === true) for the whole test.
+    let releaseCaptureRef!: () => void;
+    const neverResolving = new Promise<string>((resolve) => {
+      releaseCaptureRef = () => resolve("file:///tmp/share-card.png");
+    });
+    mockCaptureRef.mockReturnValue(neverResolving);
+
+    render(<AnalysisDetailScreen />);
+    await simulateFocus();
+
+    // Open the share preview modal.
+    fireEvent.press(screen.getByRole("button", { name: "Share analysis" }));
+    await flush();
+    expect(screen.getByText("Share your session")).toBeTruthy();
+
+    // First press — kicks off handleDoShare; captureRef is called once and
+    // then suspends, keeping sharing === true.
+    fireEvent.press(screen.getByText("Share"));
+    // Let isAvailableAsync resolve so captureRef is reached and invoked.
+    await flush();
+
+    expect(mockCaptureRef).toHaveBeenCalledTimes(1);
+
+    // Second press while captureRef is still in-flight (sharing === true).
+    // The handler guard `if (!analysis || sharing) return;` must bail out
+    // immediately, so captureRef must NOT be called a second time.
+    fireEvent.press(screen.getByText("Share"));
+    await flush();
+
+    expect(mockCaptureRef).toHaveBeenCalledTimes(1);
+    // Neither downstream side-effect must have fired yet.
+    expect(mockGetContentUriAsync).not.toHaveBeenCalled();
+    expect(mockStartActivityAsync).not.toHaveBeenCalled();
+
+    // Clean up: let the first share complete so no pending promise leaks.
+    await act(async () => { releaseCaptureRef(); });
+    await flush();
+  });
 });
