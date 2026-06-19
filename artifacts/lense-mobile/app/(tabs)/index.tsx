@@ -82,7 +82,8 @@ function getWeekKey(): string {
 export default function HomeScreen() {
   const colors = useColors();
   const trophyScale = useRef(new Animated.Value(1)).current;
-  const barWidthAnim = useRef(new Animated.Value(0)).current;
+  const barScaleAnim = useRef(new Animated.Value(0)).current;
+  const [barContainerWidth, setBarContainerWidth] = useState(0);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, profile, updateProfile } = useAuth();
@@ -101,12 +102,17 @@ export default function HomeScreen() {
   const [localWeeklyGoal, setLocalWeeklyGoal] = useState<number | null>(null);
   const [showShareHint, setShowShareHint] = useState(false);
   const shareHintAnim = useRef(new Animated.Value(0)).current;
+  const [barAnimDone, setBarAnimDone]     = useState(false);
 
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (resetBar = false) => {
     setError(false);
+    if (resetBar) {
+      barScaleAnim.setValue(0);
+      setBarAnimDone(false);
+    }
     try {
       const [{ analyses }, { achievements: ach }, statsResult] = await Promise.all([
         analysesApi.list(),
@@ -119,8 +125,23 @@ export default function HomeScreen() {
       if (statsResult) setStats(statsResult);
 
       const currentWeekGoal = profile?.weeklyGoal ?? 3;
+
+      // Animate bar to resolved value (always runs so re-focus re-animates from 0).
+      // Uses scaleX (native-driver-compatible) from 0 → targetRatio.
+      const currentCount = statsResult?.thisWeekCount ?? 0;
+      const targetRatio = currentWeekGoal > 0
+        ? Math.min(currentCount / currentWeekGoal, 1)
+        : 0;
+      Animated.timing(barScaleAnim, {
+        toValue: targetRatio,
+        duration: 600,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setBarAnimDone(true);
+      });
+
       if (currentWeekGoal > 0 && statsResult) {
-        const currentCount = statsResult.thisWeekCount ?? 0;
         const weekKey      = getWeekKey();
         const fired = await checkConfettiGate(currentWeekGoal, currentCount, weekKey, AsyncStorage);
         if (fired) {
@@ -140,10 +161,10 @@ export default function HomeScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [profile?.weeklyGoal]);
+  }, [profile?.weeklyGoal, barScaleAnim]);
 
-  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
-  function onRefresh() { setRefreshing(true); loadData(); }
+  useFocusEffect(useCallback(() => { loadData(true); }, [loadData]));
+  function onRefresh() { setRefreshing(true); loadData(true); }
 
   function getScoreColor(score: number) {
     if (score >= 80) return colors.success;
@@ -222,19 +243,14 @@ export default function HomeScreen() {
     pulse.start();
   }, [goalReached, trophyScale]);
 
-  useEffect(() => {
-    Animated.timing(barWidthAnim, {
-      toValue: weekPct,
-      duration: 600,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [weekPct, barWidthAnim]);
-
-  const animatedBarWidth = barWidthAnim.interpolate({
-    inputRange: [0, 100],
-    outputRange: ["0%", "100%"],
-  });
+  // scaleX anchor maths: fill is full-width, anchored to left edge.
+  // translateX = -(W/2)*(1 - scaleX)  →  at scaleX=0: -W/2, at scaleX=1: 0
+  const barFillTranslateX = barContainerWidth > 0
+    ? barScaleAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [-barContainerWidth / 2, 0],
+      })
+    : barScaleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0] });
 
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
   const totalSessions = stats?.totalAnalyses ?? allAnalyses.length;
@@ -605,8 +621,27 @@ export default function HomeScreen() {
                   )}
                 </View>
               </View>
-              <View style={s.progressBarBg}>
-                <Animated.View style={[s.progressBarFill, { width: animatedBarWidth, backgroundColor: goalReached ? "#f59e0b" : colors.primary }]} />
+              <View
+                style={s.progressBarBg}
+                onLayout={(e) => setBarContainerWidth(e.nativeEvent.layout.width)}
+              >
+                <Animated.View
+                  style={[
+                    s.progressBarFill,
+                    {
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: barContainerWidth || "100%",
+                      backgroundColor: barAnimDone && goalReached ? "#f59e0b" : colors.primary,
+                      transform: [
+                        { translateX: barFillTranslateX },
+                        { scaleX: barScaleAnim },
+                      ],
+                    },
+                  ]}
+                />
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", marginTop: 8, justifyContent: "space-between" }}>
                 <TouchableOpacity
