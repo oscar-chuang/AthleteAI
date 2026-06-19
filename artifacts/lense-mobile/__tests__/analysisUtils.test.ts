@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import {
   computeFlaggedJoints,
   computeWorstLvl,
@@ -497,5 +499,38 @@ describe("full pipeline: computeConflictedJoints → sortInjuryTips / sortPerfor
     sortedPerf.forEach((t) => {
       expect(deriveTipLabel(t, "performance", conflicted)).toBe(PERFORMANCE_CONFLICT_LABEL);
     });
+  });
+});
+
+// ── Banner-text contract: constants must match what [id].tsx renders ──────────
+//
+// These tests guard against silent copy drift: if a developer edits the
+// literal strings inside renderTip() in [id].tsx without updating the
+// INJURY_CONFLICT_LABEL / PERFORMANCE_CONFLICT_LABEL constants used above
+// (and vice-versa), one of the assertions below will fail immediately.
+//
+// Strategy: read the raw source of the skeleton screen at test time and
+// assert both banner strings appear verbatim, exactly as the constants define.
+
+describe("banner-text contract: [id].tsx rendered strings match test constants", () => {
+  const skeletonSource = readFileSync(
+    resolve(__dirname, "../app/analysis/skeleton/[id].tsx"),
+    "utf8",
+  );
+
+  it("injury conflict banner text in [id].tsx matches INJURY_CONFLICT_LABEL constant", () => {
+    expect(skeletonSource).toContain(INJURY_CONFLICT_LABEL);
+  });
+
+  it("performance conflict banner text in [id].tsx matches PERFORMANCE_CONFLICT_LABEL constant", () => {
+    expect(skeletonSource).toContain(PERFORMANCE_CONFLICT_LABEL);
+  });
+
+  it("both banner strings appear in the conflict-banner JSX block (not just comments)", () => {
+    // Verify each string sits inside a <Text> element, not only in a comment.
+    const injuryBannerMatch  = skeletonSource.match(/<Text[^>]*>⚠ Fix this first<\/Text>/);
+    const perfBannerMatch    = skeletonSource.match(/<Text[^>]*>After injury risk is resolved<\/Text>/);
+    expect(injuryBannerMatch).not.toBeNull();
+    expect(perfBannerMatch).not.toBeNull();
   });
 });
