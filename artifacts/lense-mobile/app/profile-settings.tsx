@@ -20,6 +20,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/lib/authContext";
 import { useTheme } from "@/lib/themeContext";
+import { CropModal, type CropResult } from "@/components/CropModal";
 
 const SPORTS = [
   "Powerlifting", "Olympic Weightlifting", "Running", "Swimming",
@@ -235,6 +236,10 @@ export default function ProfileSettingsScreen() {
   const [checkInSaving, setCheckInSaving] = useState(false);
   const [checkInSavedFor, setCheckInSavedFor] = useState<number | null>(null);
   const [avatarSaving, setAvatarSaving] = useState(false);
+  const [cropVisible, setCropVisible] = useState(false);
+  const [pendingImageUri, setPendingImageUri] = useState<string | null>(null);
+  const [pendingImageWidth, setPendingImageWidth] = useState(0);
+  const [pendingImageHeight, setPendingImageHeight] = useState(0);
 
   async function handleTrainingDayToggle(dayIdx: number) {
     if (daysSaving) return;
@@ -335,24 +340,25 @@ export default function ProfileSettingsScreen() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: "images",
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.4,
-      base64: true,
+      allowsEditing: false,
+      quality: 1,
     });
 
     if (result.canceled || !result.assets?.[0]) return;
 
     const asset = result.assets[0]!;
-    let uri: string;
+    const width = asset.width ?? 800;
+    const height = asset.height ?? 800;
 
-    if (asset.base64) {
-      const mimeType = asset.mimeType ?? "image/jpeg";
-      uri = `data:${mimeType};base64,${asset.base64}`;
-    } else {
-      uri = asset.uri;
-    }
+    setPendingImageUri(asset.uri);
+    setPendingImageWidth(width);
+    setPendingImageHeight(height);
+    setCropVisible(true);
+  }
 
+  async function handleCropConfirm(cropResult: CropResult) {
+    setCropVisible(false);
+    const uri = `data:${cropResult.mimeType};base64,${cropResult.base64}`;
     setAvatarUrl(uri);
     setAvatarSaving(true);
     try {
@@ -363,6 +369,11 @@ export default function ProfileSettingsScreen() {
     } finally {
       setAvatarSaving(false);
     }
+  }
+
+  function handleCropCancel() {
+    setCropVisible(false);
+    setPendingImageUri(null);
   }
 
   async function handleSave() {
@@ -659,6 +670,17 @@ export default function ProfileSettingsScreen() {
 
   return (
     <View style={s.container}>
+      {pendingImageUri && (
+        <CropModal
+          visible={cropVisible}
+          imageUri={pendingImageUri}
+          imageWidth={pendingImageWidth}
+          imageHeight={pendingImageHeight}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
+      )}
+
       {/* ── Header ── */}
       <View style={s.header}>
         <TouchableOpacity style={s.closeBtn} onPress={handleClose} activeOpacity={0.7}>
