@@ -392,6 +392,7 @@ export default function AnalysisDetailScreen() {
   const [deleting, setDeleting] = useState(false);
   const [pollExhausted, setPollExhausted] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [sharingUnavailable, setSharingUnavailable] = useState(false);
   const [saving, setSaving] = useState(false);
   const [lastShareAction, setLastShareAction] = useState<"save" | "share">("share");
   const [selectedShareTipId, setSelectedShareTipId] = useState<string | null>(null);
@@ -410,8 +411,13 @@ export default function AnalysisDetailScreen() {
   const {
     showSharePreview,
     handleShare: _openSharePreview,
-    handleCancelShare,
+    handleCancelShare: _handleCancelShare,
   } = useSharePreview();
+
+  function handleCancelShare() {
+    setSharingUnavailable(false);
+    _handleCancelShare();
+  }
 
   // Goal reached toast
   const [goalToast, setGoalToast] = useState<{ count: number; goal: number } | null>(null);
@@ -676,6 +682,7 @@ export default function AnalysisDetailScreen() {
     const remembered = shareTipMemoryRef.current[analysis.id];
     const initialTip = remembered !== undefined ? remembered : (topTip?.id ?? null);
     setSelectedShareTipId(initialTip);
+    setSharingUnavailable(false);
     _openSharePreview();
   }
 
@@ -685,7 +692,7 @@ export default function AnalysisDetailScreen() {
     try {
       const isAvailable = await Sharing.isAvailableAsync();
       if (!isAvailable) {
-        Alert.alert("Sharing not available", "Your device doesn't support sharing.");
+        setSharingUnavailable(true);
         return;
       }
       const uri = await captureRef(shareCardRef, SHARE_CARD_CAPTURE_OPTIONS);
@@ -1150,6 +1157,21 @@ export default function AnalysisDetailScreen() {
             >
               Here's what others will see
             </Text>
+
+            {/* Sharing unavailable notice */}
+            {sharingUnavailable && (
+              <View
+                style={[
+                  styles.sharingUnavailableBanner,
+                  { backgroundColor: colors.muted, borderColor: colors.border },
+                ]}
+              >
+                <Feather name="alert-circle" size={14} color={colors.mutedForeground} />
+                <Text style={[styles.sharingUnavailableText, { color: colors.mutedForeground }]}>
+                  Sharing isn't supported on this device. Save to photos instead.
+                </Text>
+              </View>
+            )}
 
             {/* Scheme picker — dark / light thumbnails */}
             <View style={styles.schemePicker}>
@@ -2361,6 +2383,23 @@ const styles = StyleSheet.create({
   sheetBtnText: {
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
+  },
+  sharingUnavailableBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+    width: "100%",
+  },
+  sharingUnavailableText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 18,
   },
 
   // Scheme picker

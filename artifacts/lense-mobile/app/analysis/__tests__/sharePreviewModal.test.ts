@@ -76,4 +76,77 @@ describe("useSharePreview — share modal state transitions", () => {
     });
     expect(result.current.showSharePreview).toBe(false);
   });
+
+  it("when sharing is unavailable handleDoShare keeps the modal open and sets sharingUnavailable", async () => {
+    mockIsAvailableAsync.mockResolvedValue(false);
+
+    const { result } = renderHook(() => useSharePreview());
+
+    act(() => {
+      result.current.handleShare();
+    });
+    expect(result.current.showSharePreview).toBe(true);
+    expect(result.current.sharingUnavailable).toBe(false);
+
+    const fakeRef = { current: {} } as React.RefObject<import("react-native").View | null>;
+
+    await act(async () => {
+      await result.current.handleDoShare(fakeRef);
+    });
+
+    expect(mockCaptureRef).not.toHaveBeenCalled();
+    expect(mockShareAsync).not.toHaveBeenCalled();
+    expect(result.current.showSharePreview).toBe(true);
+    expect(result.current.sharingUnavailable).toBe(true);
+  });
+
+  it("handleCancelShare clears sharingUnavailable when the modal is dismissed", async () => {
+    mockIsAvailableAsync.mockResolvedValue(false);
+
+    const { result } = renderHook(() => useSharePreview());
+
+    act(() => {
+      result.current.handleShare();
+    });
+
+    const fakeRef = { current: {} } as React.RefObject<import("react-native").View | null>;
+
+    await act(async () => {
+      await result.current.handleDoShare(fakeRef);
+    });
+
+    expect(result.current.sharingUnavailable).toBe(true);
+
+    act(() => {
+      result.current.handleCancelShare();
+    });
+
+    expect(result.current.sharingUnavailable).toBe(false);
+    expect(result.current.showSharePreview).toBe(false);
+  });
+
+  it("reopening the modal via handleShare resets sharingUnavailable", async () => {
+    mockIsAvailableAsync.mockResolvedValue(false);
+
+    const { result } = renderHook(() => useSharePreview());
+
+    act(() => {
+      result.current.handleShare();
+    });
+
+    const fakeRef = { current: {} } as React.RefObject<import("react-native").View | null>;
+
+    await act(async () => {
+      await result.current.handleDoShare(fakeRef);
+    });
+
+    expect(result.current.sharingUnavailable).toBe(true);
+
+    act(() => {
+      result.current.handleShare();
+    });
+
+    expect(result.current.sharingUnavailable).toBe(false);
+    expect(result.current.showSharePreview).toBe(true);
+  });
 });

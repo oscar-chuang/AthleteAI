@@ -7,12 +7,15 @@ import type { RefObject } from "react";
 export function useSharePreview() {
   const [showSharePreview, setShowSharePreview] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [sharingUnavailable, setSharingUnavailable] = useState(false);
 
   function handleShare() {
+    setSharingUnavailable(false);
     setShowSharePreview(true);
   }
 
   function handleCancelShare() {
+    setSharingUnavailable(false);
     setShowSharePreview(false);
   }
 
@@ -22,7 +25,7 @@ export function useSharePreview() {
     try {
       const isAvailable = await Sharing.isAvailableAsync();
       if (!isAvailable) {
-        Alert.alert("Sharing not available", "Your device doesn't support sharing.");
+        setSharingUnavailable(true);
         return;
       }
       const uri = await captureRef(shareCardRef, {
@@ -31,6 +34,7 @@ export function useSharePreview() {
         result: "tmpfile",
       });
       setShowSharePreview(false);
+      setSharingUnavailable(false);
       await Sharing.shareAsync(uri, {
         mimeType: "image/png",
         dialogTitle: "Share your session",
@@ -45,6 +49,7 @@ export function useSharePreview() {
   return {
     showSharePreview,
     sharing,
+    sharingUnavailable,
     handleShare,
     handleCancelShare,
     handleDoShare,
