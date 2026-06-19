@@ -11,6 +11,8 @@ import {
   TextInput,
   Animated,
   Modal,
+  PanResponder,
+  Dimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -438,6 +440,88 @@ export default function AnalysisDetailScreen() {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
     router.replace(`/analysis/${targetId}?tab=${activeTab}` as any);
   }
+
+  // ── Swipe gesture for session navigation ──────────────────────────────────
+  const SCREEN_WIDTH = Dimensions.get("window").width;
+  const SWIPE_THRESHOLD = 60;
+  const SWIPE_VELOCITY_THRESHOLD = 0.4;
+
+  const swipeAnim = useRef(new Animated.Value(0)).current;
+
+  // Keep a mutable ref so the PanResponder closure (created once) always sees
+  // the latest prevId / nextId without needing to be recreated.
+  const navRef = useRef<{ prevId: string | null; nextId: string | null }>({
+    prevId: null,
+    nextId: null,
+  });
+  useEffect(() => {
+    navRef.current = { prevId, nextId };
+  }, [prevId, nextId]);
+
+  // Keep router in a ref for the same reason.
+  const routerRef = useRef(router);
+  useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      // Only capture when horizontal movement clearly dominates vertical.
+      onMoveShouldSetPanResponder: (_, { dx, dy }) =>
+        Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > 12,
+      onPanResponderMove: (_, { dx }) => {
+        const { prevId: pId, nextId: nId } = navRef.current;
+        // Rubber-band resistance when swiping toward a boundary with no session.
+        if ((dx > 0 && !pId) || (dx < 0 && !nId)) {
+          swipeAnim.setValue(dx * 0.18);
+        } else {
+          swipeAnim.setValue(dx);
+        }
+      },
+      onPanResponderRelease: (_, { dx, vx }) => {
+        const { prevId: pId, nextId: nId } = navRef.current;
+        const goNext =
+          (dx < -SWIPE_THRESHOLD || vx < -SWIPE_VELOCITY_THRESHOLD) && !!nId;
+        const goPrev =
+          (dx > SWIPE_THRESHOLD || vx > SWIPE_VELOCITY_THRESHOLD) && !!pId;
+
+        if (goNext) {
+          Animated.timing(swipeAnim, {
+            toValue: -SCREEN_WIDTH,
+            duration: 220,
+            useNativeDriver: true,
+          }).start(() => {
+            swipeAnim.setValue(0);
+            routerRef.current.replace(`/analysis/${nId}` as any);
+          });
+        } else if (goPrev) {
+          Animated.timing(swipeAnim, {
+            toValue: SCREEN_WIDTH,
+            duration: 220,
+            useNativeDriver: true,
+          }).start(() => {
+            swipeAnim.setValue(0);
+            routerRef.current.replace(`/analysis/${pId}` as any);
+          });
+        } else {
+          Animated.spring(swipeAnim, {
+            toValue: 0,
+            useNativeDriver: true,
+            speed: 25,
+            bounciness: 4,
+          }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(swipeAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          speed: 25,
+          bounciness: 4,
+        }).start();
+      },
+    })
+  ).current;
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 20;
@@ -928,6 +1012,10 @@ export default function AnalysisDetailScreen() {
         </View>
       </Modal>
 
+      <Animated.View
+        style={{ flex: 1, transform: [{ translateX: swipeAnim }] }}
+        {...panResponder.panHandlers}
+      >
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
@@ -1702,6 +1790,7 @@ export default function AnalysisDetailScreen() {
           )}
         </View>
       </ScrollView>
+      </Animated.View>
 
       {/* ── Goal reached toast ── */}
       {goalToast && (
