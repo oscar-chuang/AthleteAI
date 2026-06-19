@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   Pressable,
   TouchableOpacity,
   Dimensions,
+  Animated,
 } from "react-native";
 import Svg, {
   Line,
@@ -16,9 +17,19 @@ import Svg, {
   Rect,
   G,
 } from "react-native-svg";
+
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { type JointDataPoint } from "@/lib/api";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const AnimatedG: React.ComponentType<any> = (() => {
+  try {
+    return Animated.createAnimatedComponent(G);
+  } catch {
+    return G;
+  }
+})();
 
 const JOINT_HISTORY_DISPLAY: Record<string, string> = {
   leftKnee: "Left Knee",
@@ -60,7 +71,77 @@ export default function JointHistorySheet({
   const { width: sw } = Dimensions.get("window");
   const chartW = sw - 48 - CHART_PAD_L - CHART_PAD_R;
   const label = JOINT_HISTORY_DISPLAY[joint] ?? joint;
+
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [displayedIndex, setDisplayedIndex] = useState<number | null>(null);
+  const tooltipOpacity = useRef(new Animated.Value(0)).current;
+  const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadeAnim = useRef<Animated.CompositeAnimation | null>(null);
+
+  const dismissTooltip = useCallback(() => {
+    if (autoTimer.current) {
+      clearTimeout(autoTimer.current);
+      autoTimer.current = null;
+    }
+    if (fadeAnim.current) fadeAnim.current.stop();
+    fadeAnim.current = Animated.timing(tooltipOpacity, {
+      toValue: 0,
+      duration: 100,
+      useNativeDriver: true,
+    });
+    fadeAnim.current.start(({ finished }) => {
+      if (finished) {
+        setSelectedIndex(null);
+        setDisplayedIndex(null);
+      }
+    });
+  }, [tooltipOpacity]);
+
+  const handleDotPress = useCallback((i: number) => {
+    if (autoTimer.current) {
+      clearTimeout(autoTimer.current);
+      autoTimer.current = null;
+    }
+    if (fadeAnim.current) fadeAnim.current.stop();
+
+    if (selectedIndex === i) {
+      setSelectedIndex(null);
+      dismissTooltip();
+      return;
+    }
+
+    const isFirstShow = selectedIndex === null;
+    setSelectedIndex(i);
+    setDisplayedIndex(i);
+
+    if (isFirstShow) {
+      tooltipOpacity.setValue(0);
+      fadeAnim.current = Animated.timing(tooltipOpacity, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      });
+      fadeAnim.current.start();
+    } else {
+      tooltipOpacity.setValue(1);
+    }
+
+    autoTimer.current = setTimeout(dismissTooltip, 3000);
+  }, [selectedIndex, tooltipOpacity, dismissTooltip]);
+
+  const handleBackgroundPress = useCallback(() => {
+    if (selectedIndex !== null) {
+      setSelectedIndex(null);
+      dismissTooltip();
+    }
+  }, [selectedIndex, dismissTooltip]);
+
+  useEffect(() => {
+    return () => {
+      if (autoTimer.current) clearTimeout(autoTimer.current);
+      if (fadeAnim.current) fadeAnim.current.stop();
+    };
+  }, []);
 
   const angles = data.map((d) => d.angle);
   const minAngle = Math.max(0, Math.min(...angles) - 8);
@@ -250,7 +331,7 @@ export default function JointHistorySheet({
                 width={sw - 48}
                 height={totalSvgH + 72}
                 fill="transparent"
-                onPress={() => setSelectedIndex(null)}
+                onPress={handleBackgroundPress}
               />
 
               {/* Y-axis grid + labels */}
@@ -326,7 +407,7 @@ export default function JointHistorySheet({
                       cy={cy}
                       r={18}
                       fill="transparent"
-                      onPress={() => setSelectedIndex(isSelected ? null : i)}
+                      onPress={() => handleDotPress(i)}
                     />
                     {/* Visible dot */}
                     <Circle
@@ -369,10 +450,10 @@ export default function JointHistorySheet({
               })()}
 
               {/* Tooltip — rendered last so it sits on top of everything */}
-              {selectedIndex !== null &&
+              {displayedIndex !== null &&
                 (() => {
-                  const sel = data[selectedIndex]!;
-                  const cx = toX(selectedIndex);
+                  const sel = data[displayedIndex]!;
+                  const cx = toX(displayedIndex);
                   const cy = toY(sel.angle);
                   const dotColor = RISK_COLOR_MAP[sel.risk] ?? "#6c63ff";
                   const rLabel = RISK_LABEL_MAP[sel.risk] ?? "";
@@ -401,7 +482,7 @@ export default function JointHistorySheet({
                   }
 
                   return (
-                    <G key="tooltip" onPress={canNavigate ? handleTooltipPress : undefined}>
+                    <AnimatedG opacity={tooltipOpacity} onPress={canNavigate ? handleTooltipPress : undefined}>
                       {/* Shadow rect */}
                       <Rect
                         x={tx + 2}
@@ -486,7 +567,7 @@ export default function JointHistorySheet({
                           tap to open →
                         </SvgText>
                       )}
-                    </G>
+                    </AnimatedG>
                   );
                 })()}
             </Svg>
