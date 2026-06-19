@@ -461,6 +461,26 @@ describe("ProfileSettingsScreen — preset color swatches", () => {
     expect(mockUpdateProfile).toHaveBeenCalledWith({ avatarUrl: PRESET_KEY });
     expect(queryByText("Remove photo")).toBeNull();
   });
+
+  it("shows the selected state on the tapped swatch and not on the others", async () => {
+    mockProfile.avatarUrl = null;
+
+    const { getByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    const targetSwatch = getByTestId(`preset-swatch-${PRESET_KEY}`);
+    expect(targetSwatch.props.accessibilityState?.selected).toBe(false);
+
+    await act(async () => {
+      fireEvent.press(targetSwatch);
+    });
+    await flush();
+
+    expect(getByTestId(`preset-swatch-${PRESET_KEY}`).props.accessibilityState?.selected).toBe(true);
+
+    const OTHER_KEY = "preset:#22c55e";
+    expect(getByTestId(`preset-swatch-${OTHER_KEY}`).props.accessibilityState?.selected).toBe(false);
+  });
 });
 
 // ─── Accent colour swatches ────────────────────────────────────────────────────
