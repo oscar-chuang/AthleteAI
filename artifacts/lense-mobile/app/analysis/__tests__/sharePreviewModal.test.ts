@@ -1,5 +1,5 @@
 import { renderHook, act } from "@testing-library/react-native";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useSharePreview } from "@/hooks/useSharePreview";
 
 const mockCaptureRef = jest.fn();
@@ -227,5 +227,127 @@ describe("share preview — colour-scheme picker", () => {
     // Both cards must now be light — a single state value drives both.
     expect(result.current.visiblePreviewCardScheme).toBe("light");
     expect(result.current.hiddenCaptureCardScheme).toBe("light");
+  });
+});
+
+// ─── Tip memory ───────────────────────────────────────────────────────────────
+// AnalysisDetailScreen keeps a shareTipMemoryRef (useRef keyed by analysis ID)
+// so the last-chosen tip survives modal close/reopen within one session without
+// hitting AsyncStorage.
+//
+// handleShare() reads shareTipMemoryRef.current[analysisId]:
+//   - undefined  → fall back to topTip (first open, or never picked)
+//   - null       → explicit "no tip" selection
+//   - string     → the previously-picked tip ID
+//
+// The tip picker's onPress writes: shareTipMemoryRef.current[analysisId] = tip.id
+//
+// These tests mirror that logic in isolation — no JSX required.
+
+const TIPS = [
+  { id: "tip-critical", title: "Fix your knee",   severity: "critical" },
+  { id: "tip-warning",  title: "Watch your back", severity: "warning"  },
+  { id: "tip-info",     title: "Stretch more",    severity: "info"     },
+];
+
+function useShareTipMemory() {
+  // Mirrors shareTipMemoryRef in the screen.
+  const shareTipMemoryRef = useRef<Record<string, string | null>>({});
+  const [selectedShareTipId, setSelectedShareTipId] = useState<string | null>(null);
+
+  // Mirrors handleShare() — reads memory, falls back to topTipId on first open.
+  const openShare = (analysisId: string, topTipId: string | null) => {
+    const remembered = shareTipMemoryRef.current[analysisId];
+    const initialTip = remembered !== undefined ? remembered : topTipId;
+    setSelectedShareTipId(initialTip);
+  };
+
+  // Mirrors the tip picker's onPress.
+  const pickTip = (analysisId: string, tipId: string) => {
+    setSelectedShareTipId(tipId);
+    shareTipMemoryRef.current[analysisId] = tipId;
+  };
+
+  return { selectedShareTipId, openShare, pickTip };
+}
+
+describe("share preview — tip memory", () => {
+  it("defaults to the top (highest-severity) tip on first open", () => {
+    const { result } = renderHook(() => useShareTipMemory());
+
+    act(() => {
+      result.current.openShare("analysis-abc", TIPS[0]!.id);
+    });
+
+    // No memory yet → falls back to topTip (tip-critical).
+    expect(result.current.selectedShareTipId).toBe("tip-critical");
+  });
+
+  it("pre-selects the last-chosen tip when the modal is reopened", () => {
+    const { result } = renderHook(() => useShareTipMemory());
+
+    // First open — no memory yet, falls back to topTip.
+    act(() => {
+      result.current.openShare("analysis-abc", TIPS[0]!.id);
+    });
+    expect(result.current.selectedShareTipId).toBe("tip-critical");
+
+    // User picks a non-default tip — memory is written.
+    act(() => {
+      result.current.pickTip("analysis-abc", "tip-warning");
+    });
+    expect(result.current.selectedShareTipId).toBe("tip-warning");
+
+    // Reopen the same analysis — openShare() reads memory and pre-selects the
+    // remembered tip regardless of what topTip would default to.
+    act(() => {
+      result.current.openShare("analysis-abc", TIPS[0]!.id);
+    });
+    expect(result.current.selectedShareTipId).toBe("tip-warning");
+  });
+
+  it("tip memory is keyed per analysis — different analyses are independent", () => {
+    const { result } = renderHook(() => useShareTipMemory());
+
+    // Pick a non-default tip for analysis-A.
+    act(() => {
+      result.current.openShare("analysis-A", TIPS[0]!.id);
+    });
+    act(() => {
+      result.current.pickTip("analysis-A", "tip-info");
+    });
+
+    // Open analysis-B for the first time — must fall back to its own topTip.
+    act(() => {
+      result.current.openShare("analysis-B", TIPS[1]!.id);
+    });
+    expect(result.current.selectedShareTipId).toBe("tip-warning");
+
+    // Reopen analysis-A — must still remember tip-info.
+    act(() => {
+      result.current.openShare("analysis-A", TIPS[0]!.id);
+    });
+    expect(result.current.selectedShareTipId).toBe("tip-info");
+  });
+
+  it("picking every tip in sequence always updates the memory to the latest choice", () => {
+    const { result } = renderHook(() => useShareTipMemory());
+
+    act(() => {
+      result.current.openShare("analysis-seq", TIPS[0]!.id);
+    });
+
+    for (const tip of TIPS) {
+      act(() => {
+        result.current.pickTip("analysis-seq", tip.id);
+      });
+      expect(result.current.selectedShareTipId).toBe(tip.id);
+    }
+
+    // Reopen — must remember the last tip picked (tip-info).
+    act(() => {
+      result.current.openShare("analysis-seq", TIPS[0]!.id);
+    });
+    expect(result.current.selectedShareTipId).toBe("tip-info");
   });
 });

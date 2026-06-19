@@ -155,8 +155,15 @@ jest.mock("@/components/analysis/ScoreCard", () => ({
 jest.mock("@/components/analysis/SectionHeader",        () => ({ SectionHeader:        () => null }));
 jest.mock("@/components/analysis/NextFocusCard",        () => ({ NextFocusCard:        () => null }));
 jest.mock("@/components/analysis/AnimatedLoadingState", () => ({ AnimatedLoadingState: () => null }));
+// Track the most-recent topTip prop passed to ShareCard so tests can assert
+// which coaching tip the share card will display without mounting the full card.
+let lastShareCardTopTip: string | undefined = undefined;
 jest.mock("@/components/analysis/ShareCard", () => ({
-  ShareCard:        () => null,
+  ShareCard: ({ topTip }: { topTip?: string }) => {
+    // Capture every render so assertions can check the latest value.
+    lastShareCardTopTip = topTip;
+    return null;
+  },
   SHARE_CARD_DARK:  {},
   SHARE_CARD_LIGHT: {},
 }));
@@ -205,6 +212,7 @@ let alertSpy: jest.SpyInstance;
 beforeEach(() => {
   jest.useFakeTimers();
   mockFocusCallback = null;
+  lastShareCardTopTip = undefined;
   alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
 
   mockCaptureRef.mockReset();
@@ -370,5 +378,73 @@ describe("AnalysisDetailScreen — share preview modal", () => {
     // The native share sheet was not invoked.
     expect(mockStartActivityAsync).not.toHaveBeenCalled();
     expect(mockShareAsync).not.toHaveBeenCalled();
+  });
+
+  it("tip picker remembers the last-chosen tip when the share preview is reopened", async () => {
+    // Provide two tips so the tip picker renders (requires sortedTips.length > 1).
+    mockAnalysesGet.mockResolvedValue({
+      analysis:    COMPLETE_ANALYSIS,
+      tips: [
+        {
+          id:          "tip-critical",
+          tipType:     "performance",
+          category:    "form",
+          severity:    "critical",
+          title:       "Fix your knee alignment",
+          description: "Your knee tracks inward during the squat.",
+        },
+        {
+          id:          "tip-warning",
+          tipType:     "injury",
+          category:    "safety",
+          severity:    "warning",
+          title:       "Watch your lower back",
+          description: "Slight rounding detected in the lumbar region.",
+        },
+      ],
+      injuryRisks: [],
+    });
+
+    render(<AnalysisDetailScreen />);
+    await simulateFocus();
+
+    // Open the share preview modal.
+    fireEvent.press(screen.getByRole("button", { name: "Share analysis" }));
+    await flush();
+
+    expect(screen.getByText("Share your session")).toBeTruthy();
+
+    // Tip picker must be visible (two tips available).
+    expect(screen.getByText("Choose which tip to feature")).toBeTruthy();
+    // Tip picker items are targeted by testID (tip-picker-<id>) to avoid ambiguity
+    // with the coaching-tips section that also renders the same tip titles.
+    expect(screen.getByTestId("tip-picker-tip-critical")).toBeTruthy();
+    expect(screen.getByTestId("tip-picker-tip-warning")).toBeTruthy();
+
+    // On first open the critical tip drives the share card (highest severity = default).
+    expect(lastShareCardTopTip).toBe("Fix your knee alignment");
+
+    // User picks the warning tip from the picker.
+    fireEvent.press(screen.getByTestId("tip-picker-tip-warning"));
+    await flush();
+
+    // ShareCard must now reflect the warning tip.
+    expect(lastShareCardTopTip).toBe("Watch your lower back");
+
+    // Cancel the modal.
+    fireEvent.press(screen.getByText("Cancel"));
+    await flush();
+
+    expect(screen.queryByText("Share your session")).toBeNull();
+
+    // Reopen the share preview — tip memory must restore the warning tip.
+    fireEvent.press(screen.getByRole("button", { name: "Share analysis" }));
+    await flush();
+
+    expect(screen.getByText("Share your session")).toBeTruthy();
+
+    // After reopen the ShareCard must still receive the remembered (warning) tip,
+    // not fall back to the default critical tip.
+    expect(lastShareCardTopTip).toBe("Watch your lower back");
   });
 });

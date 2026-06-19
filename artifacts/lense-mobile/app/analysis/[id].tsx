@@ -1258,6 +1258,7 @@ export default function AnalysisDetailScreen() {
                     return (
                       <TouchableOpacity
                         key={tip.id}
+                        testID={`tip-picker-${tip.id}`}
                         onPress={() => {
                           setSelectedShareTipId(tip.id);
                           if (analysis) {
