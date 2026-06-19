@@ -1730,7 +1730,27 @@ export default function SkeletonScreen() {
             </View>
 
             {groundedReady && sortedInjuryTips.length > 0 ? (
-              sortedInjuryTips.map((tip) => renderTip(tip, "injury"))
+              (() => {
+                const hasConflicted    = sortedInjuryTips.some((t) => (t.joints ?? []).some((j) => conflictedJoints.has(j)));
+                const hasNonConflicted = sortedInjuryTips.some((t) => !(t.joints ?? []).some((j) => conflictedJoints.has(j)));
+                const showGroupSplit   = hasConflicted && hasNonConflicted;
+                return sortedInjuryTips.flatMap((tip, idx) => {
+                  const isConflicted  = (tip.joints ?? []).some((j) => conflictedJoints.has(j));
+                  const prev          = sortedInjuryTips[idx - 1];
+                  const prevConflicted = prev ? (prev.joints ?? []).some((j) => conflictedJoints.has(j)) : false;
+                  const insertDivider  = showGroupSplit && idx > 0 && !isConflicted && prevConflicted;
+                  return [
+                    ...(insertDivider ? [(
+                      <View key={`inj-div-${idx}`} style={ss.groupDivider}>
+                        <View style={ss.groupDividerLine} />
+                        <Text style={ss.groupDividerText}>ADDITIONAL TIPS</Text>
+                        <View style={ss.groupDividerLine} />
+                      </View>
+                    )] : []),
+                    renderTip(tip, "injury"),
+                  ];
+                });
+              })()
             ) : refining ? (
               <View style={ss.refiningCard}>
                 <ActivityIndicator size="small" color="#6c63ff" />
@@ -1776,7 +1796,27 @@ export default function SkeletonScreen() {
               <Feather name="zap" size={10} color="#6c63ff" />
               <Text style={[ss.sectionLabel, { color: "#6c63ffaa" }]}>PERFORMANCE COACHING</Text>
             </View>
-            {sortedPerformanceTips.map((tip) => renderTip(tip, "performance"))}
+            {(() => {
+              const hasConflicted    = sortedPerformanceTips.some((t) => (t.joints ?? []).some((j) => conflictedJoints.has(j)));
+              const hasNonConflicted = sortedPerformanceTips.some((t) => !(t.joints ?? []).some((j) => conflictedJoints.has(j)));
+              const showGroupSplit   = hasConflicted && hasNonConflicted;
+              return sortedPerformanceTips.flatMap((tip, idx) => {
+                const isConflicted   = (tip.joints ?? []).some((j) => conflictedJoints.has(j));
+                const prev           = sortedPerformanceTips[idx - 1];
+                const prevConflicted = prev ? (prev.joints ?? []).some((j) => conflictedJoints.has(j)) : false;
+                const insertDivider  = showGroupSplit && idx > 0 && isConflicted && !prevConflicted;
+                return [
+                  ...(insertDivider ? [(
+                    <View key={`perf-div-${idx}`} style={ss.groupDivider}>
+                      <View style={ss.groupDividerLine} />
+                      <Text style={ss.groupDividerText}>AFTER INJURY RECOVERY</Text>
+                      <View style={ss.groupDividerLine} />
+                    </View>
+                  )] : []),
+                  renderTip(tip, "performance"),
+                ];
+              });
+            })()}
           </View>
         )}
 
@@ -2159,6 +2199,9 @@ const ss = StyleSheet.create({
   conflictBannerInjuryText: { fontSize: 11, color: "#f59e0b", fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
   conflictBannerPerf:       { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#12121e", borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, marginBottom: 2, alignSelf: "flex-start", borderWidth: 1, borderColor: "#2a2a44" },
   conflictBannerPerfText:   { fontSize: 11, color: "#8888aa", fontFamily: "Inter_600SemiBold", letterSpacing: 0.2 },
+  groupDivider:     { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 4 },
+  groupDividerLine: { flex: 1, height: 1, backgroundColor: "#2a2a44" },
+  groupDividerText: { fontSize: 9, color: "#55556e", fontFamily: "Inter_600SemiBold", letterSpacing: 1.5 },
   sourceRow:           { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   sourceNum:           { fontSize: 11, color: "#6c63ff", fontFamily: "Inter_700Bold", width: 16, paddingTop: 1 },
   sourceRef:           { fontSize: 11, color: "#c0c0d8", fontFamily: "Inter_600SemiBold" },

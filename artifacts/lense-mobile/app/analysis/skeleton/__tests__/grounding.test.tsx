@@ -1122,3 +1122,127 @@ describe("completed-drills cleared when re-scan grounds new tips", () => {
     expect(screen.queryByText("Completed")).toBeNull();
   });
 });
+
+// ─── Group dividers — priority vs non-priority tips ───────────────────────────
+// These tests verify that horizontal group-divider labels ("ADDITIONAL TIPS"
+// in the injury section and "AFTER INJURY RECOVERY" in the performance section)
+// appear only when there is at least one conflicted tip alongside at least one
+// non-conflicted tip in the same section, and stay absent otherwise.
+describe("group dividers — appear between priority and non-priority tips when conflicts exist", () => {
+  // Shared joint (leftKnee) → conflict between injConflict and perfConflict.
+  const injConflict = {
+    id: "gd-inj-conflict",
+    tipType: "injury",
+    severity: "warning",
+    category: "Knee Mechanics",
+    title: "GD_INJURY_CONFLICT",
+    description: "Knee load conflict.",
+    joints: ["leftKnee"],
+  };
+  // Non-conflicted injury tip on a different joint (leftHip → no perf tip there).
+  const injSafe = {
+    id: "gd-inj-safe",
+    tipType: "injury",
+    severity: "info",
+    category: "Hip Mechanics",
+    title: "GD_INJURY_SAFE",
+    description: "Hip alignment.",
+    joints: ["leftHip"],
+  };
+  // Conflicted performance tip (also leftKnee → conflicts with injConflict).
+  const perfConflict = {
+    id: "gd-perf-conflict",
+    tipType: "performance",
+    severity: "info",
+    category: "Power Output",
+    title: "GD_PERF_CONFLICT",
+    description: "Knee drive (conflicted).",
+    joints: ["leftKnee"],
+  };
+  // Non-conflicted performance tip on a different joint.
+  const perfSafe = {
+    id: "gd-perf-safe",
+    tipType: "performance",
+    severity: "info",
+    category: "Hip Drive",
+    title: "GD_PERF_SAFE",
+    description: "Drive through the hips.",
+    joints: ["rightHip"],
+  };
+
+  function mixedResp() {
+    return {
+      analysis: { id: 1, sport: "weightlifting", biomechanicsApplied: true },
+      tips: [injConflict, injSafe, perfConflict, perfSafe],
+      injuryRisks: [],
+    };
+  }
+
+  function noConflictResp() {
+    return {
+      analysis: { id: 1, sport: "weightlifting", biomechanicsApplied: true },
+      // All injury tips on joints that have no matching performance tip.
+      tips: [
+        { ...injSafe, id: "nc-inj-1" },
+        { ...perfSafe, id: "nc-perf-1" },
+      ],
+      injuryRisks: [],
+    };
+  }
+
+  it("shows 'ADDITIONAL TIPS' in the injury section when conflicts exist", async () => {
+    mockApiGet.mockResolvedValue(mixedResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    expect(screen.getByText("ADDITIONAL TIPS")).toBeTruthy();
+  });
+
+  it("shows 'AFTER INJURY RECOVERY' in the performance section when conflicts exist", async () => {
+    mockApiGet.mockResolvedValue(mixedResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    expect(screen.getByText("AFTER INJURY RECOVERY")).toBeTruthy();
+  });
+
+  it("hides both dividers when there are no conflicted tips", async () => {
+    mockApiGet.mockResolvedValue(noConflictResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    expect(screen.queryByText("ADDITIONAL TIPS")).toBeNull();
+    expect(screen.queryByText("AFTER INJURY RECOVERY")).toBeNull();
+  });
+
+  it("hides 'ADDITIONAL TIPS' when all injury tips are on conflicted joints (no non-priority group)", async () => {
+    mockApiGet.mockResolvedValue({
+      analysis: { id: 1, sport: "weightlifting", biomechanicsApplied: true },
+      // Only one injury tip and it is conflicted — no second group to divide.
+      tips: [injConflict, perfConflict],
+      injuryRisks: [],
+    });
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    expect(screen.queryByText("ADDITIONAL TIPS")).toBeNull();
+  });
+
+  it("hides 'AFTER INJURY RECOVERY' when all performance tips are on conflicted joints (no non-priority group)", async () => {
+    mockApiGet.mockResolvedValue({
+      analysis: { id: 1, sport: "weightlifting", biomechanicsApplied: true },
+      // Only one performance tip and it is conflicted — no second group to divide.
+      tips: [injConflict, perfConflict],
+      injuryRisks: [],
+    });
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    expect(screen.queryByText("AFTER INJURY RECOVERY")).toBeNull();
+  });
+});
