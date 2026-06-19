@@ -13,6 +13,7 @@ import {
   Modal,
   PanResponder,
   Dimensions,
+  Share,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -546,21 +547,32 @@ export default function AnalysisDetailScreen() {
     if (!analysis || sharing) return;
     setSharing(true);
     try {
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (!isAvailable) {
-        Alert.alert("Sharing not available", "Your device doesn't support sharing.");
-        return;
-      }
       const uri = await captureRef(shareCardRef, {
         format: "png",
         quality: 1,
         result: "tmpfile",
       });
       setShowSharePreview(false);
-      await Sharing.shareAsync(uri, {
-        mimeType: "image/png",
-        dialogTitle: "Share your session",
-      });
+
+      const deepLink = `athleteai://analysis/${id}`;
+      const shareMessage = `Check out my ${analysis.sport} session on AthleteAI!\n${deepLink}`;
+
+      if (Platform.OS === "ios") {
+        // iOS: Share.share accepts url (file URI for the image) and message (text + deep link)
+        await Share.share({ url: uri, message: shareMessage });
+      } else {
+        // Android: Share.share is text-only; include the deep link in the message
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (isAvailable) {
+          // Share the image via expo-sharing, then offer the link via Share
+          await Sharing.shareAsync(uri, {
+            mimeType: "image/png",
+            dialogTitle: "Share your session",
+          });
+        } else {
+          await Share.share({ message: shareMessage });
+        }
+      }
     } catch {
       Alert.alert("Couldn't share", "Something went wrong. Please try again.");
     } finally {
