@@ -99,6 +99,7 @@ export function CropModal({
 }: CropModalProps) {
   const colors = useColors();
   const [processing, setProcessing] = React.useState(false);
+  const [cropError, setCropError] = React.useState<string | null>(null);
 
   const minScale = Math.max(CROP_SIZE / imageWidth, CROP_SIZE / imageHeight);
 
@@ -135,6 +136,7 @@ export function CropModal({
       savedTX.value = 0;
       savedTY.value = 0;
       setProcessing(false);
+      setCropError(null);
       return;
     }
 
@@ -219,6 +221,7 @@ export function CropModal({
 
   const handleConfirm = useCallback(async () => {
     setProcessing(true);
+    setCropError(null);
     try {
       const { originX: safeOriginX, originY: safeOriginY, width: safeCropW, height: safeCropH } =
         computeCropRect(imageWidth, imageHeight, scale.value, translateX.value, translateY.value, CROP_SIZE);
@@ -251,6 +254,7 @@ export function CropModal({
     } catch (err) {
       console.error("CropModal: manipulate error", err);
       setProcessing(false);
+      setCropError("Could not save the photo. Please try again.");
     }
   }, [imageUri, imageWidth, imageHeight, onConfirm]);
 
@@ -308,6 +312,10 @@ export function CropModal({
             pointerEvents="none"
           />
         </View>
+
+        {cropError ? (
+          <Text style={styles.errorText}>{cropError}</Text>
+        ) : null}
 
         <View style={styles.actions}>
           <TouchableOpacity
@@ -416,5 +424,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Inter_700Bold",
     color: "#fff",
+  },
+  errorText: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: "#ff4d6d",
+    textAlign: "center",
+    paddingHorizontal: 24,
   },
 });

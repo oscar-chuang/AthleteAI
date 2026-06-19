@@ -280,6 +280,34 @@ describe("CropModal — Use Photo calls ImageManipulator with the correct crop r
     expect(onConfirm).not.toHaveBeenCalled();
     consoleError.mockRestore();
   });
+
+  it("shows an inline error message after failure and re-enables the button for retry", async () => {
+    const onConfirm = jest.fn();
+    const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+    mockManipulateAsync.mockRejectedValueOnce(new Error("disk full"));
+
+    const { getByText } = render(
+      <CropModal {...BASE_PROPS} onConfirm={onConfirm} />
+    );
+    await flush();
+
+    await act(async () => {
+      fireEvent.press(getByText("Use Photo"));
+    });
+    await flush();
+
+    // Error message is visible
+    expect(getByText("Could not save the photo. Please try again.")).toBeTruthy();
+
+    // Button is re-enabled — pressing it again invokes manipulateAsync a second time
+    await act(async () => {
+      fireEvent.press(getByText("Use Photo"));
+    });
+    await flush();
+
+    expect(mockManipulateAsync).toHaveBeenCalledTimes(2);
+    consoleError.mockRestore();
+  });
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
