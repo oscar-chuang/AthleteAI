@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import {
   Modal,
   View,
@@ -63,8 +63,24 @@ export function CropModal({
   const savedTX = useSharedValue(0);
   const savedTY = useSharedValue(0);
 
+  const prevVisibleRef = useRef(false);
+  const prevImageWidthRef = useRef(imageWidth);
+  const prevImageHeightRef = useRef(imageHeight);
+
   useEffect(() => {
-    if (visible) {
+    const justOpened = visible && !prevVisibleRef.current;
+    const wasVisible = prevVisibleRef.current;
+    const oldW = prevImageWidthRef.current;
+    const oldH = prevImageHeightRef.current;
+    const dimensionsChanged = oldW !== imageWidth || oldH !== imageHeight;
+
+    prevVisibleRef.current = visible;
+    prevImageWidthRef.current = imageWidth;
+    prevImageHeightRef.current = imageHeight;
+
+    if (!visible) return;
+
+    if (justOpened) {
       const initial = Math.max(CROP_SIZE / imageWidth, CROP_SIZE / imageHeight);
       scale.value = initial;
       savedScale.value = initial;
@@ -73,6 +89,27 @@ export function CropModal({
       savedTX.value = 0;
       savedTY.value = 0;
       setProcessing(false);
+      return;
+    }
+
+    if (dimensionsChanged && wasVisible) {
+      const newMinScale = Math.max(CROP_SIZE / imageWidth, CROP_SIZE / imageHeight);
+      const oldMinScale = Math.max(CROP_SIZE / oldW, CROP_SIZE / oldH);
+      const ratio = oldMinScale > 0 ? newMinScale / oldMinScale : 1;
+
+      const newScale = Math.max(newMinScale, Math.min(MAX_SCALE, scale.value * ratio));
+      scale.value = newScale;
+      savedScale.value = newScale;
+
+      const halfExtraW = Math.max(0, (imageWidth * newScale - CROP_SIZE) / 2);
+      const halfExtraH = Math.max(0, (imageHeight * newScale - CROP_SIZE) / 2);
+      const newTX = Math.max(-halfExtraW, Math.min(halfExtraW, translateX.value));
+      const newTY = Math.max(-halfExtraH, Math.min(halfExtraH, translateY.value));
+
+      translateX.value = newTX;
+      translateY.value = newTY;
+      savedTX.value = newTX;
+      savedTY.value = newTY;
     }
   }, [visible, imageWidth, imageHeight]);
 
