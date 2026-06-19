@@ -123,6 +123,7 @@ const METRIC_KEY_MAP: Record<MetricKey, keyof ProgressRecord> = {
 
 const CHART_H = 160;
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const COMPARE_COLOR_B = "#f59e0b";
 
 function getScoreColor(score: number, colors: ReturnType<typeof useColors>) {
   if (score >= 80) return colors.success;
@@ -171,6 +172,8 @@ export default function ProgressScreen() {
 
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
   const [selectedMovementType, setSelectedMovementType] = useState<string | null>(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareMovementType, setCompareMovementType] = useState<string | null>(null);
   const [activeMetric, setActiveMetric] = useState<MetricKey>("overall");
   const [period, setPeriod] = useState<Period>("All");
 
@@ -353,9 +356,11 @@ export default function ProgressScreen() {
     }
   }, [availableMetrics, activeMetric]);
 
-  // Reset movement type when sport changes
+  // Reset movement type and compare mode when sport changes
   useEffect(() => {
     setSelectedMovementType(null);
+    setCompareMode(false);
+    setCompareMovementType(null);
   }, [selectedSport]);
 
   // Scroll to trends on deep-link
@@ -385,6 +390,40 @@ export default function ProgressScreen() {
     if (!cutoff) return movementEntries;
     return movementEntries.filter((e) => new Date(e.date) >= cutoff);
   }, [movementEntries, period]);
+
+  // Entries for the second movement type in compare mode
+  const compareEntries = useMemo(() => {
+    if (!compareMode || !compareMovementType) return [];
+    const cutoff = periodCutoff(period);
+    const base = sportEntries.filter((e) => e.movementType === compareMovementType);
+    return cutoff ? base.filter((e) => new Date(e.date) >= cutoff) : base;
+  }, [compareMode, compareMovementType, sportEntries, period]);
+
+  // Personal records derived client-side for compare mode
+  const comparePersonalRecords = useMemo(() => {
+    if (!compareMode || !compareMovementType || !selectedSport) return null;
+    const metrics: MetricKey[] = ["overall", "technique", "power", "balance", "consistency", "mobility", "speed"];
+    const records: Record<string, { value: number; date: string; movementType: string | null }> = {};
+    for (const m of metrics) {
+      const col = METRIC_KEY_MAP[m];
+      let best: { value: number; date: string; movementType: string | null } | null = null;
+      for (const e of compareEntries) {
+        const val = e[col] as number | undefined;
+        if (val == null) continue;
+        if (!best || val > best.value) best = { value: val, date: e.date, movementType: e.movementType ?? null };
+      }
+      if (best) records[m] = best;
+    }
+    return records;
+  }, [compareMode, compareMovementType, selectedSport, compareEntries]);
+
+  // Date range used for aligning both series on the compare chart x-axis
+  const compareDateRange = useMemo(() => {
+    if (!compareMode || (!filteredEntries.length && !compareEntries.length)) return null;
+    const all = [...filteredEntries, ...compareEntries];
+    const times = all.map((e) => new Date(e.date).getTime());
+    return { min: Math.min(...times), max: Math.max(...times) };
+  }, [compareMode, filteredEntries, compareEntries]);
 
   // ── Derived: movement summary history filtered by sport + period ─────────────
   const filteredMovementHistory = useMemo((): MovementSummaryDataPoint[] => {
@@ -619,41 +658,123 @@ export default function ProgressScreen() {
 
         {/* ── Movement Type Sub-filter ── */}
         {availableMovementTypes.length >= 2 && (
-          <View style={{ marginBottom: 14, paddingHorizontal: 20 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, flexDirection: "row" }}>
+          <View style={{ marginBottom: 14 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, flexDirection: "row", paddingHorizontal: 20 }}>
+              {/* Compare toggle */}
               <TouchableOpacity
-                onPress={() => setSelectedMovementType(null)}
+                onPress={() => {
+                  const next = !compareMode;
+                  setCompareMode(next);
+                  if (next) {
+                    // Entering compare: ensure a primary movement is selected
+                    if (!selectedMovementType && availableMovementTypes.length >= 1) {
+                      setSelectedMovementType(availableMovementTypes[0]!);
+                    }
+                    setCompareMovementType(null);
+                  } else {
+                    setCompareMovementType(null);
+                  }
+                }}
                 activeOpacity={0.8}
                 style={{
+                  flexDirection: "row", alignItems: "center", gap: 5,
                   paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16,
-                  backgroundColor: !selectedMovementType ? accentColor + "20" : colors.card,
-                  borderWidth: 1, borderColor: !selectedMovementType ? accentColor : colors.border,
+                  backgroundColor: compareMode ? "#6c63ff20" : colors.card,
+                  borderWidth: 1.5, borderColor: compareMode ? "#6c63ff" : colors.border,
                 }}
               >
-                <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: !selectedMovementType ? accentColor : colors.mutedForeground }}>
-                  All Movements
+                <Feather name="columns" size={11} color={compareMode ? "#6c63ff" : colors.mutedForeground} />
+                <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: compareMode ? "#6c63ff" : colors.mutedForeground }}>
+                  Compare
                 </Text>
               </TouchableOpacity>
+
+              {/* Separator */}
+              <View style={{ width: 1, backgroundColor: colors.border, marginVertical: 4 }} />
+
+              {/* All Movements pill (only when not in compare mode) */}
+              {!compareMode && (
+                <TouchableOpacity
+                  onPress={() => setSelectedMovementType(null)}
+                  activeOpacity={0.8}
+                  style={{
+                    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16,
+                    backgroundColor: !selectedMovementType ? accentColor + "20" : colors.card,
+                    borderWidth: 1, borderColor: !selectedMovementType ? accentColor : colors.border,
+                  }}
+                >
+                  <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: !selectedMovementType ? accentColor : colors.mutedForeground }}>
+                    All Movements
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Movement type pills */}
               {availableMovementTypes.map((mt) => {
-                const isActive = selectedMovementType === mt;
+                const isA = selectedMovementType === mt;
+                const isB = compareMode && compareMovementType === mt;
+                const isActive = isA || isB;
+                const pillColor = isB ? COMPARE_COLOR_B : accentColor;
+
+                // In compare mode, pill shows A/B badge if selected
                 return (
                   <TouchableOpacity
                     key={mt}
-                    onPress={() => setSelectedMovementType(isActive ? null : mt)}
+                    onPress={() => {
+                      if (!compareMode) {
+                        setSelectedMovementType(isA ? null : mt);
+                      } else {
+                        if (isA) {
+                          // Deselect A — swap B into A if B is set
+                          if (compareMovementType) {
+                            setSelectedMovementType(compareMovementType);
+                            setCompareMovementType(null);
+                          } else {
+                            setSelectedMovementType(mt);
+                          }
+                        } else if (isB) {
+                          setCompareMovementType(null);
+                        } else if (!selectedMovementType) {
+                          setSelectedMovementType(mt);
+                        } else {
+                          setCompareMovementType(mt);
+                        }
+                      }
+                    }}
                     activeOpacity={0.8}
                     style={{
+                      flexDirection: "row", alignItems: "center", gap: 5,
                       paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16,
-                      backgroundColor: isActive ? accentColor + "20" : colors.card,
-                      borderWidth: 1, borderColor: isActive ? accentColor : colors.border,
+                      backgroundColor: isActive ? pillColor + "20" : colors.card,
+                      borderWidth: 1, borderColor: isActive ? pillColor : colors.border,
                     }}
                   >
-                    <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: isActive ? accentColor : colors.mutedForeground }}>
+                    {compareMode && isA && (
+                      <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: accentColor, alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ fontSize: 8, fontFamily: "Inter_700Bold", color: "#fff" }}>A</Text>
+                      </View>
+                    )}
+                    {compareMode && isB && (
+                      <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: COMPARE_COLOR_B, alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ fontSize: 8, fontFamily: "Inter_700Bold", color: "#fff" }}>B</Text>
+                      </View>
+                    )}
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: isActive ? pillColor : colors.mutedForeground }}>
                       {mt}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
+            {compareMode && (
+              <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: colors.mutedForeground, paddingHorizontal: 20, marginTop: 6 }}>
+                {!selectedMovementType
+                  ? "Tap a movement to set A"
+                  : !compareMovementType
+                  ? `A: ${selectedMovementType} — tap another to set B`
+                  : `Comparing ${selectedMovementType} vs ${compareMovementType}`}
+              </Text>
+            )}
           </View>
         )}
 
@@ -748,28 +869,90 @@ export default function ProgressScreen() {
           <View style={s.section}>
             <View style={s.sectionRow}>
               <Text style={s.sectionTitle}>Personal Records</Text>
-              <Text style={s.sectionCount}>{capitalize(selectedSport)}</Text>
+              <Text style={s.sectionCount}>
+                {compareMode && selectedMovementType && compareMovementType
+                  ? `${selectedMovementType} vs ${compareMovementType}`
+                  : capitalize(selectedSport)}
+              </Text>
             </View>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-              {availableMetrics.filter((k) => k !== "overall").map((k) => {
-                const rec = personalRecords[k];
-                if (!rec || rec.value === 0) return null;
-                const col = getScoreColor(rec.value, colors);
-                return (
-                  <View key={k} style={{ width: "31%", backgroundColor: colors.card, borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: col + "44", alignItems: "center" }}>
-                    <Feather name="award" size={14} color={col} style={{ marginBottom: 4 }} />
-                    <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: col }}>{Math.round(rec.value)}</Text>
-                    <Text style={{ fontSize: 9, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2, textAlign: "center" }}>{k}</Text>
-                    <Text style={{ fontSize: 8, color: col + "99", fontFamily: "Inter_400Regular", marginTop: 2 }}>{formatDateShort(rec.date)}</Text>
-                    {rec.movementType && rec.movementType !== "General" && (
-                      <Text style={{ fontSize: 8, color: accentColor, fontFamily: "Inter_500Medium", marginTop: 2, textAlign: "center" }} numberOfLines={1}>
-                        {rec.movementType}
-                      </Text>
-                    )}
+
+            {/* Compare mode: side-by-side columns */}
+            {compareMode && selectedMovementType && compareMovementType ? (
+              <>
+                {/* Column headers */}
+                <View style={{ flexDirection: "row", gap: 10, marginBottom: 8 }}>
+                  <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: accentColor + "14", borderRadius: 10, padding: 8, borderWidth: 1, borderColor: accentColor + "33" }}>
+                    <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: accentColor, alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#fff" }}>A</Text>
+                    </View>
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: accentColor, flex: 1 }} numberOfLines={1}>{selectedMovementType}</Text>
                   </View>
-                );
-              }).filter(Boolean)}
-            </View>
+                  <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: COMPARE_COLOR_B + "14", borderRadius: 10, padding: 8, borderWidth: 1, borderColor: COMPARE_COLOR_B + "33" }}>
+                    <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: COMPARE_COLOR_B, alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#fff" }}>B</Text>
+                    </View>
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: COMPARE_COLOR_B, flex: 1 }} numberOfLines={1}>{compareMovementType}</Text>
+                  </View>
+                </View>
+                {/* Metric rows */}
+                {availableMetrics.filter((k) => k !== "overall").map((k) => {
+                  const recA = personalRecords[k];
+                  const recB = comparePersonalRecords?.[k];
+                  if (!recA && !recB) return null;
+                  const valA = recA?.value ?? 0;
+                  const valB = recB?.value ?? 0;
+                  const aWins = valA > valB;
+                  const bWins = valB > valA;
+                  return (
+                    <View key={k} style={{ flexDirection: "row", gap: 10, marginBottom: 8, alignItems: "center" }}>
+                      <View style={{ flex: 1, backgroundColor: colors.card, borderRadius: colors.radius, padding: 10, borderWidth: 1, borderColor: (recA ? getScoreColor(valA, colors) : colors.border) + "44", alignItems: "center" }}>
+                        {recA ? (
+                          <>
+                            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: getScoreColor(valA, colors) }}>{Math.round(valA)}</Text>
+                            {aWins && <Feather name="chevron-up" size={10} color={colors.success} style={{ marginTop: 2 }} />}
+                          </>
+                        ) : (
+                          <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>—</Text>
+                        )}
+                      </View>
+                      <Text style={{ fontSize: 9, color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5, width: 60, textAlign: "center" }}>{k}</Text>
+                      <View style={{ flex: 1, backgroundColor: colors.card, borderRadius: colors.radius, padding: 10, borderWidth: 1, borderColor: (recB ? getScoreColor(valB, colors) : colors.border) + "44", alignItems: "center" }}>
+                        {recB ? (
+                          <>
+                            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: getScoreColor(valB, colors) }}>{Math.round(valB)}</Text>
+                            {bWins && <Feather name="chevron-up" size={10} color={colors.success} style={{ marginTop: 2 }} />}
+                          </>
+                        ) : (
+                          <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>—</Text>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </>
+            ) : (
+              /* Standard grid */
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                {availableMetrics.filter((k) => k !== "overall").map((k) => {
+                  const rec = personalRecords[k];
+                  if (!rec || rec.value === 0) return null;
+                  const col = getScoreColor(rec.value, colors);
+                  return (
+                    <View key={k} style={{ width: "31%", backgroundColor: colors.card, borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: col + "44", alignItems: "center" }}>
+                      <Feather name="award" size={14} color={col} style={{ marginBottom: 4 }} />
+                      <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: col }}>{Math.round(rec.value)}</Text>
+                      <Text style={{ fontSize: 9, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2, textAlign: "center" }}>{k}</Text>
+                      <Text style={{ fontSize: 8, color: col + "99", fontFamily: "Inter_400Regular", marginTop: 2 }}>{formatDateShort(rec.date)}</Text>
+                      {rec.movementType && rec.movementType !== "General" && (
+                        <Text style={{ fontSize: 8, color: accentColor, fontFamily: "Inter_500Medium", marginTop: 2, textAlign: "center" }} numberOfLines={1}>
+                          {rec.movementType}
+                        </Text>
+                      )}
+                    </View>
+                  );
+                }).filter(Boolean)}
+              </View>
+            )}
           </View>
         )}
 
@@ -885,7 +1068,7 @@ export default function ProgressScreen() {
             </View>
 
             <View style={s.chartContainer}>
-              {filteredEntries.length === 0 ? (
+              {filteredEntries.length === 0 && (!compareMode || compareEntries.length === 0) ? (
                 <View style={{ paddingVertical: 32, alignItems: "center", gap: 8 }}>
                   <Feather name="calendar" size={28} color={colors.mutedForeground} />
                   <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
@@ -895,7 +1078,147 @@ export default function ProgressScreen() {
                     <Text style={{ fontSize: 12, color: colors.primary, fontFamily: "Inter_500Medium" }}>Show all sessions</Text>
                   </TouchableOpacity>
                 </View>
-              ) : (
+              ) : compareMode && selectedMovementType && compareMovementType ? (() => {
+                // ── Compare chart: two date-aligned lines ──
+                const valuesA = filteredEntries.map((p) => (p[METRIC_KEY_MAP[activeMetric]] as number | undefined) ?? p.overallScore);
+                const valuesB = compareEntries.map((p) => (p[METRIC_KEY_MAP[activeMetric]] as number | undefined) ?? p.overallScore);
+                const allVals = [...valuesA, ...valuesB];
+                const cMin = allVals.length ? Math.max(0, Math.min(...allVals) - 8) : 0;
+                const cMax = allVals.length ? Math.min(100, Math.max(...allVals) + 8) : 100;
+                const cRange = cMax - cMin || 1;
+                const toYC = (v: number) => CHART_H - ((v - cMin) / cRange) * CHART_H;
+
+                // Date-based x position
+                const dr = compareDateRange;
+                const toXC = (iso: string) => {
+                  if (!dr || dr.max === dr.min) return chartWidth / 2;
+                  return ((new Date(iso).getTime() - dr.min) / (dr.max - dr.min)) * chartWidth;
+                };
+
+                const ptsA = filteredEntries.map((e, i) => ({ x: toXC(e.date), y: toYC(valuesA[i]!), v: valuesA[i]! }));
+                const ptsB = compareEntries.map((e, i) => ({ x: toXC(e.date), y: toYC(valuesB[i]!), v: valuesB[i]! }));
+
+                const latestA = valuesA[valuesA.length - 1] ?? 0;
+                const latestB = valuesB[valuesB.length - 1] ?? 0;
+
+                return (
+                  <>
+                    {/* Legend + latest scores */}
+                    <View style={{ flexDirection: "row", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <View style={{ width: 20, height: 3, borderRadius: 2, backgroundColor: accentColor }} />
+                        <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: accentColor, alignItems: "center", justifyContent: "center" }}>
+                          <Text style={{ fontSize: 8, fontFamily: "Inter_700Bold", color: "#fff" }}>A</Text>
+                        </View>
+                        <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: accentColor }}>{Math.round(latestA)}</Text>
+                        <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }} numberOfLines={1}>{selectedMovementType}</Text>
+                      </View>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <View style={{ width: 20, height: 3, borderRadius: 2, backgroundColor: COMPARE_COLOR_B }} />
+                        <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: COMPARE_COLOR_B, alignItems: "center", justifyContent: "center" }}>
+                          <Text style={{ fontSize: 8, fontFamily: "Inter_700Bold", color: "#fff" }}>B</Text>
+                        </View>
+                        <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: COMPARE_COLOR_B }}>{Math.round(latestB)}</Text>
+                        <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }} numberOfLines={1}>{compareMovementType}</Text>
+                      </View>
+                    </View>
+
+                    <Svg viewBox={`0 0 ${chartWidth} ${CHART_H}`} width={chartWidth} height={CHART_H}>
+                      {/* Grid lines */}
+                      {[0, 25, 50, 75, 100].map((tick) => {
+                        const scoreAtTick = cMin + (tick / 100) * cRange;
+                        const y = toYC(cMin + (tick / 100) * cRange);
+                        return (
+                          <React.Fragment key={tick}>
+                            <Line x1={0} y1={y} x2={chartWidth} y2={y} stroke={colors.border} strokeWidth={1} />
+                            <SvgText x={2} y={y - 3} fontSize={8} fill={colors.mutedForeground} fontFamily="Inter_400Regular">
+                              {Math.round(scoreAtTick)}
+                            </SvgText>
+                          </React.Fragment>
+                        );
+                      })}
+
+                      {/* Fill area A */}
+                      {ptsA.length > 1 && (
+                        <Path
+                          d={[
+                            `M ${ptsA[0]!.x} ${ptsA[0]!.y}`,
+                            ...ptsA.slice(1).map((p) => `L ${p.x} ${p.y}`),
+                            `L ${ptsA[ptsA.length - 1]!.x} ${CHART_H}`,
+                            `L ${ptsA[0]!.x} ${CHART_H}`,
+                            "Z",
+                          ].join(" ")}
+                          fill={accentColor + "18"}
+                        />
+                      )}
+
+                      {/* Fill area B */}
+                      {ptsB.length > 1 && (
+                        <Path
+                          d={[
+                            `M ${ptsB[0]!.x} ${ptsB[0]!.y}`,
+                            ...ptsB.slice(1).map((p) => `L ${p.x} ${p.y}`),
+                            `L ${ptsB[ptsB.length - 1]!.x} ${CHART_H}`,
+                            `L ${ptsB[0]!.x} ${CHART_H}`,
+                            "Z",
+                          ].join(" ")}
+                          fill={COMPARE_COLOR_B + "18"}
+                        />
+                      )}
+
+                      {/* Line A */}
+                      {ptsA.length > 1 && (
+                        <Polyline
+                          points={ptsA.map((p) => `${p.x},${p.y}`).join(" ")}
+                          fill="none" stroke={accentColor} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"
+                        />
+                      )}
+
+                      {/* Line B */}
+                      {ptsB.length > 1 && (
+                        <Polyline
+                          points={ptsB.map((p) => `${p.x},${p.y}`).join(" ")}
+                          fill="none" stroke={COMPARE_COLOR_B} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6,3"
+                        />
+                      )}
+
+                      {/* Dots A */}
+                      {ptsA.map((p, i) => (
+                        <Circle
+                          key={`a${i}`}
+                          cx={ptsA.length === 1 ? chartWidth / 2 : p.x}
+                          cy={ptsA.length === 1 ? CHART_H / 2 : p.y}
+                          r={i === ptsA.length - 1 ? 6 : 4}
+                          fill={i === ptsA.length - 1 ? accentColor : accentColor + "aa"}
+                          stroke={i === ptsA.length - 1 ? colors.card : "none"}
+                          strokeWidth={i === ptsA.length - 1 ? 2 : 0}
+                        />
+                      ))}
+
+                      {/* Dots B */}
+                      {ptsB.map((p, i) => (
+                        <Circle
+                          key={`b${i}`}
+                          cx={ptsB.length === 1 ? chartWidth / 2 : p.x}
+                          cy={ptsB.length === 1 ? CHART_H / 2 : p.y}
+                          r={i === ptsB.length - 1 ? 6 : 4}
+                          fill={i === ptsB.length - 1 ? COMPARE_COLOR_B : COMPARE_COLOR_B + "aa"}
+                          stroke={i === ptsB.length - 1 ? colors.card : "none"}
+                          strokeWidth={i === ptsB.length - 1 ? 2 : 0}
+                        />
+                      ))}
+                    </Svg>
+
+                    {/* Date range label */}
+                    {dr && (
+                      <View style={s.chartLabels}>
+                        <Text style={s.chartLabel}>{formatDate(new Date(dr.min).toISOString())}</Text>
+                        <Text style={s.chartLabel}>{formatDate(new Date(dr.max).toISOString())}</Text>
+                      </View>
+                    )}
+                  </>
+                );
+              })() : (
                 <>
                   <View style={s.chartHeader}>
                     <Text style={[s.chartScore, { color: lineColor }]}>{Math.round(currentScore)}</Text>
