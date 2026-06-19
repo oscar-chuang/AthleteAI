@@ -346,6 +346,130 @@ describe("analyses route — sport correction", () => {
   });
 });
 
+describe("analyses route — drillFeelCue field survival", () => {
+  it("preserves a populated drillFeelCue through the DB-write and GET /analyses/:id path", async () => {
+    const app = makeApp();
+
+    const created = await request(app).post("/analyses").send({ title: "Squat", sport: "weightlifting" });
+    expect(created.status).toBe(201);
+    const id = created.body.analysis.id;
+    await flush();
+
+    const feelCueText = "Feel your weight spread evenly across the whole foot as you descend.";
+    h.aiCalls.create[0]!.resolve({
+      overallScore: 80, techniqueScore: 80, powerScore: 80, balanceScore: 80,
+      consistencyScore: 80, mobilityScore: 80, speedScore: 80,
+      strengths: ["good-strength"], improvements: ["good-improvement"],
+      tips: [{
+        tipType: "performance",
+        category: "Knee",
+        severity: "warning",
+        title: "Knee tracking tip",
+        description: "Knee caves inward at depth.",
+        drill: {
+          name: "Box Squat",
+          sets: "3 sets",
+          reps: "8 reps",
+          cue: "Push your knees out over your pinky toe.",
+          drillFeelCue: feelCueText,
+        },
+        joints: ["leftKnee"],
+      }],
+      injuryRisks: [],
+    });
+    await flush();
+
+    const got = await request(app).get(`/analyses/${id}`);
+    expect(got.status).toBe(200);
+    expect(got.body.tips).toHaveLength(1);
+    expect(got.body.tips[0].drill).toBeDefined();
+    expect(got.body.tips[0].drill.drillFeelCue).toBe(feelCueText);
+  });
+
+  it("handles gracefully when drillFeelCue is absent (older Claude response format)", async () => {
+    const app = makeApp();
+
+    const created = await request(app).post("/analyses").send({ title: "Run", sport: "running" });
+    expect(created.status).toBe(201);
+    const id = created.body.analysis.id;
+    await flush();
+
+    h.aiCalls.create[0]!.resolve({
+      overallScore: 75, techniqueScore: 75, powerScore: 75, balanceScore: 75,
+      consistencyScore: 75, mobilityScore: 75, speedScore: 75,
+      strengths: ["good-strength"], improvements: ["good-improvement"],
+      tips: [{
+        tipType: "performance",
+        category: "Hip",
+        severity: "info",
+        title: "Hip hinge tip",
+        description: "Hips drop too early.",
+        drill: {
+          name: "Good Morning",
+          sets: "3 sets",
+          reps: "10 reps",
+          cue: "Hinge at the hip, not the lower back.",
+          // drillFeelCue intentionally absent — simulates older response
+        },
+        joints: ["leftHip"],
+      }],
+      injuryRisks: [],
+    });
+    await flush();
+
+    const got = await request(app).get(`/analyses/${id}`);
+    expect(got.status).toBe(200);
+    expect(got.body.tips).toHaveLength(1);
+    expect(got.body.tips[0].drill).toBeDefined();
+    // Field is absent — should be undefined, not an error
+    expect(got.body.tips[0].drill.drillFeelCue).toBeUndefined();
+  });
+
+  it("preserves drillFeelCue through the biomechanics (grounded) write path", async () => {
+    const app = makeApp();
+
+    const created = await request(app).post("/analyses").send({ title: "Deadlift", sport: "weightlifting" });
+    const id = created.body.analysis.id;
+    await flush();
+
+    // Patch with measured data to trigger the biomechanics run.
+    await request(app)
+      .patch(`/analyses/${id}`)
+      .send({ jointAngles: { leftKnee: 95 }, jointRisks: { leftKnee: 2 } });
+    await flush();
+
+    const feelCueText = "Notice your lats engaging as you pull the slack out of the bar before driving through the floor.";
+    h.aiCalls.biomech[0]!.resolve({
+      overallScore: 85, techniqueScore: 85, powerScore: 85, balanceScore: 85,
+      consistencyScore: 85, mobilityScore: 85, speedScore: 85,
+      strengths: ["grounded-strength"], improvements: ["grounded-improvement"],
+      tips: [{
+        tipType: "injury",
+        category: "Knee",
+        severity: "critical",
+        title: "Knee load tip",
+        description: "Measured 95° knee flexion under load.",
+        drill: {
+          name: "Goblet Squat",
+          sets: "4 sets",
+          reps: "6 reps",
+          cue: "Chest tall, elbows inside knees.",
+          drillFeelCue: feelCueText,
+        },
+        joints: ["leftKnee"],
+      }],
+      injuryRisks: [{ joint: "leftKnee", riskPercent: 80, description: "d", prevention: "p" }],
+    });
+    await flush();
+
+    const got = await request(app).get(`/analyses/${id}`);
+    expect(got.status).toBe(200);
+    expect(got.body.analysis.biomechanicsApplied).toBe(true);
+    expect(got.body.tips).toHaveLength(1);
+    expect(got.body.tips[0].drill.drillFeelCue).toBe(feelCueText);
+  });
+});
+
 describe("analyses route — improvement notifications", () => {
   function seedPrevScan(jointRisks: Record<string, number>) {
     h.store.analyses.push({
