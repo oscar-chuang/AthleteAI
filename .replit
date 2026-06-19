@@ -44,6 +44,10 @@ args = "test-api"
 task = "workflow.run"
 args = "test-mobile"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "test-scripts"
+
 [[workflows.workflow]]
 name = "test-api-biomechanics"
 author = "agent"
@@ -117,6 +121,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/athlete-mobile test"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "test-scripts"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/scripts test"
 
 [workflows.workflow.metadata]
 isValidation = true

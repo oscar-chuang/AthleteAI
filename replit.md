@@ -20,6 +20,7 @@ pnpm --filter @workspace/athlete-mobile run dev # Expo mobile app
 ```bash
 pnpm --filter @workspace/api-server test        # vitest — biomechanics grounding contract
 pnpm --filter @workspace/athlete-mobile test    # vitest + jest-expo — skeleton screen lifecycle
+pnpm --filter @workspace/scripts test           # vitest — backfill thumbnail resize + idempotency
 ```
 
 **DB & codegen:**
@@ -117,9 +118,10 @@ Every task — no exceptions — must complete all five steps before marking don
 
 1. **Typecheck:** `pnpm run typecheck` — zero errors allowed.
 2. **API tests:** `pnpm --filter @workspace/api-server test` — all green.
-3. **Mobile tests:** `pnpm --filter @workspace/athlete-mobile test` — all green.
-4. **Server restart:** restart the `artifacts/api-server: API Server` workflow and confirm it starts without errors (watch for `EADDRINUSE` or missing-module crashes).
-5. **Merge to main immediately:** do not leave finished, tested work in a branch or draft state.
+3. **Scripts tests:** `pnpm --filter @workspace/scripts test` — all green.
+4. **Mobile tests:** `pnpm --filter @workspace/athlete-mobile test` — all green.
+5. **Server restart:** restart the `artifacts/api-server: API Server` workflow and confirm it starts without errors (watch for `EADDRINUSE` or missing-module crashes).
+6. **Merge to main immediately:** do not leave finished, tested work in a branch or draft state.
 
 A checkpoint is created automatically after every successful merge. If any step above fails, do not merge — fix the failure first, or roll back to the previous checkpoint.
 
