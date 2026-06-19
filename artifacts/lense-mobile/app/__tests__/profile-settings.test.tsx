@@ -286,3 +286,53 @@ describe("ProfileSettingsScreen — Remove photo button", () => {
     expect(queryByText("Remove photo")).toBeNull();
   });
 });
+
+// ─── Preset color swatch selection ────────────────────────────────────────────
+
+describe("ProfileSettingsScreen — preset color swatches", () => {
+  const PRESET_KEY = "preset:#6c63ff";
+
+  it("calls updateProfile with the chosen preset key when a swatch is tapped", async () => {
+    mockProfile.avatarUrl = null;
+
+    const { getByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.press(getByTestId(`preset-swatch-${PRESET_KEY}`));
+    });
+    await flush();
+
+    expect(mockUpdateProfile).toHaveBeenCalledWith({ avatarUrl: PRESET_KEY });
+    expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the Remove photo button hidden after selecting a preset (isPhotoAvatar is false for preset keys)", async () => {
+    mockProfile.avatarUrl = null;
+
+    const { getByTestId, queryByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.press(getByTestId(`preset-swatch-${PRESET_KEY}`));
+    });
+    await flush();
+
+    expect(queryByText("Remove photo")).toBeNull();
+  });
+
+  it("replaces an existing photo avatar with a preset key and hides Remove photo", async () => {
+    mockProfile.avatarUrl = "data:image/jpeg;base64,/9j/abc123==";
+
+    const { getByTestId, queryByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.press(getByTestId(`preset-swatch-${PRESET_KEY}`));
+    });
+    await flush();
+
+    expect(mockUpdateProfile).toHaveBeenCalledWith({ avatarUrl: PRESET_KEY });
+    expect(queryByText("Remove photo")).toBeNull();
+  });
+});

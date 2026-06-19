@@ -807,6 +807,7 @@ export default function ProfileSettingsScreen() {
               return (
                 <TouchableOpacity
                   key={p.key}
+                  testID={`preset-swatch-${p.key}`}
                   style={[
                     s.presetDot,
                     { backgroundColor: p.color },
