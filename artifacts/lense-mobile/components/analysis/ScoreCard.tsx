@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { View, Text, Animated, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
+import { ScoreRing } from "@/components/ScoreRing";
 
 const SCORE_BANDS = [
   { min: 80, label: "Strong",     color: "#22c55e", note: "You're doing this well" },
@@ -19,9 +20,10 @@ interface Props {
   icon: React.ComponentProps<typeof Feather>["name"];
   desc: string;
   delay?: number;
+  animate?: boolean;
 }
 
-export function ScoreCard({ label, score, icon, desc, delay = 0 }: Props) {
+export function ScoreCard({ label, score, icon, desc, delay = 0, animate = false }: Props) {
   const colors = useColors();
   const band = getScoreBand(score);
   const opacity = useRef(new Animated.Value(0)).current;
@@ -64,11 +66,22 @@ export function ScoreCard({ label, score, icon, desc, delay = 0 }: Props) {
           <Text style={[styles.bandLabel, { color: band.color }]}>{band.label}</Text>
         </View>
       </View>
-      <Text style={[styles.score, { color: band.color }]}>{Math.round(score)}</Text>
-      <Text style={[styles.label, { color: colors.foreground }]}>{label}</Text>
-      <Text style={[styles.desc, { color: colors.mutedForeground }]} numberOfLines={2}>
-        {desc}
-      </Text>
+
+      <View style={styles.ringRow}>
+        <ScoreRing
+          score={score}
+          size={60}
+          strokeWidth={6}
+          color={band.color}
+          animate={animate}
+        />
+        <View style={styles.ringMeta}>
+          <Text style={[styles.label, { color: colors.foreground }]}>{label}</Text>
+          <Text style={[styles.desc, { color: colors.mutedForeground }]} numberOfLines={3}>
+            {desc}
+          </Text>
+        </View>
+      </View>
     </Animated.View>
   );
 }
@@ -103,21 +116,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: "Inter_600SemiBold",
   },
-  score: {
-    fontSize: 32,
-    fontFamily: "Inter_700Bold",
-    lineHeight: 36,
+  ringRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  ringMeta: {
+    flex: 1,
   },
   label: {
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",
-    marginTop: 2,
+    marginBottom: 3,
     textTransform: "capitalize",
   },
   desc: {
     fontSize: 10,
     fontFamily: "Inter_400Regular",
     lineHeight: 14,
-    marginTop: 4,
   },
 });

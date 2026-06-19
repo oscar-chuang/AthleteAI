@@ -358,10 +358,31 @@ export default function AnalysisDetailScreen() {
   const prevStatusRef = useRef<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sub-score ring scroll-in animation state
+  const [cardsVisible, setCardsVisible] = useState(false);
+  const [cardAnimated, setCardAnimated] = useState<boolean[]>(
+    Array(SCORE_KEYS.length).fill(false)
+  );
+  const scoreGridY = useRef<number | null>(null);
+
   // Sibling session IDs for prev/next navigation — sorted newest-first
   const [siblingIds, setSiblingIds] = useState<string[]>([]);
 
   const scrollRef = useRef<ScrollView>(null);
+
+  // Stagger-trigger each sub-score ring when the grid scrolls into view
+  useEffect(() => {
+    if (!cardsVisible) return;
+    SCORE_KEYS.forEach((_, i) => {
+      setTimeout(() => {
+        setCardAnimated((prev) => {
+          const next = [...prev];
+          next[i] = true;
+          return next;
+        });
+      }, i * 100);
+    });
+  }, [cardsVisible]);
 
   // Hero fade-in
   const heroOpacity = useRef(new Animated.Value(0)).current;
@@ -911,6 +932,14 @@ export default function AnalysisDetailScreen() {
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: bottomPad }}
+        scrollEventThrottle={16}
+        onScroll={({ nativeEvent }) => {
+          if (cardsVisible || scoreGridY.current === null) return;
+          const { contentOffset, layoutMeasurement } = nativeEvent;
+          if (scoreGridY.current < contentOffset.y + layoutMeasurement.height) {
+            setCardsVisible(true);
+          }
+        }}
       >
         {/* ── Hero card ── */}
         <Animated.View
@@ -1066,7 +1095,12 @@ export default function AnalysisDetailScreen() {
         </Animated.View>
 
         {/* ── Score grid (2 × 3) ── */}
-        <View style={styles.sectionWrap}>
+        <View
+          style={styles.sectionWrap}
+          onLayout={(e) => {
+            scoreGridY.current = e.nativeEvent.layout.y;
+          }}
+        >
           <SectionHeader
             title="Performance Breakdown"
             icon="bar-chart-2"
@@ -1081,6 +1115,7 @@ export default function AnalysisDetailScreen() {
                   icon={SCORE_META[key].icon}
                   desc={SCORE_META[key].desc}
                   delay={i * 60}
+                  animate={cardAnimated[i]}
                 />
               </View>
             ))}
