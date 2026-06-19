@@ -741,11 +741,7 @@ export default function AnalysisDetailScreen() {
         );
         return;
       }
-      const uri = await captureRef(shareCardRef, {
-        format: "png",
-        quality: 1,
-        result: "tmpfile",
-      });
+      const uri = await captureRef(shareCardRef, SHARE_CARD_CAPTURE_OPTIONS);
       await MediaLibrary.saveToLibraryAsync(uri);
       setLastShareAction("save");
       AsyncStorage.setItem(LAST_SHARE_ACTION_KEY, "save").catch(() => {});
