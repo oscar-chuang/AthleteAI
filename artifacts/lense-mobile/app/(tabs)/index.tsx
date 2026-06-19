@@ -40,7 +40,7 @@ import {
 } from "@/lib/api";
 import JointHistorySheet from "@/components/JointHistorySheet";
 import { ConfettiBurst } from "@/components/ConfettiBurst";
-import { checkConfettiGate } from "@/utils/confettiGate";
+import { checkConfettiGate, persistCelebrationToServer, retryCelebrationSync } from "@/utils/confettiGate";
 import { buildDeltaMap } from "@/lib/sessionDelta";
 import { WeekDotRow } from "@/components/WeekDotRow";
 import ShareCard, { type ViewShotHandle } from "@/components/ShareCard";
@@ -175,11 +175,27 @@ export default function HomeScreen() {
       });
 
       if (currentWeekGoal > 0 && statsResult) {
-        const weekKey      = getWeekKey();
-        const fired = await checkConfettiGate(currentWeekGoal, currentCount, weekKey, AsyncStorage);
+        const weekKey = getWeekKey();
+
+        // Retry any previously failed server-side persistence (e.g. network error).
+        await retryCelebrationSync(weekKey, AsyncStorage, async (wk) => {
+          await updateProfile({ weeklyGoalCelebratedAt: wk });
+        });
+
+        const fired = await checkConfettiGate(
+          currentWeekGoal,
+          currentCount,
+          weekKey,
+          AsyncStorage,
+          profile?.weeklyGoalCelebratedAt,
+        );
         if (fired) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
           setShowConfetti(true);
+          // Await the server write; on failure a sync marker is left for retry.
+          await persistCelebrationToServer(weekKey, AsyncStorage, async (wk) => {
+            await updateProfile({ weeklyGoalCelebratedAt: wk });
+          });
         }
         if (currentCount >= currentWeekGoal) {
           const hintShown = await AsyncStorage.getItem("share_hint_shown");
@@ -194,7 +210,7 @@ export default function HomeScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [profile?.weeklyGoal, barScaleAnim]);
+  }, [profile?.weeklyGoal, profile?.weeklyGoalCelebratedAt, barScaleAnim, updateProfile]);
 
   useFocusEffect(useCallback(() => { loadData(true); }, [loadData]));
   function onRefresh() { setRefreshing(true); loadData(true); }

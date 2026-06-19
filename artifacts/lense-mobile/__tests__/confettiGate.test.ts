@@ -2,24 +2,33 @@
  * Tests that the weekly-goal confetti fires exactly once when the goal is
  * crossed, and never fires on subsequent loads or on the very first load.
  *
- * This file tests the real `checkConfettiGate` function extracted into
- * `artifacts/lense-mobile/utils/confettiGate.ts`.
+ * This file tests the real functions extracted into
+ * `artifacts/lense-mobile/utils/confettiGate.ts`:
+ *   - checkConfettiGate
+ *   - persistCelebrationToServer
+ *   - retryCelebrationSync
  *
  * The wrapper `simulateLoadDataConfetti` mirrors the relevant portion of
  * `loadData` in `app/(tabs)/index.tsx`:
  *
- *   const statsResult = await profileApi.stats();           ← mocked below
+ *   const weekKey = getWeekKey();
+ *   await retryCelebrationSync(weekKey, AsyncStorage, persistFn);
  *   const currentCount = statsResult.thisWeekCount ?? 0;
- *   const fired = await checkConfettiGate(                  ← real function
- *     weeklyGoal, currentCount, weekKey, AsyncStorage       ← storage injected
+ *   const fired = await checkConfettiGate(
+ *     weeklyGoal, currentCount, weekKey, AsyncStorage,
+ *     serverCelebratedWeekKey,
  *   );
- *   if (fired) setShowConfetti(true);
+ *   if (fired) {
+ *     await persistCelebrationToServer(weekKey, AsyncStorage, persistFn);
+ *   }
  *
  * Mocking strategy:
  *   - `profileApi.stats()` is replaced with a `vi.fn()` so tests control the
  *     count sequence returned on successive loads.
  *   - AsyncStorage is an in-memory fake that implements the same interface the
  *     gate function accepts — no React Native module import needed.
+ *   - The server persist function is a `vi.fn()` whose resolved/rejected state
+ *     controls success / failure scenarios.
  *
  * Key invariants under test:
  *   1. Confetti fires when prevCount < weeklyGoal and currentCount >= weeklyGoal.
@@ -28,10 +37,23 @@
  *      justCrossed is false (no pending flag either).
  *   4. Confetti fires when the pending flag is set (written by analyze.tsx on
  *      upload), even before a prevCount snapshot exists.
+ *   5. Confetti does NOT fire after reinstall when the server flag matches the
+ *      current week key (server-side durability path).
+ *   6. A server flag from a previous week does NOT suppress confetti for the
+ *      current week.
+ *   7. persistCelebrationToServer: success clears the sync marker.
+ *   8. persistCelebrationToServer: failure leaves the sync marker for retry.
+ *   9. retryCelebrationSync: retries when a sync marker exists and clears on success.
+ *  10. retryCelebrationSync: leaves the marker when the retry also fails.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { checkConfettiGate, type AsyncStorageLike } from "../utils/confettiGate";
+import {
+  checkConfettiGate,
+  persistCelebrationToServer,
+  retryCelebrationSync,
+  type AsyncStorageLike,
+} from "../utils/confettiGate";
 
 // ── Minimal fake storage (injectable AsyncStorage stand-in) ───────────────────
 
@@ -56,14 +78,35 @@ async function simulateLoadDataConfetti(
   // Typed as `any` so vi.fn() MockInstance is assignable here.
   // The internal cast to StatsResult keeps access to thisWeekCount safe.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  fetchStats:  (...args: any[]) => unknown,  // mock of profileApi.stats()
-  weeklyGoal:  number,
-  weekKey:     string,
-  storage:     AsyncStorageLike,
+  fetchStats:               (...args: any[]) => unknown,
+  weeklyGoal:               number,
+  weekKey:                  string,
+  storage:                  AsyncStorageLike,
+  serverCelebratedWeekKey?: string | null,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  persistFn?:               (...args: any[]) => Promise<void>,
 ): Promise<boolean> {
+  // Mirror the retry-sync step that runs at the top of loadData.
+  if (persistFn) {
+    await retryCelebrationSync(weekKey, storage, persistFn);
+  }
+
   const statsResult  = (await fetchStats()) as StatsResult;
   const currentCount = statsResult.thisWeekCount ?? 0;
-  return checkConfettiGate(weeklyGoal, currentCount, weekKey, storage);
+
+  const fired = await checkConfettiGate(
+    weeklyGoal,
+    currentCount,
+    weekKey,
+    storage,
+    serverCelebratedWeekKey,
+  );
+
+  if (fired && persistFn) {
+    await persistCelebrationToServer(weekKey, storage, persistFn);
+  }
+
+  return fired;
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -163,5 +206,121 @@ describe("home screen — confetti fires exactly once when weekly goal is crosse
     fetchStats.mockResolvedValueOnce({ thisWeekCount: 3 });
     const secondLoad = await simulateLoadDataConfetti(fetchStats, WEEKLY_GOAL, WEEK_KEY, storage);
     expect(secondLoad).toBe(false);
+  });
+
+  // ── Test 5 — server-side durability (reinstall path) ────────────────────────
+
+  it("does NOT fire confetti after reinstall when server flag matches the current week key", async () => {
+    // Simulate: user has already reached their goal this week and the server recorded
+    // the celebration (weeklyGoalCelebratedAt = WEEK_KEY). Then they reinstall the app,
+    // wiping AsyncStorage entirely.  On the first load the server flag is available.
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 3 });
+    const fired = await simulateLoadDataConfetti(
+      fetchStats,
+      WEEKLY_GOAL,
+      WEEK_KEY,
+      storage,
+      WEEK_KEY, // server says this week was already celebrated
+    );
+    expect(fired).toBe(false);
+
+    // The gate should have written the local celebrated flag so subsequent loads
+    // are also blocked without a server round-trip.
+    expect(store[`confetti_celebrated_${WEEK_KEY}`]).toBe("true");
+    expect(fetchStats).toHaveBeenCalledTimes(1);
+  });
+
+  // ── Test 6 — stale server flag from a previous week ──────────────────────────
+
+  it("does NOT suppress confetti when the server flag is from a previous week", async () => {
+    const PREV_WEEK_KEY = "2026-06-08"; // different week
+
+    // Load 1: 2 sessions — below goal; server flag is from last week (irrelevant).
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 2 });
+    await simulateLoadDataConfetti(fetchStats, WEEKLY_GOAL, WEEK_KEY, storage, PREV_WEEK_KEY);
+
+    // Load 2: 3 sessions — goal just crossed; server flag still from last week.
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 3 });
+    const fired = await simulateLoadDataConfetti(
+      fetchStats,
+      WEEKLY_GOAL,
+      WEEK_KEY,
+      storage,
+      PREV_WEEK_KEY,
+    );
+    expect(fired).toBe(true);
+    expect(fetchStats).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ── Server-sync durability tests ───────────────────────────────────────────────
+
+describe("persistCelebrationToServer + retryCelebrationSync", () => {
+  let storage: AsyncStorageLike;
+  let store:   Record<string, string>;
+
+  beforeEach(() => {
+    ({ storage, store } = makeFakeStorage());
+  });
+
+  // ── Test 7 ──────────────────────────────────────────────────────────────────
+
+  it("persistCelebrationToServer clears the sync marker on success", async () => {
+    const persistFn = vi.fn().mockResolvedValue(undefined);
+
+    await persistCelebrationToServer(WEEK_KEY, storage, persistFn);
+
+    expect(persistFn).toHaveBeenCalledWith(WEEK_KEY);
+    // Sync marker must be cleared after a successful write.
+    expect(store[`confetti_server_sync_${WEEK_KEY}`]).toBeUndefined();
+  });
+
+  // ── Test 8 ──────────────────────────────────────────────────────────────────
+
+  it("persistCelebrationToServer leaves the sync marker when persistFn fails", async () => {
+    const persistFn = vi.fn().mockRejectedValue(new Error("network error"));
+
+    await persistCelebrationToServer(WEEK_KEY, storage, persistFn);
+
+    expect(persistFn).toHaveBeenCalledWith(WEEK_KEY);
+    // Marker must remain so retryCelebrationSync can retry on the next load.
+    expect(store[`confetti_server_sync_${WEEK_KEY}`]).toBe("true");
+  });
+
+  // ── Test 9 ──────────────────────────────────────────────────────────────────
+
+  it("retryCelebrationSync retries when a sync marker exists and clears it on success", async () => {
+    // Simulate a previously failed write by pre-seeding the sync marker.
+    store[`confetti_server_sync_${WEEK_KEY}`] = "true";
+
+    const persistFn = vi.fn().mockResolvedValue(undefined);
+    await retryCelebrationSync(WEEK_KEY, storage, persistFn);
+
+    expect(persistFn).toHaveBeenCalledWith(WEEK_KEY);
+    // Marker cleared on successful retry.
+    expect(store[`confetti_server_sync_${WEEK_KEY}`]).toBeUndefined();
+  });
+
+  // ── Test 10 ─────────────────────────────────────────────────────────────────
+
+  it("retryCelebrationSync leaves the marker when the retry also fails", async () => {
+    store[`confetti_server_sync_${WEEK_KEY}`] = "true";
+
+    const persistFn = vi.fn().mockRejectedValue(new Error("still offline"));
+    await retryCelebrationSync(WEEK_KEY, storage, persistFn);
+
+    expect(persistFn).toHaveBeenCalledWith(WEEK_KEY);
+    // Marker must remain so the next loadData can try again.
+    expect(store[`confetti_server_sync_${WEEK_KEY}`]).toBe("true");
+  });
+
+  // ── Test 11 ─────────────────────────────────────────────────────────────────
+
+  it("retryCelebrationSync does nothing when there is no pending sync marker", async () => {
+    const persistFn = vi.fn();
+    await retryCelebrationSync(WEEK_KEY, storage, persistFn);
+
+    // persistFn must not be called — no marker means nothing to retry.
+    expect(persistFn).not.toHaveBeenCalled();
   });
 });
