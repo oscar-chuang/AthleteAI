@@ -437,3 +437,111 @@ describe("askCoach — completed-drill context in pending message", () => {
     expect(calls[0]![1]).not.toContain("completed");
   });
 });
+
+// ─── askCoach — conflict warning in pending message ───────────────────────────
+// These tests verify that when a performance tip shares a joint with an open
+// injury tip, the pre-fill message stored in AsyncStorage includes the warning
+// "Note: there is an open injury risk on this joint — please address that first."
+// and that the warning is absent for non-conflicted performance tips and for
+// injury tips (even when their joint is involved in a conflict).
+describe("askCoach — conflict warning in pending message", () => {
+  // Injury tip on leftKnee + performance tip on leftKnee → conflict on leftKnee
+  const conflictInjuryTip = {
+    id: "cw-inj",
+    tipType: "injury",
+    severity: "warning",
+    category: "Knee Mechanics",
+    title: "CONFLICT_INJURY_TIP",
+    description: "Knee is under load.",
+    joints: ["leftKnee"],
+  };
+  const conflictPerfTip = {
+    id: "cw-perf",
+    tipType: "performance",
+    severity: "info",
+    category: "Power Output",
+    title: "CONFLICT_PERF_TIP",
+    description: "Increase knee drive.",
+    joints: ["leftKnee"],
+  };
+  // Performance tip on a different joint (rightHip) — no conflict
+  const safeHipPerfTip = {
+    id: "cw-safe",
+    tipType: "performance",
+    severity: "info",
+    category: "Hip Drive",
+    title: "SAFE_HIP_PERF_TIP",
+    description: "Drive through the hips.",
+    joints: ["rightHip"],
+  };
+
+  function conflictResp(tips: any[] = [conflictInjuryTip, conflictPerfTip, safeHipPerfTip]) {
+    return {
+      analysis: { id: 1, sport: "weightlifting", biomechanicsApplied: true },
+      tips,
+      injuryRisks: [],
+    };
+  }
+
+  function getPendingChatCalls() {
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    return (AsyncStorage.setItem.mock.calls as [string, string][]).filter(
+      ([key]) => key === "pendingChatMessage"
+    );
+  }
+
+  beforeEach(() => {
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    AsyncStorage.setItem.mockClear();
+  });
+
+  it("prepends the conflict warning when asking coach about a conflicted performance tip", async () => {
+    mockApiGet.mockResolvedValue(conflictResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    fireEvent.press(screen.getByText("CONFLICT_PERF_TIP"));
+    await flush();
+    fireEvent.press(screen.getByText("Ask Coach about this"));
+    await flush();
+
+    const calls = getPendingChatCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![1]).toContain(
+      "Note: there is an open injury risk on this joint — please address that first."
+    );
+  });
+
+  it("does NOT prepend the conflict warning when the performance tip has no conflicted joint", async () => {
+    mockApiGet.mockResolvedValue(conflictResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    fireEvent.press(screen.getByText("SAFE_HIP_PERF_TIP"));
+    await flush();
+    fireEvent.press(screen.getByText("Ask Coach about this"));
+    await flush();
+
+    const calls = getPendingChatCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![1]).not.toContain("open injury risk");
+  });
+
+  it("does NOT prepend the conflict warning when asking coach about an injury tip (even on a conflicted joint)", async () => {
+    mockApiGet.mockResolvedValue(conflictResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    fireEvent.press(screen.getByText("CONFLICT_INJURY_TIP"));
+    await flush();
+    fireEvent.press(screen.getByText("Ask Coach about this"));
+    await flush();
+
+    const calls = getPendingChatCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![1]).not.toContain("open injury risk");
+  });
+});
