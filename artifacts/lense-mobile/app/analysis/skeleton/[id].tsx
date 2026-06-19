@@ -12,7 +12,7 @@ import {
   Dimensions,
   Pressable,
 } from "react-native";
-import Svg, { Line, Path, Polyline, Circle, Text as SvgText } from "react-native-svg";
+import Svg, { Line, Path, Polyline, Circle, Rect, Text as SvgText, G } from "react-native-svg";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -501,6 +501,7 @@ function JointHistorySheet({
   const { width: sw } = Dimensions.get("window");
   const chartW = sw - 48 - CHART_PAD_L - CHART_PAD_R;
   const label = JOINT_HISTORY_DISPLAY[joint] ?? joint;
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   const angles = data.map((d) => d.angle);
   const minAngle = Math.max(0, Math.min(...angles) - 8);
@@ -619,7 +620,15 @@ function JointHistorySheet({
               <Text style={{ color: "#8888aa", fontFamily: "Inter_400Regular", fontSize: 13 }}>No history yet</Text>
             </View>
           ) : (
-            <Svg width={sw - 48} height={totalSvgH} style={{ overflow: "visible" }}>
+            <Svg width={sw - 48} height={totalSvgH + 72} style={{ overflow: "visible" }}>
+              {/* Transparent dismiss area — clears selection when tapping chart background */}
+              <Rect
+                x={0} y={0}
+                width={sw - 48} height={totalSvgH + 72}
+                fill="transparent"
+                onPress={() => setSelectedIndex(null)}
+              />
+
               {/* Y-axis grid + labels */}
               {yTicks.map((tick, ti) => {
                 const y = toY(tick);
@@ -653,23 +662,37 @@ function JointHistorySheet({
                 />
               )}
 
-              {/* Data points — risk-coloured; current session gets a purple ring */}
+              {/* Data points — risk-coloured; tappable; selected point gets highlight ring */}
               {data.map((d, i) => {
                 const dotColor = RISK_COLOR_MAP[d.risk] ?? "#6c63ff";
                 const isCurrent = d.analysisId === currentAnalysisId;
+                const isSelected = selectedIndex === i;
                 const cx = toX(i);
                 const cy = toY(d.angle);
+                const dotR = isSelected ? 8 : isCurrent ? 6 : 4;
                 return (
                   <React.Fragment key={i}>
-                    {isCurrent && (
+                    {/* Outer glow ring for current session */}
+                    {isCurrent && !isSelected && (
                       <Circle cx={cx} cy={cy} r={10} fill="#6c63ff22" />
                     )}
+                    {/* Selection highlight ring */}
+                    {isSelected && (
+                      <Circle cx={cx} cy={cy} r={14} fill={dotColor + "30"} stroke={dotColor} strokeWidth={1.5} />
+                    )}
+                    {/* Hit-target circle (transparent, larger) */}
+                    <Circle
+                      cx={cx} cy={cy} r={18}
+                      fill="transparent"
+                      onPress={() => setSelectedIndex(isSelected ? null : i)}
+                    />
+                    {/* Visible dot */}
                     <Circle
                       cx={cx} cy={cy}
-                      r={isCurrent ? 6 : 4}
+                      r={dotR}
                       fill={dotColor}
-                      stroke={isCurrent ? "#0e0e1a" : "none"}
-                      strokeWidth={isCurrent ? 2 : 0}
+                      stroke={isCurrent || isSelected ? "#0e0e1a" : "none"}
+                      strokeWidth={isCurrent || isSelected ? 2 : 0}
                     />
                   </React.Fragment>
                 );
@@ -698,6 +721,90 @@ function JointHistorySheet({
                     {text}
                   </SvgText>
                 ));
+              })()}
+
+              {/* Tooltip — rendered last so it sits on top of everything */}
+              {selectedIndex !== null && (() => {
+                const sel = data[selectedIndex]!;
+                const cx = toX(selectedIndex);
+                const cy = toY(sel.angle);
+                const dotColor = RISK_COLOR_MAP[sel.risk] ?? "#6c63ff";
+                const rLabel = RISK_LABEL_MAP[sel.risk] ?? "";
+                const tooltipW = 130;
+                const tooltipH = 68;
+                const arrowH = 7;
+                const cornerR = 8;
+                // clamp so tooltip stays within SVG bounds
+                const svgW = sw - 48;
+                const rawTx = cx - tooltipW / 2;
+                const tx = Math.max(4, Math.min(rawTx, svgW - tooltipW - 4));
+                // place above dot by default; flip below if too close to top edge of chart
+                const placeAbove = cy - CHART_PAD_T > tooltipH + arrowH + 10;
+                const ty = placeAbove
+                  ? cy - tooltipH - arrowH - 12
+                  : cy + 14 + arrowH;
+                const arrowX = cx - tx; // arrow tip x relative to tooltip origin
+                const clampedArrowX = Math.max(cornerR + 4, Math.min(arrowX, tooltipW - cornerR - 4));
+                return (
+                  <G key="tooltip">
+                    {/* Shadow rect */}
+                    <Rect
+                      x={tx + 2} y={ty + 2}
+                      width={tooltipW} height={tooltipH}
+                      rx={cornerR} ry={cornerR}
+                      fill="rgba(0,0,0,0.35)"
+                    />
+                    {/* Background */}
+                    <Rect
+                      x={tx} y={ty}
+                      width={tooltipW} height={tooltipH}
+                      rx={cornerR} ry={cornerR}
+                      fill="#1a1a2e"
+                      stroke={dotColor}
+                      strokeWidth={1.2}
+                    />
+                    {/* Arrow pointing to dot */}
+                    {placeAbove ? (
+                      <Path
+                        d={`M ${tx + clampedArrowX - 6} ${ty + tooltipH} L ${tx + clampedArrowX} ${ty + tooltipH + arrowH} L ${tx + clampedArrowX + 6} ${ty + tooltipH} Z`}
+                        fill="#1a1a2e"
+                        stroke={dotColor}
+                        strokeWidth={1.2}
+                      />
+                    ) : (
+                      <Path
+                        d={`M ${tx + clampedArrowX - 6} ${ty} L ${tx + clampedArrowX} ${ty - arrowH} L ${tx + clampedArrowX + 6} ${ty} Z`}
+                        fill="#1a1a2e"
+                        stroke={dotColor}
+                        strokeWidth={1.2}
+                      />
+                    )}
+                    {/* Angle — large */}
+                    <SvgText
+                      x={tx + tooltipW / 2} y={ty + 22}
+                      fontSize={18} fontFamily="Inter_700Bold"
+                      fill={dotColor} textAnchor="middle"
+                    >
+                      {Math.round(sel.angle)}°
+                    </SvgText>
+                    {/* Risk label */}
+                    <SvgText
+                      x={tx + tooltipW / 2} y={ty + 38}
+                      fontSize={10} fontFamily="Inter_600SemiBold"
+                      fill={dotColor} textAnchor="middle"
+                    >
+                      {rLabel}
+                    </SvgText>
+                    {/* Date · sport */}
+                    <SvgText
+                      x={tx + tooltipW / 2} y={ty + 55}
+                      fontSize={9} fontFamily="Inter_400Regular"
+                      fill="#8888aa" textAnchor="middle"
+                    >
+                      {formatDate(sel.date)} · {sel.sport}
+                    </SvgText>
+                  </G>
+                );
               })()}
             </Svg>
           )}
