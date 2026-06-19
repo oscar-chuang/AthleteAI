@@ -1208,6 +1208,7 @@ export default function HomeScreen() {
 
             <View style={{ flexDirection: "row", gap: 12, marginTop: 24, width: "100%" }}>
               <TouchableOpacity
+                testID="share-preview-cancel-btn"
                 onPress={() => setShowSharePreview(false)}
                 activeOpacity={0.8}
                 style={{
