@@ -28,6 +28,14 @@ import { useCardStagger } from "@/hooks/useCardStagger";
 import { useColors } from "@/hooks/useColors";
 import { formatBiomechanicsText } from "@/utils/formatBiomechanics";
 import {
+  SWIPE_THRESHOLD,
+  SWIPE_VELOCITY_THRESHOLD,
+  resolveAdjacentIds,
+  shouldActivateSwipe,
+  resolveSwipeDirection,
+  resolveSwipeTranslation,
+} from "@/utils/swipeNavigation";
+import {
   analyses as analysesApi,
   profile as profileApi,
   type AnalysisRecord,
@@ -470,12 +478,7 @@ export default function AnalysisDetailScreen() {
     }).catch(() => {});
   }, []);
 
-  const currIndex = siblingIds.indexOf(id ?? "");
-  const prevId = currIndex > 0 ? siblingIds[currIndex - 1] : null;
-  const nextId =
-    currIndex >= 0 && currIndex < siblingIds.length - 1
-      ? siblingIds[currIndex + 1]
-      : null;
+  const { currIndex, prevId, nextId } = resolveAdjacentIds(siblingIds, id);
 
   function navigateTo(targetId: string) {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -484,8 +487,6 @@ export default function AnalysisDetailScreen() {
 
   // ── Swipe gesture for session navigation ──────────────────────────────────
   const SCREEN_WIDTH = Dimensions.get("window").width;
-  const SWIPE_THRESHOLD = 60;
-  const SWIPE_VELOCITY_THRESHOLD = 0.4;
 
   const swipeAnim = useRef(new Animated.Value(0)).current;
 
@@ -579,22 +580,16 @@ export default function AnalysisDetailScreen() {
     PanResponder.create({
       // Only capture when horizontal movement clearly dominates vertical.
       onMoveShouldSetPanResponder: (_, { dx, dy }) =>
-        Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > 12,
+        shouldActivateSwipe(dx, dy),
       onPanResponderMove: (_, { dx }) => {
         const { prevId: pId, nextId: nId } = navRef.current;
-        // Rubber-band resistance when swiping toward a boundary with no session.
-        if ((dx > 0 && !pId) || (dx < 0 && !nId)) {
-          swipeAnim.setValue(dx * 0.18);
-        } else {
-          swipeAnim.setValue(dx);
-        }
+        swipeAnim.setValue(resolveSwipeTranslation(dx, pId, nId));
       },
       onPanResponderRelease: (_, { dx, vx }) => {
         const { prevId: pId, nextId: nId } = navRef.current;
-        const goNext =
-          (dx < -SWIPE_THRESHOLD || vx < -SWIPE_VELOCITY_THRESHOLD) && !!nId;
-        const goPrev =
-          (dx > SWIPE_THRESHOLD || vx > SWIPE_VELOCITY_THRESHOLD) && !!pId;
+        const direction = resolveSwipeDirection(dx, vx, pId, nId);
+        const goNext = direction === "next";
+        const goPrev = direction === "prev";
 
         if (goNext) {
           dismissHintRef.current();
