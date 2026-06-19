@@ -415,4 +415,87 @@ describe("HomeScreen — progress bar animation", () => {
       .toBeGreaterThan(zerosAfterFirst);
     expect(barTimingCalls.length).toBeGreaterThan(timingsAfterFirst);
   });
+
+  // ── Test 6 ──────────────────────────────────────────────────────────────────
+  //
+  // Cold launch: the goal was already reached in a previous session.
+  // stats.thisWeekCount >= weeklyGoal → targetRatio = 1 → the early fast-path
+  // (L193-195 in index.tsx) fires setBarAnimDone(true) BEFORE Animated.timing
+  // starts, so the bar is gold without waiting for the animation callback.
+  //
+  // Assertions:
+  //   a. setValue(0) is called first (stale-gold guard resets bar to 0).
+  //   b. Animated.timing is called with toValue=1, duration=600 (full bar).
+  //   c. The bar fill IS gold (#f59e0b) without firing the callback —
+  //      because barAnimDone was set true by the fast-path, not the callback.
+
+  it("cold launch with goal already met: resets to 0 then turns gold via fast-path (no callback needed)", async () => {
+    // Both stats and profile agree the goal is fully met.
+    mockProfile = { ...DEFAULT_PROFILE, weeklyGoal: 4, weeklyProgress: 4 };
+    mockProfileStats.mockResolvedValue({
+      ...MOCK_STATS_PARTIAL,
+      thisWeekCount: 4,
+      weeklyGoal:    4,
+      weeklyProgress: 4,
+    });
+
+    const { getByTestId } = render(<HomeScreen />);
+    await simulateFocus();
+
+    // a. Bar must be reset to 0 before the animation (stale-gold guard).
+    const zeroResets = setValueSpy.mock.calls.filter(([v]) => v === 0);
+    expect(zeroResets.length).toBeGreaterThanOrEqual(1);
+
+    // b. Animation runs to the full bar width.
+    expect(barTimingCalls.length).toBeGreaterThanOrEqual(1);
+    expect(barTimingCalls[0]).toMatchObject({ toValue: 1, duration: 600 });
+
+    // c. Gold appears immediately — callback has NOT been fired yet.
+    expect(barCallbackFired).toBe(false);
+    const style = getBarFillStyle(getByTestId);
+    expect(style.backgroundColor).toBe(GOLD);
+  });
+
+  // ── Test 7 ──────────────────────────────────────────────────────────────────
+  //
+  // Stale-gold guard across two visits when the goal is already met.
+  // After a first visit that leaves the bar gold, returning to the tab must
+  // reset barAnimDone to false (via setValue(0) + setBarAnimDone(false) at the
+  // top of loadData) before the fast-path re-applies it.
+  // Observable effect: a fresh setValue(0) and a new Animated.timing call are
+  // both issued on the second focus, proving the reset happened.
+
+  it("stale-gold guard: resets before re-animating on second focus when goal is already met", async () => {
+    mockProfile = { ...DEFAULT_PROFILE, weeklyGoal: 4, weeklyProgress: 4 };
+    mockProfileStats.mockResolvedValue({
+      ...MOCK_STATS_PARTIAL,
+      thisWeekCount: 4,
+      weeklyGoal:    4,
+      weeklyProgress: 4,
+    });
+
+    render(<HomeScreen />);
+
+    // First focus visit — goal met, bar goes gold via fast-path.
+    await simulateFocus();
+    const zerosAfterFirst   = setValueSpy.mock.calls.filter(([v]) => v === 0).length;
+    const timingsAfterFirst = barTimingCalls.length;
+    expect(zerosAfterFirst).toBeGreaterThanOrEqual(1);
+
+    // Second focus visit — user leaves and comes back.
+    await simulateFocus();
+
+    // setValue(0) must be called again (bar reset before re-animation).
+    expect(setValueSpy.mock.calls.filter(([v]) => v === 0).length)
+      .toBeGreaterThan(zerosAfterFirst);
+
+    // A fresh Animated.timing call must be issued (animation re-runs).
+    expect(barTimingCalls.length).toBeGreaterThan(timingsAfterFirst);
+
+    // Bar is still gold after the second visit (fast-path re-applies).
+    const { getByTestId } = render(<HomeScreen />);
+    await simulateFocus();
+    const style = getBarFillStyle(getByTestId);
+    expect(style.backgroundColor).toBe(GOLD);
+  });
 });
