@@ -289,8 +289,9 @@ export default function HomeScreen() {
       ]),
     );
     fadeIn.start(() => pulse.start());
-    return () => { pulse.stop(); };
-  }, [showShareHint, shareHintAnim]);
+    const autoDismiss = setTimeout(() => { dismissShareHint(); }, 5000);
+    return () => { pulse.stop(); clearTimeout(autoDismiss); };
+  }, [showShareHint, shareHintAnim, dismissShareHint]);
 
   useEffect(() => {
     if (!goalReached) return;
