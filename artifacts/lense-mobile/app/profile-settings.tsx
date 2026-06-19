@@ -21,6 +21,8 @@ import * as ImagePicker from "expo-image-picker";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/lib/authContext";
 import { useTheme } from "@/lib/themeContext";
+import { ACCENT_PALETTES } from "@/constants/colors";
+import type { AccentKey } from "@/constants/colors";
 import { CropModal, type CropResult } from "@/components/CropModal";
 import { persistCheckInHour } from "@/utils/notifications";
 
@@ -172,7 +174,7 @@ export function AvatarDisplay({ avatarUrl, name, size, colors }: AvatarDisplayPr
 
 export default function ProfileSettingsScreen() {
   const colors = useColors();
-  const { isDark, toggleTheme } = useTheme();
+  const { isDark, toggleTheme, accentColor, setAccentColor } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const navigation = useNavigation();
@@ -1133,6 +1135,8 @@ export default function ProfileSettingsScreen() {
         {/* ── Display ── */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>Display</Text>
+
+          {/* Dark / light toggle */}
           <TouchableOpacity
             onPress={toggleTheme}
             activeOpacity={0.8}
@@ -1178,6 +1182,57 @@ export default function ProfileSettingsScreen() {
               }} />
             </View>
           </TouchableOpacity>
+
+          {/* Accent colour palettes */}
+          <View style={{ marginTop: 16 }}>
+            <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: colors.foreground, marginBottom: 12 }}>
+              Accent Colour
+            </Text>
+            <View style={{ flexDirection: "row", gap: 14 }}>
+              {(Object.keys(ACCENT_PALETTES) as AccentKey[]).map((key) => {
+                const palette = ACCENT_PALETTES[key];
+                const isSelected = accentColor === key;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    onPress={() => setAccentColor(key)}
+                    activeOpacity={0.75}
+                    accessibilityLabel={palette.label}
+                    style={{ alignItems: "center", gap: 6 }}
+                  >
+                    <View
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: palette.color,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderWidth: isSelected ? 3 : 2,
+                        borderColor: isSelected ? palette.color : colors.border,
+                        shadowColor: isSelected ? palette.color : "transparent",
+                        shadowOffset: { width: 0, height: 0 },
+                        shadowOpacity: isSelected ? 0.55 : 0,
+                        shadowRadius: isSelected ? 8 : 0,
+                        elevation: isSelected ? 6 : 0,
+                      }}
+                    >
+                      {isSelected && (
+                        <Feather name="check" size={16} color="#fff" />
+                      )}
+                    </View>
+                    <Text style={{
+                      fontSize: 11,
+                      fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_400Regular",
+                      color: isSelected ? palette.color : colors.mutedForeground,
+                    }}>
+                      {palette.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
         </View>
       </ScrollView>
 
