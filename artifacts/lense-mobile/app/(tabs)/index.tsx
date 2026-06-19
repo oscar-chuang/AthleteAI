@@ -726,6 +726,7 @@ export default function HomeScreen() {
                       </Animated.View>
                     )}
                     <TouchableOpacity
+                      testID="goal-share-btn"
                       onPress={() => { dismissShareHint(); handleShareGoal(); }}
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       activeOpacity={0.7}
@@ -1164,6 +1165,7 @@ export default function HomeScreen() {
                 <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                testID="goal-share-confirm-btn"
                 onPress={handleShareConfirm}
                 activeOpacity={0.8}
                 style={{
