@@ -4,7 +4,8 @@
  *
  * HOW TO ADD A NEW FIELD:
  *   1. Add it to ProfileSnapshot below.
- *   2. Include it in buildSnapshot() so it is serialised automatically.
+ *   2. Include it in buildSnapshot() — TypeScript will enforce this for you.
+ *      If you forget, the buildSnapshot call site(s) become a compile error.
  *   3. That's it — computeIsDirty is derived from the snapshot string, so you
  *      cannot accidentally omit the new field from the comparison.
  *
@@ -20,8 +21,16 @@ export type ProfileSnapshot = {
   injuries: string[];
 };
 
+/**
+ * A mapped type that strips optionality from every key of T.
+ * Used as the parameter type for buildSnapshot so that even optional fields
+ * added to ProfileSnapshot in the future must be explicitly supplied at every
+ * call site — omitting or misspelling any key is a compile error.
+ */
+type AllKeysRequired<T> = { [K in keyof T]-?: T[K] };
+
 /** Serialise a snapshot to a stable JSON string for equality comparison. */
-export function buildSnapshot(s: ProfileSnapshot): string {
+export function buildSnapshot(s: AllKeysRequired<ProfileSnapshot>): string {
   return JSON.stringify(s);
 }
 
