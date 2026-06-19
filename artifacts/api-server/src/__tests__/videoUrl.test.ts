@@ -288,13 +288,15 @@ describe("PATCH /analyses/:id — videoUrl guard applied at route level", () => 
     expect(res.body.error).toMatch(/bytes or fewer/);
   });
 
-  it("accepts a valid videoUrl without triggering the URL policy error", async () => {
+  it("accepts a valid videoUrl and returns HTTP 200", async () => {
     const app = makeApp();
+    // Include `sport` so the sport-only correction path fires and the route
+    // returns 200. A videoUrl-only PATCH would hit the "no measured data"
+    // guard (also 400), masking whether the URL policy guard passed.
     const res = await request(app)
       .patch("/analyses/1")
-      .send({ videoUrl: "https://cdn.example.com/videos/session-42.mp4" });
+      .send({ videoUrl: "https://cdn.example.com/videos/session-42.mp4", sport: "running" });
 
-    // URL guard passes — any rejection is for a different reason (e.g. no measured data).
-    expect(res.body.error).not.toMatch(/data URI|bytes or fewer/);
+    expect(res.status).toBe(200);
   });
 });
