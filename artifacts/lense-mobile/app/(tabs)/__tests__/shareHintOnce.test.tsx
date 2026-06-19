@@ -108,7 +108,9 @@ jest.mock("@/components/ConfettiBurst", () => ({
 }));
 
 jest.mock("@/utils/confettiGate", () => ({
-  checkConfettiGate: jest.fn(async () => false),
+  checkConfettiGate:          jest.fn(async () => false),
+  retryCelebrationSync:       jest.fn(async () => {}),
+  persistCelebrationToServer: jest.fn(async () => {}),
 }));
 
 jest.mock("@/lib/sessionDelta", () => ({

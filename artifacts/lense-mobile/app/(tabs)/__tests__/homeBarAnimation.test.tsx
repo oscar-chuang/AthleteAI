@@ -116,7 +116,10 @@ jest.mock("@/lib/authContext", () => ({
 }));
 
 jest.mock("@/lib/api", () => ({
-  analyses:    { list: (...args: any[]) => mockAnalysesList(...args) },
+  analyses:    {
+    list: (...args: any[]) => mockAnalysesList(...args),
+    get:  jest.fn().mockRejectedValue(new Error("not needed")),
+  },
   achievements:{ list: (...args: any[]) => mockAchievementsList(...args) },
   profile:     { stats: (...args: any[]) => mockProfileStats(...args) },
   jointTrends: { get:  (...args: any[]) => mockJointTrendsGet(...args) },
@@ -136,7 +139,9 @@ jest.mock("@/components/ConfettiBurst", () => ({
 }));
 
 jest.mock("@/utils/confettiGate", () => ({
-  checkConfettiGate: jest.fn(async () => false),
+  checkConfettiGate:          jest.fn(async () => false),
+  retryCelebrationSync:       jest.fn(async () => {}),
+  persistCelebrationToServer: jest.fn(async () => {}),
 }));
 
 jest.mock("@/lib/sessionDelta", () => ({

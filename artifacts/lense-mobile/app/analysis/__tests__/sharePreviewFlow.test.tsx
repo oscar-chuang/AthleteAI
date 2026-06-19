@@ -25,11 +25,13 @@ import { Platform } from "react-native";
 let mockFocusCallback: (() => (() => void) | void) | null = null;
 
 // ─── Controlled mock functions ─────────────────────────────────────────────────
-const mockAnalysesGet      = jest.fn();
-const mockAnalysesList     = jest.fn();
-const mockCaptureRef       = jest.fn();
-const mockIsAvailableAsync = jest.fn();
-const mockShareAsync       = jest.fn();
+const mockAnalysesGet          = jest.fn();
+const mockAnalysesList         = jest.fn();
+const mockCaptureRef           = jest.fn();
+const mockIsAvailableAsync     = jest.fn();
+const mockShareAsync           = jest.fn();
+const mockStartActivityAsync   = jest.fn();
+const mockGetContentUriAsync   = jest.fn();
 
 // ─── Module mocks ──────────────────────────────────────────────────────────────
 
@@ -55,6 +57,14 @@ jest.mock("react-native-view-shot", () => ({
 jest.mock("expo-sharing", () => ({
   isAvailableAsync: (...args: unknown[]) => mockIsAvailableAsync(...args),
   shareAsync:       (...args: unknown[]) => mockShareAsync(...args),
+}));
+
+jest.mock("expo-intent-launcher", () => ({
+  startActivityAsync: (...args: unknown[]) => mockStartActivityAsync(...args),
+}));
+
+jest.mock("expo-file-system", () => ({
+  getContentUriAsync: (...args: unknown[]) => mockGetContentUriAsync(...args),
 }));
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
@@ -186,12 +196,16 @@ beforeEach(() => {
   mockCaptureRef.mockReset();
   mockIsAvailableAsync.mockReset();
   mockShareAsync.mockReset();
+  mockStartActivityAsync.mockReset();
+  mockGetContentUriAsync.mockReset();
   mockAnalysesGet.mockReset();
   mockAnalysesList.mockResolvedValue({ analyses: [] });
 
   mockIsAvailableAsync.mockResolvedValue(true);
   mockCaptureRef.mockResolvedValue("file:///tmp/share-card.png");
   mockShareAsync.mockResolvedValue(undefined);
+  mockGetContentUriAsync.mockResolvedValue("content://tmp/share-card.png");
+  mockStartActivityAsync.mockResolvedValue(undefined);
 
   mockAnalysesGet.mockResolvedValue({
     analysis:    COMPLETE_ANALYSIS,
@@ -249,7 +263,7 @@ describe("AnalysisDetailScreen — share preview modal", () => {
     expect(mockShareAsync).not.toHaveBeenCalled();
   });
 
-  it("pressing the Share CTA calls captureRef then shareAsync and closes the modal", async () => {
+  it("pressing the Share CTA calls captureRef then the native share intent and closes the modal", async () => {
     render(<AnalysisDetailScreen />);
     await simulateFocus();
 
@@ -263,7 +277,10 @@ describe("AnalysisDetailScreen — share preview modal", () => {
     await flush();
 
     expect(mockCaptureRef).toHaveBeenCalledTimes(1);
-    expect(mockShareAsync).toHaveBeenCalledTimes(1);
+    // On Android the share path uses IntentLauncher.startActivityAsync, not
+    // Sharing.shareAsync.  getContentUriAsync converts the tmp file path first.
+    expect(mockGetContentUriAsync).toHaveBeenCalledTimes(1);
+    expect(mockStartActivityAsync).toHaveBeenCalledTimes(1);
     // Modal closes after the share completes.
     expect(screen.queryByText("Share your session")).toBeNull();
   });
