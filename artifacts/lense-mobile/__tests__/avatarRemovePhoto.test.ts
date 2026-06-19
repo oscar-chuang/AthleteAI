@@ -52,6 +52,12 @@ interface ProfileSettingsState {
   cropVisible: boolean;
 }
 
+interface CropCancelState {
+  avatarUrl: string | null | undefined;
+  pendingImageUri: string | null;
+  cropVisible: boolean;
+}
+
 // ── state machine extracted from handleCropConfirm ────────────────────────────
 
 /**
@@ -260,5 +266,109 @@ describe("profile settings — avatar upload rollback on handleCropConfirm", () 
     // elsewhere, so here we just confirm avatarUrl is kept and no new error added)
     await handleCropConfirm(CROP_RESULT);
     expect(state.avatarUrl).toBe(NEW_URI);
+  });
+});
+
+// ── state machine extracted from handleCropCancel ─────────────────────────────
+
+/**
+ * Creates a self-contained simulation of the handleCropCancel state machine
+ * from profile-settings.tsx. Returns helpers that reproduce:
+ *
+ *   - `handleCropCancel()` — closes the crop modal and clears the pending URI
+ *     without touching avatarUrl.
+ *
+ * Mirrors the actual implementation:
+ *
+ *   function handleCropCancel() {
+ *     setCropVisible(false);
+ *     setPendingImageUri(null);
+ *   }
+ */
+function makeCropCancelMachine(
+  initialAvatarUrl: string | null | undefined,
+  initialPendingUri: string | null,
+): { state: CropCancelState; handleCropCancel: () => void } {
+  const state: CropCancelState = {
+    avatarUrl: initialAvatarUrl,
+    pendingImageUri: initialPendingUri,
+    cropVisible: true,
+  };
+
+  function handleCropCancel() {
+    state.cropVisible = false;
+    state.pendingImageUri = null;
+  }
+
+  return { state, handleCropCancel };
+}
+
+// ── tests ─────────────────────────────────────────────────────────────────────
+
+describe("profile settings — crop cancel rollback on handleCropCancel", () => {
+  const EXISTING_AVATAR = "https://example.com/avatar.jpg";
+  const PENDING_URI = "file:///tmp/picked-photo.jpg";
+
+  // ── Test 1 ──────────────────────────────────────────────────────────────────
+
+  it("sets cropVisible to false when the user cancels", () => {
+    const { state, handleCropCancel } = makeCropCancelMachine(
+      EXISTING_AVATAR,
+      PENDING_URI,
+    );
+
+    handleCropCancel();
+
+    expect(state.cropVisible).toBe(false);
+  });
+
+  // ── Test 2 ──────────────────────────────────────────────────────────────────
+
+  it("clears pendingImageUri to null when the user cancels", () => {
+    const { state, handleCropCancel } = makeCropCancelMachine(
+      EXISTING_AVATAR,
+      PENDING_URI,
+    );
+
+    handleCropCancel();
+
+    expect(state.pendingImageUri).toBeNull();
+  });
+
+  // ── Test 3 ──────────────────────────────────────────────────────────────────
+
+  it("leaves avatarUrl unchanged after cancel", () => {
+    const { state, handleCropCancel } = makeCropCancelMachine(
+      EXISTING_AVATAR,
+      PENDING_URI,
+    );
+
+    handleCropCancel();
+
+    expect(state.avatarUrl).toBe(EXISTING_AVATAR);
+  });
+
+  // ── Test 4 ──────────────────────────────────────────────────────────────────
+
+  it("leaves avatarUrl as null when the user had no previous avatar and cancels", () => {
+    const { state, handleCropCancel } = makeCropCancelMachine(null, PENDING_URI);
+
+    handleCropCancel();
+
+    expect(state.avatarUrl).toBeNull();
+    expect(state.pendingImageUri).toBeNull();
+    expect(state.cropVisible).toBe(false);
+  });
+
+  // ── Test 5 ──────────────────────────────────────────────────────────────────
+
+  it("clears pendingImageUri even when it was already null before cancel", () => {
+    const { state, handleCropCancel } = makeCropCancelMachine(EXISTING_AVATAR, null);
+
+    handleCropCancel();
+
+    expect(state.pendingImageUri).toBeNull();
+    expect(state.cropVisible).toBe(false);
+    expect(state.avatarUrl).toBe(EXISTING_AVATAR);
   });
 });
