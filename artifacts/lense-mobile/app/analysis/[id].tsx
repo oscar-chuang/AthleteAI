@@ -1902,20 +1902,20 @@ export default function AnalysisDetailScreen() {
           ]}
           pointerEvents="box-none"
         >
-          <Text style={styles.goalToastEmoji}>🎉</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.goalToastTitle, { color: colors.foreground }]}>
-              Weekly goal reached!
-            </Text>
-            <Text style={[styles.goalToastSub, { color: colors.mutedForeground }]}>
-              {goalToast.count} of {goalToast.goal} sessions done this week
-            </Text>
-          </View>
           <TouchableOpacity
+            style={styles.goalToastInner}
             onPress={dismissToast}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            activeOpacity={0.7}
+            activeOpacity={0.85}
           >
+            <Text style={styles.goalToastEmoji}>🎉</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.goalToastTitle, { color: colors.foreground }]}>
+                Weekly goal reached!
+              </Text>
+              <Text style={[styles.goalToastSub, { color: colors.mutedForeground }]}>
+                {goalToast.count} of {goalToast.goal} sessions done this week
+              </Text>
+            </View>
             <Feather name="x" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
         </Animated.View>
@@ -2299,18 +2299,21 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 16,
     right: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
     borderRadius: 14,
     borderWidth: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 10,
     elevation: 6,
+    overflow: "hidden",
+  },
+  goalToastInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
   goalToastEmoji: { fontSize: 20 },
   goalToastTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
