@@ -197,4 +197,12 @@ describe("ShareCard — color scheme palette", () => {
   it("dark and light cardBg values are distinct", () => {
     expect(SHARE_CARD_DARK.cardBg).not.toBe(SHARE_CARD_LIGHT.cardBg);
   });
+
+  it("dark and light cardBorder values are distinct", () => {
+    expect(SHARE_CARD_DARK.cardBorder).not.toBe(SHARE_CARD_LIGHT.cardBorder);
+  });
+
+  it("dark and light cardSurface values are distinct", () => {
+    expect(SHARE_CARD_DARK.cardSurface).not.toBe(SHARE_CARD_LIGHT.cardSurface);
+  });
 });
