@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   RefreshControl,
   Pressable,
-  Animated,
 } from "react-native";
 import Svg, { Line, Path, Polyline, Circle, Text as SvgText } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -31,15 +30,16 @@ import {
   type JointDataPoint,
   type SportEntry,
   type PersonalRecordEntry,
+  type JointImprovement,
 } from "@/lib/api";
 import { getSportConfig, JOINT_DISPLAY, SPORT_ICONS, type MetricKey } from "@/constants/sportConfig";
+import JointHistorySheet from "@/components/JointHistorySheet";
 
 const RISK_COLOR_MAP = ["#22c55e", "#f59e0b", "#ef4444"] as const;
 const RISK_LABEL_MAP = ["Safe", "Caution", "High Risk"] as const;
 
 const JOINT_SPARKLINE_W = 64;
 const JOINT_SPARKLINE_H = 28;
-const JOINT_CHART_H = 180;
 
 function JointSparkline({ data, color }: { data: JointDataPoint[]; color: string }) {
   if (data.length < 2) {
@@ -69,214 +69,6 @@ function JointSparkline({ data, color }: { data: JointDataPoint[]; color: string
   );
 }
 
-const FULL_CHART_PADDING_LEFT = 36;
-const FULL_CHART_PADDING_RIGHT = 8;
-const FULL_CHART_PADDING_TOP = 8;
-const FULL_CHART_PADDING_BOTTOM = 32;
-const TOOLTIP_W = 108;
-const TOOLTIP_H = 64;
-
-export function JointFullChart({
-  data,
-  width,
-  colors,
-}: {
-  data: JointDataPoint[];
-  width: number;
-  colors: ReturnType<typeof useColors>;
-}) {
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const tooltipOpacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    return () => {
-      if (dismissTimer.current) clearTimeout(dismissTimer.current);
-    };
-  }, []);
-
-  function dismissTooltip() {
-    tooltipOpacity.setValue(0);
-    setSelectedIdx(null);
-  }
-
-  function handleDotPress(i: number) {
-    if (dismissTimer.current) clearTimeout(dismissTimer.current);
-    if (selectedIdx === i) {
-      dismissTooltip();
-      return;
-    }
-    tooltipOpacity.setValue(0);
-    setSelectedIdx(i);
-    Animated.timing(tooltipOpacity, {
-      toValue: 1,
-      duration: 150,
-      useNativeDriver: true,
-    }).start();
-    dismissTimer.current = setTimeout(dismissTooltip, 3000);
-  }
-
-  const chartW = width - FULL_CHART_PADDING_LEFT - FULL_CHART_PADDING_RIGHT;
-  const chartH = JOINT_CHART_H - FULL_CHART_PADDING_TOP - FULL_CHART_PADDING_BOTTOM;
-  if (data.length === 0) return null;
-
-  const angles = data.map((d) => d.angle);
-  const minAngle = Math.max(0, Math.min(...angles) - 5);
-  const maxAngle = Math.max(...angles) + 5;
-  const range = maxAngle - minAngle || 1;
-
-  function toX(i: number) {
-    if (data.length === 1) return FULL_CHART_PADDING_LEFT + chartW / 2;
-    return FULL_CHART_PADDING_LEFT + (i / (data.length - 1)) * chartW;
-  }
-  function toY(angle: number) {
-    return FULL_CHART_PADDING_TOP + chartH - ((angle - minAngle) / range) * chartH;
-  }
-
-  const yTicks = [minAngle, minAngle + range * 0.25, minAngle + range * 0.5, minAngle + range * 0.75, maxAngle];
-  const polyPts = data.map((d, i) => `${toX(i).toFixed(1)},${toY(d.angle).toFixed(1)}`).join(" ");
-  const areaPath = data.length > 1
-    ? [
-        `M ${toX(0).toFixed(1)} ${toY(data[0]!.angle).toFixed(1)}`,
-        ...data.slice(1).map((d, i) => `L ${toX(i + 1).toFixed(1)} ${toY(d.angle).toFixed(1)}`),
-        `L ${toX(data.length - 1).toFixed(1)} ${(FULL_CHART_PADDING_TOP + chartH).toFixed(1)}`,
-        `L ${FULL_CHART_PADDING_LEFT.toFixed(1)} ${(FULL_CHART_PADDING_TOP + chartH).toFixed(1)}`,
-        "Z",
-      ].join(" ")
-    : null;
-
-  const xLabels: { i: number; text: string }[] = [];
-  if (data.length === 1) {
-    xLabels.push({ i: 0, text: formatDate(data[0]!.date) });
-  } else if (data.length === 2) {
-    xLabels.push({ i: 0, text: formatDate(data[0]!.date) });
-    xLabels.push({ i: 1, text: formatDate(data[1]!.date) });
-  } else {
-    xLabels.push({ i: 0, text: formatDate(data[0]!.date) });
-    xLabels.push({ i: Math.floor((data.length - 1) / 2), text: formatDate(data[Math.floor((data.length - 1) / 2)]!.date) });
-    xLabels.push({ i: data.length - 1, text: formatDate(data[data.length - 1]!.date) });
-  }
-
-  const selectedPoint = selectedIdx != null ? (data[selectedIdx] ?? null) : null;
-  const dotCx = selectedIdx != null ? toX(selectedIdx) : 0;
-  const dotCy = selectedPoint != null ? toY(selectedPoint.angle) : 0;
-  const tooltipAbove = dotCy - TOOLTIP_H - 10;
-  const tooltipTop = tooltipAbove >= 0 ? tooltipAbove : dotCy + 14;
-  let tooltipLeft = dotCx - TOOLTIP_W / 2;
-  if (tooltipLeft < 0) tooltipLeft = 0;
-  if (tooltipLeft + TOOLTIP_W > width) tooltipLeft = width - TOOLTIP_W;
-
-  return (
-    <View style={{ position: "relative" }}>
-      <Svg width={width} height={JOINT_CHART_H} style={{ overflow: "visible" }}>
-        {yTicks.map((tick, ti) => {
-          const y = toY(tick);
-          return (
-            <React.Fragment key={ti}>
-              <Line x1={FULL_CHART_PADDING_LEFT} y1={y} x2={FULL_CHART_PADDING_LEFT + chartW} y2={y} stroke={colors.border} strokeWidth={1} />
-              <SvgText x={FULL_CHART_PADDING_LEFT - 4} y={y + 3} fontSize={8} fill={colors.mutedForeground} fontFamily="Inter_400Regular" textAnchor="end">
-                {Math.round(tick)}°
-              </SvgText>
-            </React.Fragment>
-          );
-        })}
-        {areaPath && <Path d={areaPath} fill={colors.primary + "18"} />}
-        {data.length > 1 && (
-          <Polyline points={polyPts} fill="none" stroke={colors.primary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-        )}
-        {data.map((d, i) => {
-          const dotColor = RISK_COLOR_MAP[d.risk] ?? colors.primary;
-          const cx = toX(i);
-          const cy = toY(d.angle);
-          const isLast = i === data.length - 1;
-          const isSelected = selectedIdx === i;
-          return (
-            <React.Fragment key={i}>
-              <Circle cx={cx} cy={cy} r={isSelected ? 7 : isLast ? 6 : 4} fill={dotColor}
-                stroke={isSelected ? colors.card : isLast ? colors.card : "none"}
-                strokeWidth={isSelected || isLast ? 2 : 0} />
-              <Circle cx={cx} cy={cy} r={18} fill="transparent" onPress={() => handleDotPress(i)} />
-            </React.Fragment>
-          );
-        })}
-        {xLabels.map(({ i, text }) => (
-          <SvgText key={i} x={toX(i)} y={FULL_CHART_PADDING_TOP + chartH + 18} fontSize={8} fill={colors.mutedForeground}
-            fontFamily="Inter_400Regular" textAnchor={i === 0 ? "start" : i === data.length - 1 ? "end" : "middle"}>
-            {text}
-          </SvgText>
-        ))}
-      </Svg>
-
-      {selectedPoint != null && (
-        <Animated.View
-          style={{
-            opacity: tooltipOpacity,
-            position: "absolute",
-            left: tooltipLeft,
-            top: tooltipTop,
-            width: TOOLTIP_W,
-          }}
-        >
-          <Pressable
-            onPress={dismissTooltip}
-            style={{
-              backgroundColor: colors.card,
-              borderRadius: 8,
-              borderWidth: 1,
-              borderColor: (RISK_COLOR_MAP[selectedPoint.risk] ?? colors.primary) + "88",
-              padding: 8,
-              alignItems: "center",
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.14,
-              shadowRadius: 4,
-              elevation: 5,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 18,
-                fontFamily: "Inter_700Bold",
-                color: RISK_COLOR_MAP[selectedPoint.risk] ?? colors.primary,
-              }}
-            >
-              {selectedPoint.angle.toFixed(1)}°
-            </Text>
-            <Text
-              style={{
-                fontSize: 10,
-                fontFamily: "Inter_400Regular",
-                color: colors.mutedForeground,
-                marginTop: 2,
-              }}
-            >
-              {formatDate(selectedPoint.date)}
-            </Text>
-            <View
-              style={{
-                marginTop: 5,
-                backgroundColor: (RISK_COLOR_MAP[selectedPoint.risk] ?? colors.primary) + "22",
-                borderRadius: 5,
-                paddingHorizontal: 7,
-                paddingVertical: 2,
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 9,
-                  fontFamily: "Inter_600SemiBold",
-                  color: RISK_COLOR_MAP[selectedPoint.risk] ?? colors.primary,
-                }}
-              >
-                {RISK_LABEL_MAP[selectedPoint.risk] ?? ""}
-              </Text>
-            </View>
-          </Pressable>
-        </Animated.View>
-      )}
-    </View>
-  );
-}
 
 const ALL_METRICS: MetricKey[] = ["overall", "technique", "power", "balance", "consistency", "mobility", "speed"];
 type Period = "1W" | "1M" | "3M" | "All";
@@ -691,6 +483,17 @@ export default function ProgressScreen() {
 
   return (
     <View style={s.container}>
+      {/* Joint history bottom sheet — opened from the Joint Angle Trends section */}
+      {selectedJoint && filteredTrends?.joints[selectedJoint] && (
+        <JointHistorySheet
+          joint={selectedJoint}
+          data={[...(filteredTrends.joints[selectedJoint] ?? [])].sort(
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+          )}
+          onClose={() => setSelectedJoint(null)}
+        />
+      )}
+
       <ScrollView
         ref={scrollViewRef}
         contentContainerStyle={{ paddingBottom: bottomPad }}
@@ -977,7 +780,7 @@ export default function ProgressScreen() {
                 {JOINT_DISPLAY[mostImproved.joint] ?? mostImproved.joint} +{Math.round(mostImproved.deltaDeg)}°
               </Text>
               <Text style={{ fontSize: 11, color: colors.success + "88", fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                Most improved{selectedSport ? ` · ${capitalize(selectedSport)}` : ""} · tap to view trend
+                Most improved · tap to view trend
               </Text>
             </View>
             <Feather name="chevron-right" size={14} color={colors.success + "88"} />
@@ -1153,15 +956,13 @@ export default function ProgressScreen() {
               const riskColor = RISK_COLOR_MAP[latestRisk] ?? colors.mutedForeground;
               const riskLabel = RISK_LABEL_MAP[latestRisk] ?? "";
               const imp = filteredTrends.improvements.find((i) => i.joint === joint);
-              const isExpanded = selectedJoint === joint;
-              const fullChartWidth = SCREEN_WIDTH - 40 - 28;
 
               return (
                 <TouchableOpacity
                   key={joint}
                   activeOpacity={0.82}
-                  onPress={() => setSelectedJoint(isExpanded ? null : joint)}
-                  style={{ backgroundColor: colors.card, borderRadius: colors.radius, borderWidth: 1, borderColor: isExpanded ? accentColor + "66" : colors.border, marginBottom: 10, overflow: "hidden" }}
+                  onPress={() => setSelectedJoint(joint)}
+                  style={{ backgroundColor: colors.card, borderRadius: colors.radius, borderWidth: 1, borderColor: colors.border, marginBottom: 10, overflow: "hidden" }}
                 >
                   <View style={{ padding: 14, flexDirection: "row", alignItems: "center", gap: 12 }}>
                     <View style={{ flex: 1 }}>
@@ -1185,36 +986,11 @@ export default function ProgressScreen() {
                         </View>
                       )}
                     </View>
-
-                    {isExpanded ? (
-                      <Feather name="chevron-up" size={16} color={colors.mutedForeground} />
-                    ) : (
-                      <View style={{ alignItems: "flex-end", gap: 6 }}>
-                        <JointSparkline data={history} color={riskColor} />
-                        <Feather name="chevron-down" size={12} color={colors.mutedForeground} />
-                      </View>
-                    )}
-                  </View>
-
-                  {isExpanded && (
-                    <View style={{ paddingHorizontal: 14, paddingBottom: 14, borderTopWidth: 1, borderTopColor: colors.border }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 12, paddingBottom: 8 }}>
-                        <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>
-                          {history.length} scan{history.length === 1 ? "" : "s"} · angle history
-                          {selectedSport ? ` · ${capitalize(selectedSport)}` : ""}
-                        </Text>
-                        <View style={{ flexDirection: "row", gap: 10 }}>
-                          {([0, 1, 2] as const).map((risk) => (
-                            <View key={risk} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-                              <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: RISK_COLOR_MAP[risk] }} />
-                              <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>{RISK_LABEL_MAP[risk]}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      </View>
-                      <JointFullChart data={history} width={fullChartWidth} colors={colors} />
+                    <View style={{ alignItems: "flex-end", gap: 6 }}>
+                      <JointSparkline data={history} color={riskColor} />
+                      <Feather name="bar-chart-2" size={12} color={colors.mutedForeground} />
                     </View>
-                  )}
+                  </View>
                 </TouchableOpacity>
               );
             })}

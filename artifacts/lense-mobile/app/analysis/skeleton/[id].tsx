@@ -480,7 +480,7 @@ ${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto">
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-// JointHistorySheet is now in components/JointHistorySheet.tsx
+// JointHistorySheet is imported from @/components/JointHistorySheet
 export default function SkeletonScreen() {
   const { id, nx: initNx, ny: initNy, nw: initNw, nh: initNh, highlightJoint } = useLocalSearchParams<{
     id: string; nx?: string; ny?: string; nw?: string; nh?: string; highlightJoint?: string;
