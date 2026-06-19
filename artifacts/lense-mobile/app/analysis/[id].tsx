@@ -393,6 +393,9 @@ export default function AnalysisDetailScreen() {
   const [selectedShareTipId, setSelectedShareTipId] = useState<string | null>(null);
   const [shareScheme, setShareScheme] = useState<"dark" | "light">("dark");
   const shareCardRef = useRef<View>(null);
+  // Remembers the last tip the user picked on the share sheet, keyed by analysis ID.
+  // Survives modal close/reopen within the same screen session; not persisted across restarts.
+  const shareTipMemoryRef = useRef<Record<string, string | null>>({});
   const {
     showSharePreview,
     handleShare: _openSharePreview,
@@ -650,7 +653,11 @@ export default function AnalysisDetailScreen() {
 
   function handleShare() {
     if (!analysis) return;
-    setSelectedShareTipId(topTip?.id ?? null);
+    // Use the previously chosen tip for this analysis if the user has already picked one;
+    // otherwise fall back to the highest-severity tip.
+    const remembered = shareTipMemoryRef.current[analysis.id];
+    const initialTip = remembered !== undefined ? remembered : (topTip?.id ?? null);
+    setSelectedShareTipId(initialTip);
     _openSharePreview();
   }
 
@@ -1201,7 +1208,12 @@ export default function AnalysisDetailScreen() {
                     return (
                       <TouchableOpacity
                         key={tip.id}
-                        onPress={() => setSelectedShareTipId(tip.id)}
+                        onPress={() => {
+                          setSelectedShareTipId(tip.id);
+                          if (analysis) {
+                            shareTipMemoryRef.current[analysis.id] = tip.id;
+                          }
+                        }}
                         activeOpacity={0.7}
                         style={[
                           styles.tipPickerItem,
