@@ -337,14 +337,34 @@ function StateScreen({
   );
 }
 
+// ── Tab constants & seed helper ────────────────────────────────────────────────
+export const VALID_TABS = ["scores", "tips", "risks", "notes"] as const;
+export type AnalysisTab = (typeof VALID_TABS)[number];
+
+/**
+ * Derives the initial active tab from the raw `tab` query-param value.
+ * Falls back to "scores" when the param is absent or not one of the valid tabs.
+ * Exported so unit tests can exercise it without rendering the full screen.
+ */
+export function seedActiveTab(param: string | string[] | undefined): AnalysisTab {
+  const raw = Array.isArray(param) ? param[0] : param;
+  return (VALID_TABS as readonly string[]).includes(raw ?? "")
+    ? (raw as AnalysisTab)
+    : "scores";
+}
+
 // ── Main screen ────────────────────────────────────────────────────────────────
 export default function AnalysisDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, tab: rawTab } = useLocalSearchParams<{ id: string; tab?: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
   const { profile } = useAuth();
+
+  // Active tab — seeded from the ?tab= query param so it survives rotation /
+  // backgrounding (expo-router re-reads params on remount).
+  const [activeTab, setActiveTab] = useState<AnalysisTab>(() => seedActiveTab(rawTab));
 
   const [analysis, setAnalysis] = useState<AnalysisRecord | null>(null);
   const [tips, setTips] = useState<TipRecord[]>([]);
@@ -481,7 +501,7 @@ export default function AnalysisDetailScreen() {
 
   function navigateTo(targetId: string) {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
-    router.replace(`/analysis/${targetId}` as any);
+    router.replace(`/analysis/${targetId}?tab=${activeTab}` as any);
   }
 
   // ── Swipe gesture for session navigation ──────────────────────────────────

@@ -130,6 +130,8 @@ jest.mock("@/utils/shareCardCapture", () => ({
   HIDDEN_SHARE_CARD_STYLE:    { position: "absolute", opacity: 0 },
 }));
 
+const mockProfileGet = jest.fn();
+
 jest.mock("@/lib/api", () => ({
   analyses: {
     get:    (...args: unknown[]) => mockAnalysesGet(...args),
@@ -138,10 +140,7 @@ jest.mock("@/lib/api", () => ({
   },
   profile: {
     stats:  (...args: unknown[]) => mockProfileStats(...args),
-    get:    jest.fn().mockResolvedValue({
-      profile: { weeklyGoal: 3, sport: "running", level: "intermediate", name: "Test Athlete", avatarUrl: null, weeklyGoalCelebratedAt: null },
-      subscription: { id: "free", userId: "1", tier: "free", status: "active" },
-    }),
+    get:    (...args: unknown[]) => mockProfileGet(...args),
     update: jest.fn().mockResolvedValue({
       profile: { weeklyGoal: 3, sport: "running", level: "intermediate", name: "Test Athlete", avatarUrl: null, weeklyGoalCelebratedAt: null },
     }),
@@ -228,6 +227,7 @@ beforeEach(() => {
   mockAnalysesGet.mockReset();
   mockAnalysesList.mockResolvedValue({ analyses: [] });
   mockProfileStats.mockResolvedValue({ thisWeekCount: 3 });
+  mockProfileGet.mockResolvedValue({ profile: { weeklyGoal: 3, sport: "running" } });
 
   mockAsyncStorageGetItem.mockClear();
   mockAsyncStorageSetItem.mockClear();
