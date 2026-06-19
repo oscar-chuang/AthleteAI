@@ -380,6 +380,42 @@ describe("AnalysisDetailScreen — share preview modal", () => {
     expect(mockShareAsync).not.toHaveBeenCalled();
   });
 
+  it("shows the unavailability banner and keeps the modal open when sharing is unsupported", async () => {
+    // Simulate a device where expo-sharing is unavailable.
+    mockIsAvailableAsync.mockResolvedValue(false);
+
+    render(<AnalysisDetailScreen />);
+    await simulateFocus();
+
+    // Open the share preview modal.
+    fireEvent.press(screen.getByRole("button", { name: "Share analysis" }));
+    await flush();
+
+    expect(screen.getByText("Share your session")).toBeTruthy();
+
+    // Banner must NOT be visible yet (sharing hasn't been attempted).
+    expect(
+      screen.queryByText("Sharing isn't supported on this device. Save to photos instead."),
+    ).toBeNull();
+
+    // Tap the Share CTA — this triggers handleDoShare which calls isAvailableAsync.
+    fireEvent.press(screen.getByText("Share"));
+    await flush();
+
+    // The unavailability banner must now be visible.
+    expect(
+      screen.getByText("Sharing isn't supported on this device. Save to photos instead."),
+    ).toBeTruthy();
+
+    // The modal must still be open — the Share CTA must NOT have closed it.
+    expect(screen.getByText("Share your session")).toBeTruthy();
+
+    // captureRef and any share sinks must never have been called.
+    expect(mockCaptureRef).not.toHaveBeenCalled();
+    expect(mockStartActivityAsync).not.toHaveBeenCalled();
+    expect(mockShareAsync).not.toHaveBeenCalled();
+  });
+
   it("tip picker remembers the last-chosen tip when the share preview is reopened", async () => {
     // Provide two tips so the tip picker renders (requires sortedTips.length > 1).
     mockAnalysesGet.mockResolvedValue({
