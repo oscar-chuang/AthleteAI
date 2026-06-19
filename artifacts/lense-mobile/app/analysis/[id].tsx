@@ -679,9 +679,14 @@ export default function AnalysisDetailScreen() {
     const pendingKey    = `confetti_pending_${weekKey}`;
     const prevCountKey  = `confetti_prev_count_${weekKey}`;
     try {
-      const statsResult = await profileApi.stats();
+      const [statsResult, profileResult] = await Promise.all([
+        profileApi.stats(),
+        profileApi.get(),
+      ]);
       const currentCount = statsResult.thisWeekCount ?? 0;
-      const weeklyGoal   = profile?.weeklyGoal ?? 3;
+      // Always use the freshest weeklyGoal from the server — the cached context
+      // value may be stale if the user changed their goal mid-week in Settings.
+      const weeklyGoal = profileResult.profile.weeklyGoal ?? profile?.weeklyGoal ?? 3;
 
       const [celebrated, pending, prevCountStr] = await Promise.all([
         AsyncStorage.getItem(celebratedKey),

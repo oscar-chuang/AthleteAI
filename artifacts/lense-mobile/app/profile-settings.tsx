@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 
@@ -48,6 +49,23 @@ const INJURIES = [
 ];
 
 const WEEKLY_GOAL_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
+
+function getWeekKey(): string {
+  const d = new Date();
+  const sunday = new Date(d);
+  sunday.setDate(d.getDate() - d.getDay());
+  return sunday.toISOString().split("T")[0]!;
+}
+
+/**
+ * When the user raises or lowers their weekly goal mid-week we must clear the
+ * "already celebrated" flag so the toast (and Home confetti) can re-evaluate
+ * against the new target on the next completed analysis.
+ */
+async function resetGoalToastForWeek(): Promise<void> {
+  const weekKey = getWeekKey();
+  await AsyncStorage.removeItem(`confetti_celebrated_${weekKey}`);
+}
 
 // ─── Discard-prompt dirty-state contract ──────────────────────────────────────
 // Every field that should trigger the "Discard changes?" prompt when the user
@@ -269,6 +287,9 @@ export default function ProfileSettingsScreen() {
         if (goalAutoSuggestTimerRef.current) {
           clearTimeout(goalAutoSuggestTimerRef.current);
         }
+        // Goal changed — clear the "already celebrated" flag so the toast can
+        // re-evaluate against the new target. Fire-and-forget — non-critical.
+        resetGoalToastForWeek().catch(() => {});
         setGoalAutoSuggestedFor(suggestedGoal);
         goalAutoSuggestTimerRef.current = setTimeout(() => {
           setGoalAutoSuggestedFor(null);
@@ -296,6 +317,9 @@ export default function ProfileSettingsScreen() {
     setGoalSaving(true);
     try {
       await updateProfile({ weeklyGoal: n });
+      // Clear the "already celebrated" flag so the toast re-evaluates against
+      // the new target. Fire-and-forget — non-critical.
+      resetGoalToastForWeek().catch(() => {});
       setGoalSavedFor(n);
       setTimeout(() => setGoalSavedFor(null), 1500);
     } catch {
