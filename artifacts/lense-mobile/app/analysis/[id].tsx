@@ -23,6 +23,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { useSharePreview } from "@/hooks/useSharePreview";
+import { useCardStagger } from "@/hooks/useCardStagger";
 
 import { useColors } from "@/hooks/useColors";
 import { formatBiomechanicsText } from "@/utils/formatBiomechanics";
@@ -396,8 +397,10 @@ export default function AnalysisDetailScreen() {
 
   // Sub-score ring scroll-in animation state
   const [cardsVisible, setCardsVisible] = useState(false);
-  const [cardAnimated, setCardAnimated] = useState<boolean[]>(
-    Array(SCORE_KEYS.length).fill(false)
+  const cardAnimated = useCardStagger(
+    cardsVisible,
+    SCORE_KEYS.length,
+    !!(analysis?.id && ringAnimationDone.has(analysis.id)),
   );
   const scoreGridY = useRef<number | null>(null);
   // Height of the ScrollView's visible area — used to auto-trigger rings when
@@ -416,38 +419,13 @@ export default function AnalysisDetailScreen() {
 
   const scrollRef = useRef<ScrollView>(null);
 
-  // If this analysis has already played its ring animation (e.g. user returns
-  // to the same session or switches tabs and comes back), show all rings
-  // instantly without replaying the stagger.
+  // When cardsVisible fires for the first time for this analysis, register it
+  // in ringAnimationDone so return visits show all rings instantly (the
+  // instant=true path in useCardStagger) without replaying the stagger.
   useEffect(() => {
-    if (!analysis?.id) return;
-    if (ringAnimationDone.has(analysis.id)) {
-      setCardAnimated(Array(SCORE_KEYS.length).fill(true));
-      setCardsVisible(true);
-    }
-  }, [analysis?.id]);
-
-  // Stagger-trigger each sub-score ring when the grid scrolls into view.
-  // Skips the stagger for already-seen analyses (cardsVisible was set to true
-  // immediately above, so this effect fires but exits the already-seen branch).
-  useEffect(() => {
-    if (!cardsVisible) return;
-    if (analysis?.id && ringAnimationDone.has(analysis.id)) {
-      // Already animated — ensure all rings show immediately (idempotent).
-      setCardAnimated(Array(SCORE_KEYS.length).fill(true));
-      return;
-    }
-    if (analysis?.id) ringAnimationDone.add(analysis.id);
-    SCORE_KEYS.forEach((_, i) => {
-      setTimeout(() => {
-        setCardAnimated((prev) => {
-          const next = [...prev];
-          next[i] = true;
-          return next;
-        });
-      }, i * 100);
-    });
-  }, [cardsVisible]);
+    if (!cardsVisible || !analysis?.id || ringAnimationDone.has(analysis.id)) return;
+    ringAnimationDone.add(analysis.id);
+  }, [cardsVisible, analysis?.id]);
 
   // Hero fade-in
   const heroOpacity = useRef(new Animated.Value(0)).current;
