@@ -97,6 +97,8 @@ export default function HomeScreen() {
   const [showGoalSheet, setShowGoalSheet] = useState(false);
   const [goalSheetSaving, setGoalSheetSaving] = useState(false);
   const [localWeeklyGoal, setLocalWeeklyGoal] = useState<number | null>(null);
+  const [showShareHint, setShowShareHint] = useState(false);
+  const shareHintAnim = useRef(new Animated.Value(0)).current;
 
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
@@ -142,6 +144,12 @@ export default function HomeScreen() {
           ]);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
           setShowConfetti(true);
+        }
+        if (currentCount >= currentWeekGoal) {
+          const hintShown = await AsyncStorage.getItem("share_hint_shown");
+          if (!hintShown) {
+            setShowShareHint(true);
+          }
         }
         await AsyncStorage.setItem(prevCountKey, String(currentCount));
       }
@@ -189,6 +197,13 @@ export default function HomeScreen() {
     }
   }, [goalSheetSaving, weeklyGoal, updateProfile]);
 
+  const dismissShareHint = useCallback(async () => {
+    await AsyncStorage.setItem("share_hint_shown", "true");
+    Animated.timing(shareHintAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
+      setShowShareHint(false);
+    });
+  }, [shareHintAnim]);
+
   const handleShareGoal = useCallback(async () => {
     const message = buildGoalShareMessage({
       sessionCount: thisWeek,
@@ -201,6 +216,19 @@ export default function HomeScreen() {
       // user dismissed or share unavailable — no-op
     }
   }, [profile?.sport, thisWeek, streakDays]);
+
+  useEffect(() => {
+    if (!showShareHint) return;
+    const fadeIn = Animated.timing(shareHintAnim, { toValue: 1, duration: 350, useNativeDriver: true });
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shareHintAnim, { toValue: 0.6, duration: 700, useNativeDriver: true }),
+        Animated.timing(shareHintAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    fadeIn.start(() => pulse.start());
+    return () => { pulse.stop(); };
+  }, [showShareHint, shareHintAnim]);
 
   useEffect(() => {
     if (!goalReached) return;
@@ -321,6 +349,9 @@ export default function HomeScreen() {
     goalBannerText:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#b45309", flex: 1 },
     goalBannerSub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#92400e", marginTop: 1 },
     goalShareBtn:       { padding: 4, borderRadius: 6, backgroundColor: "#f59e0b22" },
+    shareHintBubble:    { backgroundColor: "#d97706", borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, marginBottom: 6, alignItems: "center" },
+    shareHintText:      { color: "#fff", fontSize: 11, fontFamily: "Inter_600SemiBold", whiteSpace: "nowrap" } as any,
+    shareHintArrow:     { position: "absolute", bottom: -5, right: 10, width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 5, borderLeftColor: "transparent", borderRightColor: "transparent", borderTopColor: "#d97706" },
 
     scoreGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 10 },
     scoreItem:      { width: "30%", backgroundColor: colors.card, borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
@@ -552,7 +583,11 @@ export default function HomeScreen() {
             <Text style={[s.sectionTitle, { marginBottom: 12 }]}>This Week</Text>
             <View style={goalReached ? s.weeklyCardGoal : s.weeklyCard}>
               {goalReached && (
-                <View style={s.goalBanner}>
+                <TouchableOpacity
+                  activeOpacity={showShareHint ? 0.95 : 1}
+                  onPress={showShareHint ? dismissShareHint : undefined}
+                  style={s.goalBanner}
+                >
                   <Animated.View style={{ transform: [{ scale: trophyScale }] }}>
                     <Feather name="award" size={20} color="#d97706" />
                   </Animated.View>
@@ -560,15 +595,23 @@ export default function HomeScreen() {
                     <Text style={s.goalBannerText}>Weekly goal reached!</Text>
                     <Text style={s.goalBannerSub}>{thisWeek} of {weeklyGoal} sessions this week</Text>
                   </View>
-                  <TouchableOpacity
-                    onPress={handleShareGoal}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    activeOpacity={0.7}
-                    style={s.goalShareBtn}
-                  >
-                    <Feather name="share-2" size={16} color="#d97706" />
-                  </TouchableOpacity>
-                </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    {showShareHint && (
+                      <Animated.View style={[s.shareHintBubble, { opacity: shareHintAnim }]}>
+                        <Text style={s.shareHintText}>Tap to share 🎉</Text>
+                        <View style={s.shareHintArrow} />
+                      </Animated.View>
+                    )}
+                    <TouchableOpacity
+                      onPress={() => { dismissShareHint(); handleShareGoal(); }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      activeOpacity={0.7}
+                      style={s.goalShareBtn}
+                    >
+                      <Feather name="share-2" size={16} color="#d97706" />
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
               )}
               <View style={s.weeklyRow}>
                 <Text style={s.weeklyLabel}>Sessions completed</Text>
