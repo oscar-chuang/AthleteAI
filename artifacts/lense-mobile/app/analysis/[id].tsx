@@ -22,6 +22,7 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
+import * as MediaLibrary from "expo-media-library";
 
 import { useColors } from "@/hooks/useColors";
 import {
@@ -351,6 +352,7 @@ export default function AnalysisDetailScreen() {
   const [deleting, setDeleting] = useState(false);
   const [pollExhausted, setPollExhausted] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [showSharePreview, setShowSharePreview] = useState(false);
   const [selectedShareTipId, setSelectedShareTipId] = useState<string | null>(null);
   const shareCardRef = useRef<View>(null);
@@ -579,6 +581,32 @@ export default function AnalysisDetailScreen() {
       Alert.alert("Couldn't share", "Something went wrong. Please try again.");
     } finally {
       setSharing(false);
+    }
+  }
+
+  async function handleSaveToPhotos() {
+    if (!analysis || saving) return;
+    setSaving(true);
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission required",
+          "Please allow photo library access in your device settings to save images."
+        );
+        return;
+      }
+      const uri = await captureRef(shareCardRef, {
+        format: "png",
+        quality: 1,
+        result: "tmpfile",
+      });
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Alert.alert("Saved!", "Your share card has been saved to your camera roll.");
+    } catch {
+      Alert.alert("Couldn't save", "Something went wrong. Please try again.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -1049,6 +1077,28 @@ export default function AnalysisDetailScreen() {
             )}
 
             {/* Actions */}
+            <TouchableOpacity
+              onPress={handleSaveToPhotos}
+              activeOpacity={0.7}
+              disabled={saving || sharing}
+              style={[
+                styles.sheetBtn,
+                styles.sheetBtnSave,
+                { borderColor: colors.border, backgroundColor: colors.background, marginBottom: 10, width: "100%" },
+              ]}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color={colors.foreground} />
+              ) : (
+                <>
+                  <Feather name="download" size={15} color={colors.foreground} />
+                  <Text style={[styles.sheetBtnText, { color: colors.foreground }]}>
+                    Save to photos
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+
             <View style={styles.sheetActions}>
               <TouchableOpacity
                 onPress={() => setShowSharePreview(false)}
@@ -1069,7 +1119,7 @@ export default function AnalysisDetailScreen() {
               <TouchableOpacity
                 onPress={handleDoShare}
                 activeOpacity={0.7}
-                disabled={sharing}
+                disabled={sharing || saving}
                 style={[
                   styles.sheetBtn,
                   styles.sheetBtnShare,
@@ -2335,6 +2385,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   sheetBtnCancel: {
+    borderWidth: 1,
+  },
+  sheetBtnSave: {
     borderWidth: 1,
   },
   sheetBtnShare: {},
