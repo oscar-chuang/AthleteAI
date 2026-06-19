@@ -36,6 +36,18 @@ jest.mock("expo-image-picker", () => ({
   launchImageLibraryAsync: jest.fn(),
 }));
 
+// ─── CropModal mock ─────────────────────────────────────────────────────────────
+// Captures the latest onConfirm prop so tests can trigger a crop confirmation
+// without rendering the real CropModal (which requires image-manipulator).
+let capturedCropConfirm: ((result: { mimeType: string; base64: string }) => Promise<void>) | null = null;
+
+jest.mock("@/components/CropModal", () => ({
+  CropModal: ({ visible, onConfirm }: { visible: boolean; onConfirm: any }) => {
+    if (visible && onConfirm) capturedCropConfirm = onConfirm;
+    return null;
+  },
+}));
+
 // ─── Auth mock ─────────────────────────────────────────────────────────────────
 const mockUpdateProfile = jest.fn(async () => {});
 
@@ -125,6 +137,7 @@ async function flush(rounds = 3) {
 
 beforeEach(() => {
   capturedBeforeRemove = undefined;
+  capturedCropConfirm = null;
   mockAddListener.mockClear();
   mockDispatch.mockClear();
   mockUpdateProfile.mockClear();
@@ -545,5 +558,120 @@ describe("ProfileSettingsScreen — goal/training-days mismatch nudge", () => {
 
     expect(queryByTestId("mismatch-nudge")).toBeNull();
     expect(mockUpdateProfile).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Avatar upload rollback when server rejects ────────────────────────────────
+//
+// Verifies the full rendered component rolls back correctly when updateProfile
+// rejects after the optimistic avatarUrl update inside handleCropConfirm.
+//
+// Test flow:
+//   1. Start with an existing photo avatar so the "Remove photo" button is visible.
+//   2. Mock ImagePicker to grant permission and return a fake image asset.
+//   3. Press the avatar button → handlePickPhoto() runs → CropModal mock captures
+//      the onConfirm callback.
+//   4. Call the captured callback with a fake CropResult.
+//   5. Depending on whether updateProfile resolves or rejects:
+//      - reject → avatar reverts to OLD_AVATAR ("Remove photo" still shown,
+//        error banner appears).
+//      - resolve → new photo is committed ("Remove photo" still shown, no error).
+
+describe("ProfileSettingsScreen — avatar upload rolls back when server rejects", () => {
+  const OLD_AVATAR = "data:image/jpeg;base64,OLD==";
+  const FAKE_CROP: { mimeType: string; base64: string } = {
+    mimeType: "image/jpeg",
+    base64: "NEW==",
+  };
+
+  const ImagePicker = require("expo-image-picker") as {
+    requestMediaLibraryPermissionsAsync: jest.Mock;
+    launchImageLibraryAsync: jest.Mock;
+  };
+
+  beforeEach(() => {
+    mockProfile.avatarUrl = OLD_AVATAR;
+    ImagePicker.requestMediaLibraryPermissionsAsync.mockResolvedValue({ status: "granted" });
+    ImagePicker.launchImageLibraryAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: "file:///tmp/test.jpg", width: 800, height: 800 }],
+    });
+  });
+
+  /** Press the avatar button and wait for ImagePicker to resolve, populating
+   *  pendingImageUri so the CropModal mock can capture onConfirm. */
+  async function pickPhoto(getByTestId: ReturnType<typeof render>["getByTestId"]) {
+    await act(async () => {
+      fireEvent.press(getByTestId("avatar-photo-btn"));
+    });
+    await flush();
+  }
+
+  it("reverts the displayed avatar URI to the original when updateProfile rejects", async () => {
+    mockUpdateProfile.mockRejectedValueOnce(new Error("Server error"));
+
+    const { getByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    // Before picking: the image renders the OLD_AVATAR URI.
+    expect(getByTestId("avatar-image").props.source.uri).toBe(OLD_AVATAR);
+
+    await pickPhoto(getByTestId);
+
+    // CropModal mock should have captured the onConfirm callback by now.
+    expect(capturedCropConfirm).not.toBeNull();
+
+    // Simulate the user confirming the crop — updateProfile will reject.
+    await act(async () => {
+      await capturedCropConfirm!(FAKE_CROP);
+    });
+    await flush();
+
+    // After the failed upload the avatar must have been rolled back to the
+    // original URI — NOT left at the optimistic new URI.
+    expect(getByTestId("avatar-image").props.source.uri).toBe(OLD_AVATAR);
+  });
+
+  it("shows the error banner after a failed upload", async () => {
+    mockUpdateProfile.mockRejectedValueOnce(new Error("Server error"));
+
+    const { getByTestId, getByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    await pickPhoto(getByTestId);
+    expect(capturedCropConfirm).not.toBeNull();
+
+    await act(async () => {
+      await capturedCropConfirm!(FAKE_CROP);
+    });
+    await flush();
+
+    expect(getByText("Couldn't save photo. Please try again.")).toBeTruthy();
+    // The avatar URI must still be the original — error message alone is
+    // insufficient to confirm rollback without verifying the URI.
+    expect(getByTestId("avatar-image").props.source.uri).toBe(OLD_AVATAR);
+  });
+
+  it("keeps the new photo avatar URI when updateProfile resolves (control case)", async () => {
+    // updateProfile resolves — avatar should stay at the new URI, not revert.
+    mockUpdateProfile.mockResolvedValueOnce(undefined);
+
+    const { getByTestId, queryByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    await pickPhoto(getByTestId);
+    expect(capturedCropConfirm).not.toBeNull();
+
+    await act(async () => {
+      await capturedCropConfirm!(FAKE_CROP);
+    });
+    await flush();
+
+    const expectedNewUri = `data:${FAKE_CROP.mimeType};base64,${FAKE_CROP.base64}`;
+
+    // New photo was committed — avatar image must show the new URI.
+    expect(getByTestId("avatar-image").props.source.uri).toBe(expectedNewUri);
+    // No error banner.
+    expect(queryByText("Couldn't save photo. Please try again.")).toBeNull();
   });
 });

@@ -134,9 +134,10 @@ interface AvatarDisplayProps {
   name: string;
   size: number;
   colors: ReturnType<typeof useColors>;
+  testID?: string;
 }
 
-export function AvatarDisplay({ avatarUrl, name, size, colors }: AvatarDisplayProps) {
+export function AvatarDisplay({ avatarUrl, name, size, colors, testID }: AvatarDisplayProps) {
   const presetColor = getPresetColor(avatarUrl);
   const isPhoto = isPhotoAvatar(avatarUrl);
   const initials = getInitials(name || "Athlete");
@@ -145,6 +146,7 @@ export function AvatarDisplay({ avatarUrl, name, size, colors }: AvatarDisplayPr
   if (isPhoto && avatarUrl) {
     return (
       <Image
+        testID={testID}
         source={{ uri: avatarUrl }}
         style={{ width: size, height: size, borderRadius: size / 2 }}
         resizeMode="cover"
@@ -803,6 +805,7 @@ export default function ProfileSettingsScreen() {
         {/* ── Avatar Picker ── */}
         <View style={s.avatarSection}>
           <TouchableOpacity
+            testID="avatar-photo-btn"
             style={s.avatarRing}
             onPress={handlePickPhoto}
             activeOpacity={0.85}
@@ -819,6 +822,7 @@ export default function ProfileSettingsScreen() {
               </View>
             ) : (
               <AvatarDisplay
+                testID="avatar-image"
                 avatarUrl={avatarUrl}
                 name={displayName}
                 size={88}
