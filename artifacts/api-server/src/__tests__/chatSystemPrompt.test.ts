@@ -237,6 +237,36 @@ describe("buildSystemPrompt — reads latest profile on every call", () => {
     expect(prompt).toContain("advanced");
     expect(prompt).toContain("volleyball");
   });
+
+  it("reflects a level change from beginner to advanced without requiring a restart", async () => {
+    setProfile("tennis", "Test Athlete", "beginner");
+    const prompt1 = await buildSystemPrompt(USER_ID);
+    expect(prompt1).toContain("beginner");
+    expect(prompt1).not.toContain("advanced");
+
+    // Athlete updates their level to advanced mid-session
+    setProfile("tennis", "Test Athlete", "advanced");
+    const prompt2 = await buildSystemPrompt(USER_ID);
+    expect(prompt2).toContain("advanced");
+    // The old level must NOT appear in the fresh prompt
+    expect(prompt2).not.toContain("beginner");
+  });
+
+  it("coaches a beginner differently from an advanced athlete for the same sport", async () => {
+    setProfile("cycling", "Test Athlete", "beginner");
+    const beginnerPrompt = await buildSystemPrompt(USER_ID);
+
+    setProfile("cycling", "Test Athlete", "advanced");
+    const advancedPrompt = await buildSystemPrompt(USER_ID);
+
+    // Both prompts are for the same sport — only the level word differs
+    expect(beginnerPrompt).toContain("cycling");
+    expect(advancedPrompt).toContain("cycling");
+    expect(beginnerPrompt).toContain("beginner");
+    expect(advancedPrompt).toContain("advanced");
+    // Prompts must differ — level must actually influence the coaching context
+    expect(beginnerPrompt).not.toEqual(advancedPrompt);
+  });
 });
 
 describe("buildSystemPrompt — feel cues appear in the system prompt", () => {

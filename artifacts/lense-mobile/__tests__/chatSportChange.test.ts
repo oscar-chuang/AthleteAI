@@ -213,4 +213,58 @@ describe("chat screen — sport change propagates to suggestion chips", () => {
     expect(state.hasCompletedAnalyses).toBe(true);
     expect(state.suggestions[0]).toBe("tip B");
   });
+
+  // ── Test 6 ────────────────────────────────────────────────────────────────
+
+  it("re-fetches suggestions when only the level changes (sport stays the same)", async () => {
+    fetchSuggestions
+      .mockResolvedValueOnce({
+        suggestions: ["Focus on basic form", "Beginner drills for running"],
+        hasCompletedAnalyses: true,
+      })
+      .mockResolvedValueOnce({
+        suggestions: ["Advanced interval training", "Lactate threshold work"],
+        hasCompletedAnalyses: true,
+      });
+
+    const { state, doInitialLoad, onProfileChange } = makeChatSportMachine(fetchSuggestions);
+
+    // Initial load — suggestions for a beginner runner
+    await doInitialLoad();
+    state.sport = "running";
+    state.level = "beginner";
+    expect(fetchSuggestions).toHaveBeenCalledTimes(1);
+    expect(state.suggestions[0]).toContain("basic form");
+
+    // Athlete upgrades their level to advanced — sport is unchanged
+    await onProfileChange("running", "advanced");
+
+    // A second fetch must fire because the level dep changed
+    expect(fetchSuggestions).toHaveBeenCalledTimes(2);
+    // Suggestions now reflect the advanced level
+    expect(state.suggestions[0]).toContain("Advanced");
+    // Beginner suggestions are gone
+    expect(state.suggestions.every(s => !s.toLowerCase().includes("beginner"))).toBe(true);
+  });
+
+  // ── Test 7 ────────────────────────────────────────────────────────────────
+
+  it("does NOT re-fetch when both sport and level are unchanged", async () => {
+    fetchSuggestions.mockResolvedValue({
+      suggestions: ["Keep up the great work"],
+      hasCompletedAnalyses: true,
+    });
+
+    const { state, doInitialLoad, onProfileChange } = makeChatSportMachine(fetchSuggestions);
+
+    await doInitialLoad();
+    state.sport = "swimming";
+    state.level = "advanced";
+
+    // Simulate profile re-read returning identical values
+    await onProfileChange("swimming", "advanced");
+
+    // No second call — neither dep changed
+    expect(fetchSuggestions).toHaveBeenCalledTimes(1);
+  });
 });
