@@ -326,7 +326,7 @@ function StateScreen({
 
 // ── Main screen ────────────────────────────────────────────────────────────────
 export default function AnalysisDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, tab } = useLocalSearchParams<{ id: string; tab?: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -339,8 +339,9 @@ export default function AnalysisDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [expandedTip, setExpanded] = useState<string | null>(null);
+  const validTabs = ["scores", "tips", "risks"] as const;
   const [activeTab, setActiveTab] = useState<"scores" | "tips" | "risks">(
-    "scores"
+    validTabs.includes(tab as any) ? (tab as "scores" | "tips" | "risks") : "scores"
   );
   const [showGuide, setShowGuide] = useState(false);
   const [note, setNote] = useState("");
@@ -359,6 +360,8 @@ export default function AnalysisDetailScreen() {
 
   // Sibling session IDs for prev/next navigation — sorted newest-first
   const [siblingIds, setSiblingIds] = useState<string[]>([]);
+
+  const scrollRef = useRef<ScrollView>(null);
 
   // Hero fade-in
   const heroOpacity = useRef(new Animated.Value(0)).current;
@@ -411,7 +414,8 @@ export default function AnalysisDetailScreen() {
       : null;
 
   function navigateTo(targetId: string) {
-    router.replace(`/analysis/${targetId}` as any);
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+    router.replace(`/analysis/${targetId}?tab=${activeTab}` as any);
   }
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -904,6 +908,7 @@ export default function AnalysisDetailScreen() {
       </Modal>
 
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: bottomPad }}
       >
