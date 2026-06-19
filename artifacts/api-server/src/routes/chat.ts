@@ -55,11 +55,19 @@ export async function buildSystemPrompt(userId: number): Promise<string> {
       .orderBy(desc(completedDrillsTable.completedAt)),
   ]);
 
+  const recentAnalysisIds = new Set(recentAnalyses.map((a) => a.id));
+
   const completedByAnalysis = new Map<number, { tipId: string; drillName: string | null; completedAt: Date }[]>();
+  const olderSessionDrillNames = new Set<string>();
+
   for (const row of allCompletedDrills) {
     const list = completedByAnalysis.get(row.analysisId) ?? [];
     list.push({ tipId: row.tipId, drillName: row.drillName, completedAt: row.completedAt });
     completedByAnalysis.set(row.analysisId, list);
+
+    if (!recentAnalysisIds.has(row.analysisId) && row.drillName && olderSessionDrillNames.size < 10) {
+      olderSessionDrillNames.add(row.drillName);
+    }
   }
 
   const athleteName = profile?.name ? `${profile.name}` : "this athlete";
@@ -129,6 +137,10 @@ export async function buildSystemPrompt(userId: number): Promise<string> {
     }
   } else {
     systemPrompt += `\n\nThis athlete has no completed analyses yet.`;
+  }
+
+  if (olderSessionDrillNames.size > 0) {
+    systemPrompt += `\n\nDrills mastered in earlier sessions (do not re-prescribe unless the athlete asks): ${[...olderSessionDrillNames].join(", ")}.`;
   }
 
   systemPrompt += `\n\nCoaching style:

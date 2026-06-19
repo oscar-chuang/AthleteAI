@@ -41,6 +41,7 @@ const h = vi.hoisted(() => {
   };
 
   type AnalysisRow = {
+    id?: number;
     userId: number;
     status: string;
     sport: string;
@@ -183,6 +184,20 @@ function clearAnalyses() {
   h.analysesStore.length = 0;
 }
 
+function clearCompletedDrills() {
+  h.completedDrillsStore.length = 0;
+}
+
+function addCompletedDrill(analysisId: number, drillName: string | null, tipId = "tip-1") {
+  h.completedDrillsStore.push({
+    userId: USER_ID,
+    analysisId,
+    tipId,
+    drillName,
+    completedAt: new Date(),
+  });
+}
+
 type TipDrill = {
   name?: string;
   sets?: string;
@@ -198,6 +213,7 @@ type Tip = {
 };
 
 function addAnalysis(overrides: {
+  id?: number;
   status?: string;
   sport?: string;
   title?: string;
@@ -206,7 +222,9 @@ function addAnalysis(overrides: {
   strengths?: string[] | null;
   improvements?: string[] | null;
 } = {}) {
+  const id = overrides.id ?? (h.analysesStore.length + 1);
   h.analysesStore.push({
+    id,
     userId: USER_ID,
     status: overrides.status ?? "complete",
     sport: overrides.sport ?? "running",
@@ -217,6 +235,7 @@ function addAnalysis(overrides: {
     strengths: overrides.strengths ?? null,
     improvements: overrides.improvements ?? null,
   });
+  return id;
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────────
@@ -688,5 +707,94 @@ describe("buildSystemPrompt — injury concerns appear in coaching context", () 
     expect(prompt).toContain("hamstring tightness");
     expect(prompt).toContain("ankle instability");
     expect(prompt).toContain("hip flexor strain");
+  });
+});
+
+describe("buildSystemPrompt — older-session drills summary", () => {
+  beforeEach(() => {
+    setProfile("running");
+    clearAnalyses();
+    clearCompletedDrills();
+  });
+
+  it("includes drill names completed in sessions beyond the 5 most recent", async () => {
+    // Add 6 analyses; mock returns first 5 as "recent", 6th is older
+    for (let i = 1; i <= 5; i++) addAnalysis({ id: i, title: `Session ${i}` });
+    const oldId = addAnalysis({ id: 6, title: "Old Session" });
+    addCompletedDrill(oldId, "Nordic Hamstring Curl");
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).toContain("Nordic Hamstring Curl");
+    expect(prompt).toContain("mastered in earlier sessions");
+  });
+
+  it("does not emit the older-drills section when all completed drills belong to the 5 most recent sessions", async () => {
+    const recentId = addAnalysis({ id: 1, title: "Recent Session" });
+    addCompletedDrill(recentId, "Squat Jump");
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).not.toContain("mastered in earlier sessions");
+  });
+
+  it("omits the older-drills section when there are no completed drills at all", async () => {
+    for (let i = 1; i <= 3; i++) addAnalysis({ id: i });
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).not.toContain("mastered in earlier sessions");
+  });
+
+  it("collects distinct drill names — duplicates appear only once", async () => {
+    for (let i = 1; i <= 5; i++) addAnalysis({ id: i });
+    const oldId1 = addAnalysis({ id: 6 });
+    const oldId2 = addAnalysis({ id: 7 });
+    addCompletedDrill(oldId1, "Box Jump", "tip-a");
+    addCompletedDrill(oldId2, "Box Jump", "tip-b");
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    // "Box Jump" should appear only once in the older-drills line
+    const olderLine = prompt.split("\n").find((l) => l.includes("mastered in earlier sessions")) ?? "";
+    const count = (olderLine.match(/Box Jump/g) ?? []).length;
+    expect(count).toBe(1);
+  });
+
+  it("caps the older-drills list at 10 distinct names", async () => {
+    for (let i = 1; i <= 5; i++) addAnalysis({ id: i });
+    const oldId = addAnalysis({ id: 6 });
+    const drillNames = Array.from({ length: 15 }, (_, k) => `Drill ${k + 1}`);
+    drillNames.forEach((name, k) => addCompletedDrill(oldId, name, `tip-${k}`));
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    const olderLine = prompt.split("\n").find((l) => l.includes("mastered in earlier sessions")) ?? "";
+    const namesInPrompt = drillNames.filter((name) => olderLine.includes(name));
+    expect(namesInPrompt.length).toBeLessThanOrEqual(10);
+  });
+
+  it("ignores completed-drill rows with a null drill name", async () => {
+    for (let i = 1; i <= 5; i++) addAnalysis({ id: i });
+    const oldId = addAnalysis({ id: 6 });
+    addCompletedDrill(oldId, null);
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).not.toContain("mastered in earlier sessions");
+  });
+
+  it("includes multiple different older-session drills in the summary", async () => {
+    for (let i = 1; i <= 5; i++) addAnalysis({ id: i });
+    const oldId = addAnalysis({ id: 6 });
+    addCompletedDrill(oldId, "Hip Flexor Stretch", "tip-a");
+    addCompletedDrill(oldId, "Glute Bridge", "tip-b");
+    addCompletedDrill(oldId, "Calf Raise", "tip-c");
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).toContain("Hip Flexor Stretch");
+    expect(prompt).toContain("Glute Bridge");
+    expect(prompt).toContain("Calf Raise");
   });
 });
