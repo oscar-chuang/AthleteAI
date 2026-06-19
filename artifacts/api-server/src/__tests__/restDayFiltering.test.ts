@@ -10,6 +10,10 @@
  *      filter to the previous calendar week.
  *
  * Both route suites use trainingDays = [1, 3, 5] (Mon / Wed / Fri).
+ * The thisWeek suites plant five sessions in the current week: Mon, Wed, Fri
+ * (training days) and Sat, Sun (rest days) — expected count = 3.
+ * The lastWeek suite plants five sessions in the previous calendar week with
+ * the same day distribution — expected lastWeekCount = 3.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -255,6 +259,7 @@ describe("GET /profile/stats — lastWeekCount rest-day filtering", () => {
     expect(res.status).toBe(200);
     expect(res.body.lastWeekCount).toBe(3); // Mon + Wed + Fri only
     expect(res.body.thisWeekCount).toBe(0); // no sessions this week
+    expect(res.body.totalAnalyses).toBe(5); // all five rows present
   });
 
   it("lastWeekCount is 0 when every last-week session falls on a rest day", async () => {
@@ -286,5 +291,25 @@ describe("GET /profile/stats — lastWeekCount rest-day filtering", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.lastWeekCount).toBe(5);
+  });
+
+  it("lastWeekCount ignores sessions from the current week", async () => {
+    // Mix: 3 last-week training days + 2 this-week training days.
+    // lastWeekCount must only reflect the 3 last-week ones.
+    const mixed = [
+      ...LAST_WEEK_SESSION_ROWS.slice(0, 3), // Mon/Wed/Fri last week ✓
+      ...SESSION_ROWS.slice(0, 2),           // Mon/Wed this week (not last week)
+    ];
+    h.state.queue = [
+      [{ trainingDays: TRAINING_DAYS }],
+      mixed,
+    ];
+
+    const app = makeApp();
+    const res = await request(app).get("/profile/stats");
+
+    expect(res.status).toBe(200);
+    expect(res.body.lastWeekCount).toBe(3);
+    expect(res.body.thisWeekCount).toBe(2);
   });
 });
