@@ -172,6 +172,38 @@ jest.mock("@/components/analysis/ShareCard", () => ({
   SHARE_CARD_LIGHT: {},
 }));
 
+jest.mock("expo-intent-launcher", () => ({
+  startActivityAsync: jest.fn(async () => {}),
+}));
+
+jest.mock("expo-file-system", () => ({
+  getContentUriAsync: jest.fn(async () => "content://mock/uri"),
+}));
+
+jest.mock("@/utils/swipeNavigation", () => ({
+  SWIPE_THRESHOLD:          60,
+  SWIPE_VELOCITY_THRESHOLD: 0.4,
+  resolveAdjacentIds:       jest.fn(() => ({ prevId: null, nextId: null })),
+  shouldActivateSwipe:      jest.fn(() => false),
+  resolveSwipeDirection:    jest.fn(() => "none"),
+  resolveSwipeTranslation:  jest.fn(() => 0),
+}));
+
+jest.mock("@/hooks/useCardStagger", () => ({
+  useCardStagger: jest.fn(() => ({
+    cardAnims:    [],
+    startStagger: jest.fn(),
+  })),
+}));
+
+jest.mock("@/utils/shareUtils", () => ({
+  buildGoalShareMessage:    jest.fn(() => "Share message"),
+  buildSessionDeepLink:     jest.fn(() => "athleteai://analysis/test"),
+  buildSessionShareMessage: jest.fn(() => "Session share"),
+  buildSessionSharePayload: jest.fn(() => ({ message: "", url: "" })),
+  SESSION_DEEP_LINK_SCHEME: "athleteai://analysis",
+}));
+
 // Import the screen AFTER all mocks are registered.
 import AnalysisDetailScreen from "../[id]";
 

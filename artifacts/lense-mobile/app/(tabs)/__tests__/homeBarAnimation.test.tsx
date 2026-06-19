@@ -160,6 +160,24 @@ jest.mock("@/components/ShareCard", () => ({
   default: require("react").forwardRef(() => null),
 }));
 
+jest.mock("@/utils/shareUtils", () => ({
+  buildGoalShareMessage:    jest.fn(() => "Share message"),
+  buildSessionDeepLink:     jest.fn(() => "athleteai://analysis/a1"),
+  buildSessionShareMessage: jest.fn(() => "Session share message"),
+  buildSessionSharePayload: jest.fn(() => ({ message: "", url: "" })),
+  SESSION_DEEP_LINK_SCHEME: "athleteai://analysis",
+}));
+
+jest.mock("@/utils/scheduleUtils", () => ({
+  SCHEDULE_DAY_LABELS:    ["S", "M", "T", "W", "T", "F", "S"],
+  computeScheduleSummary: jest.fn(() => null),
+}));
+
+jest.mock("@/utils/shareCardCapture", () => ({
+  HIDDEN_SHARE_CARD_STYLE:    { position: "absolute", opacity: 0 },
+  SHARE_CARD_CAPTURE_OPTIONS: { format: "png", quality: 1, result: "tmpfile" },
+}));
+
 // ─── Import component AFTER all mocks ─────────────────────────────────────────
 
 import HomeScreen from "../index";

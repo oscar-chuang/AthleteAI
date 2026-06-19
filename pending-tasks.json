@@ -1,287 +1,11 @@
 [
   {
-    "id": "#134",
-    "title": "Let users crop or zoom their photo before it becomes their avatar"
-  },
-  {
-    "id": "#139",
-    "title": "Keep the Coach header sport/level in sync without a full reload after profile edits"
-  },
-  {
-    "id": "#141",
-    "title": "Add a test to verify the AI Coach uses the right level (beginner/advanced) when coaching"
-  },
-  {
-    "id": "#142",
-    "title": "Add a test to verify the AI Coach includes recent session data in its coaching context"
-  },
-  {
-    "id": "#143",
-    "title": "Let users tap individual data points on the joint chart to see exact angle and date"
-  },
-  {
-    "id": "#146",
-    "title": "Let users tap a delta badge on the session list to see that joint's full history"
-  },
-  {
-    "id": "#147",
-    "title": "Add a test to confirm the delta badge shows the right joint and color on session cards"
-  },
-  {
-    "id": "#148",
-    "title": "Add a test that verifies tapping a joint chart dot shows its tooltip"
-  },
-  {
-    "id": "#149",
-    "title": "Animate the tooltip so it fades in smoothly when a dot is tapped"
-  },
-  {
-    "id": "#150",
-    "title": "Add a test to verify the most-improved joint card shows the right joint"
-  },
-  {
-    "id": "#151",
-    "title": "Tap the 'Most improved' card to jump straight to that joint's trend chart"
-  },
-  {
-    "id": "#152",
-    "title": "Add a test that confirms the notification fires at the user's chosen time"
-  },
-  {
-    "id": "#153",
-    "title": "Remember the last-used notification time even when the user is logged out"
-  },
-  {
-    "id": "#154",
-    "title": "Show a notification on the phone when a joint risk improves after a new scan"
-  },
-  {
-    "id": "#155",
-    "title": "Break down completed drills by corrective vs. performance on the Progress tab"
-  },
-  {
-    "id": "#156",
-    "title": "Add a test to verify the drills-completed count reads all sessions correctly"
-  },
-  {
-    "id": "#157",
-    "title": "Add a test that confirms completed drills are cleared when a re-scan finishes"
-  },
-  {
-    "id": "#158",
-    "title": "Remember completed drills between sessions so the coach always knows your history"
-  },
-  {
-    "id": "#159",
-    "title": "Show a next-step suggestion on a tip after its drill is completed"
-  },
-  {
-    "id": "#160",
-    "title": "Make sure AI coaching tips always include feel cues when the AI generates them"
-  },
-  {
-    "id": "#161",
-    "title": "Make the tip order visible at a glance by adding section headers that explain why tips are grouped"
-  },
-  {
-    "id": "#162",
-    "title": "Add a test that confirms the conflict warning text appears in the AI Coach pre-fill when joints clash"
-  },
-  {
-    "id": "#163",
-    "title": "Confirm 'Fix this first' and 'After injury resolution' labels are displayed on the right tips end-to-end"
-  },
-  {
-    "id": "#164",
-    "title": "Add a test that verifies the low-confidence banner appears and can be dismissed"
-  },
-  {
-    "id": "#165",
-    "title": "Remember the scan quality warning dismissal so it stays hidden between app launches"
-  },
-  {
-    "id": "#166",
-    "title": "Add a test that confirms the schedule summary shows correct days and hides when all 7 days are active"
-  },
-  {
-    "id": "#167",
-    "title": "Add a test that verifies the skeleton stays aligned on portrait (9:16) and ultra-wide (21:9) video clips"
-  },
-  {
-    "id": "#168",
-    "title": "Show a visual indicator while the skeleton overlay is waiting for the first layout measurement"
-  },
-  {
-    "id": "#169",
-    "title": "Confirm your new goal with a checkmark animation when you change it"
-  },
-  {
-    "id": "#170",
-    "title": "Add a test that confirms the goal picker saves correctly and updates the home card"
-  },
-  {
-    "id": "#171",
-    "title": "Add a test that confirms rest-day sessions don't count toward the weekly goal"
-  },
-  {
-    "id": "#172",
-    "title": "Auto-suggest a weekly goal when users change their training days"
-  },
-  {
-    "id": "#173",
-    "title": "Make sure confetti never fires twice in a week — even if the app is deleted and reinstalled"
-  },
-  {
-    "id": "#174",
-    "title": "Show a tooltip explaining what greyed-out rest days mean"
-  },
-  {
-    "id": "#175",
-    "title": "Add a test confirming the weekly session count never includes rest days"
-  },
-  {
-    "id": "#176",
-    "title": "Add a test confirming the progress bar animation resets and re-runs on every Home tab visit"
-  },
-  {
-    "id": "#177",
-    "title": "Keep the progress bar gold even after you pull-to-refresh when the goal is already reached"
-  },
-  {
-    "id": "#178",
-    "title": "Add a test that confirms the 'Goal reached!' toast fires exactly once when the weekly goal is crossed on the analysis screen"
-  },
-  {
-    "id": "#179",
-    "title": "Keep the weekly goal toast in sync when the user changes their goal mid-week"
-  },
-  {
-    "id": "#180",
-    "title": "Catch skeleton drift early by testing the full landmark pipeline with a real crop size"
-  },
-  {
-    "id": "#181",
-    "title": "Confirm the haptic pulse fires at the right moment with a test"
-  },
-  {
-    "id": "#185",
-    "title": "Add a test confirming the 'Tap to share' hint only appears once per user"
-  },
-  {
-    "id": "#186",
-    "title": "Auto-dismiss the 'Tap to share' hint after a few seconds if the user doesn't tap"
-  },
-  {
-    "id": "#187",
-    "title": "Add a test to confirm the share message matches exactly what gets sent to the share dialog"
-  },
-  {
-    "id": "#188",
-    "title": "Add a test confirming sub-score rings animate when scrolled into view"
-  },
-  {
-    "id": "#189",
-    "title": "Keep the sub-score rings visible when switching between sessions"
-  },
-  {
-    "id": "#190",
-    "title": "Confirm the right tab is still selected after rotating the screen or backgrounding the app"
-  },
-  {
-    "id": "#191",
-    "title": "Add a test that confirms the session counter shows the right position"
-  },
-  {
-    "id": "#192",
-    "title": "Add swipe hints so users discover they can swipe between sessions"
-  },
-  {
-    "id": "#193",
-    "title": "Add a test confirming swipe navigation moves to the correct adjacent session"
-  },
-  {
-    "id": "#197",
-    "title": "Pin that the score ring shows no number when a custom child is passed in"
-  },
-  {
-    "id": "#198",
-    "title": "Prevent the score ring from animating again if the score hasn't changed"
-  },
-  {
-    "id": "#199",
-    "title": "Verify the share card capture works end-to-end on a real Android device"
-  },
-  {
-    "id": "#200",
-    "title": "Add a test that confirms the recording tips screen blocks upload until the checkbox is ticked"
-  },
-  {
-    "id": "#201",
-    "title": "Replace placeholder cards with real example screenshots so athletes know exactly what a good recording looks like"
-  },
-  {
-    "id": "#202",
-    "title": "Alert the team when a frame is too large to shrink"
-  },
-  {
-    "id": "#203",
-    "title": "Add a test confirming the session deep link is included when sharing"
-  },
-  {
-    "id": "#204",
-    "title": "Include the session link in the Android share alongside the image"
-  },
-  {
-    "id": "#205",
-    "title": "Add a test confirming the sport-icon fallback works for all supported sports"
-  },
-  {
-    "id": "#206",
-    "title": "Prevent oversized video URLs from being saved via the PATCH route too"
-  },
-  {
-    "id": "#207",
-    "title": "Keep the video URL policy working end-to-end when a client actually uploads"
-  },
-  {
-    "id": "#208",
-    "title": "Run the backfill thumbnail tests automatically in CI alongside other API tests"
-  },
-  {
     "id": "#209",
     "title": "Add a test to confirm 'Save to photos' requests the right permission and saves the card"
   },
   {
-    "id": "#210",
-    "title": "Remember the last-used share action so the preferred button comes first next time"
-  },
-  {
     "id": "#211",
     "title": "Add a test to confirm the tip picker shows and updates the share card preview"
-  },
-  {
-    "id": "#212",
-    "title": "Remember the user's last-chosen tip when they re-open the share sheet for the same session"
-  },
-  {
-    "id": "#213",
-    "title": "Guard the share card's color scheme so dark and light modes never look the same"
-  },
-  {
-    "id": "#214",
-    "title": "Remember the last scheme a user picked so it's pre-selected next time"
-  },
-  {
-    "id": "#215",
-    "title": "Add a test to verify the scheme toggle switches the share card between dark and light"
-  },
-  {
-    "id": "#216",
-    "title": "Add lint check to CI so code style issues are caught automatically"
-  },
-  {
-    "id": "#217",
-    "title": "Add build check to CI so broken production builds are caught early"
   },
   {
     "id": "#218",
@@ -376,7 +100,59 @@
     "title": "Add a test to verify the AI Coach uses the right injury concerns when coaching"
   },
   {
-    "id": "#NNN",
-    "title": "Your task title here"
+    "id": "#322",
+    "title": "Confirm the tip text is truncated correctly when it overflows the share card"
+  },
+  {
+    "id": "#344",
+    "title": "Add test suite checks to CI so failing tests are caught before they ship"
+  },
+  {
+    "id": "#345",
+    "title": "Add a test to confirm the scheme picker remembers your last choice after reopening"
+  },
+  {
+    "id": "#346",
+    "title": "Fix two pre-existing test failures so the full suite goes green"
+  },
+  {
+    "id": "#347",
+    "title": "Add a test to confirm the failed-scan 'Go back' button works"
+  },
+  {
+    "id": "#348",
+    "title": "Add a test to verify switching accent colour updates the theme immediately"
+  },
+  {
+    "id": "#349",
+    "title": "Let the app icon and splash screen reflect the athlete's chosen accent colour"
+  },
+  {
+    "id": "#350",
+    "title": "Fix the flaky 'homeBarAnimation' test so CI stays reliable"
+  },
+  {
+    "id": "#351",
+    "title": "Fix the shareHintOnce test failure so the full test suite passes cleanly"
+  },
+  {
+    "id": "#356",
+    "title": "Fix the broken home screen share-hint and progress-bar tests"
+  },
+  {
+    "id": "#357",
+    "title": "Prevent coaching copy from double-translating terms inside already-plain phrases"
+  },
+  {
+    "id": "#358",
+    "title": "Show plain-English term translations inline in the Coach chat"
+  },
+  {
+    "id": "#359",
+    "title": "Catch regressions early by adding tests for the score grid display logic"
+  },
+  {
+    "id": "#360",
+    "title": "Add tests for the 'Why It Matters' and 'Try This Drill' sections"
   }
 ]
