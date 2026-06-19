@@ -233,6 +233,8 @@ export default function ProfileSettingsScreen() {
   const [saved, setSaved] = useState(false);
   const [goalSaving, setGoalSaving] = useState(false);
   const [goalSavedFor, setGoalSavedFor] = useState<number | null>(null);
+  const [goalAutoSuggestedFor, setGoalAutoSuggestedFor] = useState<number | null>(null);
+  const goalAutoSuggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [daysSaving, setDaysSaving] = useState(false);
   const [checkInSaving, setCheckInSaving] = useState(false);
   const [checkInSavedFor, setCheckInSavedFor] = useState<number | null>(null);
@@ -248,13 +250,34 @@ export default function ProfileSettingsScreen() {
       ? trainingDays.filter((d) => d !== dayIdx)
       : [...trainingDays, dayIdx].sort((a, b) => a - b);
     if (next.length === 0) return;
-    const prev = trainingDays;
+    const prevDays = trainingDays;
+    const prevGoal = weeklyGoal;
+    const suggestedGoal = next.length as typeof WEEKLY_GOAL_OPTIONS[number];
+    const shouldSuggestGoal = suggestedGoal !== weeklyGoal;
     setTrainingDays(next);
+    if (shouldSuggestGoal) {
+      setWeeklyGoal(suggestedGoal);
+    }
     setDaysSaving(true);
     try {
-      await updateProfile({ trainingDays: next });
+      await updateProfile(
+        shouldSuggestGoal
+          ? { trainingDays: next, weeklyGoal: suggestedGoal }
+          : { trainingDays: next }
+      );
+      if (shouldSuggestGoal) {
+        if (goalAutoSuggestTimerRef.current) {
+          clearTimeout(goalAutoSuggestTimerRef.current);
+        }
+        setGoalAutoSuggestedFor(suggestedGoal);
+        goalAutoSuggestTimerRef.current = setTimeout(() => {
+          setGoalAutoSuggestedFor(null);
+          goalAutoSuggestTimerRef.current = null;
+        }, 4000);
+      }
     } catch {
-      setTrainingDays(prev);
+      setTrainingDays(prevDays);
+      if (shouldSuggestGoal) setWeeklyGoal(prevGoal);
       setError("Couldn't update training schedule. Please try again.");
     } finally {
       setDaysSaving(false);
@@ -265,6 +288,11 @@ export default function ProfileSettingsScreen() {
     if (goalSaving || n === weeklyGoal) return;
     const prev = weeklyGoal;
     setWeeklyGoal(n);
+    if (goalAutoSuggestTimerRef.current) {
+      clearTimeout(goalAutoSuggestTimerRef.current);
+      goalAutoSuggestTimerRef.current = null;
+    }
+    setGoalAutoSuggestedFor(null);
     setGoalSaving(true);
     try {
       await updateProfile({ weeklyGoal: n });
@@ -963,6 +991,27 @@ export default function ProfileSettingsScreen() {
               );
             })}
           </View>
+          {goalAutoSuggestedFor !== null && (
+            <View style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 7,
+              marginTop: 12,
+              backgroundColor: colors.primary + "14",
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: colors.primary + "33",
+              paddingHorizontal: 12,
+              paddingVertical: 9,
+            }}>
+              <Feather name="info" size={13} color={colors.primary} />
+              <Text style={{ flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: colors.foreground, lineHeight: 17 }}>
+                We set your weekly goal to{" "}
+                <Text style={{ fontFamily: "Inter_600SemiBold" }}>{goalAutoSuggestedFor}</Text>
+                {" "}to match your training days. Tap any number above to override.
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* ── Check-in Time ── */}
