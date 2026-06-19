@@ -109,6 +109,8 @@ jest.mock("@/components/ConfettiBurst", () => ({
 
 jest.mock("@/utils/confettiGate", () => ({
   checkConfettiGate:          jest.fn(async () => false),
+  // retryCelebrationSync and persistCelebrationToServer are called inside
+  // loadData; they must be no-ops here so the code reaches setShowShareHint.
   retryCelebrationSync:       jest.fn(async () => {}),
   persistCelebrationToServer: jest.fn(async () => {}),
 }));

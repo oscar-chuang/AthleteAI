@@ -118,6 +118,9 @@ jest.mock("@/lib/authContext", () => ({
 jest.mock("@/lib/api", () => ({
   analyses:    {
     list: (...args: any[]) => mockAnalysesList(...args),
+    // get is called for the latest tips; return a rejected promise so the
+    // component's .catch(() => {}) handles it and execution continues past
+    // the tips fetch to the Animated.timing call.
     get:  jest.fn().mockRejectedValue(new Error("not needed")),
   },
   achievements:{ list: (...args: any[]) => mockAchievementsList(...args) },

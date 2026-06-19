@@ -59,13 +59,15 @@ jest.mock("expo-sharing", () => ({
   shareAsync:       (...args: unknown[]) => mockShareAsync(...args),
 }));
 
+// Android share path uses FileSystem.getContentUriAsync + IntentLauncher.
+jest.mock("expo-file-system", () => ({
+  getContentUriAsync: (...args: unknown[]) => mockGetContentUriAsync(...args),
+}));
+
 jest.mock("expo-intent-launcher", () => ({
   startActivityAsync: (...args: unknown[]) => mockStartActivityAsync(...args),
 }));
 
-jest.mock("expo-file-system", () => ({
-  getContentUriAsync: (...args: unknown[]) => mockGetContentUriAsync(...args),
-}));
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
   __esModule: true,

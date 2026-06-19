@@ -94,7 +94,22 @@ describe("ShareCard — render smoke test", () => {
   });
 });
 
-// ─── 2. Capture-options contract ──────────────────────────────────────────────
+// ─── 2. topTip visibility ─────────────────────────────────────────────────────
+
+describe("ShareCard — topTip conditional rendering", () => {
+  it("shows the tip text when topTip is provided", () => {
+    const { getByText } = render(<ShareCard analysis={ANALYSIS} topTip={TOP_TIP} />);
+    expect(getByText(TOP_TIP)).toBeTruthy();
+  });
+
+  it("hides the message-circle icon row when topTip is omitted", () => {
+    const { queryByTestId } = render(<ShareCard analysis={ANALYSIS} />);
+    // The Feather mock renders testID="feather-<name>-<size>"; size=11 matches tipStrip
+    expect(queryByTestId("feather-message-circle-11")).toBeNull();
+  });
+});
+
+// ─── 3. Capture-options contract ──────────────────────────────────────────────
 
 describe("SHARE_CARD_CAPTURE_OPTIONS — source-linked contract", () => {
   it("format is png", () => {
