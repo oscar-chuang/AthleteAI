@@ -340,6 +340,7 @@ describe("ProfileSettingsScreen — training-day toggle auto-updates weekly goal
     // mismatch nudge nor the auto-suggest banner is visible on initial render.
     // Toggling a day off will then set trainingDays → 6 and auto-suggest goal=6.
     mockProfile.weeklyGoal = 7;
+
     const { getByText, queryByText, getAllByText } = render(<ProfileSettingsScreen />);
     await flush();
 

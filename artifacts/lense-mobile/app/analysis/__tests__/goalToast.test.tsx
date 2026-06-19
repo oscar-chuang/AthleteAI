@@ -446,3 +446,43 @@ describe("AnalysisDetailScreen — 'Weekly goal reached!' toast", () => {
     expect(queryByText("Weekly goal reached!")).not.toBeNull();
   });
 });
+
+// ─── Polling path ─────────────────────────────────────────────────────────────
+
+describe("AnalysisDetailScreen — toast fires from the 4 s polling path", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+  });
+
+  it("shows 'Weekly goal reached!' when the 4 s poll tick (not a re-focus) drives the processing → complete transition", async () => {
+    // First call (via useFocusEffect) → processing; second call (via setInterval) → complete.
+    mockAnalysesGet
+      .mockResolvedValueOnce({ analysis: PROCESSING_ANALYSIS, tips: [], injuryRisks: [] })
+      .mockResolvedValueOnce({ analysis: COMPLETE_ANALYSIS,   tips: [], injuryRisks: [] });
+
+    const { queryByText } = render(<AnalysisDetailScreen />);
+
+    // Trigger the focus callback: loads 'processing'.
+    // isProcessing becomes true → the polling useEffect starts a 4 s setInterval.
+    await simulateFocus();
+
+    // Toast must not be visible yet.
+    expect(queryByText("Weekly goal reached!")).toBeNull();
+
+    // Advance fake clock by exactly one poll interval — the setInterval fires load(),
+    // which returns COMPLETE_ANALYSIS.  prevStatusRef was "processing" → checkGoalToast runs.
+    await act(async () => {
+      jest.advanceTimersByTime(4000);
+    });
+
+    // Settle all async state updates triggered by the poll.
+    await flush();
+
+    expect(queryByText("Weekly goal reached!")).not.toBeNull();
+  });
+});
