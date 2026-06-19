@@ -5,9 +5,15 @@ import { eq, and, desc } from "drizzle-orm";
  * Computes real-time streak and weekly progress for a user from their
  * completed analyses.  Used by both GET /profile and GET /auth/me so that
  * weeklyProgress and streakDays are never hard-coded to 0.
+ *
+ * @param trainingDays - Array of day-of-week integers (0=Sun…6=Sat) that the
+ *   user has designated as training days.  When provided, weeklyProgress only
+ *   counts sessions that fall on one of those days.  When omitted (or empty),
+ *   all sessions this week are counted (legacy behaviour).
  */
 export async function computeProfileStats(
-  userId: number
+  userId: number,
+  trainingDays?: number[]
 ): Promise<{ streak: number; weeklyProgress: number }> {
   const rows = await db
     .select({ uploadedAt: analysesTable.uploadedAt })
@@ -38,7 +44,16 @@ export async function computeProfileStats(
 
   const weekStart = new Date(today);
   weekStart.setDate(today.getDate() - today.getDay());
-  const weeklyProgress = rows.filter((r) => new Date(r.uploadedAt) >= weekStart).length;
+
+  const trainingDaySet =
+    trainingDays && trainingDays.length > 0 ? new Set(trainingDays) : null;
+
+  const weeklyProgress = rows.filter((r) => {
+    const d = new Date(r.uploadedAt);
+    if (d < weekStart) return false;
+    if (trainingDaySet !== null && !trainingDaySet.has(d.getDay())) return false;
+    return true;
+  }).length;
 
   return { streak, weeklyProgress };
 }

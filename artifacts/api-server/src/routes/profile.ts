@@ -68,7 +68,10 @@ router.get("/profile", requireAuth, async (req: Request, res: Response) => {
     return;
   }
 
-  const { streak, weeklyProgress } = await computeProfileStats(userId);
+  const { streak, weeklyProgress } = await computeProfileStats(
+    userId,
+    row.trainingDays ?? undefined
+  );
   res.json({
     profile: formatProfile(row, streak, weeklyProgress),
     subscription: { id: "free", userId: String(userId), tier: "free", status: "active" },
@@ -163,18 +166,34 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
     result = created!;
   }
 
-  const { streak, weeklyProgress } = await computeProfileStats(userId);
+  const { streak, weeklyProgress } = await computeProfileStats(
+    userId,
+    result.trainingDays ?? undefined
+  );
   res.json({ profile: formatProfile(result, streak, weeklyProgress) });
 });
 
 router.get("/profile/stats", requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).userId as number;
 
-  const rows = await db
-    .select()
-    .from(analysesTable)
-    .where(and(eq(analysesTable.userId, userId), eq(analysesTable.status, "complete")))
-    .orderBy(desc(analysesTable.uploadedAt));
+  const [profileRow, rows] = await Promise.all([
+    db
+      .select({ trainingDays: profilesTable.trainingDays })
+      .from(profilesTable)
+      .where(eq(profilesTable.userId, userId))
+      .limit(1)
+      .then((r) => r[0] ?? null),
+    db
+      .select()
+      .from(analysesTable)
+      .where(and(eq(analysesTable.userId, userId), eq(analysesTable.status, "complete")))
+      .orderBy(desc(analysesTable.uploadedAt)),
+  ]);
+
+  const trainingDaySet =
+    profileRow?.trainingDays && profileRow.trainingDays.length > 0
+      ? new Set(profileRow.trainingDays)
+      : null;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -199,10 +218,17 @@ router.get("/profile/stats", requireAuth, async (req: Request, res: Response) =>
   weekStart.setDate(today.getDate() - today.getDay());
   const lastWeekStart = new Date(weekStart.getTime() - 7 * 86_400_000);
 
-  const thisWeekCount = rows.filter(r => new Date(r.uploadedAt) >= weekStart).length;
+  const thisWeekCount = rows.filter(r => {
+    const d = new Date(r.uploadedAt);
+    if (d < weekStart) return false;
+    if (trainingDaySet !== null && !trainingDaySet.has(d.getDay())) return false;
+    return true;
+  }).length;
   const lastWeekCount = rows.filter(r => {
     const d = new Date(r.uploadedAt);
-    return d >= lastWeekStart && d < weekStart;
+    if (d < lastWeekStart || d >= weekStart) return false;
+    if (trainingDaySet !== null && !trainingDaySet.has(d.getDay())) return false;
+    return true;
   }).length;
 
   const pbNum = (key: keyof typeof rows[0]) =>

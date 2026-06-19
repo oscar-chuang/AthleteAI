@@ -139,7 +139,10 @@ router.get("/auth/me", async (req: Request, res: Response) => {
 
   let formattedProfile = null;
   if (profileRow) {
-    const { streak, weeklyProgress } = await computeProfileStats(user.id);
+    const { streak, weeklyProgress } = await computeProfileStats(
+      user.id,
+      profileRow.trainingDays ?? undefined
+    );
     formattedProfile = {
       id: String(profileRow.id),
       userId: String(profileRow.userId),
