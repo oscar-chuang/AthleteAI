@@ -38,19 +38,22 @@ jest.mock("expo-image-picker", () => ({
 // ─── Auth mock ─────────────────────────────────────────────────────────────────
 const mockUpdateProfile = jest.fn(async () => {});
 
+// Mutable so individual tests can override avatarUrl without re-mocking.
+const mockProfile = {
+  name: "Alex Smith",
+  sport: "Running",
+  level: "intermediate",
+  goals: ["Improve technique"],
+  injuryConcerns: ["No current injuries"],
+  weeklyGoal: 3,
+  trainingDays: [0, 1, 2, 3, 4, 5, 6],
+  avatarUrl: null as string | null,
+};
+
 jest.mock("@/lib/authContext", () => ({
   useAuth: () => ({
     user: { id: "u1", email: "athlete@example.com", name: "Alex Smith" },
-    profile: {
-      name: "Alex Smith",
-      sport: "Running",
-      level: "intermediate",
-      goals: ["Improve technique"],
-      injuryConcerns: ["No current injuries"],
-      weeklyGoal: 3,
-      trainingDays: [0, 1, 2, 3, 4, 5, 6],
-      avatarUrl: null,
-    },
+    profile: mockProfile,
     updateProfile: mockUpdateProfile,
     logout: jest.fn(),
   }),
@@ -102,6 +105,8 @@ beforeEach(() => {
   mockDispatch.mockClear();
   mockUpdateProfile.mockClear();
   mockUpdateProfile.mockResolvedValue(undefined);
+  // Reset profile to default (no photo) before each test.
+  mockProfile.avatarUrl = null;
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
 });
 
@@ -174,5 +179,62 @@ describe("ProfileSettingsScreen — discard-changes prompt", () => {
     fireBeforeRemove();
 
     expect(Alert.alert).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Remove photo resets avatar to initials ────────────────────────────────────
+
+describe("ProfileSettingsScreen — Remove photo button", () => {
+  const PHOTO_URI = "data:image/jpeg;base64,/9j/abc123==";
+
+  it("calls updateProfile with { avatarUrl: null } when Remove photo is tapped", async () => {
+    mockProfile.avatarUrl = PHOTO_URI;
+
+    const { getByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.press(getByText("Remove photo"));
+    });
+    await flush();
+
+    expect(mockUpdateProfile).toHaveBeenCalledWith({ avatarUrl: null });
+    expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the Remove photo button after removal (isPhotoAvatar returns false)", async () => {
+    mockProfile.avatarUrl = PHOTO_URI;
+
+    const { getByText, queryByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    // Button is visible while a photo avatar is set.
+    expect(getByText("Remove photo")).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(getByText("Remove photo"));
+    });
+    await flush();
+
+    // Button must disappear once avatarUrl is cleared.
+    expect(queryByText("Remove photo")).toBeNull();
+  });
+
+  it("does NOT show the Remove photo button when the avatar is a preset colour", async () => {
+    mockProfile.avatarUrl = "preset:#6c63ff";
+
+    const { queryByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    expect(queryByText("Remove photo")).toBeNull();
+  });
+
+  it("does NOT show the Remove photo button when avatarUrl is null", async () => {
+    mockProfile.avatarUrl = null;
+
+    const { queryByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    expect(queryByText("Remove photo")).toBeNull();
   });
 });
