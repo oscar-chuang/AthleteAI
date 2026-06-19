@@ -38,6 +38,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const ONE_IMPROVEMENT = [{ joint: "leftKnee", oldRisk: 2, newRisk: 1 }];
 
+/** Pull the content object that was passed to scheduleNotificationAsync. */
+function capturedContent(): { title: string; body: string } {
+  const calls = vi.mocked(Notifications.scheduleNotificationAsync).mock.calls;
+  expect(calls).toHaveLength(1);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (calls[0]![0] as any).content as { title: string; body: string };
+}
+
 /** Pull the Date that was passed to scheduleNotificationAsync's trigger field. */
 function capturedTriggerDate(): Date {
   const calls = vi.mocked(Notifications.scheduleNotificationAsync).mock.calls;
@@ -201,5 +209,161 @@ describe("persistCheckInHour / clearPersistedCheckInHour — AsyncStorage fallba
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const triggerDate = (calls[0]![0] as any).trigger.date as Date;
     expect(triggerDate.getHours()).toBe(9);
+  });
+});
+
+// ─── Notification body text ────────────────────────────────────────────────────
+
+describe("scheduleImprovementNotification — body text", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(Notifications.getPermissionsAsync).mockResolvedValue({ granted: true } as any);
+    vi.mocked(Notifications.cancelScheduledNotificationAsync).mockResolvedValue(undefined);
+    vi.mocked(Notifications.scheduleNotificationAsync).mockResolvedValue("mock-notification-id");
+    vi.mocked(AsyncStorage.getItem).mockResolvedValue(null);
+    vi.mocked(AsyncStorage.setItem).mockResolvedValue(undefined);
+    vi.mocked(AsyncStorage.removeItem).mockResolvedValue(undefined);
+  });
+
+  // ── Single improvement ────────────────────────────────────────────────────
+
+  it("names the joint and new risk label for a single improvement", async () => {
+    await scheduleImprovementNotification(
+      [{ joint: "leftKnee", oldRisk: 2, newRisk: 1 }],
+      "running",
+      9,
+    );
+    expect(capturedContent().body).toBe(
+      "Your left knee is down to Caution — keep it up!",
+    );
+  });
+
+  it("uses the correct display name and risk label for rightHip Safe", async () => {
+    await scheduleImprovementNotification(
+      [{ joint: "rightHip", oldRisk: 2, newRisk: 0 }],
+      "running",
+      9,
+    );
+    expect(capturedContent().body).toBe(
+      "Your right hip is down to Safe — keep it up!",
+    );
+  });
+
+  it("falls back to the raw joint key when it has no display mapping", async () => {
+    await scheduleImprovementNotification(
+      [{ joint: "leftShoulder", oldRisk: 2, newRisk: 1 }],
+      "running",
+      9,
+    );
+    expect(capturedContent().body).toBe(
+      "Your leftShoulder is down to Caution — keep it up!",
+    );
+  });
+
+  it("falls back to 'improved' when the new risk value has no label mapping", async () => {
+    await scheduleImprovementNotification(
+      [{ joint: "leftKnee", oldRisk: 2, newRisk: 99 }],
+      "running",
+      9,
+    );
+    expect(capturedContent().body).toBe(
+      "Your left knee is down to improved — keep it up!",
+    );
+  });
+
+  // ── Plural path ───────────────────────────────────────────────────────────
+
+  it("uses singular 'joint' when exactly 2 improvements (1 other)", async () => {
+    await scheduleImprovementNotification(
+      [
+        { joint: "leftKnee", oldRisk: 2, newRisk: 1 },
+        { joint: "rightKnee", oldRisk: 2, newRisk: 1 },
+      ],
+      "running",
+      9,
+    );
+    expect(capturedContent().body).toBe(
+      "Your left knee and 1 other joint improved — keep it up!",
+    );
+  });
+
+  it("uses plural 'joints' when there are 3 improvements (2 others)", async () => {
+    await scheduleImprovementNotification(
+      [
+        { joint: "leftKnee", oldRisk: 2, newRisk: 1 },
+        { joint: "rightKnee", oldRisk: 2, newRisk: 1 },
+        { joint: "leftHip", oldRisk: 2, newRisk: 1 },
+      ],
+      "running",
+      9,
+    );
+    expect(capturedContent().body).toBe(
+      "Your left knee and 2 other joints improved — keep it up!",
+    );
+  });
+
+  it("uses plural 'joints' for 4 improvements (3 others)", async () => {
+    await scheduleImprovementNotification(
+      [
+        { joint: "leftKnee", oldRisk: 2, newRisk: 0 },
+        { joint: "rightKnee", oldRisk: 2, newRisk: 1 },
+        { joint: "leftHip", oldRisk: 2, newRisk: 1 },
+        { joint: "rightHip", oldRisk: 2, newRisk: 1 },
+      ],
+      "running",
+      9,
+    );
+    expect(capturedContent().body).toBe(
+      "Your left knee and 3 other joints improved — keep it up!",
+    );
+  });
+
+  // ── Sorting — highest delta is named first ────────────────────────────────
+
+  it("names the joint with the largest risk delta first", async () => {
+    // leftKnee delta = 1, rightElbow delta = 2 → rightElbow should be named first
+    await scheduleImprovementNotification(
+      [
+        { joint: "leftKnee", oldRisk: 2, newRisk: 1 },   // delta 1
+        { joint: "rightElbow", oldRisk: 2, newRisk: 0 }, // delta 2
+      ],
+      "running",
+      9,
+    );
+    expect(capturedContent().body).toBe(
+      "Your right elbow and 1 other joint improved — keep it up!",
+    );
+  });
+
+  it("names the highest-delta joint first even when it appears last in the input array", async () => {
+    // Input order: rightHip (delta 1), leftElbow (delta 2)
+    // Expected: leftElbow is named first because its delta is larger
+    await scheduleImprovementNotification(
+      [
+        { joint: "rightHip", oldRisk: 2, newRisk: 1 },  // delta 1
+        { joint: "leftElbow", oldRisk: 2, newRisk: 0 }, // delta 2
+      ],
+      "running",
+      9,
+    );
+    expect(capturedContent().body).toBe(
+      "Your left elbow and 1 other joint improved — keep it up!",
+    );
+  });
+
+  it("uses the single-improvement body for the top joint when delta is equal (stable — first after sort is used)", async () => {
+    // Both joints have delta 1; the sort is not guaranteed stable, but the body
+    // format for 2 improvements must include "1 other joint".
+    await scheduleImprovementNotification(
+      [
+        { joint: "leftKnee", oldRisk: 2, newRisk: 1 },
+        { joint: "rightKnee", oldRisk: 2, newRisk: 1 },
+      ],
+      "running",
+      9,
+    );
+    const body = capturedContent().body;
+    expect(body).toMatch(/^Your (left knee|right knee) and 1 other joint improved — keep it up!$/);
   });
 });
