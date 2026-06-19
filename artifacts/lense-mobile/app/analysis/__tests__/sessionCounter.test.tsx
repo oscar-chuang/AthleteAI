@@ -228,4 +228,22 @@ describe("AnalysisDetailScreen — session counter", () => {
     // Neither "1 of 1" nor any "X of Y" pattern should be present.
     expect(queryByText(/\d+ of \d+/)).toBeNull();
   });
+
+  it("carries accessibilityLabel='Session 2 of 3' when the current session is second in a list of three", async () => {
+    mockAnalysesList.mockResolvedValue({ analyses: THREE_ANALYSES });
+
+    const { getByLabelText } = render(<AnalysisDetailScreen />);
+    await simulateFocus();
+
+    expect(getByLabelText("Session 2 of 3")).not.toBeNull();
+  });
+
+  it("has no session-counter accessibility label when siblingIds has exactly one entry", async () => {
+    mockAnalysesList.mockResolvedValue({ analyses: ONE_ANALYSIS });
+
+    const { queryByLabelText } = render(<AnalysisDetailScreen />);
+    await simulateFocus();
+
+    expect(queryByLabelText(/^Session \d+ of \d+$/)).toBeNull();
+  });
 });

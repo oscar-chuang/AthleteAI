@@ -1065,7 +1065,10 @@ export default function AnalysisDetailScreen() {
               </Text>
             </View>
             {siblingIds.length > 1 && currIndex >= 0 && (
-              <Text style={[styles.sessionCounter, { color: colors.mutedForeground }]}>
+              <Text
+                style={[styles.sessionCounter, { color: colors.mutedForeground }]}
+                accessibilityLabel={`Session ${currIndex + 1} of ${siblingIds.length}`}
+              >
                 {currIndex + 1} of {siblingIds.length}
               </Text>
             )}
