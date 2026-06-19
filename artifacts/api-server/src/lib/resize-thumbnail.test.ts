@@ -110,6 +110,27 @@ describe("resizeThumbnail()", () => {
       vi.restoreAllMocks();
     });
 
+    it("fires the alert exactly once per failure, not once per retry", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const invalidInputs = [
+        "garbage-1!!!",
+        "garbage-2!!!",
+        "garbage-3!!!",
+        "garbage-4!!!",
+        "garbage-5!!!",
+      ];
+
+      for (let i = 0; i < invalidInputs.length; i++) {
+        await resizeThumbnail(invalidInputs[i]!);
+        expect(getAlertCounter("thumbnail_resize_failed")).toBe(i + 1);
+      }
+
+      expect(getAlertCounter("thumbnail_resize_failed")).toBe(invalidInputs.length);
+
+      vi.restoreAllMocks();
+    });
+
     it("does not increment the counter when resize succeeds", async () => {
       const inputBuf = await makeSyntheticJpeg(320, 240);
       await resizeThumbnail(inputBuf.toString("base64"));
