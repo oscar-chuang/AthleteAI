@@ -341,6 +341,7 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
     frameBase64?: unknown;
     sport?: unknown;
     movementType?: unknown;
+    videoUrl?: unknown;
   };
 
   // Validate the measured payload before trusting it. Only the six tracked joints
@@ -359,6 +360,14 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
     typeof body.movementType === "string" && body.movementType.trim().length > 0 && body.movementType.trim().length <= 80
       ? body.movementType.trim()
       : null;
+
+  if (typeof body.videoUrl === "string") {
+    const videoUrlError = validateVideoUrl(body.videoUrl);
+    if (videoUrlError) {
+      res.status(400).json({ error: videoUrlError });
+      return;
+    }
+  }
 
   const hasMeasuredData = !!jointAngles || !!jointRisks || !!frameBase64;
 

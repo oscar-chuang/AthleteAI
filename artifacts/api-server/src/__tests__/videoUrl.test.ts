@@ -1,17 +1,24 @@
 /**
  * Policy tests for videoUrl validation in routes/analyses.ts.
  *
- * Key invariants under test:
+ * Key invariants under test (unit level):
  *   1. A real HTTPS URL is accepted.
  *   2. A data: URI (inline base64) is always rejected — regardless of length.
  *   3. A string whose byte length exceeds MAX_VIDEO_URL_BYTES is rejected.
  *   4. An empty string is accepted (caller decides whether undefined/null is
  *      preferred; the guard only fires when a non-null value is supplied).
  *   5. A URL exactly at the byte limit is accepted; one byte over is rejected.
+ *
+ * Key invariants under test (route level — PATCH /analyses/:id):
+ *   6. A data: URI sent as videoUrl in a PATCH body is rejected with 400.
+ *   7. An oversized videoUrl string sent in a PATCH body is rejected with 400.
+ *   8. A valid videoUrl in a PATCH body does not trigger the URL error path.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { validateVideoUrl, MAX_VIDEO_URL_BYTES } from "../routes/analyses";
+
+// ─── Unit tests ───────────────────────────────────────────────────────────────
 
 describe("validateVideoUrl — policy: only real URLs, never inline base64", () => {
   it("accepts a normal HTTPS URL", () => {
@@ -58,5 +65,203 @@ describe("validateVideoUrl — policy: only real URLs, never inline base64", () 
     const error = validateVideoUrl(shortDataUri);
     expect(error).toMatch(/data URI/);
     expect(error).not.toMatch(/bytes or fewer/);
+  });
+});
+
+// ─── Route-level tests: PATCH /analyses/:id applies the same guard ─────────────
+//
+// These tests call the real Express route via supertest. @workspace/db is mocked
+// so no database is required. requireAuth is mocked to inject a fixed userId.
+
+const h = vi.hoisted(() => {
+  const TEST_USER_ID = 99;
+  const fakeRow = {
+    id: 1,
+    userId: TEST_USER_ID,
+    title: "test session",
+    sport: "running",
+    status: "processing",
+    videoUrl: null,
+    thumbnailUrl: null,
+    duration: null,
+    overallScore: null,
+    techniqueScore: null,
+    powerScore: null,
+    balanceScore: null,
+    consistencyScore: null,
+    mobilityScore: null,
+    speedScore: null,
+    strengths: [],
+    improvements: [],
+    jointAngles: null,
+    jointRisks: null,
+    biomechanicsApplied: false,
+    coachingMoments: null,
+    movementSummary: null,
+    movementSummaryAt: null,
+    uploadedAt: new Date(),
+    movementType: null,
+    tips: [],
+    injuryRisks: [],
+  };
+
+  const analysesTable: any = {
+    __name: "analyses",
+    id: { __col: "id" },
+    userId: { __col: "userId" },
+    sport: { __col: "sport" },
+    status: { __col: "status" },
+    biomechanicsApplied: { __col: "biomechanicsApplied" },
+    uploadedAt: { __col: "uploadedAt" },
+    jointAngles: { __col: "jointAngles" },
+    jointRisks: { __col: "jointRisks" },
+    thumbnailUrl: { __col: "thumbnailUrl" },
+    movementType: { __col: "movementType" },
+  };
+
+  const fakeDb = {
+    select() {
+      return {
+        from(_t: any) {
+          return {
+            where(_c: any) {
+              return Promise.resolve([{ ...fakeRow }]);
+            },
+            orderBy(_c: any) {
+              return {
+                limit(_n: any) {
+                  return Promise.resolve([]);
+                },
+              };
+            },
+          };
+        },
+      };
+    },
+    update(_t: any) {
+      return {
+        set(_v: any) {
+          return {
+            where(_c: any) {
+              return Promise.resolve();
+            },
+          };
+        },
+      };
+    },
+    insert(_t: any) {
+      return {
+        values(_v: any) {
+          return {
+            returning() {
+              return Promise.resolve([{ ...fakeRow }]);
+            },
+          };
+        },
+      };
+    },
+  };
+
+  return { fakeDb, analysesTable, TEST_USER_ID };
+});
+
+vi.mock("@workspace/db", () => ({
+  db: h.fakeDb,
+  analysesTable: h.analysesTable,
+  profilesTable: { __name: "profiles" },
+  completedDrillsTable: { __name: "completed_drills" },
+  pool: { end: vi.fn() },
+}));
+
+vi.mock("../routes/auth", () => ({
+  requireAuth: (req: any, _res: any, next: any) => {
+    req.userId = h.TEST_USER_ID;
+    next();
+  },
+}));
+
+vi.mock("drizzle-orm", () => ({
+  eq: (_col: any, _val: any) => ({}),
+  and: (..._conds: any[]) => ({}),
+  desc: (_col: any) => ({}),
+  ne: (_col: any, _val: any) => ({}),
+}));
+
+vi.mock("../lib/anthropic", () => ({
+  analyzeAthletePerformance: vi.fn(async () => ({
+    overallScore: 80,
+    techniqueScore: 80,
+    powerScore: 80,
+    balanceScore: 80,
+    consistencyScore: 80,
+    mobilityScore: 80,
+    speedScore: 80,
+    strengths: [],
+    improvements: [],
+    tips: [],
+    injuryRisks: [],
+  })),
+  detectSportFromFrame: vi.fn(async () => ({ sport: "running", movementType: "sprint" })),
+  generateCoachingMoments: vi.fn(async () => []),
+  generateMovementSummary: vi.fn(async () => ({})),
+}));
+
+vi.mock("../lib/resize-thumbnail", () => ({
+  resizeThumbnail: vi.fn(async () => "https://thumb.example.com/t.jpg"),
+  THUMBNAIL_MAX_WIDTH: 160,
+}));
+
+import express from "express";
+import request from "supertest";
+import analysesRouter from "../routes/analyses";
+
+function makeApp() {
+  const app = express();
+  app.use(express.json({ limit: "50mb" }));
+  app.use(analysesRouter);
+  return app;
+}
+
+describe("PATCH /analyses/:id — videoUrl guard applied at route level", () => {
+  it("rejects a data: URI sent as videoUrl with 400", async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .patch("/analyses/1")
+      .send({ videoUrl: "data:video/mp4;base64,AAAA" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/data URI/);
+  });
+
+  it("rejects an oversized videoUrl string with 400", async () => {
+    const app = makeApp();
+    const oversized = "https://cdn.example.com/" + "a".repeat(MAX_VIDEO_URL_BYTES);
+    const res = await request(app)
+      .patch("/analyses/1")
+      .send({ videoUrl: oversized });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/bytes or fewer/);
+  });
+
+  it("does not return a URL error when videoUrl is a valid URL", async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .patch("/analyses/1")
+      .send({
+        videoUrl: "https://cdn.example.com/videos/session-1.mp4",
+        sport: "running",
+      });
+
+    expect(res.body.error ?? "").not.toMatch(/data URI|bytes or fewer/);
+  });
+
+  it("does not return a URL error when videoUrl is absent from the body", async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .patch("/analyses/1")
+      .send({ sport: "swimming" });
+
+    expect(res.body.error ?? "").not.toMatch(/data URI|bytes or fewer/);
   });
 });
