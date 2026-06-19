@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, Animated, Easing } from "react-native";
 import Svg, { Circle } from "react-native-svg";
+import * as Haptics from "expo-haptics";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -82,6 +83,8 @@ export function ScoreRing({
       // Snap to exact value after animation completes
       setDisplayScore(Math.round(clamped));
       scoreAnim.removeListener(listenerId);
+      // Haptic pulse on animation complete (silently skipped on web)
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     });
 
     return () => {
