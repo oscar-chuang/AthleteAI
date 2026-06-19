@@ -52,6 +52,10 @@ args = "test-scripts"
 task = "workflow.run"
 args = "build"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "lint"
+
 [[workflows.workflow]]
 name = "test-api-biomechanics"
 author = "agent"
@@ -147,6 +151,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm run build"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "lint"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/athlete-mobile lint"
 
 [workflows.workflow.metadata]
 isValidation = true
