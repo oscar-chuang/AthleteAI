@@ -14,7 +14,7 @@ import { eq, and, desc } from "drizzle-orm";
 export async function computeProfileStats(
   userId: number,
   trainingDays?: number[]
-): Promise<{ streak: number; weeklyProgress: number }> {
+): Promise<{ streak: number; weeklyProgress: number; lastWeekCount: number }> {
   const rows = await db
     .select({ uploadedAt: analysesTable.uploadedAt })
     .from(analysesTable)
@@ -44,6 +44,7 @@ export async function computeProfileStats(
 
   const weekStart = new Date(today);
   weekStart.setDate(today.getDate() - today.getDay());
+  const lastWeekStart = new Date(weekStart.getTime() - 7 * 86_400_000);
 
   const trainingDaySet =
     trainingDays && trainingDays.length > 0 ? new Set(trainingDays) : null;
@@ -55,5 +56,12 @@ export async function computeProfileStats(
     return true;
   }).length;
 
-  return { streak, weeklyProgress };
+  const lastWeekCount = rows.filter((r) => {
+    const d = new Date(r.uploadedAt);
+    if (d < lastWeekStart || d >= weekStart) return false;
+    if (trainingDaySet !== null && !trainingDaySet.has(d.getDay())) return false;
+    return true;
+  }).length;
+
+  return { streak, weeklyProgress, lastWeekCount };
 }

@@ -1,16 +1,15 @@
 /**
  * Tests that rest-day sessions are excluded from the weekly goal count.
  *
- * Two layers under test:
+ * Three layers under test:
  *   1. computeProfileStats (pure stat helper) — weeklyProgress only counts
  *      sessions whose day-of-week is in the supplied trainingDays array.
  *   2. GET /profile/stats route — thisWeekCount obeys the same filtering rule
  *      using the profile's stored trainingDays.
+ *   3. GET /profile/stats route — lastWeekCount applies the same trainingDays
+ *      filter to the previous calendar week.
  *
- * Both suites use trainingDays = [1, 3, 5] (Mon / Wed / Fri) and plant five
- * completed analyses within the current week: one on each training day (Mon,
- * Wed, Fri) and one on each rest day (Sat = 6, Sun = 0).  The expected count
- * is 3 in both cases.
+ * Both route suites use trainingDays = [1, 3, 5] (Mon / Wed / Fri).
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -34,6 +33,22 @@ function dateOnDayThisWeek(dayOfWeek: number): Date {
   return d;
 }
 
+/**
+ * Returns a Date set to noon on the given day-of-week (0=Sun…6=Sat) of the
+ * PREVIOUS calendar week (7 days before the current week start).
+ */
+function dateOnDayLastWeek(dayOfWeek: number): Date {
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay()); // rewind to this Sunday
+  const lastWeekStart = new Date(weekStart);
+  lastWeekStart.setDate(weekStart.getDate() - 7);      // one week earlier
+  const d = new Date(lastWeekStart);
+  d.setDate(lastWeekStart.getDate() + dayOfWeek);
+  return d;
+}
+
 const TRAINING_DAYS = [1, 3, 5]; // Mon, Wed, Fri
 
 const SESSION_ROWS = [
@@ -42,6 +57,15 @@ const SESSION_ROWS = [
   { uploadedAt: dateOnDayThisWeek(5) }, // Fri — training day ✓
   { uploadedAt: dateOnDayThisWeek(6) }, // Sat — rest day   ✗
   { uploadedAt: dateOnDayThisWeek(0) }, // Sun — rest day   ✗
+];
+
+// Last-week equivalents: Mon + Wed + Fri (training) + Sat + Sun (rest).
+const LAST_WEEK_SESSION_ROWS = [
+  { uploadedAt: dateOnDayLastWeek(1) }, // Mon last week — training day ✓
+  { uploadedAt: dateOnDayLastWeek(3) }, // Wed last week — training day ✓
+  { uploadedAt: dateOnDayLastWeek(5) }, // Fri last week — training day ✓
+  { uploadedAt: dateOnDayLastWeek(6) }, // Sat last week — rest day   ✗
+  { uploadedAt: dateOnDayLastWeek(0) }, // Sun last week — rest day   ✗
 ];
 
 // ─── Shared mock infrastructure ───────────────────────────────────────────────
@@ -211,5 +235,56 @@ describe("GET /profile/stats — rest-day filtering", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.thisWeekCount).toBe(0);
+  });
+});
+
+// ─── Suite 3: GET /profile/stats — lastWeekCount filtering ────────────────────
+
+describe("GET /profile/stats — lastWeekCount rest-day filtering", () => {
+  it("lastWeekCount excludes Sat/Sun sessions from last week when trainingDays = [Mon, Wed, Fri]", async () => {
+    // Route makes two DB calls: profile row (queue[0]) + analyses (queue[1]).
+    // Analyses contain 5 last-week rows: Mon+Wed+Fri (training) + Sat+Sun (rest).
+    h.state.queue = [
+      [{ trainingDays: TRAINING_DAYS }],
+      LAST_WEEK_SESSION_ROWS,
+    ];
+
+    const app = makeApp();
+    const res = await request(app).get("/profile/stats");
+
+    expect(res.status).toBe(200);
+    expect(res.body.lastWeekCount).toBe(3); // Mon + Wed + Fri only
+    expect(res.body.thisWeekCount).toBe(0); // no sessions this week
+  });
+
+  it("lastWeekCount is 0 when every last-week session falls on a rest day", async () => {
+    const lastWeekRestOnly = [
+      { uploadedAt: dateOnDayLastWeek(6) }, // Sat last week — rest day
+      { uploadedAt: dateOnDayLastWeek(0) }, // Sun last week — rest day
+    ];
+    h.state.queue = [
+      [{ trainingDays: TRAINING_DAYS }],
+      lastWeekRestOnly,
+    ];
+
+    const app = makeApp();
+    const res = await request(app).get("/profile/stats");
+
+    expect(res.status).toBe(200);
+    expect(res.body.lastWeekCount).toBe(0);
+  });
+
+  it("lastWeekCount counts all last-week sessions when no profile row exists", async () => {
+    // No profile → trainingDaySet is null → all days count.
+    h.state.queue = [
+      [],                      // no profile row
+      LAST_WEEK_SESSION_ROWS,  // 5 last-week sessions
+    ];
+
+    const app = makeApp();
+    const res = await request(app).get("/profile/stats");
+
+    expect(res.status).toBe(200);
+    expect(res.body.lastWeekCount).toBe(5);
   });
 });
