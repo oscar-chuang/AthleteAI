@@ -708,6 +708,35 @@ describe("buildSystemPrompt — injury concerns appear in coaching context", () 
     expect(prompt).toContain("ankle instability");
     expect(prompt).toContain("hip flexor strain");
   });
+
+  it("immediately reflects injury concerns when they are populated after starting with null", async () => {
+    // First call: no injury concerns set
+    setProfile("running", "Test Athlete", "intermediate", null, null);
+    const prompt1 = await buildSystemPrompt(USER_ID);
+    expect(prompt1).not.toContain("Active injury concerns");
+
+    // Athlete adds injury concerns to their profile
+    setProfile("running", "Test Athlete", "intermediate", null, ["IT band syndrome"]);
+    const prompt2 = await buildSystemPrompt(USER_ID);
+
+    expect(prompt2).toContain("IT band syndrome");
+    expect(prompt2).toContain("Active injury concerns");
+  });
+
+  it("immediately drops injury concerns from the prompt when the athlete clears them", async () => {
+    // First call: athlete has an injury concern
+    setProfile("cycling", "Test Athlete", "advanced", null, ["knee pain"]);
+    const prompt1 = await buildSystemPrompt(USER_ID);
+    expect(prompt1).toContain("knee pain");
+    expect(prompt1).toContain("Active injury concerns");
+
+    // Athlete removes the concern (clears to null)
+    setProfile("cycling", "Test Athlete", "advanced", null, null);
+    const prompt2 = await buildSystemPrompt(USER_ID);
+
+    expect(prompt2).not.toContain("knee pain");
+    expect(prompt2).not.toContain("Active injury concerns");
+  });
 });
 
 describe("buildSystemPrompt — older-session drills summary", () => {
