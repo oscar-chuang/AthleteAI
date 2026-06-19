@@ -131,9 +131,8 @@ jest.mock("@/components/WeekDotRow", () => ({
   WeekDotRow: () => null,
 }));
 
-jest.mock("@/components/ShareCard", () => ({
-  __esModule: true,
-  default: (_: any, ref: any) => null,
+jest.mock("@/components/analysis/ShareCard", () => ({
+  ShareCard: () => null,
 }));
 
 jest.mock("expo-haptics", () => ({

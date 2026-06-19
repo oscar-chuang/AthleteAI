@@ -1,9 +1,9 @@
 /**
- * Jest tests for the home-screen ShareCard (components/ShareCard.tsx).
+ * Jest tests for the ShareCard (components/analysis/ShareCard.tsx).
  *
- * 1. Tip row is rendered with the correct text when topTip is supplied.
- * 2. Tip row is absent when topTip is omitted.
- * 3. Tips longer than 80 chars are truncated to 77 chars + "…".
+ * 1. Tip strip is rendered with the correct text when topTip is supplied.
+ * 2. Tip strip is absent when topTip is omitted.
+ * 3. The message-circle icon appears only when topTip is provided.
  */
 
 import React from "react";
@@ -23,6 +23,10 @@ jest.mock("react-native-view-shot", () => {
   return { __esModule: true, default: ViewShot };
 });
 
+jest.mock("expo-image", () => ({
+  Image: () => null,
+}));
+
 jest.mock("@expo/vector-icons", () => ({
   Feather: ({ name, size }: { name: string; size: number }) => {
     const { View } = require("react-native");
@@ -32,80 +36,54 @@ jest.mock("@expo/vector-icons", () => ({
 
 // ─── Component under test (imported after mocks) ──────────────────────────────
 
-import ShareCard from "@/components/ShareCard";
+import { ShareCard } from "@/components/analysis/ShareCard";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-const BASE_PROPS = {
-  sessions: 3,
-  weeklyGoal: 4,
-  streakDays: 2,
+const BASE_ANALYSIS = {
+  id: "a1",
+  userId: "u1",
+  title: "Running session",
   sport: "running",
+  status: "complete" as const,
+  uploadedAt: "2026-06-19T00:00:00.000Z",
+  overallScore: 78,
+  techniqueScore: 78,
+  powerScore: 72,
+  balanceScore: 80,
+  consistencyScore: 70,
+  mobilityScore: 75,
+  speedScore: 68,
+  strengths: [],
+  improvements: [],
 };
 
 const SHORT_TIP = "Keep your hips high and drive your knees forward.";
 
-// 81 characters — one over the 80-char limit
-const LONG_TIP =
-  "Focus on landing mid-foot with a slight forward lean and keep your cadence above 170 spm.";
-
-const EXPECTED_TRUNCATED = LONG_TIP.slice(0, 77) + "…";
-
-// ─── 1. Tip row renders with correct text ─────────────────────────────────────
+// ─── 1. Tip strip renders with correct text ───────────────────────────────────
 
 describe("ShareCard — topTip renders correctly", () => {
   it("shows the tip text when topTip is provided", () => {
-    const { getByText } = render(<ShareCard {...BASE_PROPS} topTip={SHORT_TIP} />);
+    const { getByText } = render(<ShareCard analysis={BASE_ANALYSIS} topTip={SHORT_TIP} />);
     expect(getByText(SHORT_TIP)).toBeTruthy();
   });
 
-  it("shows the 'Coach's top tip' label when topTip is provided", () => {
-    const { getByText } = render(<ShareCard {...BASE_PROPS} topTip={SHORT_TIP} />);
-    expect(getByText("Coach's top tip")).toBeTruthy();
-  });
-
   it("renders the message-circle icon when topTip is provided", () => {
-    const { getByTestId } = render(<ShareCard {...BASE_PROPS} topTip={SHORT_TIP} />);
-    expect(getByTestId("feather-message-circle-12")).toBeTruthy();
+    const { getByTestId } = render(<ShareCard analysis={BASE_ANALYSIS} topTip={SHORT_TIP} />);
+    expect(getByTestId("feather-message-circle-11")).toBeTruthy();
   });
 });
 
-// ─── 2. Tip row is absent when topTip is omitted ──────────────────────────────
+// ─── 2. Tip strip is absent when topTip is omitted ───────────────────────────
 
-describe("ShareCard — tip row absent when topTip is undefined", () => {
-  it("does not render the tip text", () => {
-    const { queryByText } = render(<ShareCard {...BASE_PROPS} />);
-    expect(queryByText("Coach's top tip")).toBeNull();
+describe("ShareCard — tip strip absent when topTip is undefined", () => {
+  it("does not render the tip text when topTip is omitted", () => {
+    const { queryByText } = render(<ShareCard analysis={BASE_ANALYSIS} />);
+    expect(queryByText(SHORT_TIP)).toBeNull();
   });
 
-  it("does not render the message-circle icon", () => {
-    const { queryByTestId } = render(<ShareCard {...BASE_PROPS} />);
-    expect(queryByTestId("feather-message-circle-12")).toBeNull();
-  });
-});
-
-// ─── 3. Long tips are truncated to 77 chars + ellipsis ───────────────────────
-
-describe("ShareCard — topTip truncation", () => {
-  it("renders the full tip when it is ≤ 80 chars", () => {
-    const exactly80 = "A".repeat(80);
-    const { getByText } = render(<ShareCard {...BASE_PROPS} topTip={exactly80} />);
-    expect(getByText(exactly80)).toBeTruthy();
-  });
-
-  it("truncates to 77 chars + '…' when the tip exceeds 80 chars", () => {
-    const { getByText } = render(<ShareCard {...BASE_PROPS} topTip={LONG_TIP} />);
-    expect(getByText(EXPECTED_TRUNCATED)).toBeTruthy();
-  });
-
-  it("does not render the raw long tip text when truncation applies", () => {
-    const { queryByText } = render(<ShareCard {...BASE_PROPS} topTip={LONG_TIP} />);
-    expect(queryByText(LONG_TIP)).toBeNull();
-  });
-
-  it("truncated text ends with the ellipsis character", () => {
-    const { getByText } = render(<ShareCard {...BASE_PROPS} topTip={LONG_TIP} />);
-    const el = getByText(EXPECTED_TRUNCATED);
-    expect((el.props.children as string).endsWith("…")).toBe(true);
+  it("does not render the message-circle icon when topTip is omitted", () => {
+    const { queryByTestId } = render(<ShareCard analysis={BASE_ANALYSIS} />);
+    expect(queryByTestId("feather-message-circle-11")).toBeNull();
   });
 });
