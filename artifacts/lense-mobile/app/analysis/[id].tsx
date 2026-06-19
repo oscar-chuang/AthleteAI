@@ -352,6 +352,7 @@ export default function AnalysisDetailScreen() {
   const [pollExhausted, setPollExhausted] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [showSharePreview, setShowSharePreview] = useState(false);
+  const [selectedShareTipId, setSelectedShareTipId] = useState<string | null>(null);
   const shareCardRef = useRef<View>(null);
 
   // Goal reached toast
@@ -540,6 +541,7 @@ export default function AnalysisDetailScreen() {
 
   function handleShare() {
     if (!analysis) return;
+    setSelectedShareTipId(topTip?.id ?? null);
     setShowSharePreview(true);
   }
 
@@ -803,6 +805,10 @@ export default function AnalysisDetailScreen() {
 
   const topTip = sortedTips[0];
 
+  // The tip shown on the share card — defaults to topTip, can be overridden by picker
+  const selectedShareTip =
+    sortedTips.find((t) => t.id === selectedShareTipId) ?? topTip;
+
   // Auto-expand top tip (critical/warning)
   const defaultExpandedId =
     expandedTip === null
@@ -942,7 +948,7 @@ export default function AnalysisDetailScreen() {
           left:     -9999,
         }}
       >
-        <ShareCard analysis={analysis} topTip={topTip?.title} />
+        <ShareCard analysis={analysis} topTip={selectedShareTip?.title} />
       </View>
 
       {/* ── Share preview modal ── */}
@@ -977,8 +983,70 @@ export default function AnalysisDetailScreen() {
 
             {/* Card preview */}
             <View style={styles.shareCardPreviewWrap}>
-              <ShareCard analysis={analysis} topTip={topTip?.title} />
+              <ShareCard analysis={analysis} topTip={selectedShareTip?.title} />
             </View>
+
+            {/* Tip picker — only shown when there are multiple tips */}
+            {sortedTips.length > 1 && (
+              <View style={styles.tipPickerWrap}>
+                <Text style={[styles.tipPickerLabel, { color: colors.mutedForeground }]}>
+                  Choose which tip to feature
+                </Text>
+                <ScrollView
+                  horizontal={false}
+                  style={styles.tipPickerList}
+                  showsVerticalScrollIndicator={false}
+                  nestedScrollEnabled
+                >
+                  {sortedTips.map((tip) => {
+                    const isSelected = tip.id === (selectedShareTipId ?? topTip?.id);
+                    return (
+                      <TouchableOpacity
+                        key={tip.id}
+                        onPress={() => setSelectedShareTipId(tip.id)}
+                        activeOpacity={0.7}
+                        style={[
+                          styles.tipPickerItem,
+                          {
+                            borderColor: isSelected ? colors.primary : colors.border,
+                            backgroundColor: isSelected
+                              ? colors.primary + "14"
+                              : colors.background,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.tipPickerDot,
+                            {
+                              backgroundColor: isSelected
+                                ? colors.primary
+                                : colors.border,
+                            },
+                          ]}
+                        />
+                        <Text
+                          style={[
+                            styles.tipPickerItemText,
+                            {
+                              color: isSelected
+                                ? colors.foreground
+                                : colors.mutedForeground,
+                              fontFamily: isSelected
+                                ? "Inter_600SemiBold"
+                                : "Inter_400Regular",
+                            },
+                          ]}
+                          numberOfLines={2}
+                        >
+                          {tip.title}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
 
             {/* Actions */}
             <View style={styles.sheetActions}>
@@ -2273,5 +2341,42 @@ const styles = StyleSheet.create({
   sheetBtnText: {
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
+  },
+
+  // Tip picker
+  tipPickerWrap: {
+    width: "100%",
+    marginBottom: 20,
+  },
+  tipPickerLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 10,
+  },
+  tipPickerList: {
+    maxHeight: 160,
+  },
+  tipPickerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 6,
+  },
+  tipPickerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    flexShrink: 0,
+  },
+  tipPickerItemText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
   },
 });
