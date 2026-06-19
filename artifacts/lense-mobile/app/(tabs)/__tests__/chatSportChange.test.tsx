@@ -294,11 +294,7 @@ describe("ChatScreen — Coach header subtitle reflects current profile", () => 
     const { getByText, rerender } = render(<ChatScreen />);
     await simulateFocus();
 
-<<<<<<< HEAD
-    // Baseline: Running · Intermediate is visible.
-=======
     // Baseline: Running · Intermediate is visible (title-cased by the component).
->>>>>>> 507ab33 (Fix most-improved joint card test label and chatSportChange case mismatch)
     expect(getByText("Running · Intermediate")).toBeTruthy();
 
     // Athlete opens profile settings and saves a new sport + level.
