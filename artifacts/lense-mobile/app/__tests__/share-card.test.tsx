@@ -64,7 +64,8 @@ const WITHOUT_THUMBNAIL: AnalysisRecord = {
 
 // ─── Import after mocks ───────────────────────────────────────────────────────
 
-import { ShareCard } from "@/components/analysis/ShareCard";
+import { StyleSheet } from "react-native";
+import { ShareCard, SHARE_CARD_DARK, SHARE_CARD_LIGHT } from "@/components/analysis/ShareCard";
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -172,5 +173,43 @@ describe("ShareCard — sport-icon fallback (all supported sports)", () => {
     };
     const { queryByTestId } = render(<ShareCard analysis={analysis} />);
     expect(queryByTestId("feather-wind-36")).not.toBeNull();
+  });
+});
+
+// ─── Color scheme palette ──────────────────────────────────────────────────────
+// These tests guard against a refactor accidentally wiring both schemes to the
+// same palette.  Each test locates the card root by testID, flattens its style,
+// and asserts the scheme-specific background color.
+
+type FlatStyle = { backgroundColor?: string };
+
+describe("ShareCard — color scheme palette", () => {
+  it('applies the dark-palette background when colorScheme="dark"', () => {
+    const { getByTestId } = render(
+      <ShareCard analysis={BASE_ANALYSIS} colorScheme="dark" />,
+    );
+    const card = getByTestId("share-card");
+    const flat = StyleSheet.flatten(card.props.style) as FlatStyle;
+    expect(flat.backgroundColor).toBe(SHARE_CARD_DARK.cardBg);
+  });
+
+  it("applies the dark-palette background when colorScheme is omitted (default is dark)", () => {
+    const { getByTestId } = render(<ShareCard analysis={BASE_ANALYSIS} />);
+    const card = getByTestId("share-card");
+    const flat = StyleSheet.flatten(card.props.style) as FlatStyle;
+    expect(flat.backgroundColor).toBe(SHARE_CARD_DARK.cardBg);
+  });
+
+  it('applies the light-palette background when colorScheme="light"', () => {
+    const { getByTestId } = render(
+      <ShareCard analysis={BASE_ANALYSIS} colorScheme="light" />,
+    );
+    const card = getByTestId("share-card");
+    const flat = StyleSheet.flatten(card.props.style) as FlatStyle;
+    expect(flat.backgroundColor).toBe(SHARE_CARD_LIGHT.cardBg);
+  });
+
+  it("dark and light cardBg values are distinct", () => {
+    expect(SHARE_CARD_DARK.cardBg).not.toBe(SHARE_CARD_LIGHT.cardBg);
   });
 });

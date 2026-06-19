@@ -167,7 +167,7 @@ export function ShareCard({ analysis, topTip, colorScheme = "dark" }: ShareCardP
   const s = makeStyles(palette);
 
   return (
-    <View style={s.card}>
+    <View testID="share-card" style={s.card}>
       {/* ── Thumbnail / sport-icon placeholder ── */}
       <View style={s.imageWrap}>
         {hasThumbnail ? (
