@@ -20,7 +20,7 @@
  */
 
 import React from "react";
-import { render, act } from "@testing-library/react-native";
+import { render, act, fireEvent } from "@testing-library/react-native";
 
 // ─── Module-level mock state ──────────────────────────────────────────────────
 
@@ -216,5 +216,95 @@ describe("ProgressScreen — primary empty state (no sessions logged)", () => {
 
     expect(queryByText(EMPTY_STATE_TEXT)).toBeNull();
     expect(queryByText(EMPTY_STATE_BTN)).toBeNull();
+  });
+});
+
+// ─── Tests: filter-scoped empty state ────────────────────────────────────────
+//
+// Covers the second empty-state branch in the JSX:
+//
+//   {allEntries.length === 0 ? <primary empty state> : filteredEntries.length === 0 ? <filter empty state> : <session log>}
+//
+// The filter-scoped state fires when the user has sessions overall but the
+// active sport / period filter excludes all of them.
+//
+// Key invariants under test:
+//   4. When allEntries has data but filteredEntries is empty (period filter
+//      excludes every entry), the filter-scoped empty-state card appears with
+//      the appropriate text and a "Show All Time" CTA.
+//   5. Pressing "Show All Time" resets the period back to "All" and the
+//      filter-scoped empty-state card disappears.
+
+describe("ProgressScreen — filter-scoped empty state (sport/period filter excludes all entries)", () => {
+  // A "running" entry with a date well outside any rolling-window filter.
+  // "2020-01-01" is excluded by 1W, 1M, and 3M period filters.
+  const RUNNING_ENTRY_OLD = {
+    id:               "s1",
+    userId:           "u1",
+    analysisId:       "a1",
+    date:             "2020-01-01T10:00:00Z",
+    sport:            "running",
+    overallScore:     74,
+    techniqueScore:   70,
+    powerScore:       72,
+    balanceScore:     68,
+    consistencyScore: 75,
+    mobilityScore:    80,
+    speedScore:       65,
+  };
+
+  // ── Test 4 ───────────────────────────────────────────────────────────────────
+
+  it("shows the filter-scoped empty state when the period filter excludes all entries", async () => {
+    mockProgressList.mockResolvedValue({ entries: [RUNNING_ENTRY_OLD] });
+    mockAchievementsList.mockResolvedValue(EMPTY_ACHIEVEMENTS);
+
+    const { getByText, queryByText, getAllByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // allEntries has data — primary empty state must NOT be visible.
+    expect(queryByText(EMPTY_STATE_TEXT)).toBeNull();
+    expect(queryByText(EMPTY_STATE_BTN)).toBeNull();
+
+    // Apply the "1W" period filter — the 2020 entry falls outside the window,
+    // so filteredEntries becomes empty while allEntries still has 1 entry.
+    await act(async () => {
+      fireEvent.press(getByText("1W"));
+    });
+    await flush();
+
+    // The filter-scoped empty-state text is rendered in two places inside the
+    // component (the trend-chart inline notice and the session-log card).
+    // Use getAllByText to confirm at least one instance is visible.
+    expect(getAllByText(/No sessions in this period/).length).toBeGreaterThan(0);
+    expect(getByText("Show All Time")).toBeTruthy();
+  });
+
+  // ── Test 5 ───────────────────────────────────────────────────────────────────
+
+  it("hides the filter-scoped empty state after pressing Show All Time", async () => {
+    mockProgressList.mockResolvedValue({ entries: [RUNNING_ENTRY_OLD] });
+    mockAchievementsList.mockResolvedValue(EMPTY_ACHIEVEMENTS);
+
+    const { getByText, queryAllByText, queryByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // Apply the "1W" filter to trigger the filter-scoped empty state.
+    await act(async () => {
+      fireEvent.press(getByText("1W"));
+    });
+    await flush();
+
+    expect(queryAllByText(/No sessions in this period/).length).toBeGreaterThan(0);
+
+    // Pressing "Show All Time" resets period to "All" — filteredEntries is
+    // repopulated with the single running entry, so the empty state disappears.
+    await act(async () => {
+      fireEvent.press(getByText("Show All Time"));
+    });
+    await flush();
+
+    expect(queryAllByText(/No sessions in this period/).length).toBe(0);
+    expect(queryByText("Show All Time")).toBeNull();
   });
 });
