@@ -7,6 +7,7 @@ module.exports = {
     "^expo-intent-launcher$": "<rootDir>/__mocks__/expo-intent-launcher.js",
     "^expo-file-system$":     "<rootDir>/__mocks__/expo-file-system.js",
     "^expo-media-library$": "<rootDir>/__mocks__/expo-media-library.js",
+    "^expo-image-manipulator$": "<rootDir>/__mocks__/expo-image-manipulator.js",
   },
   testMatch: [
     "**/app/**/__tests__/**/*.test.{ts,tsx}",

@@ -278,7 +278,7 @@ describe("ChatScreen — Coach header subtitle reflects current profile", () => 
     await simulateFocus();
 
     // The header subtitle must show the concatenated sport · level string.
-    expect(getByText("running · intermediate")).toBeTruthy();
+    expect(getByText("Running · Intermediate")).toBeTruthy();
   });
 
   // ── Test 2 ─────────────────────────────────────────────────────────────────
@@ -294,8 +294,8 @@ describe("ChatScreen — Coach header subtitle reflects current profile", () => 
     const { getByText, rerender } = render(<ChatScreen />);
     await simulateFocus();
 
-    // Baseline: running · intermediate is visible.
-    expect(getByText("running · intermediate")).toBeTruthy();
+    // Baseline: Running · Intermediate is visible.
+    expect(getByText("Running · Intermediate")).toBeTruthy();
 
     // Athlete opens profile settings and saves a new sport + level.
     // AuthContext calls setUserProfile synchronously, which triggers a rerender.
@@ -312,7 +312,7 @@ describe("ChatScreen — Coach header subtitle reflects current profile", () => 
 
     // The header subtitle must show the new values immediately — no focus
     // event or app reload should be needed.
-    expect(getByText("swimming · advanced")).toBeTruthy();
+    expect(getByText("Swimming · Advanced")).toBeTruthy();
   });
 
   // ── Test 3 ─────────────────────────────────────────────────────────────────
