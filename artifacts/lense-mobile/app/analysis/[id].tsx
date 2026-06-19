@@ -1527,7 +1527,7 @@ export default function AnalysisDetailScreen() {
           <View style={styles.ctaRow}>
             <ScaleButton
               onPress={() =>
-                router.push(`/analysis/person-select/${id}` as any)
+                router.push(`/analysis/person-select/${id}?tab=${activeTab}` as any)
               }
               style={[
                 styles.ctaBtn,

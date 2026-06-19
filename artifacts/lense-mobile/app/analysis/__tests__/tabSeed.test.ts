@@ -22,6 +22,7 @@
 // ── Mutable mock state shared across all tests in this file ───────────────────
 
 let mockTabParam: string | undefined = undefined;
+const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockAnalysesGet = jest.fn();
 const mockAnalysesList = jest.fn();
@@ -31,7 +32,7 @@ const mockAnalysesList = jest.fn();
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ id: "session-a", tab: mockTabParam }),
   useRouter: () => ({
-    push: jest.fn(),
+    push: (...args: unknown[]) => mockPush(...args),
     back: jest.fn(),
     replace: (...args: unknown[]) => mockReplace(...args),
   }),
@@ -269,6 +270,59 @@ describe("navigateTo — tab param is preserved in router.replace", () => {
 
     expect(mockReplace).toHaveBeenCalledTimes(1);
     const callArg: string = mockReplace.mock.calls[0][0];
+    expect(callArg).toMatch(/\?tab=scores$/);
+  });
+});
+
+// ── 7 & 8: Skeleton CTA push carries ?tab= so expo-router restores it on Back ─
+
+describe("Skeleton CTA — tab param is included in the router.push to person-select", () => {
+  beforeEach(() => {
+    mockPush.mockClear();
+    mockReplace.mockClear();
+    mockAnalysesGet.mockReset();
+    mockAnalysesList.mockReset();
+
+    mockAnalysesGet.mockResolvedValue({
+      analysis: COMPLETE_ANALYSIS_A,
+      tips: [],
+      injuryRisks: [],
+    });
+
+    mockAnalysesList.mockResolvedValue({
+      analyses: [COMPLETE_ANALYSIS_B, COMPLETE_ANALYSIS_A],
+    });
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("router.push includes ?tab=tips when the active tab is 'tips'", async () => {
+    mockTabParam = "tips";
+
+    const { getByText } = render(React.createElement(AnalysisDetailScreen));
+    await flush();
+
+    fireEvent.press(getByText("Skeleton"));
+
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    const callArg: string = mockPush.mock.calls[0][0];
+    expect(callArg).toContain("person-select/session-a");
+    expect(callArg).toMatch(/\?tab=tips$/);
+  });
+
+  it("router.push includes ?tab=scores when no tab param was in the URL", async () => {
+    mockTabParam = undefined;
+
+    const { getByText } = render(React.createElement(AnalysisDetailScreen));
+    await flush();
+
+    fireEvent.press(getByText("Skeleton"));
+
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    const callArg: string = mockPush.mock.calls[0][0];
+    expect(callArg).toContain("person-select/session-a");
     expect(callArg).toMatch(/\?tab=scores$/);
   });
 });
