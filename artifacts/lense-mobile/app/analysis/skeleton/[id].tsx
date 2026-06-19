@@ -1621,7 +1621,7 @@ export default function SkeletonScreen() {
               <View style={[ss.scrubberProgress, { flex: scrubRatio }]} />
               <View style={{ flex: 1 - scrubRatio }} />
             </View>
-            {/* Tick marks for risk moments */}
+            {/* Tick marks for risk moments — tappable to snap the scrubber */}
             {frameTicks.map((tick, idx) => {
               const hasRisk = Object.values(tick.jr).some((jr) => (jr?.lvl ?? 0) >= 1);
               if (!hasRisk) return null;
@@ -1630,7 +1630,13 @@ export default function SkeletonScreen() {
               const pos = (tick.t - t0) / td;
               const color = Object.values(tick.jr).some((jr) => (jr?.lvl ?? 0) >= 2) ? "#ef4444" : "#f59e0b";
               return (
-                <View key={idx} style={[ss.scrubberTickMark, { left: `${Math.round(pos * 100)}%` as any, backgroundColor: color }]} />
+                <TouchableOpacity
+                  key={idx}
+                  style={[ss.scrubberTickMark, { left: `${Math.round(pos * 100)}%` as any, backgroundColor: color }]}
+                  onPress={() => setScrubRatio(pos)}
+                  hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+                  activeOpacity={0.7}
+                />
               );
             })}
             {/* Thumb */}
