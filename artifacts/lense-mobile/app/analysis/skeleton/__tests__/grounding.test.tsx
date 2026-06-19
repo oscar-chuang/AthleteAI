@@ -1246,3 +1246,74 @@ describe("group dividers — appear between priority and non-priority tips when 
     expect(screen.queryByText("AFTER INJURY RECOVERY")).toBeNull();
   });
 });
+
+
+// ─── 'Preparing scan…' placeholder lifecycle ──────────────────────────────────
+// Before the WebView's ResizeObserver fires and posts a `layoutReady` message,
+// the progress overlay must show "Preparing scan…" / "Waiting for first frame…".
+// After the message arrives, the overlay must switch to "Tracking your movement"
+// and "% — measuring joints".  Both portrait and landscape aspect ratios are
+// covered by emitting a `meta` message first to set videoAspect.
+describe("scan-overlay — 'Preparing scan…' placeholder lifecycle", () => {
+  function ungroundedResp() {
+    return {
+      analysis: { id: 1, sport: "weightlifting", biomechanicsApplied: false },
+      tips: [],
+      injuryRisks: [],
+    };
+  }
+
+  it("shows 'Preparing scan…' before any WebView message is received", async () => {
+    mockApiGet.mockResolvedValue(ungroundedResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    expect(screen.getByText("Preparing scan…")).toBeTruthy();
+    expect(screen.getByText("Waiting for first frame…")).toBeTruthy();
+    expect(screen.queryByText("Tracking your movement")).toBeNull();
+    expect(screen.queryByText(/measuring joints/)).toBeNull();
+  });
+
+  it("replaces 'Preparing scan…' with progress text after layoutReady in portrait", async () => {
+    mockApiGet.mockResolvedValue(ungroundedResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Portrait aspect (taller than wide)
+    emit({ type: "meta", vw: 9, vh: 16 });
+    await flush();
+
+    expect(screen.getByText("Preparing scan…")).toBeTruthy();
+
+    emit({ type: "layoutReady" });
+    await flush();
+
+    expect(screen.queryByText("Preparing scan…")).toBeNull();
+    expect(screen.queryByText("Waiting for first frame…")).toBeNull();
+    expect(screen.getByText("Tracking your movement")).toBeTruthy();
+    expect(screen.getByText(/measuring joints/)).toBeTruthy();
+  });
+
+  it("replaces 'Preparing scan…' with progress text after layoutReady in landscape", async () => {
+    mockApiGet.mockResolvedValue(ungroundedResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Landscape aspect (wider than tall)
+    emit({ type: "meta", vw: 16, vh: 9 });
+    await flush();
+
+    expect(screen.getByText("Preparing scan…")).toBeTruthy();
+
+    emit({ type: "layoutReady" });
+    await flush();
+
+    expect(screen.queryByText("Preparing scan…")).toBeNull();
+    expect(screen.queryByText("Waiting for first frame…")).toBeNull();
+    expect(screen.getByText("Tracking your movement")).toBeTruthy();
+    expect(screen.getByText(/measuring joints/)).toBeTruthy();
+  });
+});
