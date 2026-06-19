@@ -122,6 +122,7 @@ export default function HomeScreen() {
   const [showGoalSaved, setShowGoalSaved] = useState(false);
   const [showRestDayTooltip, setShowRestDayTooltip] = useState(false);
   const [showSharePreview, setShowSharePreview] = useState(false);
+  const lastFetchedTipIdRef = useRef<string | null>(null);
 
   // When the server (or a background profile refresh) delivers a new weeklyGoal,
   // the optimistic localWeeklyGoal is no longer needed — clear it so the label
@@ -171,10 +172,16 @@ export default function HomeScreen() {
 
       const firstComplete = analyses.find(a => a.status === "complete");
       if (firstComplete) {
-        analysesApi.get(firstComplete.id)
-          .then(({ tips }) => setLatestTips(tips))
-          .catch(() => {});
+        if (firstComplete.id !== lastFetchedTipIdRef.current) {
+          analysesApi.get(firstComplete.id)
+            .then(({ tips }) => {
+              lastFetchedTipIdRef.current = firstComplete.id;
+              setLatestTips(tips);
+            })
+            .catch(() => {});
+        }
       } else {
+        lastFetchedTipIdRef.current = null;
         setLatestTips([]);
       }
 
