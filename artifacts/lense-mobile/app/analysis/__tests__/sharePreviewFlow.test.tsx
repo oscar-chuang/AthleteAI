@@ -279,10 +279,15 @@ describe("AnalysisDetailScreen — share preview modal", () => {
     await flush();
 
     expect(mockCaptureRef).toHaveBeenCalledTimes(1);
+<<<<<<< HEAD
     // On Android the share path uses IntentLauncher.startActivityAsync, not
     // Sharing.shareAsync.  getContentUriAsync converts the tmp file path first.
     expect(mockGetContentUriAsync).toHaveBeenCalledTimes(1);
     expect(mockStartActivityAsync).toHaveBeenCalledTimes(1);
+=======
+    // Android path: IntentLauncher.startActivityAsync, not Sharing.shareAsync.
+    expect(mockStartActivity).toHaveBeenCalledTimes(1);
+>>>>>>> 802885e (fix(ScoreRing): skip animation restart when score hasn't changed)
     // Modal closes after the share completes.
     expect(screen.queryByText("Share your session")).toBeNull();
   });

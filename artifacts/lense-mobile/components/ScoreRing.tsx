@@ -48,6 +48,11 @@ export function ScoreRing({
     animate ? 0 : Math.round(clamped)
   );
 
+  // Track the last score value that actually triggered an animation so we can
+  // skip re-running the 800ms count-up when the parent re-renders without
+  // changing the score (e.g. a context update).
+  const lastAnimatedScore = useRef<number | null>(null);
+
   useEffect(() => {
     if (!animate) {
       offsetAnim.setValue(targetOffset);
@@ -55,6 +60,12 @@ export function ScoreRing({
       setDisplayScore(Math.round(clamped));
       return;
     }
+
+    // Skip the animation restart if the score hasn't changed since the last run.
+    if (lastAnimatedScore.current === clamped) {
+      return;
+    }
+    lastAnimatedScore.current = clamped;
 
     // Reset to empty/zero before animating
     offsetAnim.setValue(circumference);

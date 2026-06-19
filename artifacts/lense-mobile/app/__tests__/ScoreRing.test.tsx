@@ -68,6 +68,27 @@ describe("ScoreRing count-up animation", () => {
     // No animation — score should be rendered on the first frame.
     expect(getByText("75")).toBeTruthy();
   });
+
+  it("does not reset to 0 when re-rendered with the same score", async () => {
+    const { getByText, rerender } = render(
+      <ScoreRing score={75} color="#6c63ff" animate />,
+    );
+
+    // Advance past the full animation.
+    await act(async () => {
+      jest.advanceTimersByTime(900);
+    });
+
+    expect(getByText("75")).toBeTruthy();
+
+    // Re-render with the exact same score — the ring must NOT reset to 0.
+    await act(async () => {
+      rerender(<ScoreRing score={75} color="#6c63ff" animate />);
+    });
+
+    // Score must still show 75, not 0.
+    expect(getByText("75")).toBeTruthy();
+  });
 });
 
 // ─── ScoreRing custom children ───────────────────────────────────────────────
