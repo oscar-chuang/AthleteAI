@@ -397,13 +397,17 @@ export default function AnalysisDetailScreen() {
   const [saving, setSaving] = useState(false);
   const [lastShareAction, setLastShareAction] = useState<"save" | "share">("share");
   const [selectedShareTipId, setSelectedShareTipId] = useState<string | null>(null);
+  // Persisted across modal opens: the last scheme the user picked in the share
+  // preview is saved to AsyncStorage under SHARE_CARD_SCHEME_KEY so it comes
+  // back pre-selected next time.  Falls back to "dark" for first-time users.
   const [shareScheme, setShareScheme] = useState<"dark" | "light">("dark");
 
-  // Load persisted share card scheme on mount
   useEffect(() => {
-    AsyncStorage.getItem(SHARE_CARD_SCHEME_KEY).then((saved) => {
-      if (saved === "dark" || saved === "light") setShareScheme(saved);
-    }).catch(() => {});
+    AsyncStorage.getItem(SHARE_CARD_SCHEME_KEY)
+      .then((saved) => {
+        if (saved === "dark" || saved === "light") setShareScheme(saved);
+      })
+      .catch(() => {});
   }, []);
   const shareCardRef = useRef<View>(null);
   // Remembers the last tip the user picked on the share sheet, keyed by analysis ID.
