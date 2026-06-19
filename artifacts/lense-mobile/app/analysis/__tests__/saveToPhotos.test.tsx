@@ -11,7 +11,9 @@
  *
  * Strategy:
  *   - Render the real AnalysisDetailScreen with a complete analysis fixture.
- *   - expo-media-library is mocked via jest.mock factory (static import in [id].tsx).
+ *   - expo-media-library is mocked via moduleNameMapper → __mocks__/expo-media-library.js
+ *     (works for both static and dynamic imports; [id].tsx uses a dynamic import guarded
+ *     by Platform.OS !== "web" so the module never loads on web).
  *   - react-native-view-shot captureRef is mocked.
  *   - Alert.alert is spied on to assert which dialog is presented.
  *   - useFocusEffect callback is captured to trigger data load.
@@ -52,10 +54,11 @@ jest.mock("react-native-view-shot", () => ({
   captureRef: (...args: unknown[]) => mockCaptureRef(...args),
 }));
 
-// expo-media-library is now statically imported in [id].tsx so a factory mock
-// is intercepted cleanly by Jest's module registry for both the test file and
-// the component under test.
-jest.mock("expo-media-library", () => ({
+// [id].tsx imports from @/utils/mediaLibrary (a thin wrapper that lets Metro
+// use mediaLibrary.web.ts on web without loading the native module). We mock
+// that wrapper directly so the mock functions are the same instances both here
+// and inside the component.
+jest.mock("@/utils/mediaLibrary", () => ({
   requestPermissionsAsync: (...args: unknown[]) =>
     mockRequestPermissionsAsync(...args),
   saveToLibraryAsync: (...args: unknown[]) => mockSaveToLibraryAsync(...args),

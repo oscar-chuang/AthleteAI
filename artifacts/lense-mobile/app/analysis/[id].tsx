@@ -24,9 +24,10 @@ import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import * as IntentLauncher from "expo-intent-launcher";
 import * as FileSystem from "expo-file-system";
-import * as MediaLibrary from "expo-media-library";
 import { useSharePreview } from "@/hooks/useSharePreview";
 import { useCardStagger } from "@/hooks/useCardStagger";
+
+import * as MediaLibrary from "@/utils/mediaLibrary";
 
 import { useColors } from "@/hooks/useColors";
 import { formatBiomechanicsText } from "@/utils/formatBiomechanics";
