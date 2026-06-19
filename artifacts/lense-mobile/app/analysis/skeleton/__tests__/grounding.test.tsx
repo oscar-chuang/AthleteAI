@@ -885,6 +885,22 @@ describe("scan quality banner — low/medium confidence UI", () => {
     expect(screen.getByText(/Some joints weren't fully visible/)).toBeTruthy();
     expect(screen.queryByText("Athlete not clearly visible")).toBeNull();
   });
+
+  it("shows the 'High confidence' badge and hides both warning UIs when avg visibility ≥ 0.70", async () => {
+    mockApiGet.mockResolvedValue(resp(false));
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    emit(qualityCapture(0.9));  // avg = 0.9 → "high"
+    await flush();
+    emit(scanMsg);
+    await flush();
+
+    expect(screen.getByText("High confidence")).toBeTruthy();
+    expect(screen.queryByText("Athlete not clearly visible")).toBeNull();
+    expect(screen.queryByText(/Some joints weren't fully visible/)).toBeNull();
+  });
 });
 
 // ─── Completed-drills cleared on re-scan ─────────────────────────────────────
