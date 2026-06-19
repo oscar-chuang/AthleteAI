@@ -111,6 +111,8 @@ export default function HomeScreen() {
   const [showShareHint, setShowShareHint] = useState(false);
   const shareHintAnim = useRef(new Animated.Value(0)).current;
   const [barAnimDone, setBarAnimDone]     = useState(false);
+  const goalSavedAnim = useRef(new Animated.Value(0)).current;
+  const [showGoalSaved, setShowGoalSaved] = useState(false);
 
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
@@ -201,6 +203,13 @@ export default function HomeScreen() {
     try {
       await updateProfile({ weeklyGoal: n });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      setShowGoalSaved(true);
+      goalSavedAnim.setValue(0);
+      Animated.sequence([
+        Animated.timing(goalSavedAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
+        Animated.delay(180),
+        Animated.timing(goalSavedAnim, { toValue: 0, duration: 130, useNativeDriver: true }),
+      ]).start(() => setShowGoalSaved(false));
     } catch {
       setLocalWeeklyGoal(prev);
     } finally {
@@ -691,10 +700,21 @@ export default function HomeScreen() {
                   activeOpacity={0.7}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
-                    Goal: {weeklyGoal} session{weeklyGoal !== 1 ? "s" : ""}/week
-                  </Text>
-                  <Feather name="edit-2" size={10} color={colors.mutedForeground} />
+                  {showGoalSaved ? (
+                    <Animated.View style={{ opacity: goalSavedAnim, flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <Feather name="check-circle" size={11} color="#22c55e" />
+                      <Text style={{ fontSize: 11, color: "#22c55e", fontFamily: "Inter_500Medium" }}>
+                        Goal saved!
+                      </Text>
+                    </Animated.View>
+                  ) : (
+                    <>
+                      <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+                        Goal: {weeklyGoal} session{weeklyGoal !== 1 ? "s" : ""}/week
+                      </Text>
+                      <Feather name="edit-2" size={10} color={colors.mutedForeground} />
+                    </>
+                  )}
                 </TouchableOpacity>
                 {scheduleSummary != null && (
                   <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_500Medium", letterSpacing: 0.5 }}>
