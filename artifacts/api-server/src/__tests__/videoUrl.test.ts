@@ -104,10 +104,12 @@ const h = vi.hoisted(() => {
     },
     insert(_t: any) {
       return {
-        values(_v: any) {
+        values(v: any) {
           return {
             returning() {
-              return Promise.resolve([{ ...fakeRow }]);
+              // Spread the inserted values so callers can assert round-tripped
+              // fields (e.g. videoUrl) without a second DB fetch.
+              return Promise.resolve([{ ...fakeRow, ...v }]);
             },
           };
         },
@@ -298,5 +300,62 @@ describe("PATCH /analyses/:id — videoUrl guard applied at route level", () => 
       .send({ videoUrl: "https://cdn.example.com/videos/session-42.mp4", sport: "running" });
 
     expect(res.status).toBe(200);
+  });
+});
+
+// ─── End-to-end upload flow simulation ────────────────────────────────────────
+//
+// These tests simulate the mobile upload path as exercised by upload.ts +
+// analyses.create() in lib/api.ts:
+//
+//   uploadVideo(localUri)  →  returns objectPath (an HTTPS storage URL)
+//   analyses.create({ videoUrl: objectPath })  →  POST /analyses
+//   API validates URL  →  201 + URL preserved in body  (or 400 before any insert)
+//
+// Invariants:
+//  12. A GCS-style HTTPS URL returned by the presigned-upload flow is accepted
+//      with 201 and the exact URL is preserved in the response body so the mobile
+//      app can play back the video without an extra round-trip.
+//  13. A data: URI fed through the same code path (accidental misuse of a frame
+//      base64 as the videoUrl argument) is rejected with 400 before db.insert is
+//      ever called — no orphaned DB row is created.
+
+describe("Mobile upload flow — POST /analyses with a storage-issued URL", () => {
+  it("happy path: GCS presigned-URL result is accepted with 201 and URL is preserved in the response", async () => {
+    const app = makeApp();
+    // Mirrors the objectPath returned by the /api/storage/uploads/request-url flow
+    // in artifacts/lense-mobile/lib/upload.ts after a successful PUT to GCS.
+    const storageUrl =
+      "https://storage.googleapis.com/athlete-ai-videos/users/99/session_1719000000000.mp4";
+
+    const res = await request(app)
+      .post("/analyses")
+      .send({ title: "Sprint session", sport: "running", videoUrl: storageUrl });
+
+    expect(res.status).toBe(201);
+    expect(res.body.analysis).toBeDefined();
+    // The URL must round-trip unchanged — the mobile player uses this value directly.
+    expect(res.body.analysis.videoUrl).toBe(storageUrl);
+  });
+
+  it("negative path: a data: URI is rejected with 400 and db.insert is never called", async () => {
+    const app = makeApp();
+    const insertSpy = vi.spyOn(h.fakeDb, "insert");
+
+    const res = await request(app)
+      .post("/analyses")
+      .send({
+        title: "Sprint session",
+        sport: "running",
+        // Simulates accidentally passing a captured video frame (base64 JPEG) as videoUrl
+        videoUrl: "data:video/mp4;base64,AAAA",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/data URI/);
+    // Guard fires before any persistence — no orphaned DB row created.
+    expect(insertSpy).not.toHaveBeenCalled();
+
+    insertSpy.mockRestore();
   });
 });
