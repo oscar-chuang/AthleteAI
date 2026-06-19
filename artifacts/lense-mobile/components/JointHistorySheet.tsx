@@ -322,6 +322,51 @@ export default function JointHistorySheet({
                 No history yet
               </Text>
             </View>
+          ) : data.length === 1 ? (
+            <View
+              style={{
+                alignItems: "center",
+                paddingVertical: 36,
+                borderWidth: 1,
+                borderColor: "#2a2a40",
+                borderRadius: 12,
+                backgroundColor: "#12122080",
+                marginBottom: 4,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 48,
+                  fontFamily: "Inter_700Bold",
+                  color: riskColor,
+                  lineHeight: 56,
+                }}
+              >
+                {Math.round(last!.angle)}°
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontFamily: "Inter_600SemiBold",
+                  color: riskColor,
+                  marginTop: 4,
+                }}
+              >
+                {riskLabel}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: "Inter_400Regular",
+                  color: "#8888aa",
+                  marginTop: 16,
+                  textAlign: "center",
+                  paddingHorizontal: 24,
+                }}
+              >
+                Scan again to see your trend
+              </Text>
+            </View>
           ) : (
             <Svg width={sw - 48} height={totalSvgH + 72} style={{ overflow: "visible" }}>
               {/* Transparent dismiss area — clears selection when tapping chart background */}
