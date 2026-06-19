@@ -97,6 +97,69 @@ function makeChatSportMachine(
   return { state, doInitialLoad, onProfileChange };
 }
 
+// ── state machine that also tracks goals ─────────────────────────────────────
+
+interface ChatScreenStateWithGoals extends ChatScreenState {
+  goals: string[] | undefined;
+}
+
+/**
+ * Extended version of makeChatSportMachine that also observes goals changes.
+ *
+ * Mirrors a hypothetical useEffect([profileSport, profileLevel, profileGoals,
+ * loadSuggestions]) — adding goals as a dep means any change to goals alone
+ * is enough to trigger a fresh suggestions fetch.
+ */
+function makeChatGoalsMachine(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  fetchSuggestions: any,
+) {
+  const state: ChatScreenStateWithGoals = {
+    suggestions: [],
+    hasCompletedAnalyses: false,
+    initialLoadDone: false,
+    sport: undefined,
+    level: undefined,
+    goals: undefined,
+  };
+
+  async function loadSuggestions() {
+    const res: SuggestionsResponse = await fetchSuggestions();
+    state.suggestions = res.suggestions;
+    state.hasCompletedAnalyses = res.hasCompletedAnalyses;
+  }
+
+  async function doInitialLoad() {
+    await loadSuggestions();
+    state.initialLoadDone = true;
+  }
+
+  /**
+   * Mirrors useEffect([profileSport, profileLevel, profileGoals, loadSuggestions]).
+   * A change to any of the three profile values re-triggers suggestion loading.
+   */
+  async function onProfileChange(
+    newSport: string | undefined,
+    newLevel: string | undefined,
+    newGoals: string[] | undefined,
+  ) {
+    const goalsKey = JSON.stringify(newGoals);
+    const prevGoalsKey = JSON.stringify(state.goals);
+    const changed =
+      newSport !== state.sport ||
+      newLevel !== state.level ||
+      goalsKey !== prevGoalsKey;
+    if (!changed) return;
+    state.sport = newSport;
+    state.level = newLevel;
+    state.goals = newGoals;
+    if (!state.initialLoadDone) return;
+    await loadSuggestions();
+  }
+
+  return { state, doInitialLoad, onProfileChange };
+}
+
 // ── tests ──────────────────────────────────────────────────────────────────────
 
 describe("chat screen — sport change propagates to suggestion chips", () => {
@@ -266,5 +329,136 @@ describe("chat screen — sport change propagates to suggestion chips", () => {
 
     // No second call — neither dep changed
     expect(fetchSuggestions).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── Goals change tests ────────────────────────────────────────────────────────
+
+describe("chat screen — goals change propagates to suggestion chips", () => {
+  let fetchSuggestions: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchSuggestions = vi.fn();
+  });
+
+  // ── Test 1 ────────────────────────────────────────────────────────────────
+
+  it("re-fetches suggestions when only goals change after initial load", async () => {
+    fetchSuggestions
+      .mockResolvedValueOnce({
+        suggestions: ["Improve your running cadence", "Core drills"],
+        hasCompletedAnalyses: true,
+      })
+      .mockResolvedValueOnce({
+        suggestions: ["Increase weekly mileage", "Hill repeat training"],
+        hasCompletedAnalyses: true,
+      });
+
+    const { state, doInitialLoad, onProfileChange } = makeChatGoalsMachine(fetchSuggestions);
+
+    await doInitialLoad();
+    state.sport = "running";
+    state.level = "intermediate";
+    state.goals = [];
+    expect(fetchSuggestions).toHaveBeenCalledTimes(1);
+
+    // Athlete adds a new goal — sport and level stay the same
+    await onProfileChange("running", "intermediate", ["run a marathon"]);
+
+    expect(fetchSuggestions).toHaveBeenCalledTimes(2);
+    expect(state.suggestions[0]).toContain("mileage");
+  });
+
+  // ── Test 2 ────────────────────────────────────────────────────────────────
+
+  it("does NOT re-fetch when goals, sport, and level are all unchanged", async () => {
+    fetchSuggestions.mockResolvedValue({
+      suggestions: ["Stay consistent"],
+      hasCompletedAnalyses: true,
+    });
+
+    const { state, doInitialLoad, onProfileChange } = makeChatGoalsMachine(fetchSuggestions);
+
+    await doInitialLoad();
+    state.sport = "cycling";
+    state.level = "beginner";
+    state.goals = ["lose weight"];
+
+    // Same values again
+    await onProfileChange("cycling", "beginner", ["lose weight"]);
+
+    expect(fetchSuggestions).toHaveBeenCalledTimes(1);
+  });
+
+  // ── Test 3 ────────────────────────────────────────────────────────────────
+
+  it("re-fetches when one goal is replaced with another", async () => {
+    fetchSuggestions
+      .mockResolvedValueOnce({
+        suggestions: ["tip for old goal"],
+        hasCompletedAnalyses: true,
+      })
+      .mockResolvedValueOnce({
+        suggestions: ["tip for new goal"],
+        hasCompletedAnalyses: true,
+      });
+
+    const { state, doInitialLoad, onProfileChange } = makeChatGoalsMachine(fetchSuggestions);
+
+    await doInitialLoad();
+    state.sport = "swimming";
+    state.level = "advanced";
+    state.goals = ["build endurance"];
+
+    // Swap the goal — sport and level unchanged
+    await onProfileChange("swimming", "advanced", ["improve flip turns"]);
+
+    expect(fetchSuggestions).toHaveBeenCalledTimes(2);
+    expect(state.suggestions[0]).toContain("new goal");
+  });
+
+  // ── Test 4 ────────────────────────────────────────────────────────────────
+
+  it("does NOT call loadSuggestions before the initial load completes even when goals change", async () => {
+    fetchSuggestions.mockResolvedValue({
+      suggestions: ["some tip"],
+      hasCompletedAnalyses: false,
+    });
+
+    const { state, onProfileChange } = makeChatGoalsMachine(fetchSuggestions);
+
+    // Goals change before doInitialLoad has been called
+    await onProfileChange("tennis", "intermediate", ["qualify for regionals"]);
+
+    // Guard must prevent the fetch
+    expect(fetchSuggestions).not.toHaveBeenCalled();
+    expect(state.suggestions).toHaveLength(0);
+  });
+
+  // ── Test 5 ────────────────────────────────────────────────────────────────
+
+  it("re-fetches when goals are cleared (athlete removes all goals)", async () => {
+    fetchSuggestions
+      .mockResolvedValueOnce({
+        suggestions: ["tips with a goal"],
+        hasCompletedAnalyses: true,
+      })
+      .mockResolvedValueOnce({
+        suggestions: ["generic tips, no goal"],
+        hasCompletedAnalyses: true,
+      });
+
+    const { state, doInitialLoad, onProfileChange } = makeChatGoalsMachine(fetchSuggestions);
+
+    await doInitialLoad();
+    state.sport = "basketball";
+    state.level = "intermediate";
+    state.goals = ["make varsity team"];
+
+    // Athlete clears all goals
+    await onProfileChange("basketball", "intermediate", []);
+
+    expect(fetchSuggestions).toHaveBeenCalledTimes(2);
+    expect(state.suggestions[0]).toContain("generic");
   });
 });

@@ -169,6 +169,16 @@ function setProfile(
   }
 }
 
+function setProfileWithGoals(
+  sport: string,
+  goals: string[] | null,
+  name = "Test Athlete",
+  level = "intermediate",
+) {
+  h.profileStore.length = 0;
+  h.profileStore.push({ userId: USER_ID, name, sport, level, goals, injuryConcerns: null });
+}
+
 function clearAnalyses() {
   h.analysesStore.length = 0;
 }
@@ -417,6 +427,79 @@ describe("buildSystemPrompt — feel cues appear in the system prompt", () => {
     const prompt = await buildSystemPrompt(USER_ID);
 
     expect(prompt).not.toContain("Feel shoulder blades glide together");
+  });
+});
+
+describe("buildSystemPrompt — goals appear in coaching context", () => {
+  beforeEach(() => {
+    clearAnalyses();
+  });
+
+  it("includes the athlete's goals in the prompt when goals are set", async () => {
+    setProfileWithGoals("tennis", ["improve serve accuracy", "increase first-serve speed"]);
+    const prompt = await buildSystemPrompt(USER_ID);
+    expect(prompt).toContain("improve serve accuracy");
+    expect(prompt).toContain("increase first-serve speed");
+  });
+
+  it("omits the goals line when goals is null", async () => {
+    setProfile("running"); // goals: null
+    const prompt = await buildSystemPrompt(USER_ID);
+    expect(prompt).not.toContain("stated goals");
+  });
+
+  it("omits the goals line when goals is an empty array", async () => {
+    setProfileWithGoals("cycling", []);
+    const prompt = await buildSystemPrompt(USER_ID);
+    expect(prompt).not.toContain("stated goals");
+  });
+
+  it("reflects a goals change between two successive calls without requiring a restart", async () => {
+    setProfileWithGoals("swimming", ["build endurance"]);
+    const prompt1 = await buildSystemPrompt(USER_ID);
+    expect(prompt1).toContain("build endurance");
+
+    // Athlete updates their goals mid-session
+    setProfileWithGoals("swimming", ["lose weight", "increase speed"]);
+    const prompt2 = await buildSystemPrompt(USER_ID);
+
+    expect(prompt2).toContain("lose weight");
+    expect(prompt2).toContain("increase speed");
+    // The old goal must NOT appear in the fresh prompt
+    expect(prompt2).not.toContain("build endurance");
+  });
+
+  it("embeds every goal in the prompt when multiple goals are set", async () => {
+    const goalsList = ["win a marathon", "sub-4 minute mile", "prevent knee injuries"];
+    setProfileWithGoals("running", goalsList);
+    const prompt = await buildSystemPrompt(USER_ID);
+    for (const goal of goalsList) {
+      expect(prompt).toContain(goal);
+    }
+  });
+
+  it("coaches a goals-driven athlete differently from one with no goals set", async () => {
+    setProfileWithGoals("basketball", ["improve free throw percentage"]);
+    const goalsPrompt = await buildSystemPrompt(USER_ID);
+
+    setProfile("basketball"); // goals: null
+    const noGoalsPrompt = await buildSystemPrompt(USER_ID);
+
+    expect(goalsPrompt).toContain("improve free throw percentage");
+    expect(noGoalsPrompt).not.toContain("improve free throw percentage");
+    expect(goalsPrompt).not.toEqual(noGoalsPrompt);
+  });
+
+  it("clears goals from the prompt when the athlete removes all their goals", async () => {
+    setProfileWithGoals("volleyball", ["reach club level"]);
+    const promptBefore = await buildSystemPrompt(USER_ID);
+    expect(promptBefore).toContain("reach club level");
+    expect(promptBefore).toContain("stated goals");
+
+    setProfileWithGoals("volleyball", null);
+    const promptAfter = await buildSystemPrompt(USER_ID);
+    expect(promptAfter).not.toContain("reach club level");
+    expect(promptAfter).not.toContain("stated goals");
   });
 });
 
