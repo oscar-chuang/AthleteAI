@@ -46,6 +46,7 @@ import {
 } from "@/utils/shareCardCapture";
 
 const PENDING_CHAT_KEY = "pendingChatMessage";
+const SWIPE_HINT_SEEN_KEY = "swipe_hint_seen";
 
 // Module-level: tracks which analysis IDs have already completed their first ring animation.
 // Persists across component re-mounts (session navigation), so switching sessions and coming
@@ -386,6 +387,13 @@ export default function AnalysisDetailScreen() {
   // Sibling session IDs for prev/next navigation — sorted newest-first
   const [siblingIds, setSiblingIds] = useState<string[]>([]);
 
+  // ── Swipe hint (one-time discovability) ──
+  const swipeHintOpacity = useRef(new Animated.Value(0)).current;
+  const swipeHintVisible = useRef(false);
+  const dismissHintRef = useRef<() => void>(() => {});
+  const showHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const scrollRef = useRef<ScrollView>(null);
 
   // If this analysis has already played its ring animation (e.g. user returns
@@ -483,6 +491,76 @@ export default function AnalysisDetailScreen() {
 
   const swipeAnim = useRef(new Animated.Value(0)).current;
 
+  // ── Swipe hint logic ──────────────────────────────────────────────────────
+  function dismissSwipeHint() {
+    // Cancel any pending show / auto-dismiss timers so a swipe that happens
+    // before the 700 ms delay or during the 2 s window never shows the hint.
+    if (showHintTimerRef.current !== null) {
+      clearTimeout(showHintTimerRef.current);
+      showHintTimerRef.current = null;
+    }
+    if (autoHintTimerRef.current !== null) {
+      clearTimeout(autoHintTimerRef.current);
+      autoHintTimerRef.current = null;
+    }
+    if (!swipeHintVisible.current) return;
+    swipeHintVisible.current = false;
+    Animated.timing(swipeHintOpacity, {
+      toValue: 0,
+      duration: 350,
+      useNativeDriver: true,
+    }).start();
+    AsyncStorage.setItem(SWIPE_HINT_SEEN_KEY, "true").catch(() => {});
+  }
+
+  // Register dismiss so the PanResponder (created once) can call it via ref.
+  dismissHintRef.current = dismissSwipeHint;
+
+  // Show the hint once siblings are known and hint has not been seen.
+  useEffect(() => {
+    if (siblingIds.length < 2) return;
+    const myIndex = siblingIds.indexOf(id ?? "");
+    const hasNeighbour =
+      myIndex > 0 || (myIndex >= 0 && myIndex < siblingIds.length - 1);
+    if (!hasNeighbour) return;
+
+    // cancelled guards against the async storage read completing after the
+    // effect has been cleaned up (e.g. component unmounts mid-flight).
+    let cancelled = false;
+
+    AsyncStorage.getItem(SWIPE_HINT_SEEN_KEY).then((seen) => {
+      if (seen || cancelled) return;
+      swipeHintVisible.current = true;
+      showHintTimerRef.current = setTimeout(() => {
+        showHintTimerRef.current = null;
+        if (cancelled || !swipeHintVisible.current) return;
+        Animated.timing(swipeHintOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }).start(() => {
+          if (cancelled || !swipeHintVisible.current) return;
+          autoHintTimerRef.current = setTimeout(() => {
+            autoHintTimerRef.current = null;
+            dismissHintRef.current();
+          }, 2000);
+        });
+      }, 700);
+    }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+      if (showHintTimerRef.current !== null) {
+        clearTimeout(showHintTimerRef.current);
+        showHintTimerRef.current = null;
+      }
+      if (autoHintTimerRef.current !== null) {
+        clearTimeout(autoHintTimerRef.current);
+        autoHintTimerRef.current = null;
+      }
+    };
+  }, [siblingIds]);
+
   // Keep a mutable ref so the PanResponder closure (created once) always sees
   // the latest prevId / nextId without needing to be recreated.
   const navRef = useRef<{ prevId: string | null; nextId: string | null }>({
@@ -521,6 +599,7 @@ export default function AnalysisDetailScreen() {
           (dx > SWIPE_THRESHOLD || vx > SWIPE_VELOCITY_THRESHOLD) && !!pId;
 
         if (goNext) {
+          dismissHintRef.current();
           Animated.timing(swipeAnim, {
             toValue: -SCREEN_WIDTH,
             duration: 220,
@@ -530,6 +609,7 @@ export default function AnalysisDetailScreen() {
             routerRef.current.replace(`/analysis/${nId}` as any);
           });
         } else if (goPrev) {
+          dismissHintRef.current();
           Animated.timing(swipeAnim, {
             toValue: SCREEN_WIDTH,
             duration: 220,
@@ -1729,6 +1809,25 @@ export default function AnalysisDetailScreen() {
       </ScrollView>
       </Animated.View>
 
+      {/* ── Swipe hint pill ── */}
+      <Animated.View
+        style={[
+          styles.swipeHint,
+          {
+            backgroundColor: colors.foreground + "CC",
+            bottom: bottomPad + 72,
+            opacity: swipeHintOpacity,
+          },
+        ]}
+        pointerEvents="none"
+      >
+        <Feather name="chevron-left" size={14} color={colors.background} />
+        <Text style={[styles.swipeHintText, { color: colors.background }]}>
+          Swipe to navigate
+        </Text>
+        <Feather name="chevron-right" size={14} color={colors.background} />
+      </Animated.View>
+
       {/* ── Goal reached toast ── */}
       {goalToast && (
         <Animated.View
@@ -2117,6 +2216,23 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     marginTop: 6,
     textAlign: "right",
+  },
+
+  // Swipe hint
+  swipeHint: {
+    position: "absolute",
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  swipeHintText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.2,
   },
 
   // Goal reached toast
