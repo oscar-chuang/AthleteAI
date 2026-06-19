@@ -16,8 +16,23 @@ vi.mock("expo-notifications", () => ({
   SchedulableTriggerInputTypes: { DATE: "date" },
 }));
 
-import { scheduleImprovementNotification } from "../notifications";
+// Stub AsyncStorage so persist/clear/resolve helpers work without native modules.
+// Default: getItem returns null (simulates empty storage → falls back to hour 9).
+vi.mock("@react-native-async-storage/async-storage", () => ({
+  default: {
+    getItem: vi.fn().mockResolvedValue(null),
+    setItem: vi.fn().mockResolvedValue(undefined),
+    removeItem: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
+import {
+  scheduleImprovementNotification,
+  persistCheckInHour,
+  clearPersistedCheckInHour,
+} from "../notifications";
 import * as Notifications from "expo-notifications";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -41,6 +56,10 @@ describe("scheduleImprovementNotification — trigger hour", () => {
     vi.mocked(Notifications.getPermissionsAsync).mockResolvedValue({ granted: true } as any);
     vi.mocked(Notifications.cancelScheduledNotificationAsync).mockResolvedValue(undefined);
     vi.mocked(Notifications.scheduleNotificationAsync).mockResolvedValue("mock-notification-id");
+    // Default: storage is empty → resolveCheckInHour returns 9.
+    vi.mocked(AsyncStorage.getItem).mockResolvedValue(null);
+    vi.mocked(AsyncStorage.setItem).mockResolvedValue(undefined);
+    vi.mocked(AsyncStorage.removeItem).mockResolvedValue(undefined);
   });
 
   // ── Default hour ───────────────────────────────────────────────────────────
@@ -127,5 +146,60 @@ describe("scheduleImprovementNotification — trigger hour", () => {
   it("does not call scheduleNotificationAsync when improvements list is empty", async () => {
     await scheduleImprovementNotification([], "running", 9);
     expect(vi.mocked(Notifications.scheduleNotificationAsync)).not.toHaveBeenCalled();
+  });
+});
+
+// ─── AsyncStorage persistence tests ───────────────────────────────────────────
+
+describe("persistCheckInHour / clearPersistedCheckInHour — AsyncStorage fallback", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(Notifications.getPermissionsAsync).mockResolvedValue({ granted: true } as any);
+    vi.mocked(Notifications.cancelScheduledNotificationAsync).mockResolvedValue(undefined);
+    vi.mocked(Notifications.scheduleNotificationAsync).mockResolvedValue("mock-notification-id");
+    // Start each test with empty storage.
+    vi.mocked(AsyncStorage.getItem).mockResolvedValue(null);
+    vi.mocked(AsyncStorage.setItem).mockResolvedValue(undefined);
+    vi.mocked(AsyncStorage.removeItem).mockResolvedValue(undefined);
+  });
+
+  it("schedules at the persisted hour after persistCheckInHour(14)", async () => {
+    // Simulate: user saved check-in hour 14 via persistCheckInHour.
+    // AsyncStorage.getItem returns "14" when the correct key is queried.
+    vi.mocked(AsyncStorage.setItem).mockImplementation(async () => undefined);
+    vi.mocked(AsyncStorage.getItem).mockResolvedValue("14");
+
+    // Persist the hour (exercises the setItem path).
+    await persistCheckInHour(14);
+    expect(vi.mocked(AsyncStorage.setItem)).toHaveBeenCalledWith("check_in_hour", "14");
+
+    // Now schedule without an explicit hour — resolveCheckInHour should read "14".
+    await scheduleImprovementNotification(ONE_IMPROVEMENT, "running");
+
+    const calls = vi.mocked(Notifications.scheduleNotificationAsync).mock.calls;
+    expect(calls).toHaveLength(1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const triggerDate = (calls[0]![0] as any).trigger.date as Date;
+    expect(triggerDate.getHours()).toBe(14);
+  });
+
+  it("falls back to hour 9 after clearPersistedCheckInHour() removes the stored value", async () => {
+    // After clear, AsyncStorage.getItem should return null → default 9.
+    vi.mocked(AsyncStorage.removeItem).mockImplementation(async () => undefined);
+    vi.mocked(AsyncStorage.getItem).mockResolvedValue(null);
+
+    // Clear the stored hour (exercises the removeItem path).
+    await clearPersistedCheckInHour();
+    expect(vi.mocked(AsyncStorage.removeItem)).toHaveBeenCalledWith("check_in_hour");
+
+    // Schedule without an explicit hour — no stored value means default 9.
+    await scheduleImprovementNotification(ONE_IMPROVEMENT, "running");
+
+    const calls = vi.mocked(Notifications.scheduleNotificationAsync).mock.calls;
+    expect(calls).toHaveLength(1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const triggerDate = (calls[0]![0] as any).trigger.date as Date;
+    expect(triggerDate.getHours()).toBe(9);
   });
 });
