@@ -74,6 +74,32 @@ JWT, 30-day expiry, stored in AsyncStorage (`auth_token`). A global 401 handler 
 
 Full schema: `lib/db/src/schema/`.
 
+## Operational alerts
+
+### `thumbnail_resize_failed`
+
+**What it means:** The `resizeThumbnail()` helper in `artifacts/api-server/src/lib/resize-thumbnail.ts` could not down-sample a video frame with sharp. The original (potentially large) base64 string was written to the DB unchanged to avoid losing the frame entirely.
+
+**Common causes:**
+- The mobile client sent a corrupt or non-JPEG/PNG byte sequence.
+- The frame buffer is valid but contains an unusual colour-space or sub-sampling mode sharp does not support.
+- An upstream dependency (sharp / libvips) crashed on a specific pixel layout.
+
+**Fields included in the alert:**
+| Field | Meaning |
+|-------|---------|
+| `error` | The underlying sharp error message |
+| `inputBytes` | Approximate raw byte size of the failing frame |
+| `inputKB` | `inputBytes / 1024` for quick triage |
+
+**How to respond:**
+1. Check the `inputKB` value. Frames under 200 KB are almost certainly corrupt input; frames over 1 MB suggest the client is sending uncompressed or very high-resolution data.
+2. Inspect recent PATCH requests to `/analyses/:id` for the `frameBase64` field — look for unusual MIME types or encoding errors.
+3. If the issue is systematic (many alerts in a short window), consider adding a byte-size guard in the PATCH route to reject oversized frames before they reach sharp.
+4. If it is a one-off, no action is needed — the fallback path ensures the analysis is not lost.
+
+**Alerting sink:** Configured via `ALERT_WEBHOOK_URL` (Slack-compatible webhook). An in-process counter is always incremented regardless; the counter is accessible via `getAlertCounter("thumbnail_resize_failed")` from `lib/alerting.ts` if you add an internal metrics endpoint.
+
 ## Environment variables
 
 | Variable | Used by | Purpose |

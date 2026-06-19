@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { emitThumbnailResizeAlert } from "./alerting";
 
 /** Thumbnails are displayed at small sizes; cap width at 160 px to limit DB storage. */
 export const THUMBNAIL_MAX_WIDTH = 160;
@@ -25,12 +26,15 @@ export async function resizeThumbnail(frameBase64: string): Promise<string> {
     return isDataUrl ? `${prefix},${encoded}` : encoded;
   } catch (err) {
     const inputBytes = Math.round((frameBase64.length * 3) / 4);
+    const inputKB = Math.round(inputBytes / 1024);
+    const error = (err as Error).message;
     console.warn("thumbnail_resize_failed", {
-      error: (err as Error).message,
+      error,
       inputBytes,
-      inputKB: Math.round(inputBytes / 1024),
+      inputKB,
       note: "oversized raw frame may be stored in DB — investigate input source",
     });
+    void emitThumbnailResizeAlert({ error, inputBytes, inputKB });
     return frameBase64;
   }
 }

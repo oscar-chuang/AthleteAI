@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import sharp from "sharp";
 import { resizeThumbnail, THUMBNAIL_MAX_WIDTH } from "./resize-thumbnail";
+import { getAlertCounter, _resetAlertCounters } from "./alerting";
 
 /**
  * Build a synthetic JPEG buffer with the given dimensions using sharp.
@@ -88,5 +89,89 @@ describe("resizeThumbnail()", () => {
     } finally {
       warnSpy.mockRestore();
     }
+  });
+
+  describe("alerting on resize failure", () => {
+    beforeEach(() => {
+      _resetAlertCounters();
+    });
+
+    it("increments the thumbnail_resize_failed counter when resize fails", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      expect(getAlertCounter("thumbnail_resize_failed")).toBe(0);
+
+      await resizeThumbnail("not-valid-base64!!!");
+
+      expect(getAlertCounter("thumbnail_resize_failed")).toBe(1);
+
+      await resizeThumbnail("also-garbage!!!");
+
+      expect(getAlertCounter("thumbnail_resize_failed")).toBe(2);
+      vi.restoreAllMocks();
+    });
+
+    it("does not increment the counter when resize succeeds", async () => {
+      const inputBuf = await makeSyntheticJpeg(320, 240);
+      await resizeThumbnail(inputBuf.toString("base64"));
+      expect(getAlertCounter("thumbnail_resize_failed")).toBe(0);
+    });
+
+    it("POSTs to ALERT_WEBHOOK_URL with error and inputBytes when set", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(null, { status: 200 })
+      );
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      process.env.ALERT_WEBHOOK_URL = "https://hooks.example.com/test";
+      try {
+        await resizeThumbnail("not-valid-base64!!!");
+
+        expect(fetchSpy).toHaveBeenCalledOnce();
+        const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe("https://hooks.example.com/test");
+        expect(init.method).toBe("POST");
+
+        const body = JSON.parse(init.body as string) as Record<string, unknown>;
+        expect(body).toHaveProperty("text");
+        expect(JSON.stringify(body)).toContain("thumbnail_resize_failed");
+
+        const attachments = body["attachments"] as Array<Record<string, unknown>>;
+        const fields = attachments[0]!["fields"] as Array<{ title: string; value: string }>;
+        const errorField = fields.find((f) => f.title === "Error");
+        const sizeField = fields.find((f) => f.title === "Input size");
+        expect(errorField).toBeDefined();
+        expect(typeof errorField!.value).toBe("string");
+        expect(sizeField).toBeDefined();
+        expect(sizeField!.value).toContain("bytes");
+      } finally {
+        delete process.env.ALERT_WEBHOOK_URL;
+        vi.restoreAllMocks();
+      }
+    });
+
+    it("does not POST when ALERT_WEBHOOK_URL is not set", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      delete process.env.ALERT_WEBHOOK_URL;
+
+      await resizeThumbnail("not-valid-base64!!!");
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+      vi.restoreAllMocks();
+    });
+
+    it("swallows webhook errors without affecting the resize fallback result", async () => {
+      vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network failure"));
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      process.env.ALERT_WEBHOOK_URL = "https://hooks.example.com/test";
+      try {
+        const result = await resizeThumbnail("not-valid-base64!!!");
+        expect(result).toBe("not-valid-base64!!!");
+      } finally {
+        delete process.env.ALERT_WEBHOOK_URL;
+        vi.restoreAllMocks();
+      }
+    });
   });
 });
