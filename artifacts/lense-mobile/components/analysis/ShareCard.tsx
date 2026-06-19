@@ -54,7 +54,7 @@ function scoreBandColor(score: number): string {
 
 // ─── Sport icons ──────────────────────────────────────────────────────────────
 
-const SPORT_ICON: Record<string, React.ComponentProps<typeof Feather>["name"]> = {
+export const SPORT_ICON: Record<string, React.ComponentProps<typeof Feather>["name"]> = {
   running:       "wind",
   swimming:      "droplet",
   cycling:       "zap",

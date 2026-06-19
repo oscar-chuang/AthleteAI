@@ -65,7 +65,7 @@ const WITHOUT_THUMBNAIL: AnalysisRecord = {
 // ─── Import after mocks ───────────────────────────────────────────────────────
 
 import { StyleSheet } from "react-native";
-import { ShareCard, SHARE_CARD_DARK, SHARE_CARD_LIGHT } from "@/components/analysis/ShareCard";
+import { ShareCard, SHARE_CARD_DARK, SHARE_CARD_LIGHT, SPORT_ICON } from "@/components/analysis/ShareCard";
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -120,26 +120,11 @@ describe("ShareCard — thumbnail vs. fallback", () => {
 
 // ─── Sport-icon fallback — parameterised over every supported sport ────────────
 //
-// Each row is [sport slug, expected Feather icon name].
-// This table must stay in sync with the SPORT_ICON constant in ShareCard.tsx.
-// If you add a sport there, add a row here too.
+// Derived directly from the exported SPORT_ICON map so that adding a new sport
+// to ShareCard.tsx automatically generates a new test case here with no manual
+// update required.
 
-const SPORT_ICON_CASES: [string, string][] = [
-  ["running",       "wind"       ],
-  ["swimming",      "droplet"    ],
-  ["cycling",       "zap"        ],
-  ["tennis",        "crosshair"  ],
-  ["football",      "circle"     ],
-  ["soccer",        "circle"     ],
-  ["basketball",    "circle"     ],
-  ["volleyball",    "circle"     ],
-  ["weightlifting", "trending-up"],
-  ["gymnastics",    "star"       ],
-  ["rowing",        "anchor"     ],
-  ["golf",          "flag"       ],
-  ["boxing",        "shield"     ],
-  ["yoga",          "heart"      ],
-];
+const SPORT_ICON_CASES: [string, string][] = Object.entries(SPORT_ICON) as [string, string][];
 
 describe("ShareCard — sport-icon fallback (all supported sports)", () => {
   it.each(SPORT_ICON_CASES)(
