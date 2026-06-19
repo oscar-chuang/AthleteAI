@@ -23,6 +23,7 @@ import {
   achievements as achievementsApi,
   profile as profileApi,
   jointTrends as jointTrendsApi,
+  analyses as analysesApi,
   type ProgressRecord,
   type AchievementRecord,
   type ProfileStats,
@@ -352,6 +353,8 @@ export default function ProgressScreen() {
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
   const [drillsDoneCount, setDrillsDoneCount] = useState(0);
+  const [drillsCorrective, setDrillsCorrective] = useState<number | null>(null);
+  const [drillsPerformance, setDrillsPerformance] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -392,15 +395,68 @@ export default function ProgressScreen() {
     try {
       const keys = await AsyncStorage.getAllKeys();
       const drillKeys = keys.filter((k) => k.startsWith("drill_done_"));
-      if (drillKeys.length === 0) { setDrillsDoneCount(0); return; }
+      if (drillKeys.length === 0) {
+        setDrillsDoneCount(0);
+        setDrillsCorrective(null);
+        setDrillsPerformance(null);
+        return;
+      }
+
       const pairs = await AsyncStorage.multiGet(drillKeys);
+
+      // Build a map of analysisId → completed tip IDs
+      const analysisCompletedTips: Record<string, string[]> = {};
       let total = 0;
-      for (const [, val] of pairs) {
+      for (const [key, val] of pairs) {
         if (val) {
-          try { const ids = JSON.parse(val) as string[]; total += ids.length; } catch {}
+          try {
+            const ids = JSON.parse(val) as string[];
+            const analysisId = key.replace("drill_done_", "");
+            analysisCompletedTips[analysisId] = ids;
+            total += ids.length;
+          } catch {}
         }
       }
       setDrillsDoneCount(total);
+
+      // Fetch tips for each analysis to classify drills as corrective vs performance
+      try {
+        const results = await Promise.allSettled(
+          Object.keys(analysisCompletedTips).map((id) => analysesApi.get(id))
+        );
+
+        let corrective = 0;
+        let performance = 0;
+
+        results.forEach((result, idx) => {
+          const analysisId = Object.keys(analysisCompletedTips)[idx]!;
+          const completedIds = new Set(analysisCompletedTips[analysisId]);
+          if (result.status === "fulfilled") {
+            for (const tip of result.value.tips) {
+              if (completedIds.has(tip.id)) {
+                if (tip.tipType === "injury") {
+                  corrective++;
+                } else {
+                  performance++;
+                }
+              }
+            }
+          }
+        });
+
+        // Only show breakdown if we were able to classify at least one drill
+        if (corrective + performance > 0) {
+          setDrillsCorrective(corrective);
+          setDrillsPerformance(performance);
+        } else {
+          setDrillsCorrective(null);
+          setDrillsPerformance(null);
+        }
+      } catch {
+        // If tip fetching fails, show total only (no breakdown)
+        setDrillsCorrective(null);
+        setDrillsPerformance(null);
+      }
     } catch {}
   }, []);
 
@@ -808,16 +864,30 @@ export default function ProgressScreen() {
 
         {/* ── Drills Completed ── */}
         {drillsDoneCount > 0 && (
-          <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, flexDirection: "row", alignItems: "center", gap: 14, borderWidth: 1, borderColor: colors.success + "44" }}>
-            <View style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: colors.success + "20", alignItems: "center", justifyContent: "center" }}>
-              <Feather name="check-circle" size={20} color={colors.success} />
+          <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, borderWidth: 1, borderColor: colors.success + "44" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+              <View style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: colors.success + "20", alignItems: "center", justifyContent: "center" }}>
+                <Feather name="check-circle" size={20} color={colors.success} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: colors.foreground }}>{drillsDoneCount}</Text>
+                <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Drill{drillsDoneCount === 1 ? "" : "s"} completed · all sessions
+                </Text>
+              </View>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: colors.foreground }}>{drillsDoneCount}</Text>
-              <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                Drill{drillsDoneCount === 1 ? "" : "s"} completed · all sessions
-              </Text>
-            </View>
+            {(drillsCorrective !== null || drillsPerformance !== null) && (
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <View style={{ flex: 1, backgroundColor: colors.warning + "14", borderRadius: 8, padding: 10, alignItems: "center", borderWidth: 1, borderColor: colors.warning + "33" }}>
+                  <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.warning }}>{drillsCorrective ?? 0}</Text>
+                  <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.warning, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Corrective</Text>
+                </View>
+                <View style={{ flex: 1, backgroundColor: colors.primary + "14", borderRadius: 8, padding: 10, alignItems: "center", borderWidth: 1, borderColor: colors.primary + "33" }}>
+                  <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.primary }}>{drillsPerformance ?? 0}</Text>
+                  <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.primary, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Performance</Text>
+                </View>
+              </View>
+            )}
           </View>
         )}
 

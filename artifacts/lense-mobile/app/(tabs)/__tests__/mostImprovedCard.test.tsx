@@ -88,6 +88,9 @@ jest.mock("@/hooks/useColors", () => ({
 jest.mock("@/lib/api", () => ({
   progress: {
     list: (...args: any[]) => mockProgressList(...args),
+    sports: jest.fn().mockResolvedValue({ sports: [] }),
+    personalRecords: jest.fn().mockResolvedValue({ records: {} }),
+    summary: jest.fn().mockResolvedValue({ summary: "" }),
   },
   achievements: {
     list: (...args: any[]) => mockAchievementsList(...args),
@@ -97,6 +100,9 @@ jest.mock("@/lib/api", () => ({
   },
   jointTrends: {
     get: (...args: any[]) => mockJointTrendsGet(...args),
+  },
+  analyses: {
+    get: jest.fn().mockResolvedValue({ analysis: {}, tips: [], injuryRisks: [] }),
   },
 }));
 
@@ -108,7 +114,7 @@ import ProgressScreen from "../progress";
 const EMPTY_PROGRESS = { entries: [] };
 const EMPTY_ACHIEVEMENTS = { achievements: [] };
 
-const MOST_IMPROVED_LABEL = "Most improved";
+const MOST_IMPROVED_LABEL = "Most improved · tap to view trend";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

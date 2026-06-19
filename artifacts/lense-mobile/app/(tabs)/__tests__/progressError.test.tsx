@@ -104,6 +104,9 @@ jest.mock("@/lib/api", () => ({
   jointTrends: {
     get: (...args: any[]) => mockJointTrendsGet(...args),
   },
+  analyses: {
+    get: jest.fn().mockResolvedValue({ analysis: {}, tips: [], injuryRisks: [] }),
+  },
 }));
 
 // Import component AFTER all mocks are set up.
