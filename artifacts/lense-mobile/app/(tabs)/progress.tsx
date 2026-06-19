@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Pressable,
+  Animated,
 } from "react-native";
 import Svg, { Line, Path, Polyline, Circle, Text as SvgText } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -82,6 +83,7 @@ export function JointFullChart({
 }) {
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tooltipOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     return () => {
@@ -89,14 +91,25 @@ export function JointFullChart({
     };
   }, []);
 
+  function dismissTooltip() {
+    tooltipOpacity.setValue(0);
+    setSelectedIdx(null);
+  }
+
   function handleDotPress(i: number) {
     if (dismissTimer.current) clearTimeout(dismissTimer.current);
     if (selectedIdx === i) {
-      setSelectedIdx(null);
+      dismissTooltip();
       return;
     }
+    tooltipOpacity.setValue(0);
     setSelectedIdx(i);
-    dismissTimer.current = setTimeout(() => setSelectedIdx(null), 3000);
+    Animated.timing(tooltipOpacity, {
+      toValue: 1,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
+    dismissTimer.current = setTimeout(dismissTooltip, 3000);
   }
 
   const chartW = width - FULL_CHART_PADDING_LEFT - FULL_CHART_PADDING_RIGHT;
@@ -245,65 +258,71 @@ export function JointFullChart({
       </Svg>
 
       {selectedPoint != null && (
-        <Pressable
-          onPress={() => setSelectedIdx(null)}
+        <Animated.View
           style={{
+            opacity: tooltipOpacity,
             position: "absolute",
             left: tooltipLeft,
             top: tooltipTop,
             width: TOOLTIP_W,
-            backgroundColor: colors.card,
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: (RISK_COLOR_MAP[selectedPoint.risk] ?? colors.primary) + "88",
-            padding: 8,
-            alignItems: "center",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.14,
-            shadowRadius: 4,
-            elevation: 5,
           }}
         >
-          <Text
+          <Pressable
+            onPress={dismissTooltip}
             style={{
-              fontSize: 18,
-              fontFamily: "Inter_700Bold",
-              color: RISK_COLOR_MAP[selectedPoint.risk] ?? colors.primary,
-            }}
-          >
-            {selectedPoint.angle.toFixed(1)}°
-          </Text>
-          <Text
-            style={{
-              fontSize: 10,
-              fontFamily: "Inter_400Regular",
-              color: colors.mutedForeground,
-              marginTop: 2,
-            }}
-          >
-            {formatDate(selectedPoint.date)}
-          </Text>
-          <View
-            style={{
-              marginTop: 5,
-              backgroundColor: (RISK_COLOR_MAP[selectedPoint.risk] ?? colors.primary) + "22",
-              borderRadius: 5,
-              paddingHorizontal: 7,
-              paddingVertical: 2,
+              backgroundColor: colors.card,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: (RISK_COLOR_MAP[selectedPoint.risk] ?? colors.primary) + "88",
+              padding: 8,
+              alignItems: "center",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.14,
+              shadowRadius: 4,
+              elevation: 5,
             }}
           >
             <Text
               style={{
-                fontSize: 9,
-                fontFamily: "Inter_600SemiBold",
+                fontSize: 18,
+                fontFamily: "Inter_700Bold",
                 color: RISK_COLOR_MAP[selectedPoint.risk] ?? colors.primary,
               }}
             >
-              {RISK_LABEL_MAP[selectedPoint.risk] ?? ""}
+              {selectedPoint.angle.toFixed(1)}°
             </Text>
-          </View>
-        </Pressable>
+            <Text
+              style={{
+                fontSize: 10,
+                fontFamily: "Inter_400Regular",
+                color: colors.mutedForeground,
+                marginTop: 2,
+              }}
+            >
+              {formatDate(selectedPoint.date)}
+            </Text>
+            <View
+              style={{
+                marginTop: 5,
+                backgroundColor: (RISK_COLOR_MAP[selectedPoint.risk] ?? colors.primary) + "22",
+                borderRadius: 5,
+                paddingHorizontal: 7,
+                paddingVertical: 2,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 9,
+                  fontFamily: "Inter_600SemiBold",
+                  color: RISK_COLOR_MAP[selectedPoint.risk] ?? colors.primary,
+                }}
+              >
+                {RISK_LABEL_MAP[selectedPoint.risk] ?? ""}
+              </Text>
+            </View>
+          </Pressable>
+        </Animated.View>
       )}
     </View>
   );
