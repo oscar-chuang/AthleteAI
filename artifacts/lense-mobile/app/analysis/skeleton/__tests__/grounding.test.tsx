@@ -903,6 +903,136 @@ describe("scan quality banner — low/medium confidence UI", () => {
   });
 });
 
+// ─── Completed-drills — server-side persistence ───────────────────────────────
+// These tests verify that on mount the screen calls drills.getCompleted and
+// merges the server result with any locally-cached AsyncStorage set, and that
+// toggling a drill done/undone fires the correct API method.
+describe("completed drills — server-side persistence", () => {
+  const rcTip = {
+    id: "rc-knee",
+    tipType: "injury" as const,
+    severity: "warning",
+    category: "Knee Mechanics",
+    title: "RC_DRILL_TIP",
+    description: "Knee caving — fix form.",
+    joints: ["leftKnee"],
+    drill: { name: "Hip Hinge Drill", sets: "3", reps: "10", cue: "Push knees out" },
+  };
+
+  function rcResp() {
+    return {
+      analysis: { id: 1, sport: "weightlifting", biomechanicsApplied: true },
+      tips: [rcTip],
+      injuryRisks: [],
+    };
+  }
+
+  function getDrillsMock() {
+    const api = require("@/lib/api");
+    return api.drills as {
+      getCompleted: jest.Mock;
+      markDone: jest.Mock;
+      markUndone: jest.Mock;
+    };
+  }
+
+  beforeEach(() => {
+    const d = getDrillsMock();
+    d.getCompleted.mockReset();
+    d.markDone.mockReset();
+    d.markUndone.mockReset();
+    d.markDone.mockResolvedValue({ success: true });
+    d.markUndone.mockResolvedValue({ success: true });
+
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    AsyncStorage.getItem.mockReset();
+    AsyncStorage.getItem.mockImplementation(async (key: string) => {
+      if (key === "video_uri_1") return "file:///video.mp4";
+      return null;
+    });
+    AsyncStorage.setItem.mockClear();
+    AsyncStorage.removeItem.mockClear();
+  });
+
+  afterEach(() => {
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    AsyncStorage.getItem.mockReset();
+    AsyncStorage.getItem.mockImplementation(async () => "file:///video.mp4");
+  });
+
+  it("shows the Done badge when drills.getCompleted returns the tipId and AsyncStorage has no entry", async () => {
+    getDrillsMock().getCompleted.mockResolvedValue({ completedTipIds: ["rc-knee"] });
+    mockApiGet.mockResolvedValue(rcResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // The "Done" badge lives in the collapsed tip header — no expand needed.
+    expect(screen.getByText("Done")).toBeTruthy();
+  });
+
+  it("shows the Done badge when AsyncStorage has the tipId and drills.getCompleted returns empty", async () => {
+    getDrillsMock().getCompleted.mockResolvedValue({ completedTipIds: [] });
+    mockApiGet.mockResolvedValue(rcResp());
+
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    AsyncStorage.getItem.mockImplementation(async (key: string) => {
+      if (key === "video_uri_1") return "file:///video.mp4";
+      if (key === "drill_done_1") return JSON.stringify(["rc-knee"]);
+      return null;
+    });
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    expect(screen.getByText("Done")).toBeTruthy();
+  });
+
+  it("calls drills.markDone with the correct tipId and drillName when toggling a drill done", async () => {
+    getDrillsMock().getCompleted.mockResolvedValue({ completedTipIds: [] });
+    mockApiGet.mockResolvedValue(rcResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Expand the tip to reach the Mark done button.
+    fireEvent.press(screen.getByText("RC_DRILL_TIP"));
+    await flush();
+
+    fireEvent.press(screen.getByText("Mark done"));
+    await flush();
+
+    const { markDone } = getDrillsMock();
+    expect(markDone).toHaveBeenCalledTimes(1);
+    expect(markDone).toHaveBeenCalledWith("1", "rc-knee", "Hip Hinge Drill");
+  });
+
+  it("calls drills.markUndone with the correct tipId when toggling a completed drill off", async () => {
+    getDrillsMock().getCompleted.mockResolvedValue({ completedTipIds: [] });
+    mockApiGet.mockResolvedValue(rcResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Expand, mark done, then undo.
+    fireEvent.press(screen.getByText("RC_DRILL_TIP"));
+    await flush();
+
+    fireEvent.press(screen.getByText("Mark done"));
+    await flush();
+
+    // Button text flips to "Completed"; pressing it again undoes.
+    fireEvent.press(screen.getByText("Completed"));
+    await flush();
+
+    const { markDone, markUndone } = getDrillsMock();
+    expect(markDone).toHaveBeenCalledTimes(1);
+    expect(markUndone).toHaveBeenCalledTimes(1);
+    expect(markUndone).toHaveBeenCalledWith("1", "rc-knee");
+  });
+});
+
+
 // ─── Completed-drills cleared on re-scan ─────────────────────────────────────
 // When the poll detects biomechanicsApplied=true after a re-scan, the screen
 // must remove the persisted drill_done_<id> key from AsyncStorage and reset
