@@ -58,6 +58,7 @@ import {
   HIDDEN_SHARE_CARD_STYLE,
 } from "@/utils/shareCardCapture";
 import { buildSessionSharePayload } from "@/utils/shareUtils";
+import { SCORE_KEYS, SCORE_META, scoreForKey } from "./scoreGrid";
 
 const PENDING_CHAT_KEY = "pendingChatMessage";
 const SWIPE_HINT_SEEN_KEY = "swipe_hint_seen";
@@ -75,45 +76,6 @@ function getWeekKey(): string {
   sunday.setDate(d.getDate() - d.getDay());
   return sunday.toISOString().split("T")[0]!;
 }
-
-const SCORE_KEYS = [
-  "technique",
-  "power",
-  "balance",
-  "consistency",
-  "mobility",
-  "speed",
-] as const;
-
-const SCORE_META: Record<
-  (typeof SCORE_KEYS)[number],
-  { icon: React.ComponentProps<typeof Feather>["name"]; desc: string }
-> = {
-  technique: {
-    icon: "target",
-    desc: "How closely your form matches ideal movement patterns for your sport",
-  },
-  power: {
-    icon: "zap",
-    desc: "The strength and explosiveness behind your movements",
-  },
-  balance: {
-    icon: "activity",
-    desc: "How stable and controlled you are through each movement",
-  },
-  consistency: {
-    icon: "refresh-cw",
-    desc: "How repeatable your technique is from rep to rep",
-  },
-  mobility: {
-    icon: "maximize-2",
-    desc: "Your range of motion and flexibility in key joints",
-  },
-  speed: {
-    icon: "wind",
-    desc: "How quickly and efficiently you execute movements",
-  },
-};
 
 const SEVERITY_CONFIG = {
   info: { color: "#38bdf8", icon: "info" as const, label: "Info" },
@@ -150,13 +112,6 @@ function formatDate(iso: string) {
     day: "numeric",
     year: "numeric",
   });
-}
-
-function scoreForKey(
-  analysis: AnalysisRecord,
-  key: (typeof SCORE_KEYS)[number]
-): number {
-  return (analysis as any)[`${key}Score`] ?? 0;
 }
 
 function getRiskLabel(pct: number) {

@@ -13,6 +13,7 @@
  *   3. Biggest Fix — falls back to worstMetric description when improvements is empty
  *   4. Coaching Tips — all tip titles are rendered
  *   5. Joint Health — shows "All clear" when risks is empty; shows joint names when not
+ *   6. Score Grid — all six SCORE_KEYS map to correct labels/scores; missing fields default to 0
  */
 
 import React from "react";
@@ -20,6 +21,7 @@ import { View, Text } from "react-native";
 import { render } from "@testing-library/react-native";
 import type { AnalysisRecord, TipRecord, RiskRecord } from "@/lib/api";
 import { formatBiomechanicsText } from "@/utils/formatBiomechanics";
+import { SCORE_KEYS, SCORE_META, scoreForKey } from "../scoreGrid";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -46,23 +48,9 @@ jest.mock("react-native-svg", () => {
   return { __esModule: true, default: MockSvg, Circle: MockCircle };
 });
 
-// ─── Helpers (mirror [id].tsx logic) ─────────────────────────────────────────
-
-const SCORE_KEYS = [
-  "technique",
-  "power",
-  "balance",
-  "consistency",
-  "mobility",
-  "speed",
-] as const;
-
-function scoreForKey(
-  analysis: AnalysisRecord,
-  key: (typeof SCORE_KEYS)[number],
-): number {
-  return (analysis as any)[`${key}Score`] ?? 0;
-}
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+// SCORE_KEYS, SCORE_META, and scoreForKey are imported from the shared
+// scoreGrid module — the same values the production screen uses.
 
 function deriveWorstMetric(
   analysis: AnalysisRecord,
@@ -496,5 +484,184 @@ describe("seedActiveTab — pure function", () => {
 
   it('defaults to "scores" when array contains an invalid value', () => {
     expect(seedActiveTab(["bad"])).toBe("scores");
+  });
+});
+
+// ─── Section 6: Score Grid ────────────────────────────────────────────────────
+// The 2×3 grid renders one ScoreCard per SCORE_KEY. This section verifies:
+//   a) scoreForKey pulls from the correct `${key}Score` field for every key.
+//   b) Each key produces the label and description stored in the real SCORE_META.
+//   c) A missing (undefined) score field defaults to 0.
+//
+// SCORE_KEYS, SCORE_META, and scoreForKey are imported from the shared
+// scoreGrid module — the same values [id].tsx uses — so any production
+// regression (wrong field, swapped label, changed description) will break
+// these tests.
+
+function ScoreGridSection({ analysis }: { analysis: AnalysisRecord }) {
+  return (
+    <View testID="score-grid">
+      {SCORE_KEYS.map((key) => {
+        const score = scoreForKey(analysis, key);
+        const meta = SCORE_META[key];
+        return (
+          <View key={key} testID={`score-card-${key}`}>
+            <Text testID={`score-label-${key}`}>{key}</Text>
+            <Text testID={`score-value-${key}`}>{score}</Text>
+            <Text testID={`score-desc-${key}`}>{meta.desc}</Text>
+            <Text testID={`score-icon-${key}`}>{meta.icon}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+describe("Section 6 — Score Grid", () => {
+  describe("scoreForKey — field mapping", () => {
+    it("reads techniqueScore for key 'technique'", () => {
+      expect(scoreForKey(BASE_ANALYSIS, "technique")).toBe(80);
+    });
+
+    it("reads powerScore for key 'power'", () => {
+      expect(scoreForKey(BASE_ANALYSIS, "power")).toBe(70);
+    });
+
+    it("reads balanceScore for key 'balance'", () => {
+      expect(scoreForKey(BASE_ANALYSIS, "balance")).toBe(65);
+    });
+
+    it("reads consistencyScore for key 'consistency'", () => {
+      expect(scoreForKey(BASE_ANALYSIS, "consistency")).toBe(78);
+    });
+
+    it("reads mobilityScore for key 'mobility'", () => {
+      expect(scoreForKey(BASE_ANALYSIS, "mobility")).toBe(72);
+    });
+
+    it("reads speedScore for key 'speed'", () => {
+      expect(scoreForKey(BASE_ANALYSIS, "speed")).toBe(82);
+    });
+
+    it("defaults to 0 when techniqueScore is undefined", () => {
+      const partial = { ...BASE_ANALYSIS, techniqueScore: undefined };
+      expect(scoreForKey(partial as AnalysisRecord, "technique")).toBe(0);
+    });
+
+    it("defaults to 0 when powerScore is undefined", () => {
+      const partial = { ...BASE_ANALYSIS, powerScore: undefined };
+      expect(scoreForKey(partial as AnalysisRecord, "power")).toBe(0);
+    });
+
+    it("defaults to 0 when balanceScore is undefined", () => {
+      const partial = { ...BASE_ANALYSIS, balanceScore: undefined };
+      expect(scoreForKey(partial as AnalysisRecord, "balance")).toBe(0);
+    });
+
+    it("defaults to 0 when consistencyScore is undefined", () => {
+      const partial = { ...BASE_ANALYSIS, consistencyScore: undefined };
+      expect(scoreForKey(partial as AnalysisRecord, "consistency")).toBe(0);
+    });
+
+    it("defaults to 0 when mobilityScore is undefined", () => {
+      const partial = { ...BASE_ANALYSIS, mobilityScore: undefined };
+      expect(scoreForKey(partial as AnalysisRecord, "mobility")).toBe(0);
+    });
+
+    it("defaults to 0 when speedScore is undefined", () => {
+      const partial = { ...BASE_ANALYSIS, speedScore: undefined };
+      expect(scoreForKey(partial as AnalysisRecord, "speed")).toBe(0);
+    });
+
+    it("defaults to 0 when all score fields are absent", () => {
+      const empty: AnalysisRecord = {
+        ...BASE_ANALYSIS,
+        techniqueScore:   undefined,
+        powerScore:       undefined,
+        balanceScore:     undefined,
+        consistencyScore: undefined,
+        mobilityScore:    undefined,
+        speedScore:       undefined,
+      };
+      SCORE_KEYS.forEach((key) => {
+        expect(scoreForKey(empty, key)).toBe(0);
+      });
+    });
+  });
+
+  describe("ScoreGridSection — rendered output", () => {
+    it("renders a card for every SCORE_KEY (six cards total)", () => {
+      const { getByTestId } = render(<ScoreGridSection analysis={BASE_ANALYSIS} />);
+      SCORE_KEYS.forEach((key) => {
+        expect(getByTestId(`score-card-${key}`)).not.toBeNull();
+      });
+    });
+
+    it("renders the key name as the label for each card", () => {
+      const { getByTestId } = render(<ScoreGridSection analysis={BASE_ANALYSIS} />);
+      SCORE_KEYS.forEach((key) => {
+        expect(getByTestId(`score-label-${key}`).props.children).toBe(key);
+      });
+    });
+
+    it("renders the correct score value for each key", () => {
+      const { getByTestId } = render(<ScoreGridSection analysis={BASE_ANALYSIS} />);
+      expect(getByTestId("score-value-technique").props.children).toBe(80);
+      expect(getByTestId("score-value-power").props.children).toBe(70);
+      expect(getByTestId("score-value-balance").props.children).toBe(65);
+      expect(getByTestId("score-value-consistency").props.children).toBe(78);
+      expect(getByTestId("score-value-mobility").props.children).toBe(72);
+      expect(getByTestId("score-value-speed").props.children).toBe(82);
+    });
+
+    it("renders the production description from SCORE_META for each key", () => {
+      const { getByTestId } = render(<ScoreGridSection analysis={BASE_ANALYSIS} />);
+      SCORE_KEYS.forEach((key) => {
+        expect(getByTestId(`score-desc-${key}`).props.children).toBe(
+          SCORE_META[key].desc,
+        );
+      });
+    });
+
+    it("renders the production icon name from SCORE_META for each key", () => {
+      const { getByTestId } = render(<ScoreGridSection analysis={BASE_ANALYSIS} />);
+      expect(getByTestId("score-icon-technique").props.children).toBe("target");
+      expect(getByTestId("score-icon-power").props.children).toBe("zap");
+      expect(getByTestId("score-icon-balance").props.children).toBe("activity");
+      expect(getByTestId("score-icon-consistency").props.children).toBe("refresh-cw");
+      expect(getByTestId("score-icon-mobility").props.children).toBe("maximize-2");
+      expect(getByTestId("score-icon-speed").props.children).toBe("wind");
+    });
+
+    it("renders 0 for every card when all score fields are undefined", () => {
+      const empty: AnalysisRecord = {
+        ...BASE_ANALYSIS,
+        techniqueScore:   undefined,
+        powerScore:       undefined,
+        balanceScore:     undefined,
+        consistencyScore: undefined,
+        mobilityScore:    undefined,
+        speedScore:       undefined,
+      };
+      const { getByTestId } = render(<ScoreGridSection analysis={empty} />);
+      SCORE_KEYS.forEach((key) => {
+        expect(getByTestId(`score-value-${key}`).props.children).toBe(0);
+      });
+    });
+
+    it("cards appear in SCORE_KEYS order (technique first, speed last)", () => {
+      const { getByTestId } = render(<ScoreGridSection analysis={BASE_ANALYSIS} />);
+      expect(getByTestId("score-label-technique").props.children).toBe("technique");
+      expect(getByTestId("score-label-speed").props.children).toBe("speed");
+    });
+
+    it("shows 0 for mobility card when only mobilityScore is missing", () => {
+      const partial = { ...BASE_ANALYSIS, mobilityScore: undefined };
+      const { getByTestId } = render(
+        <ScoreGridSection analysis={partial as AnalysisRecord} />,
+      );
+      expect(getByTestId("score-value-mobility").props.children).toBe(0);
+      expect(getByTestId("score-value-technique").props.children).toBe(80);
+    });
   });
 });
