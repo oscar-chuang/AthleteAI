@@ -144,6 +144,13 @@ export default function HomeScreen() {
       const targetRatio = currentWeekGoal > 0
         ? Math.min(currentCount / currentWeekGoal, 1)
         : 0;
+      // If the goal is already reached before the animation begins (e.g. on
+      // pull-to-refresh when nothing has changed), mark barAnimDone true now so
+      // the bar fills in gold from the very first frame instead of animating
+      // blue and then snapping to gold when the animation callback fires.
+      if (targetRatio >= 1) {
+        setBarAnimDone(true);
+      }
       Animated.timing(barScaleAnim, {
         toValue: targetRatio,
         duration: 600,
