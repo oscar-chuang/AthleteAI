@@ -130,13 +130,11 @@ jest.mock("@/lib/sessionDelta", () => ({
   buildDeltaMap: jest.fn(() => new Map()),
 }));
 
-jest.mock("@/components/ShareCard", () => {
-  const ReactLib = require("react");
-  return {
-    __esModule: true,
-    default: ReactLib.forwardRef(() => null),
-  };
-});
+jest.mock("@/components/analysis/ShareCard", () => ({
+  ShareCard:       () => null,
+  SHARE_CARD_DARK:  {},
+  SHARE_CARD_LIGHT: {},
+}));
 
 jest.mock("@/components/WeekDotRow", () => ({
   WeekDotRow: () => null,

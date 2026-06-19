@@ -45,8 +45,9 @@ import { ConfettiBurst } from "@/components/ConfettiBurst";
 import { checkConfettiGate, persistCelebrationToServer, retryCelebrationSync } from "@/utils/confettiGate";
 import { buildDeltaMap } from "@/lib/sessionDelta";
 import { WeekDotRow } from "@/components/WeekDotRow";
-import ShareCard, { type ViewShotHandle } from "@/components/ShareCard";
-import { HIDDEN_SHARE_CARD_STYLE } from "@/utils/shareCardCapture";
+import { captureRef } from "react-native-view-shot";
+import { ShareCard } from "@/components/analysis/ShareCard";
+import { HIDDEN_SHARE_CARD_STYLE, SHARE_CARD_CAPTURE_OPTIONS } from "@/utils/shareCardCapture";
 
 const SCORE_KEYS = ["technique", "power", "balance", "consistency", "mobility", "speed"] as const;
 
@@ -93,7 +94,7 @@ export default function HomeScreen() {
   const trophyScale = useRef(new Animated.Value(1)).current;
   const barScaleAnim = useRef(new Animated.Value(0)).current;
   const [barContainerWidth, setBarContainerWidth] = useState(0);
-  const shareCardRef = useRef<ViewShotHandle>(null);
+  const shareCardRef = useRef<View>(null);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, profile, updateProfile } = useAuth();
@@ -341,7 +342,7 @@ export default function HomeScreen() {
     try {
       const sharingAvailable = await Sharing.isAvailableAsync();
       if (sharingAvailable && shareCardRef.current) {
-        const uri = await shareCardRef.current.capture();
+        const uri = await captureRef(shareCardRef, SHARE_CARD_CAPTURE_OPTIONS);
         if (Platform.OS === "ios") {
           // iOS Share sheet supports both a text message and an image URL together
           await Share.share({ message, url: uri });
@@ -1075,21 +1076,23 @@ export default function HomeScreen() {
         outside the window bounds (e.g. top: -1000), producing a blank PNG.
         HIDDEN_SHARE_CARD_STYLE keeps the view at top:0/left:0 within bounds
         and hides it with opacity:0 + pointerEvents="none" instead.
+        captureRef is called on the wrapping View so the inner ShareCard
+        needs no forwardRef wiring.
       */}
-      <View
-        style={HIDDEN_SHARE_CARD_STYLE}
-        pointerEvents="none"
-        collapsable={false}
-      >
-        <ShareCard
+      {latestComplete && (
+        <View
           ref={shareCardRef}
-          sessions={thisWeek}
-          weeklyGoal={weeklyGoal}
-          streakDays={streakDays}
-          sport={profile?.sport ?? undefined}
-          topTip={topTip}
-        />
-      </View>
+          style={HIDDEN_SHARE_CARD_STYLE}
+          pointerEvents="none"
+          collapsable={false}
+        >
+          <ShareCard
+            analysis={latestComplete}
+            topTip={topTip}
+            colorScheme="dark"
+          />
+        </View>
+      )}
 
       {showConfetti && (
         <ConfettiBurst onComplete={() => setShowConfetti(false)} />
@@ -1195,12 +1198,13 @@ export default function HomeScreen() {
             </Text>
 
             {/* Visible card preview */}
-            <ShareCard
-              sessions={thisWeek}
-              weeklyGoal={weeklyGoal}
-              streakDays={streakDays}
-              sport={profile?.sport ?? undefined}
-            />
+            {latestComplete && (
+              <ShareCard
+                analysis={latestComplete}
+                topTip={topTip}
+                colorScheme="dark"
+              />
+            )}
 
             <View style={{ flexDirection: "row", gap: 12, marginTop: 24, width: "100%" }}>
               <TouchableOpacity

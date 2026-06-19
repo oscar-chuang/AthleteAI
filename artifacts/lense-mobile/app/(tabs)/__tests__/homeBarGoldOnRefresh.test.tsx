@@ -138,9 +138,10 @@ jest.mock("@/components/WeekDotRow", () => ({
   WeekDotRow: () => null,
 }));
 
-jest.mock("@/components/ShareCard", () => ({
-  __esModule: true,
-  default: require("react").forwardRef(() => null),
+jest.mock("@/components/analysis/ShareCard", () => ({
+  ShareCard:       () => null,
+  SHARE_CARD_DARK:  {},
+  SHARE_CARD_LIGHT: {},
 }));
 
 jest.mock("@/utils/shareUtils", () => ({

@@ -149,15 +149,11 @@ jest.mock("@/components/WeekDotRow", () => ({
   WeekDotRow: () => null,
 }));
 
-// ShareCard is used with a forwarded ref; use requireActual('react').forwardRef
-// inside the factory so React is in scope (factories run before imports hoist).
-jest.mock("@/components/ShareCard", () => {
-  const { forwardRef } = jest.requireActual("react");
-  return {
-    __esModule: true,
-    default: forwardRef((_props: any, _ref: any) => null),
-  };
-});
+jest.mock("@/components/analysis/ShareCard", () => ({
+  ShareCard:       () => null,
+  SHARE_CARD_DARK:  {},
+  SHARE_CARD_LIGHT: {},
+}));
 
 jest.mock("expo-sharing", () => ({
   isAvailableAsync: jest.fn(async () => false),
