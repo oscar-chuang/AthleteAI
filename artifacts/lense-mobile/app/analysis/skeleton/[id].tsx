@@ -12,6 +12,8 @@ import {
   Dimensions,
   Pressable,
   PanResponder,
+  Animated,
+  Easing,
 } from "react-native";
 import Svg, { Line, Path, Polyline, Circle, Rect, Text as SvgText, G } from "react-native-svg";
 import { Image } from "expo-image";
@@ -562,6 +564,19 @@ export default function SkeletonScreen() {
   const [captures,    setCaptures]    = useState<Capture[]>([]);
   const [scanDone,    setScanDone]    = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
+  const scanProgressAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (scanProgress === 0) {
+      scanProgressAnim.setValue(0);
+    } else {
+      Animated.timing(scanProgressAnim, {
+        toValue: scanProgress,
+        duration: 300,
+        easing: Easing.linear,
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [scanProgress]);
   const [layoutReady, setLayoutReady]   = useState(false);
   const [hasFrameTicks, setHasFrameTicks] = useState(false);
   const [frameTicks, setFrameTicks] = useState<FrameTick[]>([]);
@@ -1441,7 +1456,7 @@ export default function SkeletonScreen() {
           {layoutReady ? "Tracking your movement" : "Preparing scan…"}
         </Text>
         <View style={ss.progTrack}>
-          <View style={[ss.progFill, { width: `${Math.round(scanProgress * 100)}%` }]} />
+          <Animated.View style={[ss.progFill, { width: scanProgressAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }) }]} />
         </View>
         <Text style={ss.scanOverlaySub}>
           {layoutReady
