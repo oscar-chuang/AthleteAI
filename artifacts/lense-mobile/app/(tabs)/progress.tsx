@@ -71,7 +71,7 @@ const FULL_CHART_PADDING_BOTTOM = 32;
 const TOOLTIP_W = 108;
 const TOOLTIP_H = 64;
 
-function JointFullChart({
+export function JointFullChart({
   data,
   width,
   colors,
