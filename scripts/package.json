@@ -8,7 +8,8 @@
     "backfill-thumbnails": "tsx ./src/backfill-thumbnails.ts",
     "classify-tasks": "tsx ./src/classify-tasks.ts",
     "add-pending-task": "tsx ./src/add-pending-task.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@workspace/db": "workspace:*",
@@ -18,6 +19,7 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/sharp": "^0.32.0",
-    "tsx": "catalog:"
+    "tsx": "catalog:",
+    "vitest": "^4.1.8"
   }
 }
