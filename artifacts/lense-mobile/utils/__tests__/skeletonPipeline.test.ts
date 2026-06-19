@@ -261,6 +261,215 @@ describe("skeleton pipeline integration — 16:9 video, right-edge crop", () => 
   });
 });
 
+// ─── 9:16 portrait video (720 × 1280) — three crop positions ─────────────────
+//
+// Portrait-shot footage is the most common source of skeleton drift: the video
+// is taller than it is wide, which inverts the normal letterbox direction and
+// can expose any axis confusion in containRect / projectLandmark.
+
+const VIDEO_9_16: VideoDims = { W: 720, H: 1280 };
+
+describe("skeleton pipeline integration — 9:16 portrait video, centred crop", () => {
+  // Crop sits well inside the video frame — padding applies on all four sides.
+  const CENTRED_CROP: Crop = { cropX0: 80, cropY0: 200, cropW: 560, cropH: 880 };
+
+  it("all 33 landmarks project inside the display rect", () => {
+    assertAllLandmarksOnScreen(
+      REALISTIC_LANDMARKS_33,
+      CENTRED_CROP,
+      VIDEO_9_16,
+      DISPLAY_W,
+      DISPLAY_H,
+    );
+  });
+
+  it("remapped coords are in [0, 1] for all landmarks", () => {
+    const remapped = lmRemapped(REALISTIC_LANDMARKS_33, CENTRED_CROP, VIDEO_9_16);
+    for (const lm of remapped) {
+      expect(lm.x).toBeGreaterThanOrEqual(0);
+      expect(lm.x).toBeLessThanOrEqual(1);
+      expect(lm.y).toBeGreaterThanOrEqual(0);
+      expect(lm.y).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("containRect for padded aspect fits inside the display box", () => {
+    const { sw, sh } = paddedBounds(CENTRED_CROP, VIDEO_9_16);
+    const rect = containRect(DISPLAY_W, DISPLAY_H, sw / sh);
+    expect(rect.left).toBeGreaterThanOrEqual(0);
+    expect(rect.top).toBeGreaterThanOrEqual(0);
+    expect(rect.left + rect.width).toBeLessThanOrEqual(DISPLAY_W + Number.EPSILON);
+    expect(rect.top + rect.height).toBeLessThanOrEqual(DISPLAY_H + Number.EPSILON);
+  });
+});
+
+describe("skeleton pipeline integration — 9:16 portrait video, left-edge crop", () => {
+  // Crop touches the left and top edges — padding is clamped on those sides.
+  const LEFT_EDGE_CROP: Crop = { cropX0: 0, cropY0: 0, cropW: 400, cropH: 700 };
+
+  it("all 33 landmarks project inside the display rect", () => {
+    assertAllLandmarksOnScreen(
+      REALISTIC_LANDMARKS_33,
+      LEFT_EDGE_CROP,
+      VIDEO_9_16,
+      DISPLAY_W,
+      DISPLAY_H,
+    );
+  });
+
+  it("sx and sy are clamped to 0", () => {
+    const { sx, sy } = paddedBounds(LEFT_EDGE_CROP, VIDEO_9_16);
+    expect(sx).toBe(0);
+    expect(sy).toBe(0);
+  });
+
+  it("remapped coords remain in [0, 1] despite clamped padding", () => {
+    const remapped = lmRemapped(REALISTIC_LANDMARKS_33, LEFT_EDGE_CROP, VIDEO_9_16);
+    for (const lm of remapped) {
+      expect(lm.x).toBeGreaterThanOrEqual(0);
+      expect(lm.x).toBeLessThanOrEqual(1);
+      expect(lm.y).toBeGreaterThanOrEqual(0);
+      expect(lm.y).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("skeleton pipeline integration — 9:16 portrait video, right-edge crop", () => {
+  // Crop is flush with the right and bottom edges — padding is clamped there.
+  const RIGHT_EDGE_CROP: Crop = { cropX0: 320, cropY0: 580, cropW: 400, cropH: 700 };
+
+  it("all 33 landmarks project inside the display rect", () => {
+    assertAllLandmarksOnScreen(
+      REALISTIC_LANDMARKS_33,
+      RIGHT_EDGE_CROP,
+      VIDEO_9_16,
+      DISPLAY_W,
+      DISPLAY_H,
+    );
+  });
+
+  it("ex and ey are clamped to video dimensions", () => {
+    const { sx, sy, sw, sh } = paddedBounds(RIGHT_EDGE_CROP, VIDEO_9_16);
+    expect(sx + sw).toBeLessThanOrEqual(VIDEO_9_16.W);
+    expect(sy + sh).toBeLessThanOrEqual(VIDEO_9_16.H);
+  });
+
+  it("remapped coords remain in [0, 1] despite clamped padding", () => {
+    const remapped = lmRemapped(REALISTIC_LANDMARKS_33, RIGHT_EDGE_CROP, VIDEO_9_16);
+    for (const lm of remapped) {
+      expect(lm.x).toBeGreaterThanOrEqual(0);
+      expect(lm.x).toBeLessThanOrEqual(1);
+      expect(lm.y).toBeGreaterThanOrEqual(0);
+      expect(lm.y).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+// ─── 21:9 ultra-wide video (2560 × 1080) — three crop positions ──────────────
+//
+// Sports broadcast clips and cinema-format recordings are often 21:9. The crop
+// region covers a narrow vertical band of a very wide frame, producing a capture
+// aspect that is drastically different from a standard phone display and is a
+// common source of vertical skeleton drift.
+
+const VIDEO_21_9: VideoDims = { W: 2560, H: 1080 };
+
+describe("skeleton pipeline integration — 21:9 ultra-wide video, centred crop", () => {
+  // Crop centred in the wide frame — plenty of padding on all sides.
+  const CENTRED_CROP: Crop = { cropX0: 800, cropY0: 100, cropW: 960, cropH: 880 };
+
+  it("all 33 landmarks project inside the display rect", () => {
+    assertAllLandmarksOnScreen(
+      REALISTIC_LANDMARKS_33,
+      CENTRED_CROP,
+      VIDEO_21_9,
+      DISPLAY_W,
+      DISPLAY_H,
+    );
+  });
+
+  it("remapped coords are in [0, 1] for all landmarks", () => {
+    const remapped = lmRemapped(REALISTIC_LANDMARKS_33, CENTRED_CROP, VIDEO_21_9);
+    for (const lm of remapped) {
+      expect(lm.x).toBeGreaterThanOrEqual(0);
+      expect(lm.x).toBeLessThanOrEqual(1);
+      expect(lm.y).toBeGreaterThanOrEqual(0);
+      expect(lm.y).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("containRect for padded aspect fits inside the display box", () => {
+    const { sw, sh } = paddedBounds(CENTRED_CROP, VIDEO_21_9);
+    const rect = containRect(DISPLAY_W, DISPLAY_H, sw / sh);
+    expect(rect.left).toBeGreaterThanOrEqual(0);
+    expect(rect.top).toBeGreaterThanOrEqual(0);
+    expect(rect.left + rect.width).toBeLessThanOrEqual(DISPLAY_W + Number.EPSILON);
+    expect(rect.top + rect.height).toBeLessThanOrEqual(DISPLAY_H + Number.EPSILON);
+  });
+});
+
+describe("skeleton pipeline integration — 21:9 ultra-wide video, left-edge crop", () => {
+  // Crop starts at x=0, y=0 — padding clamped on both leading edges.
+  const LEFT_EDGE_CROP: Crop = { cropX0: 0, cropY0: 0, cropW: 700, cropH: 800 };
+
+  it("all 33 landmarks project inside the display rect", () => {
+    assertAllLandmarksOnScreen(
+      REALISTIC_LANDMARKS_33,
+      LEFT_EDGE_CROP,
+      VIDEO_21_9,
+      DISPLAY_W,
+      DISPLAY_H,
+    );
+  });
+
+  it("sx and sy are clamped to 0", () => {
+    const { sx, sy } = paddedBounds(LEFT_EDGE_CROP, VIDEO_21_9);
+    expect(sx).toBe(0);
+    expect(sy).toBe(0);
+  });
+
+  it("remapped coords remain in [0, 1] despite clamped padding", () => {
+    const remapped = lmRemapped(REALISTIC_LANDMARKS_33, LEFT_EDGE_CROP, VIDEO_21_9);
+    for (const lm of remapped) {
+      expect(lm.x).toBeGreaterThanOrEqual(0);
+      expect(lm.x).toBeLessThanOrEqual(1);
+      expect(lm.y).toBeGreaterThanOrEqual(0);
+      expect(lm.y).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("skeleton pipeline integration — 21:9 ultra-wide video, right-edge crop", () => {
+  // Crop is flush with the right and bottom edges — padding clamped there.
+  const RIGHT_EDGE_CROP: Crop = { cropX0: 1860, cropY0: 280, cropW: 700, cropH: 800 };
+
+  it("all 33 landmarks project inside the display rect", () => {
+    assertAllLandmarksOnScreen(
+      REALISTIC_LANDMARKS_33,
+      RIGHT_EDGE_CROP,
+      VIDEO_21_9,
+      DISPLAY_W,
+      DISPLAY_H,
+    );
+  });
+
+  it("ex and ey are clamped to video dimensions", () => {
+    const { sx, sy, sw, sh } = paddedBounds(RIGHT_EDGE_CROP, VIDEO_21_9);
+    expect(sx + sw).toBeLessThanOrEqual(VIDEO_21_9.W);
+    expect(sy + sh).toBeLessThanOrEqual(VIDEO_21_9.H);
+  });
+
+  it("remapped coords remain in [0, 1] despite clamped padding", () => {
+    const remapped = lmRemapped(REALISTIC_LANDMARKS_33, RIGHT_EDGE_CROP, VIDEO_21_9);
+    for (const lm of remapped) {
+      expect(lm.x).toBeGreaterThanOrEqual(0);
+      expect(lm.x).toBeLessThanOrEqual(1);
+      expect(lm.y).toBeGreaterThanOrEqual(0);
+      expect(lm.y).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
 // ─── Aspect-ratio stress test ──────────────────────────────────────────────────
 //
 // Verifies that the containRect+projectLandmark pair handles cases where the
