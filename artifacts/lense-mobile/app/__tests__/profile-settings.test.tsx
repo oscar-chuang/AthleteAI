@@ -180,6 +180,54 @@ describe("ProfileSettingsScreen — discard-changes prompt", () => {
 
     expect(Alert.alert).not.toHaveBeenCalled();
   });
+
+  it("pressing 'Discard' dispatches the pending navigation action", async () => {
+    const { getByPlaceholderText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    // Make the form dirty so the alert fires.
+    fireEvent.changeText(getByPlaceholderText("e.g. Alex Johnson"), "Alex Modified");
+    await flush();
+
+    const goBackAction = { type: "GO_BACK" };
+    const preventDefault = jest.fn();
+    const fakeEvent = { preventDefault, data: { action: goBackAction } };
+    capturedBeforeRemove?.(fakeEvent);
+
+    expect(Alert.alert).toHaveBeenCalledTimes(1);
+
+    // Extract buttons from the Alert call and invoke Discard.
+    const buttons: any[] = (Alert.alert as jest.Mock).mock.calls[0][2];
+    const discardBtn = buttons.find((b: any) => b.text === "Discard");
+    expect(discardBtn).toBeDefined();
+
+    discardBtn.onPress();
+
+    expect(mockDispatch).toHaveBeenCalledWith(goBackAction);
+  });
+
+  it("pressing 'Cancel' does NOT dispatch the navigation action", async () => {
+    const { getByPlaceholderText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    // Make the form dirty so the alert fires.
+    fireEvent.changeText(getByPlaceholderText("e.g. Alex Johnson"), "Alex Modified");
+    await flush();
+
+    fireBeforeRemove();
+
+    expect(Alert.alert).toHaveBeenCalledTimes(1);
+
+    // Extract buttons and confirm Cancel has no onPress that triggers dispatch.
+    const buttons: any[] = (Alert.alert as jest.Mock).mock.calls[0][2];
+    const cancelBtn = buttons.find((b: any) => b.text === "Cancel");
+    expect(cancelBtn).toBeDefined();
+    expect(cancelBtn.style).toBe("cancel");
+
+    // Cancel has no onPress — calling it (if present) must not dispatch.
+    cancelBtn.onPress?.();
+    expect(mockDispatch).not.toHaveBeenCalled();
+  });
 });
 
 // ─── Remove photo resets avatar to initials ────────────────────────────────────
