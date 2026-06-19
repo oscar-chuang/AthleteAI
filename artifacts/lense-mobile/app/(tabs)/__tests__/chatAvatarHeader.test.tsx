@@ -224,3 +224,39 @@ describe("ChatScreen — AvatarDisplay in the AI Coach header", () => {
     expect(mockPush).toHaveBeenCalledWith("/profile-settings");
   });
 });
+
+// ─── Sport / level tag navigation ────────────────────────────────────────────
+
+describe("ChatScreen — sport/level tag in the AI Coach header", () => {
+  // ── Pro header (canAccess = true) ─────────────────────────────────────────
+
+  it("navigates to /profile-settings when the sport/level tag is tapped in the Pro (main chat) header", async () => {
+    // mockCanAccess = true → the full chat header is rendered.
+    mockCanAccess = true;
+    // mockProfile already has sport: "Running" and level: "intermediate".
+
+    const { getByText } = render(<ChatScreen />);
+    await simulateFocus();
+
+    // The TouchableOpacity wrapping the sport/level text fires
+    // router.push("/profile-settings") when pressed.
+    fireEvent.press(getByText("Running · intermediate"));
+
+    expect(mockPush).toHaveBeenCalledWith("/profile-settings");
+  });
+
+  it("navigates to /profile-settings when the sport/level tag is tapped in the paywall header", async () => {
+    // mockCanAccess = false → the paywall variant of the header is rendered.
+    mockCanAccess = false;
+    // mockProfile already has sport: "Running" and level: "intermediate".
+
+    const { getByText } = render(<ChatScreen />);
+    await simulateFocus();
+
+    // The paywall header also wraps the sport/level text in a TouchableOpacity
+    // that navigates to /profile-settings.
+    fireEvent.press(getByText("Running · intermediate"));
+
+    expect(mockPush).toHaveBeenCalledWith("/profile-settings");
+  });
+});
