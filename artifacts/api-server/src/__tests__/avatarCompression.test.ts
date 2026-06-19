@@ -6,6 +6,7 @@
  *   2. The decoded bytes of the compressed output are ≤ 20 KB.
  *   3. A null/undefined avatarUrl is not passed to the function (route skips it).
  *   4. A non-data-URI string (e.g. a plain URL) passes through unchanged.
+ *   5. The compressed output is exactly 64×64 pixels.
  */
 
 import { describe, it, expect, beforeAll } from "vitest";
@@ -66,5 +67,16 @@ describe("compressAvatarIfNeeded", () => {
     const result = await compressAvatarIfNeeded(textDataUri);
 
     expect(result).toBe(textDataUri);
+  });
+
+  it("produces an output image that is exactly 64×64 pixels", async () => {
+    const result = await compressAvatarIfNeeded(largeJpegDataUri);
+
+    const base64Part = result.replace(/^data:image\/jpeg;base64,/, "");
+    const decoded = Buffer.from(base64Part, "base64");
+    const { width, height } = await sharp(decoded).metadata();
+
+    expect(width).toBe(64);
+    expect(height).toBe(64);
   });
 });
