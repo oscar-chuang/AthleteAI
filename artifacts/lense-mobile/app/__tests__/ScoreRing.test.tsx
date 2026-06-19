@@ -69,3 +69,21 @@ describe("ScoreRing count-up animation", () => {
     expect(getByText("75")).toBeTruthy();
   });
 });
+
+// ─── ScoreRing custom children ───────────────────────────────────────────────
+
+describe("ScoreRing custom children", () => {
+  it("renders the custom child and suppresses the numeric score", () => {
+    const { Text } = require("react-native");
+    const { getByText, queryByText } = render(
+      <ScoreRing score={75} color="#fff">
+        <Text>Custom</Text>
+      </ScoreRing>,
+    );
+
+    // Custom child must be present.
+    expect(getByText("Custom")).toBeTruthy();
+    // Numeric score must NOT appear anywhere in the tree.
+    expect(queryByText("75")).toBeNull();
+  });
+});
