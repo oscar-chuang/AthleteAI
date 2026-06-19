@@ -25,6 +25,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 
 import { useColors } from "@/hooks/useColors";
+import { SkeletonBox, SkeletonStatRow } from "@/components/ui/SkeletonLoader";
 import { useAuth, useTier } from "@/lib/authContext";
 import { DeltaBadge } from "@/components/DeltaBadge";
 import { AvatarDisplay } from "@/app/profile-settings";
@@ -518,8 +519,16 @@ export default function HomeScreen() {
 
   if (loading) {
     return (
-      <View style={[s.container, { alignItems: "center", justifyContent: "center" }]}>
-        <ActivityIndicator color={colors.primary} />
+      <View style={s.container}>
+        <View style={{ paddingHorizontal: 20, paddingTop: (Platform.OS === "web" ? 67 : 20) + 20 }}>
+          <SkeletonBox height={20} width="40%" radius={8} style={{ marginBottom: 8 }} />
+          <SkeletonBox height={30} width="65%" radius={8} style={{ marginBottom: 24 }} />
+          <SkeletonStatRow />
+          <SkeletonBox height={100} radius={14} style={{ marginBottom: 16 }} />
+          <SkeletonBox height={80} radius={14} style={{ marginBottom: 16 }} />
+          <SkeletonBox height={56} radius={14} style={{ marginBottom: 16 }} />
+          <SkeletonBox height={160} radius={14} />
+        </View>
       </View>
     );
   }

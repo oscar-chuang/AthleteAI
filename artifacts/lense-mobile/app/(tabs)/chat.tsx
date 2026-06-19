@@ -20,6 +20,7 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useColors } from "@/hooks/useColors";
+import { SkeletonBox } from "@/components/ui/SkeletonLoader";
 import { chat as chatApi, type ChatRecord, ApiError } from "@/lib/api";
 import { useAuth, useCanAccessFeature } from "@/lib/authContext";
 import { MarkdownText } from "@/components/MarkdownText";
@@ -334,8 +335,11 @@ export default function ChatScreen() {
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator color={colors.primary} />
+        <View style={{ flex: 1, padding: 20, gap: 16 }}>
+          <SkeletonBox height={56} radius={12} />
+          <SkeletonBox height={56} radius={12} />
+          <SkeletonBox height={80} radius={12} />
+          <SkeletonBox height={56} radius={12} />
         </View>
       ) : showEmptyState ? (
         <ScrollView

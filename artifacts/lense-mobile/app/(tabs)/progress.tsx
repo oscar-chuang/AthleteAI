@@ -17,6 +17,7 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
+import { SkeletonBox, SkeletonCard } from "@/components/ui/SkeletonLoader";
 import {
   progress as progressApi,
   achievements as achievementsApi,
@@ -560,8 +561,15 @@ export default function ProgressScreen() {
 
   if (loading) {
     return (
-      <View style={[s.container, { alignItems: "center", justifyContent: "center" }]}>
-        <ActivityIndicator color={colors.primary} />
+      <View style={s.container}>
+        <View style={{ paddingHorizontal: 20, paddingTop: topPad + 20, gap: 16 }}>
+          <SkeletonBox height={28} width="50%" radius={8} />
+          <SkeletonBox height={14} width="70%" radius={6} />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonBox height={200} radius={14} />
+        </View>
       </View>
     );
   }

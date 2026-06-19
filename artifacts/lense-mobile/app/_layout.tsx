@@ -13,9 +13,10 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { ActivityIndicator, Platform, View } from "react-native";
+import { Platform, View } from "react-native";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { SkeletonBox } from "@/components/ui/SkeletonLoader";
 import { AuthProvider, useAuth } from "@/lib/authContext";
 import { ThemeProvider, useTheme } from "@/lib/themeContext";
 
@@ -40,8 +41,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={colors.primary} size="large" />
+      <View style={{ flex: 1, backgroundColor: colors.background, padding: 24, paddingTop: 80 }}>
+        <SkeletonBox height={24} width="40%" radius={8} style={{ marginBottom: 12 }} />
+        <SkeletonBox height={36} width="70%" radius={8} style={{ marginBottom: 32 }} />
+        <SkeletonBox height={100} radius={14} style={{ marginBottom: 16 }} />
+        <SkeletonBox height={80}  radius={14} style={{ marginBottom: 16 }} />
+        <SkeletonBox height={160} radius={14} />
       </View>
     );
   }

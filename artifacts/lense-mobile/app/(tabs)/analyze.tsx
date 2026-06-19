@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   Platform,
   Modal,
-  ActivityIndicator,
+  ActivityIndicator as RNActivityIndicator,
   Alert,
   RefreshControl,
   TextInput,
@@ -28,6 +28,7 @@ function getWeekKey(): string {
 }
 
 import { useColors } from "@/hooks/useColors";
+import { SkeletonCard } from "@/components/ui/SkeletonLoader";
 import { analyses as analysesApi, jointTrends, type AnalysisRecord, type JointTrendsResponse, ApiError } from "@/lib/api";
 import { useAuth, useCanAccessFeature } from "@/lib/authContext";
 import { buildDeltaMap } from "@/lib/sessionDelta";
@@ -655,7 +656,9 @@ export default function AnalyzeScreen() {
         ListEmptyComponent={
           loading ? (
             <View style={s.empty}>
-              <ActivityIndicator color={colors.primary} size="large" />
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
             </View>
           ) : searchQuery ? (
             <View style={s.noResults}>
@@ -756,7 +759,7 @@ export default function AnalyzeScreen() {
                 </View>
                 {isProcessing ? (
                   <View style={s.processingBadge}>
-                    <ActivityIndicator color={colors.primary} size="small" />
+                    <RNActivityIndicator color={colors.primary} size="small" />
                     <Text style={s.processingText}>AI</Text>
                   </View>
                 ) : item.status === "failed" ? (

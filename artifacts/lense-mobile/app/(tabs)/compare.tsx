@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Platform,
   Linking,
-  ActivityIndicator,
 } from "react-native";
 import Svg, { Path, Line, Text as SvgText, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +14,7 @@ import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 
 import { useColors } from "@/hooks/useColors";
+import { SkeletonCard } from "@/components/ui/SkeletonLoader";
 import { analyses as analysesApi, type AnalysisRecord } from "@/lib/api";
 import { PRO_ATHLETES } from "@/lib/athleteData";
 import type { ProAthlete, ProAthleteBenchmarks } from "@/lib/types";
@@ -689,7 +689,11 @@ export default function CompareScreen() {
 
         {/* ── Athlete roster ── */}
         {loadingAnalyses ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
+          <View style={{ gap: 1 }}>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </View>
         ) : visibleAthletes.length === 0 ? (
           <View style={s.emptyState}>
             <View style={s.emptyIcon}>

@@ -18,47 +18,48 @@ export default function TabLayout() {
       router.replace("/");
     }
   }, [isLoading, isAuthenticated]);
+
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
+        headerShown:             false,
+        tabBarActiveTintColor:   colors.primary,
+        tabBarInactiveTintColor: colors.textTertiary,
         tabBarStyle: {
-          position: "absolute",
-          backgroundColor: isIOS ? "transparent" : colors.background,
-          borderTopWidth: 0,
-          borderTopColor: "transparent",
-          elevation: 0,
-          zIndex: 100,
-          ...(isWeb ? { height: 84 } : {}),
+          position:        "absolute",
+          backgroundColor: isIOS ? "transparent" : colors.surface1,
+          borderTopWidth:  0,
+          borderTopColor:  "transparent",
+          elevation:       0,
+          zIndex:          100,
+          height:          isWeb ? 84 : 60,
         },
         tabBarBackground: () =>
           isIOS ? (
             <BlurView
-              intensity={60}
+              intensity={80}
               tint="dark"
-              style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(10,10,15,0.85)" }]}
+              style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(10,10,15,0.90)", borderTopWidth: 1, borderTopColor: colors.border }]}
             />
           ) : (
             <View
               style={[
                 StyleSheet.absoluteFill,
-                {
-                  backgroundColor: colors.background,
-                  borderTopWidth: 1,
-                  borderTopColor: colors.border,
-                },
+                { backgroundColor: colors.surface1, borderTopWidth: 1, borderTopColor: colors.border },
               ]}
             />
           ),
         tabBarLabelStyle: {
-          fontSize: 10,
-          fontFamily: "Inter_500Medium",
-          marginBottom: isWeb ? 16 : 0,
+          fontSize:    10,
+          fontFamily:  "Inter_600SemiBold",
+          marginBottom: isWeb ? 16 : 2,
+          letterSpacing: 0.3,
+        },
+        tabBarItemStyle: {
+          paddingTop: 6,
         },
       }}
     >
@@ -66,8 +67,8 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="home" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Feather name={focused ? "home" : "home"} size={22} color={color} />
           ),
         }}
       />
@@ -75,8 +76,8 @@ export default function TabLayout() {
         name="analyze"
         options={{
           title: "Analyze",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="activity" size={size} color={color} />
+          tabBarIcon: ({ color }) => (
+            <Feather name="activity" size={22} color={color} />
           ),
         }}
       />
@@ -84,8 +85,8 @@ export default function TabLayout() {
         name="progress"
         options={{
           title: "Progress",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="trending-up" size={size} color={color} />
+          tabBarIcon: ({ color }) => (
+            <Feather name="trending-up" size={22} color={color} />
           ),
         }}
       />
@@ -93,8 +94,8 @@ export default function TabLayout() {
         name="compare"
         options={{
           title: "Compare",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="users" size={size} color={color} />
+          tabBarIcon: ({ color }) => (
+            <Feather name="users" size={22} color={color} />
           ),
         }}
       />
@@ -102,8 +103,8 @@ export default function TabLayout() {
         name="chat"
         options={{
           title: "Coach",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="message-circle" size={size} color={color} />
+          tabBarIcon: ({ color }) => (
+            <Feather name="message-circle" size={22} color={color} />
           ),
         }}
       />
