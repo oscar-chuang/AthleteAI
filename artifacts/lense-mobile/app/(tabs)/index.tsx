@@ -34,6 +34,7 @@ import {
   type ProfileStats,
 } from "@/lib/api";
 import { ConfettiBurst } from "@/components/ConfettiBurst";
+import { checkConfettiGate } from "@/utils/confettiGate";
 import { buildDeltaMap } from "@/lib/sessionDelta";
 import { WeekDotRow } from "@/components/WeekDotRow";
 
@@ -121,28 +122,8 @@ export default function HomeScreen() {
       if (currentWeekGoal > 0 && statsResult) {
         const currentCount = statsResult.thisWeekCount ?? 0;
         const weekKey      = getWeekKey();
-        const celebratedKey = `confetti_celebrated_${weekKey}`;
-        const pendingKey    = `confetti_pending_${weekKey}`;
-        const prevCountKey  = `confetti_prev_count_${weekKey}`;
-        const [celebrated, pending, prevCountStr] = await Promise.all([
-          AsyncStorage.getItem(celebratedKey),
-          AsyncStorage.getItem(pendingKey),
-          AsyncStorage.getItem(prevCountKey),
-        ]);
-        const prevCount = prevCountStr !== null ? parseInt(prevCountStr, 10) : null;
-        // Celebrate when:
-        //   1. Not yet celebrated this week
-        //   2. Current count has reached or passed the goal
-        //   3. Either: an explicit pending flag was written by analyze.tsx on upload,
-        //      OR the prevCount snapshot shows the threshold was just crossed
-        const justCrossed =
-          pending !== null ||
-          (prevCount !== null && prevCount < currentWeekGoal);
-        if (!celebrated && currentCount >= currentWeekGoal && justCrossed) {
-          await Promise.all([
-            AsyncStorage.setItem(celebratedKey, "true"),
-            AsyncStorage.removeItem(pendingKey),
-          ]);
+        const fired = await checkConfettiGate(currentWeekGoal, currentCount, weekKey, AsyncStorage);
+        if (fired) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
           setShowConfetti(true);
         }
@@ -152,7 +133,6 @@ export default function HomeScreen() {
             setShowShareHint(true);
           }
         }
-        await AsyncStorage.setItem(prevCountKey, String(currentCount));
       }
     } catch {
       setError(true);
