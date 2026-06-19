@@ -28,13 +28,49 @@ export function computeWorstLvl(flaggedJoints: JointKey[], risks: RiskMap): numb
 }
 
 /**
- * Minimal shape of a coaching tip needed for conflict detection.
+ * Minimal shape of a coaching tip needed for conflict detection and ordering.
  * The full CoachingTip type (from the API) is a superset of this.
  */
 export interface TipForConflict {
   tipType?: string | null;
   severity?: string | null;
   joints?: string[] | null;
+}
+
+/**
+ * Sorts injury tips so conflicted tips (joints that also appear in a
+ * performance tip) rise to the top — they get the "Fix this first" label in
+ * the UI and should be the most visible.
+ *
+ * The sort is stable with respect to the original order within each group.
+ */
+export function sortInjuryTips<T extends TipForConflict>(
+  tips: T[],
+  conflictedJoints: Set<string>,
+): T[] {
+  return [...tips].sort((a, b) => {
+    const aConflict = (a.joints ?? []).some((j) => conflictedJoints.has(j)) ? 0 : 1;
+    const bConflict = (b.joints ?? []).some((j) => conflictedJoints.has(j)) ? 0 : 1;
+    return aConflict - bConflict;
+  });
+}
+
+/**
+ * Sorts performance tips so conflicted tips (joints that also appear in an
+ * injury tip) sink to the bottom — they get the "After injury resolution"
+ * label in the UI and should be the least prominent.
+ *
+ * The sort is stable with respect to the original order within each group.
+ */
+export function sortPerformanceTips<T extends TipForConflict>(
+  tips: T[],
+  conflictedJoints: Set<string>,
+): T[] {
+  return [...tips].sort((a, b) => {
+    const aConflict = (a.joints ?? []).some((j) => conflictedJoints.has(j)) ? 1 : 0;
+    const bConflict = (b.joints ?? []).some((j) => conflictedJoints.has(j)) ? 1 : 0;
+    return aConflict - bConflict;
+  });
 }
 
 /**

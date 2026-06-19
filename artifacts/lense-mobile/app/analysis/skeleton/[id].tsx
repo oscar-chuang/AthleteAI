@@ -30,6 +30,8 @@ import {
   type RiskMap,
   type AngleMap,
   computeConflictedJoints,
+  sortInjuryTips,
+  sortPerformanceTips,
 } from "@/utils/analysisUtils";
 import {
   type Capture,
@@ -968,19 +970,11 @@ export default function SkeletonScreen() {
   //   • Injury section  — conflicted tips rise to the top ("Fix this first" banner already labels them)
   //   • Performance section — conflicted tips sink to the bottom ("After injury resolution" banner already labels them)
   const sortedInjuryTips = useMemo(
-    () => [...injuryTips].sort((a, b) => {
-      const aConflict = (a.joints ?? []).some((j) => conflictedJoints.has(j)) ? 0 : 1;
-      const bConflict = (b.joints ?? []).some((j) => conflictedJoints.has(j)) ? 0 : 1;
-      return aConflict - bConflict;
-    }),
+    () => sortInjuryTips(injuryTips, conflictedJoints),
     [injuryTips, conflictedJoints],
   );
   const sortedPerformanceTips = useMemo(
-    () => [...performanceTips].sort((a, b) => {
-      const aConflict = (a.joints ?? []).some((j) => conflictedJoints.has(j)) ? 1 : 0;
-      const bConflict = (b.joints ?? []).some((j) => conflictedJoints.has(j)) ? 1 : 0;
-      return aConflict - bConflict;
-    }),
+    () => sortPerformanceTips(performanceTips, conflictedJoints),
     [performanceTips, conflictedJoints],
   );
 

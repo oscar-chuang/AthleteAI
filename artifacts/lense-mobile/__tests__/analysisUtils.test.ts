@@ -3,6 +3,8 @@ import {
   computeFlaggedJoints,
   computeWorstLvl,
   computeConflictedJoints,
+  sortInjuryTips,
+  sortPerformanceTips,
   type JointKey,
   type RiskMap,
   type TipForConflict,
@@ -226,5 +228,123 @@ describe("computeConflictedJoints", () => {
     expect(result.has("leftHip")).toBe(false);
     expect(result.has("leftElbow")).toBe(false);
     expect(result.size).toBe(1);
+  });
+});
+
+// ── sortInjuryTips ────────────────────────────────────────────────────────────
+
+describe("sortInjuryTips", () => {
+  it("returns an empty array without throwing when the input is empty", () => {
+    expect(sortInjuryTips([], new Set())).toEqual([]);
+  });
+
+  it("leaves order unchanged when no tips are conflicted", () => {
+    const tips: TipForConflict[] = [
+      injuryTip(["leftKnee"]),
+      injuryTip(["rightHip"]),
+    ];
+    const result = sortInjuryTips(tips, new Set());
+    expect(result).toEqual(tips);
+  });
+
+  it("raises a conflicted injury tip above a non-conflicted one", () => {
+    const nonConflicted = injuryTip(["rightHip"]);
+    const conflicted    = injuryTip(["leftKnee"]);
+    const result = sortInjuryTips(
+      [nonConflicted, conflicted],
+      new Set(["leftKnee"]),
+    );
+    expect(result[0]).toBe(conflicted);
+    expect(result[1]).toBe(nonConflicted);
+  });
+
+  it("keeps multiple conflicted tips at the front and non-conflicted at the back", () => {
+    const nc1        = injuryTip(["rightElbow"]);
+    const nc2        = injuryTip(["leftHip"]);
+    const conflict1  = injuryTip(["leftKnee"]);
+    const conflict2  = injuryTip(["rightKnee"]);
+    const conflictedJoints = new Set(["leftKnee", "rightKnee"]);
+    const result = sortInjuryTips([nc1, conflict1, nc2, conflict2], conflictedJoints);
+    const firstTwoIds = result.slice(0, 2).map((t) => t.joints![0]);
+    expect(firstTwoIds).toContain("leftKnee");
+    expect(firstTwoIds).toContain("rightKnee");
+    const lastTwoIds = result.slice(2).map((t) => t.joints![0]);
+    expect(lastTwoIds).toContain("rightElbow");
+    expect(lastTwoIds).toContain("leftHip");
+  });
+
+  it("does not mutate the original array", () => {
+    const tips: TipForConflict[] = [injuryTip(["rightHip"]), injuryTip(["leftKnee"])];
+    const copy = [...tips];
+    sortInjuryTips(tips, new Set(["leftKnee"]));
+    expect(tips).toEqual(copy);
+  });
+
+  it("handles tips with null joints without throwing", () => {
+    const tips: TipForConflict[] = [
+      { tipType: "injury", severity: "warning", joints: null },
+      { tipType: "injury", severity: "warning", joints: undefined },
+    ];
+    expect(() => sortInjuryTips(tips, new Set(["leftKnee"]))).not.toThrow();
+    expect(sortInjuryTips(tips, new Set(["leftKnee"]))).toHaveLength(2);
+  });
+});
+
+// ── sortPerformanceTips ───────────────────────────────────────────────────────
+
+describe("sortPerformanceTips", () => {
+  it("returns an empty array without throwing when the input is empty", () => {
+    expect(sortPerformanceTips([], new Set())).toEqual([]);
+  });
+
+  it("leaves order unchanged when no tips are conflicted", () => {
+    const tips: TipForConflict[] = [
+      perfTip(["leftKnee"]),
+      perfTip(["rightHip"]),
+    ];
+    const result = sortPerformanceTips(tips, new Set());
+    expect(result).toEqual(tips);
+  });
+
+  it("sinks a conflicted performance tip below a non-conflicted one", () => {
+    const nonConflicted = perfTip(["rightHip"]);
+    const conflicted    = perfTip(["leftKnee"]);
+    const result = sortPerformanceTips(
+      [conflicted, nonConflicted],
+      new Set(["leftKnee"]),
+    );
+    expect(result[0]).toBe(nonConflicted);
+    expect(result[1]).toBe(conflicted);
+  });
+
+  it("keeps non-conflicted tips at the front and conflicted at the back", () => {
+    const nc1       = perfTip(["rightElbow"]);
+    const nc2       = perfTip(["leftHip"]);
+    const conflict1 = perfTip(["leftKnee"]);
+    const conflict2 = perfTip(["rightKnee"]);
+    const conflictedJoints = new Set(["leftKnee", "rightKnee"]);
+    const result = sortPerformanceTips([conflict1, nc1, conflict2, nc2], conflictedJoints);
+    const firstTwoIds = result.slice(0, 2).map((t) => t.joints![0]);
+    expect(firstTwoIds).toContain("rightElbow");
+    expect(firstTwoIds).toContain("leftHip");
+    const lastTwoIds = result.slice(2).map((t) => t.joints![0]);
+    expect(lastTwoIds).toContain("leftKnee");
+    expect(lastTwoIds).toContain("rightKnee");
+  });
+
+  it("does not mutate the original array", () => {
+    const tips: TipForConflict[] = [perfTip(["leftKnee"]), perfTip(["rightHip"])];
+    const copy = [...tips];
+    sortPerformanceTips(tips, new Set(["leftKnee"]));
+    expect(tips).toEqual(copy);
+  });
+
+  it("handles tips with null joints without throwing", () => {
+    const tips: TipForConflict[] = [
+      { tipType: "performance", severity: "info", joints: null },
+      { tipType: "performance", severity: "info", joints: undefined },
+    ];
+    expect(() => sortPerformanceTips(tips, new Set(["leftKnee"]))).not.toThrow();
+    expect(sortPerformanceTips(tips, new Set(["leftKnee"]))).toHaveLength(2);
   });
 });
