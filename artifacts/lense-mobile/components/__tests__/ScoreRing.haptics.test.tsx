@@ -62,3 +62,59 @@ describe("ScoreRing — haptic pulse", () => {
     expect(Haptics.impactAsync).not.toHaveBeenCalled();
   });
 });
+
+// ─── Score change re-trigger ──────────────────────────────────────────────────
+
+describe("ScoreRing — animation re-trigger on score change", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    (Haptics.impactAsync as jest.Mock).mockClear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("fires impactAsync a second time when score prop changes while animate=true", async () => {
+    const { rerender } = render(<ScoreRing score={50} color="#6c63ff" animate />);
+
+    // Complete the first animation — haptic fires once.
+    await act(async () => {
+      jest.advanceTimersByTime(900);
+    });
+    expect(Haptics.impactAsync).toHaveBeenCalledTimes(1);
+
+    // Re-render with a different score while animate remains true.
+    rerender(<ScoreRing score={85} color="#6c63ff" animate />);
+
+    // Complete the second animation — haptic should fire again.
+    await act(async () => {
+      jest.advanceTimersByTime(900);
+    });
+
+    expect(Haptics.impactAsync).toHaveBeenCalledTimes(2);
+    expect(Haptics.impactAsync).toHaveBeenCalledWith(
+      Haptics.ImpactFeedbackStyle.Light,
+    );
+  });
+
+  it("does NOT fire a second haptic when animate stays false across re-renders", async () => {
+    const { rerender } = render(
+      <ScoreRing score={50} color="#6c63ff" animate={false} />,
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+    expect(Haptics.impactAsync).not.toHaveBeenCalled();
+
+    // Re-render with a new score — animate is still false.
+    rerender(<ScoreRing score={85} color="#6c63ff" animate={false} />);
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    expect(Haptics.impactAsync).not.toHaveBeenCalled();
+  });
+});
