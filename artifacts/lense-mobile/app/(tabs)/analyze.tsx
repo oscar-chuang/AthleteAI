@@ -31,6 +31,7 @@ import { useColors } from "@/hooks/useColors";
 import { analyses as analysesApi, type AnalysisRecord, ApiError } from "@/lib/api";
 import { useAuth, useCanAccessFeature } from "@/lib/authContext";
 import { buildDeltaMap } from "@/lib/sessionDelta";
+import RecordingTipsModal, { RECORDING_TIPS_KEY } from "@/components/RecordingTipsModal";
 
 const SPORTS = [
   "Weightlifting", "Running", "Basketball", "Golf", "Tennis",
@@ -108,6 +109,10 @@ export default function AnalyzeScreen() {
   const [pendingTitle, setPendingTitle] = useState("");
   const [selectedSport, setSelectedSport] = useState("");
 
+  // Recording tips modal
+  const [showRecordingTips, setShowRecordingTips] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"upload" | "record" | null>(null);
+
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
 
@@ -179,7 +184,7 @@ export default function AnalyzeScreen() {
     });
   }, [analysisList, searchQuery, sortBy]);
 
-  async function handleUpload() {
+  function requireSport(): boolean {
     if (!profile?.sport) {
       Alert.alert(
         "Set your sport first",
@@ -189,8 +194,48 @@ export default function AnalyzeScreen() {
           { text: "Set up profile", onPress: () => router.push("/onboarding" as any) },
         ]
       );
+      return false;
+    }
+    return true;
+  }
+
+  async function handleUpload() {
+    if (!requireSport()) return;
+    const dismissed = await AsyncStorage.getItem(RECORDING_TIPS_KEY);
+    if (dismissed) {
+      await doUpload();
+    } else {
+      setPendingAction("upload");
+      setShowRecordingTips(true);
+    }
+  }
+
+  async function handleRecord() {
+    if (!requireSport()) return;
+    if (Platform.OS === "web") {
+      Alert.alert("Not available", "Video recording is only available on the mobile app.");
       return;
     }
+    const dismissed = await AsyncStorage.getItem(RECORDING_TIPS_KEY);
+    if (dismissed) {
+      await doRecord();
+    } else {
+      setPendingAction("record");
+      setShowRecordingTips(true);
+    }
+  }
+
+  async function handleRecordingTipsContinue() {
+    setShowRecordingTips(false);
+    if (pendingAction === "upload") {
+      await doUpload();
+    } else if (pendingAction === "record") {
+      await doRecord();
+    }
+    setPendingAction(null);
+  }
+
+  async function doUpload() {
     try {
       if (Platform.OS !== "web") {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -223,22 +268,7 @@ export default function AnalyzeScreen() {
     }
   }
 
-  async function handleRecord() {
-    if (!profile?.sport) {
-      Alert.alert(
-        "Set your sport first",
-        "Tell us your sport so we can give you accurate, sport-specific biomechanics feedback.",
-        [
-          { text: "Skip for now", style: "cancel" },
-          { text: "Set up profile", onPress: () => router.push("/onboarding" as any) },
-        ]
-      );
-      return;
-    }
-    if (Platform.OS === "web") {
-      Alert.alert("Not available", "Video recording is only available on the mobile app.");
-      return;
-    }
+  async function doRecord() {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== "granted") {
@@ -492,6 +522,13 @@ export default function AnalyzeScreen() {
 
   return (
     <View style={s.container}>
+      {/* Recording tips gate */}
+      <RecordingTipsModal
+        visible={showRecordingTips}
+        onClose={() => { setShowRecordingTips(false); setPendingAction(null); }}
+        onContinue={handleRecordingTipsContinue}
+      />
+
       {/* Processing overlay */}
       <Modal visible={analyzing} transparent animationType="fade">
         <View style={s.overlay}>
