@@ -24,7 +24,13 @@ export async function resizeThumbnail(frameBase64: string): Promise<string> {
     const encoded = outputBuf.toString("base64");
     return isDataUrl ? `${prefix},${encoded}` : encoded;
   } catch (err) {
-    console.warn("thumbnail resize failed, storing original:", (err as Error).message);
+    const inputBytes = Math.round((frameBase64.length * 3) / 4);
+    console.warn("thumbnail_resize_failed", {
+      error: (err as Error).message,
+      inputBytes,
+      inputKB: Math.round(inputBytes / 1024),
+      note: "oversized raw frame may be stored in DB — investigate input source",
+    });
     return frameBase64;
   }
 }

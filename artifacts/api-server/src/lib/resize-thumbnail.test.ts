@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import sharp from "sharp";
 import { resizeThumbnail, THUMBNAIL_MAX_WIDTH } from "./resize-thumbnail";
 
@@ -69,5 +69,24 @@ describe("resizeThumbnail()", () => {
     const garbage = "not-valid-base64!!!";
     const result = await resizeThumbnail(garbage);
     expect(result).toBe(garbage);
+  });
+
+  it("logs a structured warning with input size when the fallback is hit", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const garbage = "not-valid-base64!!!";
+      await resizeThumbnail(garbage);
+
+      expect(warnSpy).toHaveBeenCalledOnce();
+
+      const [label, payload] = warnSpy.mock.calls[0] as [string, Record<string, unknown>];
+      expect(label).toBe("thumbnail_resize_failed");
+      expect(typeof payload.error).toBe("string");
+      expect(typeof payload.inputBytes).toBe("number");
+      expect(typeof payload.inputKB).toBe("number");
+      expect(typeof payload.note).toBe("string");
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
