@@ -216,6 +216,9 @@ export default function HomeScreen() {
   });
   const trainedDaysSet = new Set(allAnalyses.map(a => a.uploadedAt.split("T")[0]));
   const trainingDaysSet = new Set<number>(profile?.trainingDays ?? [0, 1, 2, 3, 4, 5, 6]);
+  const scheduleSummary = trainingDaysSet.size === 7
+    ? null
+    : Array.from(trainingDaysSet).sort((a, b) => a - b).map(d => DAY_LABELS[d]).join(" · ");
 
   let insightMsg: string | null = null;
   let insightIcon: React.ComponentProps<typeof Feather>["name"] = "trending-up";
@@ -557,17 +560,24 @@ export default function HomeScreen() {
               <View style={s.progressBarBg}>
                 <Animated.View style={[s.progressBarFill, { width: animatedBarWidth, backgroundColor: goalReached ? "#f59e0b" : colors.primary }]} />
               </View>
-              <TouchableOpacity
-                style={{ flexDirection: "row", alignItems: "center", marginTop: 8, gap: 4 }}
-                onPress={() => router.push("/profile-settings" as any)}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
-                  Goal: {weeklyGoal} session{weeklyGoal !== 1 ? "s" : ""}/week
-                </Text>
-                <Feather name="edit-2" size={10} color={colors.mutedForeground} />
-              </TouchableOpacity>
+              <View style={{ flexDirection: "row", alignItems: "center", marginTop: 8, justifyContent: "space-between" }}>
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                  onPress={() => router.push("/profile-settings" as any)}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+                    Goal: {weeklyGoal} session{weeklyGoal !== 1 ? "s" : ""}/week
+                  </Text>
+                  <Feather name="edit-2" size={10} color={colors.mutedForeground} />
+                </TouchableOpacity>
+                {scheduleSummary != null && (
+                  <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_500Medium", letterSpacing: 0.5 }}>
+                    {scheduleSummary}
+                  </Text>
+                )}
+              </View>
               <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 12 }}>
                 {lastSevenDays.map((day) => {
                   const trained = trainedDaysSet.has(day);
