@@ -26,6 +26,7 @@ import * as Haptics from "expo-haptics";
 
 import { useColors } from "@/hooks/useColors";
 import { useAuth, useTier } from "@/lib/authContext";
+import { DeltaBadge } from "@/components/DeltaBadge";
 import { AvatarDisplay } from "@/app/profile-settings";
 import {
   analyses as analysesApi,
@@ -961,31 +962,14 @@ export default function HomeScreen() {
                     <Text style={s.analysisMeta}>
                       {[a.sport, STATUS_LABEL[a.status] ?? a.status].filter(Boolean).join(" · ")}
                     </Text>
-                    {deltaBadge && (() => {
-                      const hasHistory = !!(jointTrendsData?.joints[deltaBadge.jointKey]?.length);
-                      const badgeContent = (
-                        <Text style={[s.analysisDeltaBadgeText, { color: deltaBadge.color }]}>
-                          {deltaBadge.delta > 0 ? "↑" : "↓"}{Math.abs(deltaBadge.delta)}° {deltaBadge.jointLabel}
-                        </Text>
-                      );
-                      if (hasHistory) {
-                        return (
-                          <TouchableOpacity
-                            style={[s.analysisDeltaBadge, { borderColor: deltaBadge.color + "88", backgroundColor: deltaBadge.color + "18" }]}
-                            onPress={(e) => { e.stopPropagation(); setHistoryJoint(deltaBadge.jointKey); }}
-                            activeOpacity={0.7}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          >
-                            {badgeContent}
-                          </TouchableOpacity>
-                        );
-                      }
-                      return (
-                        <View style={[s.analysisDeltaBadge, { borderColor: deltaBadge.color + "88", backgroundColor: deltaBadge.color + "18" }]}>
-                          {badgeContent}
-                        </View>
-                      );
-                    })()}
+                    {deltaBadge && (
+                      <DeltaBadge
+                        info={deltaBadge}
+                        onPress={jointTrendsData?.joints[deltaBadge.jointKey]?.length
+                          ? () => setHistoryJoint(deltaBadge.jointKey)
+                          : undefined}
+                      />
+                    )}
                     {analysesWithTicks.has(a.id) && (
                       <TouchableOpacity
                         testID={`breakdown-chip-${a.id}`}
