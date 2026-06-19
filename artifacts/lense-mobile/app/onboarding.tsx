@@ -13,6 +13,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/lib/authContext";
+import { requestNotificationPermission } from "@/utils/notifications";
 
 const SPORTS = [
   "Powerlifting", "Olympic Weightlifting", "Running", "Swimming",
@@ -90,6 +91,7 @@ export default function OnboardingScreen() {
       } catch {
         // non-critical — continue anyway
       }
+      await requestNotificationPermission();
       router.replace("/(tabs)" as any);
     }
   }
@@ -442,6 +444,24 @@ export default function OnboardingScreen() {
           <>
             <Text style={s.stepTitle}>You're all set!</Text>
             <Text style={s.stepSub}>Your personalized coaching profile is ready.</Text>
+
+            <View style={{
+              backgroundColor: colors.primary + "14",
+              borderRadius: 14,
+              padding: 16,
+              borderWidth: 1,
+              borderColor: colors.primary + "33",
+              flexDirection: "row",
+              alignItems: "flex-start",
+              gap: 12,
+              marginBottom: 24,
+            }}>
+              <Feather name="bell" size={18} color={colors.primary} style={{ marginTop: 1 }} />
+              <Text style={{ flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: colors.foreground, lineHeight: 19 }}>
+                We'll ask for notification permission so we can celebrate your progress — like when a joint risk drops after a scan.
+              </Text>
+            </View>
+
             {[
               { label: "Sport", value: state.sport || "—" },
               { label: "Level", value: state.level || "—" },
