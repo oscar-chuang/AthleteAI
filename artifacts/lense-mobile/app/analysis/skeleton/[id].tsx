@@ -691,6 +691,7 @@ export default function SkeletonScreen() {
   const [tips, setTips]                 = useState<TipRecord[]>([]);
   const [injuryRisks, setInjuryRisks]   = useState<RiskRecord[]>([]);
   const [showSources, setShowSources] = useState(false);
+  const [qualityBannerDismissed, setQualityBannerDismissed] = useState(false);
 
   const [scanResult,  setScanResult]  = useState<{ angles: Partial<AngleMap>; risks: RiskMap } | null>(null);
   const [captures,    setCaptures]    = useState<Capture[]>([]);
@@ -1337,6 +1338,7 @@ export default function SkeletonScreen() {
   const heroBoxH = Math.round(Math.max(240, Math.min(screenW / heroAspect, screenH * 0.52)));
   const heroLvl = hero?.capture.maxLvl ?? 0;
   const heroPrimary = hero?.capture.joints[0];
+  const heroScanQuality = hero ? computeScanQuality(hero.capture) : null;
 
   // scanner is embedded in heroBlock below; this is kept as null to avoid
   // accidentally mounting a second WebView instance.
@@ -1398,23 +1400,58 @@ export default function SkeletonScreen() {
           </Text>
         </View>
         {(() => {
-          const q = computeScanQuality(hero.capture);
-          const qColor = q === "high" ? "#22c55e" : q === "medium" ? "#f59e0b" : "#6b7280";
+          const qColor = heroScanQuality === "high" ? "#22c55e" : heroScanQuality === "medium" ? "#f59e0b" : "#6b7280";
           return (
             <View style={[ss.scanQualityBadge, { borderColor: qColor + "60" }]}>
               <Feather
-                name={q === "high" ? "shield" : q === "medium" ? "shield" : "alert-circle"}
+                name={heroScanQuality === "high" ? "shield" : heroScanQuality === "medium" ? "shield" : "alert-circle"}
                 size={10}
                 color={qColor}
-                style={{ opacity: q === "medium" ? 0.65 : 1 }}
+                style={{ opacity: heroScanQuality === "medium" ? 0.65 : 1 }}
               />
               <Text style={[ss.scanQualityText, { color: qColor }]}>
-                {q === "high" ? "High confidence" : q === "medium" ? "Medium confidence" : "Low confidence"}
+                {heroScanQuality === "high" ? "High confidence" : heroScanQuality === "medium" ? "Medium confidence" : "Low confidence"}
               </Text>
             </View>
           );
         })()}
       </View>
+
+      {/* Low-confidence dismissible banner */}
+      {heroScanQuality === "low" && !qualityBannerDismissed && (
+        <View style={ss.scanQualityLowBanner}>
+          <Feather name="alert-circle" size={15} color="#ef4444" style={{ marginTop: 1 }} />
+          <View style={{ flex: 1, gap: 3 }}>
+            <Text style={ss.scanQualityLowBannerTitle}>Athlete not clearly visible</Text>
+            <Text style={ss.scanQualityLowBannerBody}>
+              The skeleton had trouble tracking the athlete. Try re-selecting them or re-recording in better lighting for more accurate results.
+            </Text>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => router.push(`/analysis/person-select/${id}` as any)}
+            >
+              <Text style={ss.scanQualityLowBannerLink}>Re-select athlete →</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            onPress={() => setQualityBannerDismissed(true)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.7}
+          >
+            <Feather name="x" size={14} color="#ef444466" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Medium-confidence inline note */}
+      {heroScanQuality === "medium" && (
+        <View style={ss.scanQualityMedNote}>
+          <Feather name="info" size={11} color="#f59e0b" style={{ opacity: 0.75 }} />
+          <Text style={ss.scanQualityMedNoteText}>
+            Some joints weren't fully visible — a few readings may be estimated.
+          </Text>
+        </View>
+      )}
     </View>
   ) : (
     <View style={[ss.heroSlot, { height: heroBoxH }]}>
@@ -1885,6 +1922,12 @@ const ss = StyleSheet.create({
   whyText:       { fontSize: 12, color: "#b0b0cc", fontFamily: "Inter_400Regular", lineHeight: 17 },
   scanQualityBadge: { marginTop: 6, borderWidth: 1, borderRadius: 22, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: "rgba(7,7,15,0.72)", flexDirection: "row", alignItems: "center", gap: 5 },
   scanQualityText:  { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5 },
+  scanQualityLowBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#1a0a0a", borderWidth: 1, borderColor: "#ef444440", paddingHorizontal: 14, paddingVertical: 12, marginHorizontal: 18, marginTop: 10, borderRadius: 12 },
+  scanQualityLowBannerTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#f5b8b8" },
+  scanQualityLowBannerBody: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#c09090", lineHeight: 17 },
+  scanQualityLowBannerLink: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#ef4444", marginTop: 2 },
+  scanQualityMedNote: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 8, marginHorizontal: 18, marginTop: 8, backgroundColor: "#181208", borderRadius: 10, borderWidth: 1, borderColor: "#f59e0b28" },
+  scanQualityMedNoteText: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#a08060", lineHeight: 15 },
   chipRow:       { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   chip:          { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4 },
   chipDot:       { width: 6, height: 6, borderRadius: 3 },
