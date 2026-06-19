@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   Switch,
   Platform,
+  Image,
+  ImageSourcePropType,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -34,7 +36,7 @@ const COMMON_MISTAKES: { icon: React.ComponentProps<typeof Feather>["name"]; tex
 type ExampleCard = {
   label: string;
   good: boolean;
-  icon: React.ComponentProps<typeof Feather>["name"];
+  image: ImageSourcePropType;
   description: string;
 };
 
@@ -42,25 +44,25 @@ const EXAMPLE_CARDS: ExampleCard[] = [
   {
     label: "Full body in frame",
     good: true,
-    icon: "check-circle",
+    image: require("@/assets/recording-tips/good.png"),
     description: "Head to toe visible, clear lighting",
   },
   {
     label: "Too far away",
     good: false,
-    icon: "zoom-out",
+    image: require("@/assets/recording-tips/too-far.png"),
     description: "Joints too small to detect accurately",
   },
   {
     label: "Limbs cropped",
     good: false,
-    icon: "crop",
+    image: require("@/assets/recording-tips/cropped.png"),
     description: "Arms or legs leave the frame",
   },
   {
     label: "Poor lighting",
     good: false,
-    icon: "moon",
+    image: require("@/assets/recording-tips/dark.png"),
     description: "Silhouette only — no detail visible",
   },
 ];
@@ -138,7 +140,7 @@ export default function RecordingTipsModal({ visible, onClose, onContinue }: Pro
       gap: 8,
       backgroundColor: colors.card,
     },
-    cardIconWrap:   { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+    cardImage:      { width: "100%", height: 90, borderRadius: 10, marginBottom: 2 },
     cardLabel:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.foreground, textAlign: "center" },
     cardDesc:       { fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center", lineHeight: 15 },
     cardBadge:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
@@ -225,7 +227,6 @@ export default function RecordingTipsModal({ visible, onClose, onContinue }: Pro
 
           {/* Example cards */}
           <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>Examples</Text>
-          {/* TODO: Replace styled placeholder cards with real photo examples once assets are available */}
           <View style={s.cardsGrid}>
             {EXAMPLE_CARDS.map((card, i) => (
               <View
@@ -235,18 +236,12 @@ export default function RecordingTipsModal({ visible, onClose, onContinue }: Pro
                   { borderColor: card.good ? colors.success + "66" : colors.destructive + "44" },
                 ]}
               >
-                <View
-                  style={[
-                    s.cardIconWrap,
-                    { backgroundColor: card.good ? colors.success + "18" : colors.destructive + "18" },
-                  ]}
-                >
-                  <Feather
-                    name={card.icon}
-                    size={22}
-                    color={card.good ? colors.success : colors.destructive}
-                  />
-                </View>
+                <Image
+                  source={card.image}
+                  style={s.cardImage}
+                  resizeMode="cover"
+                  accessibilityLabel={card.label}
+                />
                 <Text style={s.cardLabel}>{card.label}</Text>
                 <Text style={s.cardDesc}>{card.description}</Text>
                 <View
