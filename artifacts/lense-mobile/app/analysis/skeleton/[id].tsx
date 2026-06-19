@@ -11,6 +11,7 @@ import {
   Modal,
   Dimensions,
   Pressable,
+  PanResponder,
 } from "react-native";
 import Svg, { Line, Path, Polyline, Circle, Rect, Text as SvgText, G } from "react-native-svg";
 import { Image } from "expo-image";
@@ -20,7 +21,7 @@ import { Feather } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { analyses as analysesApi, drills as drillsApi, jointTrends, type TipRecord, type DrillRecord, type RiskRecord, type JointTrendsResponse, type JointDataPoint } from "@/lib/api";
+import { analyses as analysesApi, drills as drillsApi, jointTrends, type TipRecord, type DrillRecord, type RiskRecord, type JointTrendsResponse, type JointDataPoint, type FrameTick } from "@/lib/api";
 import JointHistorySheet from "@/components/JointHistorySheet";
 import { scheduleImprovementNotification } from "@/utils/notifications";
 import { useAuth } from "@/lib/authContext";
@@ -43,10 +44,48 @@ import {
   captureForJoints,
   riskMatchesJoints,
   computeScanQuality,
+  containRect,
 } from "@/utils/skeleton";
 import FrozenSkeleton from "@/components/FrozenSkeleton";
 
 const PENDING_CHAT_KEY = "pendingChatMessage";
+
+// ─── Scrubber helpers ────────────────────────────────────────────────────────
+
+function bsearchTick(ticks: FrameTick[], t: number): FrameTick | null {
+  if (!ticks.length) return null;
+  let lo = 0;
+  let hi = ticks.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if ((ticks[mid]?.t ?? 0) < t) lo = mid + 1;
+    else hi = mid;
+  }
+  if (lo === 0) return ticks[0] ?? null;
+  const a = ticks[lo - 1]!;
+  const b = ticks[lo]!;
+  return Math.abs(a.t - t) <= Math.abs(b.t - t) ? a : b;
+}
+
+function formatScrubTime(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+const SCRUB_CONNECTIONS: [number, number][] = [
+  [11, 12], [11, 23], [12, 24], [23, 24],
+  [11, 13], [13, 15],
+  [12, 14], [14, 16],
+  [23, 25], [25, 27],
+  [24, 26], [26, 28],
+];
+
+const SCRUB_JOINT_IDX: Partial<Record<string, number>> = {
+  leftKnee: 25, rightKnee: 26, leftHip: 23, rightHip: 24, leftElbow: 13, rightElbow: 14,
+};
+
+const SCRUB_KEY_LM = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
 
 // ─── Research-backed sport thresholds ────────────────────────────────────────
 // Each entry: [kneeLoRisk, kneeLoWarn, kneeHiWarn, kneeHiRisk,
@@ -525,6 +564,8 @@ export default function SkeletonScreen() {
   const [scanProgress, setScanProgress] = useState(0);
   const [layoutReady, setLayoutReady]   = useState(false);
   const [hasFrameTicks, setHasFrameTicks] = useState(false);
+  const [frameTicks, setFrameTicks] = useState<FrameTick[]>([]);
+  const [scrubRatio, setScrubRatio] = useState(0);
   // Current frozen frame shown in the hero + which joints are emphasised on it.
   const [hero, setHero] = useState<{ capture: Capture; emphasize: JointKey[] } | null>(null);
   const [expandedTipId, setExpandedTipId] = useState<string | null>(null);
@@ -747,6 +788,8 @@ export default function SkeletonScreen() {
           AsyncStorage.setItem(`frameTicks_${id}`, JSON.stringify(ticks)).catch(() => {});
           if (Array.isArray(ticks) && ticks.length > 0) {
             setHasFrameTicks(true);
+            setFrameTicks(ticks);
+            setScrubRatio(0);
           }
         }
         if (id && !groundedReady) {
@@ -768,6 +811,56 @@ export default function SkeletonScreen() {
     const h = pickHeroCapture(captures);
     if (h) setHero({ capture: h, emphasize: h.joints.slice(0, 2) });
   }, [captures, hero]);
+
+  // ── Load frameTicks for scrubber (from AsyncStorage after scan or on mount) ──
+  useEffect(() => {
+    if (!id) return;
+    AsyncStorage.getItem(`frameTicks_${id}`).then((raw) => {
+      if (!raw) return;
+      try {
+        const ticks = JSON.parse(raw) as FrameTick[];
+        if (Array.isArray(ticks) && ticks.length > 0) {
+          setFrameTicks(ticks);
+          setHasFrameTicks(true);
+        }
+      } catch {}
+    }).catch(() => {});
+  }, [id]);
+
+  // ── Scrubber: derive active tick from ratio ──────────────────────────────────
+  const scrubTick = useMemo(() => {
+    if (!frameTicks.length) return null;
+    const t0 = frameTicks[0]?.t ?? 0;
+    const t1 = frameTicks[frameTicks.length - 1]?.t ?? 0;
+    const duration = t1 - t0;
+    if (duration <= 0) return frameTicks[0] ?? null;
+    return bsearchTick(frameTicks, t0 + scrubRatio * duration);
+  }, [frameTicks, scrubRatio]);
+
+  const scrubDuration = useMemo(() => {
+    if (frameTicks.length < 2) return 0;
+    return (frameTicks[frameTicks.length - 1]?.t ?? 0) - (frameTicks[0]?.t ?? 0);
+  }, [frameTicks]);
+
+  const scrubTrackWidthRef = useRef(1);
+
+  const scrubPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => frameTicks.length > 0,
+        onMoveShouldSetPanResponder: () => frameTicks.length > 0,
+        onPanResponderGrant: (evt) => {
+          const x = evt.nativeEvent.locationX;
+          setScrubRatio(Math.max(0, Math.min(1, x / scrubTrackWidthRef.current)));
+        },
+        onPanResponderMove: (evt) => {
+          const x = evt.nativeEvent.locationX;
+          setScrubRatio(Math.max(0, Math.min(1, x / scrubTrackWidthRef.current)));
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [frameTicks.length],
+  );
 
   // ── Build HTML to disk ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -1294,7 +1387,72 @@ export default function SkeletonScreen() {
     </View>
   ) : hero ? (
     <View>
-      <FrozenSkeleton capture={hero.capture} width={heroBoxW} height={heroBoxH} emphasize={hero.emphasize} />
+      {/* Static freeze frame with optional scrub overlay */}
+      <View style={{ width: heroBoxW, height: heroBoxH }}>
+        <FrozenSkeleton capture={hero.capture} width={heroBoxW} height={heroBoxH} emphasize={scrubTick ? [] : hero.emphasize} />
+        {scrubTick && scrubTick.lm.length > 0 && (() => {
+          const rect = containRect(heroBoxW, heroBoxH, heroAspect);
+          const proj = (idx: number) => {
+            const lm = scrubTick.lm[idx];
+            if (!lm || lm.v < 0.3) return null;
+            return { x: rect.left + lm.x * rect.width, y: rect.top + lm.y * rect.height };
+          };
+          const lmRisk: Record<number, number> = {};
+          for (const [jKey, jIdx] of Object.entries(SCRUB_JOINT_IDX)) {
+            lmRisk[jIdx as number] = scrubTick.jr[jKey as keyof typeof scrubTick.jr]?.lvl ?? 0;
+          }
+          const bones = SCRUB_CONNECTIONS.map(([a, b], i) => {
+            const pa = proj(a);
+            const pb = proj(b);
+            if (!pa || !pb) return null;
+            const risk = Math.max(lmRisk[a] ?? 0, lmRisk[b] ?? 0);
+            const color = risk >= 2 ? "#ef4444aa" : risk >= 1 ? "#f59e0baa" : "#6c63ffaa";
+            return <Line key={`sb${i}`} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke={color} strokeWidth={3} strokeLinecap="round" />;
+          }).filter(Boolean);
+          const dots = SCRUB_KEY_LM.map((idx) => {
+            const p = proj(idx);
+            if (!p) return null;
+            const risk = lmRisk[idx] ?? 0;
+            const color = risk >= 2 ? "#ef4444" : risk >= 1 ? "#f59e0b" : "#f8fafc";
+            const r = risk >= 1 ? 6 : 4;
+            return (
+              <G key={`sd${idx}`}>
+                {risk >= 1 && <Circle cx={p.x} cy={p.y} r={r + 5} fill={color + "28"} />}
+                <Circle cx={p.x} cy={p.y} r={r} fill={color} stroke="rgba(7,7,15,0.85)" strokeWidth={1.2} />
+              </G>
+            );
+          }).filter(Boolean);
+          const angleLabels = (Object.keys(SCRUB_JOINT_IDX) as (keyof typeof SCRUB_JOINT_IDX)[]).map((jKey) => {
+            const jr = scrubTick.jr[jKey as keyof typeof scrubTick.jr];
+            if (!jr || jr.lvl < 1) return null;
+            const idx = SCRUB_JOINT_IDX[jKey];
+            if (idx === undefined) return null;
+            const p = proj(idx);
+            if (!p) return null;
+            const color = RISK_COLORS[Math.min(2, jr.lvl)];
+            const label = `${JOINT_LABEL[jKey as keyof typeof JOINT_LABEL]}  ${Math.round(jr.deg)}°`;
+            const scale = Math.max(0.7, Math.min(rect.width, rect.height) / 320);
+            const w = (label.length * 6.4 + 14) * scale;
+            const h = 19 * scale;
+            const onLeft = p.x > rect.left + rect.width * 0.55;
+            const bx = onLeft ? p.x - w - 9 * scale : p.x + 9 * scale;
+            const by = Math.max(rect.top + 2, p.y - h / 2);
+            return (
+              <G key={`sl${jKey}`}>
+                <Rect x={bx} y={by} width={w} height={h} rx={h / 2} fill="rgba(7,7,15,0.82)" stroke={color} strokeWidth={1.2 * scale} />
+                <SvgText x={bx + w / 2} y={by + h / 2 + 3.6 * scale} fill="#f8fafc" fontSize={11 * scale} fontWeight="700" textAnchor="middle">{label}</SvgText>
+              </G>
+            );
+          }).filter(Boolean);
+          return (
+            <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+              {bones}
+              {dots}
+              {angleLabels}
+            </Svg>
+          );
+        })()}
+      </View>
       <View style={ss.heroBanner} pointerEvents="none">
         <View style={[ss.heroBadge, { backgroundColor: RISK_COLORS[heroLvl] + "26", borderColor: RISK_COLORS[heroLvl] + "80" }]}>
           <View style={[ss.chipDot, { backgroundColor: RISK_COLORS[heroLvl] }]} />
@@ -1359,6 +1517,45 @@ export default function SkeletonScreen() {
           <Text style={ss.scanQualityMedNoteText}>
             Some joints weren't fully visible — a few readings may be estimated.
           </Text>
+        </View>
+      )}
+
+      {/* Frame scrubber — only when frameTicks are available */}
+      {frameTicks.length > 0 && (
+        <View style={ss.scrubberWrap}>
+          <View style={ss.scrubberHeader}>
+            <Feather name="film" size={10} color="#6c63ff" />
+            <Text style={ss.scrubberLabel}>FRAME SCRUBBER</Text>
+            <Text style={ss.scrubberTime}>
+              {scrubTick ? formatScrubTime(scrubTick.t) : "—"}
+              {scrubDuration > 0 ? ` / ${formatScrubTime(scrubDuration)}` : ""}
+            </Text>
+          </View>
+          <View
+            style={ss.scrubberTrack}
+            onLayout={(e) => { scrubTrackWidthRef.current = e.nativeEvent.layout.width; }}
+            {...scrubPanResponder.panHandlers}
+          >
+            <View style={ss.scrubberFill}>
+              <View style={[ss.scrubberProgress, { flex: scrubRatio }]} />
+              <View style={{ flex: 1 - scrubRatio }} />
+            </View>
+            {/* Tick marks for risk moments */}
+            {frameTicks.map((tick, idx) => {
+              const hasRisk = Object.values(tick.jr).some((jr) => (jr?.lvl ?? 0) >= 1);
+              if (!hasRisk) return null;
+              const t0 = frameTicks[0]?.t ?? 0;
+              const td = scrubDuration > 0 ? scrubDuration : 1;
+              const pos = (tick.t - t0) / td;
+              const color = Object.values(tick.jr).some((jr) => (jr?.lvl ?? 0) >= 2) ? "#ef4444" : "#f59e0b";
+              return (
+                <View key={idx} style={[ss.scrubberTickMark, { left: `${Math.round(pos * 100)}%` as any, backgroundColor: color }]} />
+              );
+            })}
+            {/* Thumb */}
+            <View style={[ss.scrubberThumb, { left: `${Math.round(scrubRatio * 100)}%` as any }]} />
+          </View>
+          <Text style={ss.scrubberHint}>Drag to scrub through frames</Text>
         </View>
       )}
     </View>
@@ -1908,4 +2105,15 @@ const ss = StyleSheet.create({
   noVideo:       { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 40, paddingTop: 60 },
   noVideoText:   { fontSize: 14, color: "#4a4a6a", fontFamily: "Inter_600SemiBold", textAlign: "center" },
   noVideoSub:    { fontSize: 12, color: "#3a3a5c", fontFamily: "Inter_400Regular", textAlign: "center" },
+
+  scrubberWrap:     { backgroundColor: "#0a0a16", borderTopWidth: 1, borderTopColor: "#18182a", paddingHorizontal: 16, paddingTop: 11, paddingBottom: 13 },
+  scrubberHeader:   { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+  scrubberLabel:    { fontSize: 9, color: "#6c63ff", fontFamily: "Inter_700Bold", letterSpacing: 1.2, flex: 1 },
+  scrubberTime:     { fontSize: 10, color: "#8888aa", fontFamily: "Inter_500Medium" },
+  scrubberTrack:    { height: 28, justifyContent: "center", position: "relative" },
+  scrubberFill:     { height: 4, borderRadius: 2, backgroundColor: "#1e1e30", overflow: "hidden", flexDirection: "row" },
+  scrubberProgress: { height: "100%", backgroundColor: "#6c63ff", borderRadius: 2 },
+  scrubberTickMark: { position: "absolute", top: "50%", width: 2, height: 10, marginTop: -5, borderRadius: 1, transform: [{ translateX: -1 }] } as any,
+  scrubberThumb:    { position: "absolute", top: "50%", width: 14, height: 14, borderRadius: 7, backgroundColor: "#6c63ff", borderWidth: 2, borderColor: "#0a0a16", marginTop: -7, transform: [{ translateX: -7 }] } as any,
+  scrubberHint:     { fontSize: 9, color: "#3a3a5c", fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 6 },
 });
