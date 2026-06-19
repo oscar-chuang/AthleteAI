@@ -1351,6 +1351,7 @@ export default function AnalysisDetailScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
+                testID="share-cta-btn"
                 onPress={handleDoShare}
                 activeOpacity={0.7}
                 disabled={sharing || saving}

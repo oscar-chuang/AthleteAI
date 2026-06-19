@@ -330,9 +330,10 @@ describe("AnalysisDetailScreen — share preview modal", () => {
     expect(mockCaptureRef).toHaveBeenCalledTimes(1);
 
     // Second press while captureRef is still in-flight (sharing === true).
-    // The handler guard `if (!analysis || sharing) return;` must bail out
-    // immediately, so captureRef must NOT be called a second time.
-    fireEvent.press(screen.getByText("Share"));
+    // At this point the button text is replaced by an ActivityIndicator, so we
+    // find it by testID. The handler guard `if (!analysis || sharing) return;`
+    // must bail out immediately, so captureRef must NOT be called a second time.
+    fireEvent.press(screen.getByTestId("share-cta-btn"));
     await flush();
 
     expect(mockCaptureRef).toHaveBeenCalledTimes(1);
