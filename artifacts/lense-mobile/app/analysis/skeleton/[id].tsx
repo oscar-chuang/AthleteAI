@@ -977,6 +977,23 @@ export default function SkeletonScreen() {
 
   // ── Expandable coaching card ─────────────────────────────────────────────────
   const miniW = screenW - 64;
+  function buildNextStepCue(drill: DrillRecord | string, kind: "injury" | "performance"): string {
+    if (typeof drill === "object" && drill !== null) {
+      const setsNum = parseInt((drill as DrillRecord).sets, 10);
+      if (!isNaN(setsNum)) {
+        return kind === "performance"
+          ? `Try ${setsNum + 1} sets next session, or cut rest to 45 s between rounds.`
+          : `Progress to ${setsNum + 1} sets, or slow the eccentric to 3 seconds per rep.`;
+      }
+      return kind === "performance"
+        ? `Add one more round, or reduce rest time to increase the training stimulus.`
+        : `Increase volume gradually, or add a 2-second pause at end range.`;
+    }
+    return kind === "performance"
+      ? `Build on this by adding one more round or advancing to a harder variation.`
+      : `Increase volume gradually, or add a 2-second end-range pause each rep.`;
+  }
+
   function renderTip(tip: TipRecord, kind: "injury" | "performance") {
     const tjoints = (tip.joints ?? []).filter((j) => j in JOINT_LABEL) as JointKey[];
     const lvls = tjoints.map((j) => scanResult?.risks?.[j]).filter((v): v is number => typeof v === "number");
@@ -1136,6 +1153,25 @@ export default function SkeletonScreen() {
                       {completedDrills.has(tip.id) ? "Completed" : "Mark done"}
                     </Text>
                   </TouchableOpacity>
+                  {completedDrills.has(tip.id) && (
+                    <View style={ss.nextStepCard}>
+                      <View style={ss.nextStepHeader}>
+                        <Feather name="arrow-right-circle" size={13} color="#22c55e" />
+                        <Text style={ss.nextStepLabel}>WHAT'S NEXT?</Text>
+                      </View>
+                      <Text style={ss.nextStepCue}>
+                        {buildNextStepCue(drill, kind)}
+                      </Text>
+                      <TouchableOpacity
+                        style={ss.nextStepAskBtn}
+                        activeOpacity={0.8}
+                        onPress={() => askCoach(tip)}
+                      >
+                        <Feather name="message-circle" size={12} color="#22c55e" />
+                        <Text style={ss.nextStepAskBtnText}>Ask Coach to plan my progression</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               );
             })() : null}
@@ -1746,6 +1782,12 @@ const ss = StyleSheet.create({
   markDoneBtnTextDone: { color: "#22c55e" },
   drillDoneBadge:  { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#0d2010", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: "#22c55e33" },
   drillDoneBadgeText: { fontSize: 10, color: "#22c55e", fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
+  nextStepCard:       { marginTop: 8, backgroundColor: "#0a1e0f", borderRadius: 10, borderWidth: 1, borderColor: "#22c55e33", padding: 10, gap: 6 },
+  nextStepHeader:     { flexDirection: "row", alignItems: "center", gap: 6 },
+  nextStepLabel:      { fontSize: 9, color: "#22c55e", fontFamily: "Inter_700Bold", letterSpacing: 1 },
+  nextStepCue:        { fontSize: 12, color: "#9adba8", fontFamily: "Inter_400Regular", lineHeight: 17 },
+  nextStepAskBtn:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#0d2010", borderRadius: 8, paddingVertical: 7, paddingHorizontal: 10, borderWidth: 1, borderColor: "#22c55e55", alignSelf: "flex-start", marginTop: 2 },
+  nextStepAskBtnText: { fontSize: 11, color: "#22c55e", fontFamily: "Inter_600SemiBold" },
   qualityBadge:    { marginTop: 6, borderWidth: 1, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 4 },
   qualityText:     { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   okCard:        { flexDirection: "row", gap: 12, alignItems: "center", backgroundColor: "#0f1c12", borderWidth: 1, borderColor: "#22c55e33", borderRadius: 14, padding: 14 },
