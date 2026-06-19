@@ -166,6 +166,9 @@ function addAnalysis(overrides: {
   sport?: string;
   title?: string;
   tips?: Tip[];
+  overallScore?: number | null;
+  strengths?: string[] | null;
+  improvements?: string[] | null;
 } = {}) {
   h.analysesStore.push({
     userId: USER_ID,
@@ -174,6 +177,9 @@ function addAnalysis(overrides: {
     uploadedAt: new Date("2026-01-01"),
     title: overrides.title ?? "Test Session",
     tips: overrides.tips ?? null,
+    overallScore: overrides.overallScore ?? null,
+    strengths: overrides.strengths ?? null,
+    improvements: overrides.improvements ?? null,
   });
 }
 
@@ -355,5 +361,99 @@ describe("buildSystemPrompt — feel cues appear in the system prompt", () => {
     const prompt = await buildSystemPrompt(USER_ID);
 
     expect(prompt).not.toContain("Feel shoulder blades glide together");
+  });
+});
+
+describe("buildSystemPrompt — recent session data appears in coaching context", () => {
+  beforeEach(() => {
+    setProfile("swimming", "Jordan", "advanced");
+    clearAnalyses();
+  });
+
+  it("includes overall score, strengths, improvements, and tips from a completed session", async () => {
+    addAnalysis({
+      status: "complete",
+      sport: "swimming",
+      title: "Morning Swim",
+      overallScore: 78,
+      strengths: ["Strong pull phase", "Good body rotation"],
+      improvements: ["Kick rhythm needs work", "Breathing timing off"],
+      tips: [
+        {
+          tipType: "technique",
+          title: "Improve kick cadence",
+          drill: {
+            name: "Flutter kick drill",
+            sets: "4 sets",
+            reps: "25 m",
+            cue: "Keep ankles loose and toes pointed",
+            drillFeelCue: "Feel propulsion from your hips, not your knees",
+          },
+        },
+      ],
+    });
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).toContain("Morning Swim");
+    expect(prompt).toContain("Overall 78");
+    expect(prompt).toContain("Strong pull phase");
+    expect(prompt).toContain("Good body rotation");
+    expect(prompt).toContain("Kick rhythm needs work");
+    expect(prompt).toContain("Breathing timing off");
+    expect(prompt).toContain("Improve kick cadence");
+    expect(prompt).toContain("Flutter kick drill");
+    expect(prompt).toContain("Keep ankles loose and toes pointed");
+    expect(prompt).toContain("Feel propulsion from your hips, not your knees");
+  });
+
+  it("shows the 'no completed analyses yet' fallback when the analyses store is empty", async () => {
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).toContain("no completed analyses yet");
+    expect(prompt).not.toContain("Recent training data");
+  });
+
+  it("excludes sessions that are not in 'complete' status from the coaching context", async () => {
+    addAnalysis({
+      status: "processing",
+      title: "Incomplete Session",
+      overallScore: 55,
+      strengths: ["Good effort"],
+    });
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).not.toContain("Incomplete Session");
+    expect(prompt).not.toContain("Good effort");
+    expect(prompt).toContain("no completed analyses yet");
+  });
+
+  it("includes data from multiple completed sessions", async () => {
+    addAnalysis({
+      status: "complete",
+      title: "Sprint Session",
+      sport: "running",
+      overallScore: 82,
+      strengths: ["Explosive start"],
+      improvements: ["Finish mechanics"],
+    });
+    addAnalysis({
+      status: "complete",
+      title: "Endurance Run",
+      sport: "running",
+      overallScore: 71,
+      strengths: ["Steady pace"],
+      improvements: ["Cadence consistency"],
+    });
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).toContain("Sprint Session");
+    expect(prompt).toContain("Overall 82");
+    expect(prompt).toContain("Explosive start");
+    expect(prompt).toContain("Endurance Run");
+    expect(prompt).toContain("Overall 71");
+    expect(prompt).toContain("Steady pace");
   });
 });

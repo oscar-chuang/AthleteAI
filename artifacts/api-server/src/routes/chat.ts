@@ -64,10 +64,11 @@ export async function buildSystemPrompt(userId: number): Promise<string> {
     systemPrompt += `\nActive injury concerns: ${injuries.join(", ")} — always factor these into advice.`;
   }
 
-  if (recentAnalyses.length > 0) {
+  const completedAnalyses = recentAnalyses.filter(a => a.status === "complete");
+
+  if (completedAnalyses.length > 0) {
     systemPrompt += `\n\nRecent training data (most recent first):`;
-    for (const a of recentAnalyses) {
-      if (a.status !== "complete") continue;
+    for (const a of completedAnalyses) {
       const scores = [
         a.overallScore != null ? `Overall ${Math.round(a.overallScore)}` : null,
         a.techniqueScore != null ? `Technique ${Math.round(a.techniqueScore)}` : null,
