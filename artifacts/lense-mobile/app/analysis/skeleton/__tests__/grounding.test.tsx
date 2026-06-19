@@ -331,6 +331,68 @@ describe("skeleton screen — grounding lifecycle", () => {
 });
 
 
+// ─── improvement notifications ────────────────────────────────────────────────
+// These tests verify that after a successful PATCH the skeleton screen calls
+// scheduleImprovementNotification exactly when the server reports improvements,
+// and skips the call when the improvements array is absent or empty.
+describe("skeleton screen — improvement notifications", () => {
+  function getNotifMock() {
+    // Re-require so we get the jest.fn() registered by the jest.mock factory.
+    const { scheduleImprovementNotification } = require("@/utils/notifications");
+    return scheduleImprovementNotification as jest.Mock;
+  }
+
+  beforeEach(() => {
+    getNotifMock().mockClear();
+  });
+
+  it("schedules a notification when the PATCH response includes improvements", async () => {
+    mockApiGet.mockImplementation(() => Promise.resolve(resp(false)));
+    mockApiUpdate.mockResolvedValue({
+      success: true,
+      improvements: [{ joint: "leftKnee", oldRisk: 2, newRisk: 1 }],
+    });
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    emit(scanMsg);
+    await flush();
+
+    expect(getNotifMock()).toHaveBeenCalledTimes(1);
+    const [improvements, sport] = getNotifMock().mock.calls[0]!;
+    expect(improvements).toEqual([{ joint: "leftKnee", oldRisk: 2, newRisk: 1 }]);
+    expect(typeof sport).toBe("string");
+  });
+
+  it("does not schedule a notification when the PATCH response has no improvements", async () => {
+    mockApiGet.mockImplementation(() => Promise.resolve(resp(false)));
+    mockApiUpdate.mockResolvedValue({ success: true, improvements: [] });
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    emit(scanMsg);
+    await flush();
+
+    expect(getNotifMock()).not.toHaveBeenCalled();
+  });
+
+  it("does not schedule a notification when improvements is absent from the PATCH response", async () => {
+    mockApiGet.mockImplementation(() => Promise.resolve(resp(false)));
+    mockApiUpdate.mockResolvedValue({ success: true });
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    emit(scanMsg);
+    await flush();
+
+    expect(getNotifMock()).not.toHaveBeenCalled();
+  });
+});
+
+
 // ─── askCoach — completed-drill context ───────────────────────────────────────
 // These tests verify that when tips with drills have been marked as done, the
 // pending chat message stored in AsyncStorage includes the completed-drill
