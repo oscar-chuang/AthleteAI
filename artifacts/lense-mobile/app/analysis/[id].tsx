@@ -55,6 +55,7 @@ import {
   SHARE_CARD_CAPTURE_OPTIONS,
   HIDDEN_SHARE_CARD_STYLE,
 } from "@/utils/shareCardCapture";
+import { buildSessionSharePayload } from "@/utils/shareUtils";
 
 const PENDING_CHAT_KEY = "pendingChatMessage";
 const SWIPE_HINT_SEEN_KEY = "swipe_hint_seen";
@@ -665,18 +666,17 @@ export default function AnalysisDetailScreen() {
       const uri = await captureRef(shareCardRef, SHARE_CARD_CAPTURE_OPTIONS);
       handleCancelShare();
 
-      const deepLink = `athleteai://analysis/${id}`;
-      const shareMessage = `Check out my ${analysis.sport} session on AthleteAI!\n${deepLink}`;
+      const payload = buildSessionSharePayload(id ?? "", analysis.sport ?? "", uri);
 
       if (Platform.OS === "ios") {
-        await Share.share({ url: uri, message: shareMessage });
+        await Share.share({ url: payload.url, message: payload.message });
       } else {
         const contentUri = await FileSystem.getContentUriAsync(uri);
         await IntentLauncher.startActivityAsync("android.intent.action.SEND", {
           type: "image/png",
           extra: {
             "android.intent.extra.STREAM": contentUri,
-            "android.intent.extra.TEXT": shareMessage,
+            "android.intent.extra.TEXT": payload.message,
             "android.intent.extra.SUBJECT": `My ${analysis.sport} session on AthleteAI`,
           },
           flags: 1,
