@@ -447,6 +447,38 @@ describe("AnalysisDetailScreen — 'Weekly goal reached!' toast", () => {
     expect(queryByText("Weekly goal reached!")).not.toBeNull();
   });
 
+  // ── Test 10 — auto-dismiss after 3.5 s ──────────────────────────────────────
+
+  it("automatically dismisses the toast after 3.5 s without any user interaction", async () => {
+    jest.useFakeTimers();
+    try {
+      mockAnalysesGet
+        .mockResolvedValueOnce({ analysis: PROCESSING_ANALYSIS, tips: [], injuryRisks: [] })
+        .mockResolvedValueOnce({ analysis: COMPLETE_ANALYSIS,   tips: [], injuryRisks: [] });
+
+      const { queryByText } = render(<AnalysisDetailScreen />);
+      await simulateFocus();
+      await simulateFocus();
+
+      // Toast must be visible immediately after the status transition.
+      expect(queryByText("Weekly goal reached!")).not.toBeNull();
+
+      // Advance past the 3.5 s auto-dismiss timer, then past the 250 ms
+      // fade-out animation so the Animated.timing completion callback fires
+      // and sets goalToast to null.
+      await act(async () => {
+        jest.advanceTimersByTime(3500 + 300);
+      });
+      await flush();
+
+      // Toast must be gone after the auto-dismiss timer + animation elapse.
+      expect(queryByText("Weekly goal reached!")).toBeNull();
+    } finally {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    }
+  });
+
   // ── Test 9 — tapping the toast body dismisses it ─────────────────────────────
 
   it("dismisses the toast when the toast body is tapped (not just the ✕ icon)", async () => {
