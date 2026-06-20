@@ -37,6 +37,7 @@ import {
   type MovementSummaryDataPoint,
 } from "@/lib/api";
 import { getSportConfig, JOINT_DISPLAY, SPORT_ICONS, type MetricKey } from "@/constants/sportConfig";
+import { computeMostImproved } from "@/lib/jointImprovement";
 import JointHistorySheet from "@/components/JointHistorySheet";
 import MovementDimensionHistorySheet from "@/components/MovementDimensionHistorySheet";
 
@@ -487,12 +488,7 @@ export default function ProgressScreen() {
   const gainPct = firstScore > 0 ? Math.round((gained / firstScore) * 100) : 0;
   const sessionLog = [...filteredEntries].reverse();
 
-  const mostImproved = (() => {
-    if (!filteredTrends?.improvements?.length) return null;
-    const positives = filteredTrends.improvements.filter((i) => i.improved && i.deltaDeg > 0);
-    if (!positives.length) return null;
-    return positives.reduce((best, cur) => (cur.deltaDeg > best.deltaDeg ? cur : best));
-  })();
+  const mostImproved = computeMostImproved(filteredTrends?.improvements);
 
   // ── Achievements grouped by sport ────────────────────────────────────────────
   const groupedAchievements = useMemo(() => {
