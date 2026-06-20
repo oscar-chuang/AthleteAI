@@ -1112,3 +1112,151 @@ describe("handleAskCoach — worst-metric derivation", () => {
     expect(typeof worst.score).toBe("number");
   });
 });
+
+// ─── Section 7: Next Workout Goal ─────────────────────────────────────────────
+// Mirrors Section 7 of [id].tsx which always renders a NextFocusCard. The card
+// receives three computed props:
+//   focusCue — "Focus on your <worstMetric.key> — <SCORE_META desc (lowercased)>"
+//   drill    — firstDrill from tips (undefined when no tip carries a drill)
+//   goal     — "Raise your <key> score from <score> to <score+10> next session"
+//              (target capped at 100)
+//
+// The wrapper mirrors only the derivation and string-building logic from [id].tsx
+// without importing NextFocusCard, keeping the suite native-dependency-free.
+
+function NextWorkoutGoalSection({
+  analysis,
+  tips,
+}: {
+  analysis: AnalysisRecord;
+  tips: TipRecord[];
+}) {
+  const worstMetric = deriveWorstMetric(analysis);
+  const firstDrill: DrillRecord | undefined = tips.find((t) => t.drill)?.drill;
+  const focusCue = `Focus on your ${worstMetric.key} — ${SCORE_META[worstMetric.key as keyof typeof SCORE_META].desc.toLowerCase()}`;
+  const goal = `Raise your ${worstMetric.key} score from ${Math.round(worstMetric.score)} to ${Math.min(100, Math.round(worstMetric.score) + 10)} next session`;
+  return (
+    <View testID="next-workout-goal">
+      <Text testID="next-focus-cue">{focusCue}</Text>
+      {firstDrill ? (
+        <Text testID="next-focus-drill-name">{firstDrill.name}</Text>
+      ) : null}
+      <Text testID="next-focus-goal">{goal}</Text>
+    </View>
+  );
+}
+
+describe("Section 7 — Next Workout Goal", () => {
+  it("always renders the card container", () => {
+    const { getByTestId } = render(
+      <NextWorkoutGoalSection analysis={BASE_ANALYSIS} tips={[]} />,
+    );
+    expect(getByTestId("next-workout-goal")).not.toBeNull();
+  });
+
+  it("focusCue contains the worst-metric key", () => {
+    // In BASE_ANALYSIS balanceScore (65) is the lowest
+    const { getByTestId } = render(
+      <NextWorkoutGoalSection analysis={BASE_ANALYSIS} tips={[]} />,
+    );
+    const cue = getByTestId("next-focus-cue").props.children as string;
+    expect(cue).toContain("balance");
+  });
+
+  it("focusCue contains the lowercased SCORE_META description for the worst metric", () => {
+    const { getByTestId } = render(
+      <NextWorkoutGoalSection analysis={BASE_ANALYSIS} tips={[]} />,
+    );
+    const cue = getByTestId("next-focus-cue").props.children as string;
+    expect(cue).toContain(SCORE_META["balance"].desc.toLowerCase());
+  });
+
+  it("focusCue updates when a different metric is worst", () => {
+    const worstTechnique: AnalysisRecord = { ...BASE_ANALYSIS, techniqueScore: 10 };
+    const { getByTestId } = render(
+      <NextWorkoutGoalSection analysis={worstTechnique} tips={[]} />,
+    );
+    const cue = getByTestId("next-focus-cue").props.children as string;
+    expect(cue).toContain("technique");
+    expect(cue).not.toContain("balance");
+  });
+
+  it("goal text names the worst-metric key", () => {
+    const { getByTestId } = render(
+      <NextWorkoutGoalSection analysis={BASE_ANALYSIS} tips={[]} />,
+    );
+    const goalText = getByTestId("next-focus-goal").props.children as string;
+    expect(goalText).toContain("balance");
+  });
+
+  it("goal text shows the current score", () => {
+    // balanceScore = 65
+    const { getByTestId } = render(
+      <NextWorkoutGoalSection analysis={BASE_ANALYSIS} tips={[]} />,
+    );
+    const goalText = getByTestId("next-focus-goal").props.children as string;
+    expect(goalText).toContain("65");
+  });
+
+  it("goal text shows the target score (current + 10)", () => {
+    // 65 + 10 = 75
+    const { getByTestId } = render(
+      <NextWorkoutGoalSection analysis={BASE_ANALYSIS} tips={[]} />,
+    );
+    const goalText = getByTestId("next-focus-goal").props.children as string;
+    expect(goalText).toContain("75");
+  });
+
+  it("goal target is capped at 100 when score is 95 or above", () => {
+    const highScores: AnalysisRecord = {
+      ...BASE_ANALYSIS,
+      techniqueScore:   95,
+      powerScore:       95,
+      balanceScore:     95,
+      consistencyScore: 95,
+      mobilityScore:    95,
+      speedScore:       95,
+    };
+    const { getByTestId } = render(
+      <NextWorkoutGoalSection analysis={highScores} tips={[]} />,
+    );
+    const goalText = getByTestId("next-focus-goal").props.children as string;
+    expect(goalText).toContain("to 100");
+  });
+
+  it("drill name is shown when at least one tip has a drill", () => {
+    const { getByTestId } = render(
+      <NextWorkoutGoalSection analysis={BASE_ANALYSIS} tips={[TIP_WITH_DRILL]} />,
+    );
+    expect(getByTestId("next-focus-drill-name").props.children).toBe("Wall ankle stretch");
+  });
+
+  it("drill name is absent when no tip has a drill", () => {
+    const { queryByTestId } = render(
+      <NextWorkoutGoalSection analysis={BASE_ANALYSIS} tips={[TIP_WITHOUT_DRILL]} />,
+    );
+    expect(queryByTestId("next-focus-drill-name")).toBeNull();
+  });
+
+  it("drill name is absent when tips array is empty", () => {
+    const { queryByTestId } = render(
+      <NextWorkoutGoalSection analysis={BASE_ANALYSIS} tips={[]} />,
+    );
+    expect(queryByTestId("next-focus-drill-name")).toBeNull();
+  });
+
+  it("uses the drill from the first tip that has one (skips tips without)", () => {
+    const secondDrillTip: TipRecord = {
+      ...TIP_WITH_DRILL,
+      id: "td99",
+      drill: { name: "Hip flexor stretch", sets: "2 sets", reps: "20 seconds each", cue: "" },
+    };
+    const { getByTestId } = render(
+      <NextWorkoutGoalSection
+        analysis={BASE_ANALYSIS}
+        tips={[TIP_WITHOUT_DRILL, TIP_WITH_DRILL, secondDrillTip]}
+      />,
+    );
+    expect(getByTestId("next-focus-drill-name").props.children).toBe("Wall ankle stretch");
+  });
+});
