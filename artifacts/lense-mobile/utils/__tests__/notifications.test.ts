@@ -278,29 +278,28 @@ describe("scheduleImprovementNotification — body text", () => {
     vi.mocked(AsyncStorage.removeItem).mockResolvedValue(undefined);
   });
 
-  // ── Single improvement ────────────────────────────────────────────────────
+  // ── Single improvement — all six tracked joints ───────────────────────────
 
-  it("names the joint and new risk label for a single improvement", async () => {
-    await scheduleImprovementNotification(
-      [{ joint: "leftKnee", oldRisk: 2, newRisk: 1 }],
-      "running",
-      9,
-    );
-    expect(capturedContent().body).toBe(
-      "Your left knee is down to Caution — keep it up!",
-    );
-  });
-
-  it("uses the correct display name and risk label for rightHip Safe", async () => {
-    await scheduleImprovementNotification(
-      [{ joint: "rightHip", oldRisk: 2, newRisk: 0 }],
-      "running",
-      9,
-    );
-    expect(capturedContent().body).toBe(
-      "Your right hip is down to Safe — keep it up!",
-    );
-  });
+  it.each([
+    ["leftKnee",   "left knee",   1, "Caution"],
+    ["rightKnee",  "right knee",  1, "Caution"],
+    ["leftHip",    "left hip",    0, "Safe"],
+    ["rightHip",   "right hip",   0, "Safe"],
+    ["leftElbow",  "left elbow",  1, "Caution"],
+    ["rightElbow", "right elbow", 0, "Safe"],
+  ] as const)(
+    "body text for %s single-improvement uses display label and risk label",
+    async (joint, displayLabel, newRisk, riskLabel) => {
+      await scheduleImprovementNotification(
+        [{ joint, oldRisk: 2, newRisk }],
+        "running",
+        9,
+      );
+      expect(capturedContent().body).toBe(
+        `Your ${displayLabel} is down to ${riskLabel} — keep it up!`,
+      );
+    },
+  );
 
   it("falls back to the raw joint key when it has no display mapping", async () => {
     await scheduleImprovementNotification(
