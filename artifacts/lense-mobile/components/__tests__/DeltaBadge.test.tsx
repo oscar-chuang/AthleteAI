@@ -172,6 +172,31 @@ describe("DeltaBadge — amber badge (risk unchanged, angle moved)", () => {
   });
 });
 
+// ── Null info: badge branch skipped ──────────────────────────────────────────
+
+/**
+ * Mirrors the session-card guard used in app/(tabs)/index.tsx:
+ *   {deltaBadge && <DeltaBadge info={deltaBadge} />}
+ *
+ * When deltaBadge is null the guard short-circuits, so neither the container
+ * testID nor the text testID should exist in the rendered tree.
+ */
+function BadgeGuard({ info }: { info: DeltaBadgeInfo | null }) {
+  return <>{info && <DeltaBadge info={info} />}</>;
+}
+
+describe("DeltaBadge — null info skips rendering", () => {
+  it("renders no badge container when info is null", () => {
+    const { queryByTestId } = render(<BadgeGuard info={null} />);
+    expect(queryByTestId("delta-badge")).toBeNull();
+  });
+
+  it("renders no badge text when info is null", () => {
+    const { queryByTestId } = render(<BadgeGuard info={null} />);
+    expect(queryByTestId("delta-badge-text")).toBeNull();
+  });
+});
+
 // ── Tappable vs non-tappable ──────────────────────────────────────────────────
 
 describe("DeltaBadge — tappable variant", () => {
