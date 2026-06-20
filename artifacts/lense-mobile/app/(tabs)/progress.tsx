@@ -1486,9 +1486,13 @@ export default function ProgressScreen() {
         <View style={s.section}>
           <View style={s.sectionRow}>
             <Text style={s.sectionTitle}>Session Log</Text>
-            {filteredEntries.length > 0 && (
+            {compareMode && selectedMovementType && compareMovementType ? (
+              <Text style={s.sectionCount}>
+                {filteredEntries.length + compareEntries.length} session{filteredEntries.length + compareEntries.length === 1 ? "" : "s"}
+              </Text>
+            ) : filteredEntries.length > 0 ? (
               <Text style={s.sectionCount}>{filteredEntries.length} session{filteredEntries.length === 1 ? "" : "s"}</Text>
-            )}
+            ) : null}
           </View>
 
           {allEntries.length === 0 ? (
@@ -1499,7 +1503,104 @@ export default function ProgressScreen() {
                 <Text style={s.emptyBtnText}>Analyze a Video</Text>
               </TouchableOpacity>
             </View>
-          ) : filteredEntries.length === 0 ? (
+          ) : compareMode && selectedMovementType && compareMovementType ? (() => {
+            const sessionLogA = [...filteredEntries].reverse();
+            const sessionLogB = [...compareEntries].reverse();
+
+            const renderCard = (entry: ProgressRecord) => {
+              const score = entry.overallScore;
+              const scoreColor = getScoreColor(score, colors);
+              const iconName = (SPORT_ICONS[entry.sport] ?? SPORT_ICONS.default) as any;
+              const subMetrics: { key: string; val?: number }[] = [
+                { key: "T", val: entry.techniqueScore },
+                { key: "P", val: entry.powerScore },
+                { key: "B", val: entry.balanceScore },
+                { key: "M", val: entry.mobilityScore },
+              ].filter((m) => m.val != null);
+              return (
+                <TouchableOpacity
+                  key={entry.id}
+                  style={s.logCard}
+                  onPress={() => router.push(`/analysis/${entry.id}` as any)}
+                  activeOpacity={0.82}
+                >
+                  <View style={[s.logIconBg, { backgroundColor: scoreColor + "20" }]}>
+                    <Feather name={iconName} size={20} color={scoreColor} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.logTitle} numberOfLines={1}>{entry.title}</Text>
+                    <Text style={s.logMeta}>{entry.sport} · {formatDateLong(entry.date)}</Text>
+                    {entry.movementType && (
+                      <Text style={s.logMovement} numberOfLines={1}>{entry.movementType}</Text>
+                    )}
+                    {subMetrics.length > 0 && (
+                      <View style={s.logMetrics}>
+                        {subMetrics.map((m) => {
+                          const c = getScoreColor(m.val!, colors);
+                          return (
+                            <View key={m.key} style={[s.logMetricPill, { backgroundColor: c + "18" }]}>
+                              <Text style={[s.logMetricText, { color: c }]}>{m.key} {Math.round(m.val!)}</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+                  <View style={[s.scoreCircle, { borderColor: scoreColor }]}>
+                    <Text style={[s.scoreText, { color: scoreColor }]}>{Math.round(score)}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            };
+
+            return (
+              <>
+                {/* Group A */}
+                <View style={{ marginBottom: 16 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: accentColor, alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#fff" }}>A</Text>
+                    </View>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: accentColor }} numberOfLines={1}>
+                      {selectedMovementType}
+                    </Text>
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>
+                      · {sessionLogA.length} session{sessionLogA.length === 1 ? "" : "s"}
+                    </Text>
+                  </View>
+                  {sessionLogA.length === 0 ? (
+                    <View style={[s.emptyCard, { marginBottom: 0 }]}>
+                      <Text style={[s.emptyText, { fontSize: 12 }]}>No sessions for {selectedMovementType}{period !== "All" ? " in this period" : ""}.</Text>
+                    </View>
+                  ) : (
+                    sessionLogA.map(renderCard)
+                  )}
+                </View>
+
+                {/* Group B */}
+                <View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: COMPARE_COLOR_B, alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#fff" }}>B</Text>
+                    </View>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: COMPARE_COLOR_B }} numberOfLines={1}>
+                      {compareMovementType}
+                    </Text>
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>
+                      · {sessionLogB.length} session{sessionLogB.length === 1 ? "" : "s"}
+                    </Text>
+                  </View>
+                  {sessionLogB.length === 0 ? (
+                    <View style={[s.emptyCard, { marginBottom: 0 }]}>
+                      <Text style={[s.emptyText, { fontSize: 12 }]}>No sessions for {compareMovementType}{period !== "All" ? " in this period" : ""}.</Text>
+                    </View>
+                  ) : (
+                    sessionLogB.map(renderCard)
+                  )}
+                </View>
+              </>
+            );
+          })() : filteredEntries.length === 0 ? (
             <View style={s.emptyCard}>
               <Feather name="calendar" size={32} color={colors.mutedForeground} />
               <Text style={s.emptyText}>
