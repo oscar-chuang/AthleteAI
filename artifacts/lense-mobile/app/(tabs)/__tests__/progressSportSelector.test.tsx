@@ -17,6 +17,8 @@
  *   6. AI summary card shows "Generating insight…" while the summary loads.
  *   7. AI summary card shows the resolved summary text once the API responds.
  *   8. Personal records grid renders metric values returned by the API.
+ *   9. Pressing a movement type chip filters the session log to matching entries.
+ *  10. Pressing "All Movements" restores the full sport-filtered list.
  */
 
 import React from "react";
@@ -486,5 +488,118 @@ describe("ProgressScreen — personal records grid", () => {
     await simulateFocus();
 
     expect(queryByText("Personal Records")).toBeNull();
+  });
+});
+
+// ─── Suite 5: Movement type chip filtering of the session log ─────────────────
+
+describe("ProgressScreen — movement type chip filters session log", () => {
+  const RUNNING_WITH_TWO_MOVEMENTS = {
+    sports: [
+      { sport: "running", count: 3, movementTypes: ["Sprint", "Long Distance"] },
+    ],
+  };
+
+  const SPRINT_ENTRY_1 = {
+    id: "sp1",
+    title: "Sprint Drills A",
+    sport: "running",
+    movementType: "Sprint",
+    date: "2026-06-01T00:00:00Z",
+    overallScore: 80,
+  };
+  const SPRINT_ENTRY_2 = {
+    id: "sp2",
+    title: "Sprint Drills B",
+    sport: "running",
+    movementType: "Sprint",
+    date: "2026-06-08T00:00:00Z",
+    overallScore: 83,
+  };
+  const LONG_DISTANCE_ENTRY = {
+    id: "ld1",
+    title: "Long Distance Run",
+    sport: "running",
+    movementType: "Long Distance",
+    date: "2026-06-05T00:00:00Z",
+    overallScore: 77,
+  };
+
+  beforeEach(() => {
+    mockProgressSports.mockResolvedValue(RUNNING_WITH_TWO_MOVEMENTS);
+    mockProgressList.mockResolvedValue({
+      entries: [SPRINT_ENTRY_1, SPRINT_ENTRY_2, LONG_DISTANCE_ENTRY],
+    });
+    mockAchievementsList.mockResolvedValue(EMPTY_ACHIEVEMENTS);
+    mockProgressSummary.mockResolvedValue({ summary: "", cached: false });
+  });
+
+  it("shows all sport entries when 'All Movements' is the default selection", async () => {
+    const { getByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // All three entries should be visible before any chip is tapped.
+    expect(getByText("Sprint Drills A")).toBeTruthy();
+    expect(getByText("Sprint Drills B")).toBeTruthy();
+    expect(getByText("Long Distance Run")).toBeTruthy();
+  });
+
+  it("filters session log to only Sprint entries when the Sprint chip is tapped", async () => {
+    const { getByText, queryByText, getAllByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // "Sprint" appears as both the chip label and in each sprint entry's movement badge.
+    // The chip is always the first occurrence in render order (chips render above the log).
+    const [sprintChip] = getAllByText("Sprint");
+    await act(async () => {
+      fireEvent.press(sprintChip!);
+    });
+    await flush();
+
+    // Only sprint entries should appear.
+    expect(getByText("Sprint Drills A")).toBeTruthy();
+    expect(getByText("Sprint Drills B")).toBeTruthy();
+    expect(queryByText("Long Distance Run")).toBeNull();
+  });
+
+  it("filters session log to only Long Distance entries when that chip is tapped", async () => {
+    const { getByText, queryByText, getAllByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // "Long Distance" also appears in each entry's movement badge, so take the first.
+    const [longDistanceChip] = getAllByText("Long Distance");
+    await act(async () => {
+      fireEvent.press(longDistanceChip!);
+    });
+    await flush();
+
+    // Only the long distance entry should appear.
+    expect(getByText("Long Distance Run")).toBeTruthy();
+    expect(queryByText("Sprint Drills A")).toBeNull();
+    expect(queryByText("Sprint Drills B")).toBeNull();
+  });
+
+  it("restores the full list when 'All Movements' is tapped after a chip filter", async () => {
+    const { getByText, getAllByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // First narrow down to Sprint.
+    const [sprintChip] = getAllByText("Sprint");
+    await act(async () => {
+      fireEvent.press(sprintChip!);
+    });
+    await flush();
+
+    // Now reset via "All Movements".
+    const allMovementsChip = getByText("All Movements");
+    await act(async () => {
+      fireEvent.press(allMovementsChip);
+    });
+    await flush();
+
+    // All three entries should be visible again.
+    expect(getByText("Sprint Drills A")).toBeTruthy();
+    expect(getByText("Sprint Drills B")).toBeTruthy();
+    expect(getByText("Long Distance Run")).toBeTruthy();
   });
 });
