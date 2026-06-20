@@ -2042,6 +2042,7 @@ export default function AnalysisDetailScreen() {
         pointerEvents="box-none"
       >
         <TouchableOpacity
+          testID="swipe-hint-button"
           activeOpacity={0.8}
           onPress={() => {
             if (!swipeHintVisible.current) return;
