@@ -1,4 +1,4 @@
-const TERM_MAP: Array<[RegExp, string]> = [
+export const TERM_MAP: Array<[RegExp, string]> = [
   // --- Injury / pathology (specific first) ---
   [/proximal hamstring tendinopathy/gi, "hamstring tendon irritation near the hip"],
   [/hamstring tendinopathy/gi, "hamstring tendon irritation"],

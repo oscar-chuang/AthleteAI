@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatBiomechanicsText } from "../formatBiomechanics";
+import { formatBiomechanicsText, TERM_MAP } from "../formatBiomechanics";
 
 describe("formatBiomechanicsText", () => {
   describe("edge cases", () => {
@@ -473,6 +473,28 @@ describe("formatBiomechanicsText", () => {
     it("term at end preceded immediately by punctuation preserves that punctuation", () => {
       const result = formatBiomechanicsText("watch for (knee valgus)");
       expect(result).toBe("Watch for (knee caving inward)");
+    });
+  });
+
+  describe("TERM_MAP integrity — no replacement is re-matched by another rule", () => {
+    it("every replacement string is free of patterns from other entries", () => {
+      const violations: string[] = [];
+
+      for (let i = 0; i < TERM_MAP.length; i++) {
+        const [, replacement] = TERM_MAP[i];
+        for (let j = 0; j < TERM_MAP.length; j++) {
+          if (i === j) continue;
+          const [otherPattern] = TERM_MAP[j];
+          otherPattern.lastIndex = 0;
+          if (otherPattern.test(replacement)) {
+            violations.push(
+              `Entry [${i}] replacement "${replacement}" is matched by entry [${j}] pattern ${otherPattern}`
+            );
+          }
+        }
+      }
+
+      expect(violations).toEqual([]);
     });
   });
 });
