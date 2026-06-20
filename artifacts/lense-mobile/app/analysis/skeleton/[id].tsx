@@ -56,7 +56,6 @@ import {
 import { buildNextStepCue } from "@/utils/buildNextStepCue";
 import FrozenSkeleton from "@/components/FrozenSkeleton";
 import { applyScanProgressAnim } from "@/utils/scanProgressAnim";
-import { useColors } from "@/hooks/useColors";
 
 const PENDING_CHAT_KEY = "pendingChatMessage";
 

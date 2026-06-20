@@ -871,8 +871,30 @@ export default function ProgressScreen() {
               <View>
                 <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: colors.foreground }}>{stats.thisWeekCount}</Text>
                 <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  This week{stats.lastWeekCount > 0 ? ` · ${stats.lastWeekCount} last` : ""}
+                  This week
                 </Text>
+                {stats.lastWeekCount > 0 && (() => {
+                  const delta = stats.thisWeekCount - stats.lastWeekCount;
+                  if (delta > 0) {
+                    return (
+                      <Text style={{ fontSize: 10, color: colors.success, fontFamily: "Inter_500Medium", marginTop: 1 }}>
+                        {`↑ ${delta} from last week`}
+                      </Text>
+                    );
+                  }
+                  if (delta < 0) {
+                    return (
+                      <Text style={{ fontSize: 10, color: colors.warning, fontFamily: "Inter_500Medium", marginTop: 1 }}>
+                        {`↓ ${Math.abs(delta)} from last week`}
+                      </Text>
+                    );
+                  }
+                  return (
+                    <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginTop: 1 }}>
+                      same as last week
+                    </Text>
+                  );
+                })()}
               </View>
             </View>
           </View>
