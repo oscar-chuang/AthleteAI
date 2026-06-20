@@ -1274,6 +1274,8 @@ describe("Section 7 — Next Workout Goal", () => {
 // When movementSummary is present all five dimension labels must be visible.
 // When it is absent (undefined) the entire section must not render.
 
+import type { MovementSummary } from "@/lib/api";
+
 const MOVEMENT_SUMMARY: MovementSummary = {
   flowScore: 82,
   efficiencyScore: 75,
@@ -1366,18 +1368,28 @@ describe("Movement Quality section", () => {
       const { getByTestId } = render(<MovementQualitySection analysis={analysis} />);
       expect(getByTestId("movement-quality-score-Rhythm").props.children).toBe(79);
     });
+
+    it("reflects updated scores when movementSummary values change", () => {
+      const updated: AnalysisRecord = {
+        ...analysis,
+        movementSummary: { ...MOVEMENT_SUMMARY, flowScore: 42, rhythmScore: 99 },
+      };
+      const { getByTestId } = render(<MovementQualitySection analysis={updated} />);
+      expect(getByTestId("movement-quality-score-Flow").props.children).toBe(42);
+      expect(getByTestId("movement-quality-score-Rhythm").props.children).toBe(99);
+    });
   });
 
   describe("without movementSummary", () => {
     it("does NOT render the section container when movementSummary is undefined", () => {
-      const analysis: AnalysisRecord = { ...BASE_ANALYSIS, movementSummary: undefined };
-      const { queryByTestId } = render(<MovementQualitySection analysis={analysis} />);
+      const noSummary: AnalysisRecord = { ...BASE_ANALYSIS, movementSummary: undefined };
+      const { queryByTestId } = render(<MovementQualitySection analysis={noSummary} />);
       expect(queryByTestId("movement-quality-section")).toBeNull();
     });
 
     it("does NOT render any dimension label when movementSummary is absent", () => {
-      const analysis: AnalysisRecord = { ...BASE_ANALYSIS, movementSummary: undefined };
-      const { queryByTestId } = render(<MovementQualitySection analysis={analysis} />);
+      const noSummary: AnalysisRecord = { ...BASE_ANALYSIS, movementSummary: undefined };
+      const { queryByTestId } = render(<MovementQualitySection analysis={noSummary} />);
       DIMENSION_LABELS.forEach((label) => {
         expect(queryByTestId(`movement-quality-label-${label}`)).toBeNull();
       });
