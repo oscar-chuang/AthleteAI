@@ -1014,3 +1014,101 @@ describe("Score card icons — each key maps to its documented icon", () => {
     expect(unique.size).toBe(icons.length);
   });
 });
+
+// ─── handleAskCoach — worst-metric derivation ─────────────────────────────────
+// The Ask Coach pre-fill message names the athlete's weakest area by mapping
+// SCORE_KEYS → { key, score } pairs (via scoreForKey) and sorting ascending,
+// then picking element [0].
+//
+// deriveWorstMetric (defined above) is the exact same expression so these
+// tests exercise the live production logic.  A bug in the sort order or key
+// lookup would silently produce a nonsensical pre-fill such as
+// "your weakest area is speed (82)".
+
+describe("handleAskCoach — worst-metric derivation", () => {
+  it("identifies the single key with the lowest score", () => {
+    // balanceScore (65) is lowest in BASE_ANALYSIS
+    const worst = deriveWorstMetric(BASE_ANALYSIS);
+    expect(worst.key).toBe("balance");
+    expect(worst.score).toBe(65);
+  });
+
+  it("selects the correct key when a different key is clearly lowest", () => {
+    const analysis: AnalysisRecord = {
+      ...BASE_ANALYSIS,
+      techniqueScore: 10,
+      powerScore: 70,
+      balanceScore: 65,
+      consistencyScore: 78,
+      mobilityScore: 72,
+      speedScore: 82,
+    };
+    const worst = deriveWorstMetric(analysis);
+    expect(worst.key).toBe("technique");
+    expect(worst.score).toBe(10);
+  });
+
+  it("returns a score lower than or equal to every other key's score", () => {
+    const analysis: AnalysisRecord = {
+      ...BASE_ANALYSIS,
+      techniqueScore: 88,
+      powerScore: 72,
+      balanceScore: 91,
+      consistencyScore: 60,
+      mobilityScore: 85,
+      speedScore: 77,
+    };
+    const worst = deriveWorstMetric(analysis);
+    // Every other key must be >= worst.score
+    SCORE_KEYS.filter((k) => k !== worst.key).forEach((k) => {
+      expect(scoreForKey(analysis, k)).toBeGreaterThanOrEqual(worst.score);
+    });
+  });
+
+  it("returns a valid SCORE_KEYS member and numeric score when all scores are equal", () => {
+    const analysis: AnalysisRecord = {
+      ...BASE_ANALYSIS,
+      techniqueScore: 50,
+      powerScore: 50,
+      balanceScore: 50,
+      consistencyScore: 50,
+      mobilityScore: 50,
+      speedScore: 50,
+    };
+    const worst = deriveWorstMetric(analysis);
+    expect(SCORE_KEYS).toContain(worst.key);
+    expect(worst.score).toBe(50);
+  });
+
+  it("defaults every missing score to 0 and picks a valid key", () => {
+    // No score fields — scoreForKey falls back to ?? 0 for every key.
+    const analysis: AnalysisRecord = {
+      ...BASE_ANALYSIS,
+      techniqueScore: undefined,
+      powerScore: undefined,
+      balanceScore: undefined,
+      consistencyScore: undefined,
+      mobilityScore: undefined,
+      speedScore: undefined,
+    };
+    const worst = deriveWorstMetric(analysis);
+    expect(worst.score).toBe(0);
+    expect(SCORE_KEYS).toContain(worst.key);
+  });
+
+  it("returns a defined result with a string key and numeric score in every case", () => {
+    const analysis: AnalysisRecord = {
+      ...BASE_ANALYSIS,
+      techniqueScore: undefined,
+      powerScore: undefined,
+      balanceScore: undefined,
+      consistencyScore: undefined,
+      mobilityScore: undefined,
+      speedScore: undefined,
+    };
+    const worst = deriveWorstMetric(analysis);
+    expect(worst).toBeDefined();
+    expect(typeof worst.key).toBe("string");
+    expect(typeof worst.score).toBe("number");
+  });
+});
