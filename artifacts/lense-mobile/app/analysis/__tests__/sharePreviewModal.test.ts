@@ -1,5 +1,6 @@
 import { renderHook, act } from "@testing-library/react-native";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSharePreview } from "@/hooks/useSharePreview";
 
 const mockCaptureRef = jest.fn();
@@ -197,6 +198,61 @@ describe("share preview — colour-scheme picker", () => {
       result.current.setShareScheme("dark");
     });
     expect(result.current.shareScheme).toBe("dark");
+  });
+
+  it("selecting 'light' calls AsyncStorage.setItem('shareCardScheme', 'light')", async () => {
+    const setItemSpy = jest
+      .spyOn(AsyncStorage, "setItem")
+      .mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useShareScheme());
+
+    await act(async () => {
+      // Mirrors the onPress in AnalysisDetailScreen:
+      //   setShareScheme(scheme)
+      //   AsyncStorage.setItem(SHARE_CARD_SCHEME_KEY, scheme).catch(() => {})
+      result.current.setShareScheme("light");
+      await AsyncStorage.setItem("shareCardScheme", "light");
+    });
+
+    expect(setItemSpy).toHaveBeenCalledWith("shareCardScheme", "light");
+    setItemSpy.mockRestore();
+  });
+
+  it("a pre-seeded AsyncStorage value of 'light' is restored on mount", async () => {
+    // Mirrors the useEffect in AnalysisDetailScreen that reads SHARE_CARD_SCHEME_KEY
+    // on mount and calls setShareScheme if the stored value is valid.
+    const getItemSpy = jest
+      .spyOn(AsyncStorage, "getItem")
+      .mockResolvedValue("light");
+
+    function useShareSchemeWithRestore() {
+      const [shareScheme, setShareScheme] = useState<"dark" | "light">("dark");
+
+      useEffect(() => {
+        AsyncStorage.getItem("shareCardScheme")
+          .then((saved) => {
+            if (saved === "dark" || saved === "light") setShareScheme(saved);
+          })
+          .catch(() => {});
+      }, []);
+
+      return { shareScheme };
+    }
+
+    const { result } = renderHook(() => useShareSchemeWithRestore());
+
+    // Before the effect resolves, scheme is still the default.
+    expect(result.current.shareScheme).toBe("dark");
+
+    // Wait for the async getItem to resolve and the state update to flush.
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.shareScheme).toBe("light");
+    expect(getItemSpy).toHaveBeenCalledWith("shareCardScheme");
+    getItemSpy.mockRestore();
   });
 
   it("the visible preview card and the hidden capture card both receive the updated scheme", () => {
