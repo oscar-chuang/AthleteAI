@@ -172,6 +172,58 @@ describe("persistCheckInHour / clearPersistedCheckInHour — AsyncStorage fallba
     vi.mocked(AsyncStorage.removeItem).mockResolvedValue(undefined);
   });
 
+  // ── Input validation ───────────────────────────────────────────────────────
+
+  it("throws a RangeError when called with NaN", async () => {
+    await expect(persistCheckInHour(NaN)).rejects.toThrow(RangeError);
+    expect(vi.mocked(AsyncStorage.setItem)).not.toHaveBeenCalled();
+  });
+
+  it("throws a RangeError when called with Infinity", async () => {
+    await expect(persistCheckInHour(Infinity)).rejects.toThrow(RangeError);
+    expect(vi.mocked(AsyncStorage.setItem)).not.toHaveBeenCalled();
+  });
+
+  it("throws a RangeError when called with -Infinity", async () => {
+    await expect(persistCheckInHour(-Infinity)).rejects.toThrow(RangeError);
+    expect(vi.mocked(AsyncStorage.setItem)).not.toHaveBeenCalled();
+  });
+
+  it("clamps a value below 6 to 6 before writing", async () => {
+    await persistCheckInHour(3);
+    expect(vi.mocked(AsyncStorage.setItem)).toHaveBeenCalledWith("check_in_hour", "6");
+  });
+
+  it("clamps a negative value to 6 before writing", async () => {
+    await persistCheckInHour(-5);
+    expect(vi.mocked(AsyncStorage.setItem)).toHaveBeenCalledWith("check_in_hour", "6");
+  });
+
+  it("clamps a value above 22 to 22 before writing", async () => {
+    await persistCheckInHour(25);
+    expect(vi.mocked(AsyncStorage.setItem)).toHaveBeenCalledWith("check_in_hour", "22");
+  });
+
+  it("rounds a fractional hour before clamping — 14.7 stores as 15", async () => {
+    await persistCheckInHour(14.7);
+    expect(vi.mocked(AsyncStorage.setItem)).toHaveBeenCalledWith("check_in_hour", "15");
+  });
+
+  it("rounds a fractional hour and clamps — 22.5 rounds to 23 then clamps to 22", async () => {
+    await persistCheckInHour(22.5);
+    expect(vi.mocked(AsyncStorage.setItem)).toHaveBeenCalledWith("check_in_hour", "22");
+  });
+
+  it("writes the exact boundary value 6 without clamping", async () => {
+    await persistCheckInHour(6);
+    expect(vi.mocked(AsyncStorage.setItem)).toHaveBeenCalledWith("check_in_hour", "6");
+  });
+
+  it("writes the exact boundary value 22 without clamping", async () => {
+    await persistCheckInHour(22);
+    expect(vi.mocked(AsyncStorage.setItem)).toHaveBeenCalledWith("check_in_hour", "22");
+  });
+
   it("schedules at the persisted hour after persistCheckInHour(14)", async () => {
     // Simulate: user saved check-in hour 14 via persistCheckInHour.
     // AsyncStorage.getItem returns "14" when the correct key is queried.

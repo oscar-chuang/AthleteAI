@@ -5,8 +5,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const CHECK_IN_HOUR_KEY = "check_in_hour";
 
 export async function persistCheckInHour(hour: number): Promise<void> {
+  if (!Number.isFinite(hour)) {
+    throw new RangeError(`persistCheckInHour: hour must be a finite number, got ${hour}`);
+  }
+  const safeHour = Math.min(22, Math.max(6, Math.round(hour)));
   try {
-    await AsyncStorage.setItem(CHECK_IN_HOUR_KEY, String(hour));
+    await AsyncStorage.setItem(CHECK_IN_HOUR_KEY, String(safeHour));
   } catch {
     // non-fatal
   }
