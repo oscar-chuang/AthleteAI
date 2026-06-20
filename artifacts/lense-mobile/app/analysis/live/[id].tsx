@@ -28,6 +28,7 @@ import {
 import type { JointKey } from "@/utils/analysisUtils";
 import { useColors } from "@/hooks/useColors";
 import { SPACING, RADIUS } from "@/constants/spacing";
+import { bsearchLower, lerpTick, aspectFromNaturalSize, handleVideoReadyForDisplay } from "@/utils/lerpTick";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -85,56 +86,7 @@ interface TimelineEvent {
 }
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
-
-function bsearchLower(ticks: FrameTick[], t: number): number {
-  let lo = 0;
-  let hi = ticks.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if ((ticks[mid]?.t ?? 0) < t) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
-}
-
-/** Linear interpolation between the two ticks bracketing `t`.
- *  Falls back to the nearest tick when only one tick exists or `t` is out of range. */
-function lerpTick(ticks: FrameTick[], t: number): FrameTick | null {
-  if (!ticks.length) return null;
-  if (ticks.length === 1) return ticks[0] ?? null;
-
-  const bIdx = bsearchLower(ticks, t);
-  const aIdx = bIdx > 0 ? bIdx - 1 : 0;
-  const a = ticks[aIdx]!;
-  const b = ticks[bIdx] ?? a;
-
-  if (a === b || b.t <= a.t) return a;
-
-  const alpha = Math.max(0, Math.min(1, (t - a.t) / (b.t - a.t)));
-  if (alpha <= 0) return a;
-  if (alpha >= 1) return b;
-
-  const lm = a.lm.map((pa, i) => {
-    const pb = b.lm[i];
-    if (!pb) return pa;
-    return {
-      x: pa.x + (pb.x - pa.x) * alpha,
-      y: pa.y + (pb.y - pa.y) * alpha,
-      v: pa.v + (pb.v - pa.v) * alpha,
-    };
-  });
-
-  const angles = { ...a.angles } as FrameTick["angles"];
-  for (const k of Object.keys(a.angles) as (keyof FrameTick["angles"])[]) {
-    const av = a.angles[k];
-    const bv = b.angles[k];
-    if (typeof av === "number" && typeof bv === "number") {
-      (angles as Record<string, number>)[k] = av + (bv - av) * alpha;
-    }
-  }
-
-  return { t, lm, angles, jr: a.jr };
-}
+// bsearchLower and lerpTick are imported from @/utils/lerpTick (see top of file).
 
 function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -607,10 +559,7 @@ export default function LivePlaybackScreen() {
           isLooping={false}
           progressUpdateIntervalMillis={100}
           onPlaybackStatusUpdate={handlePlaybackStatus}
-          onReadyForDisplay={(event) => {
-            const { width, height } = event.naturalSize;
-            if (width > 0 && height > 0) setVideoAspect(width / height);
-          }}
+          onReadyForDisplay={(event) => handleVideoReadyForDisplay(event, setVideoAspect)}
           onLoad={(status: AVPlaybackStatus) => {
             if (status.isLoaded && status.durationMillis) setDuration(status.durationMillis / 1000);
           }}
