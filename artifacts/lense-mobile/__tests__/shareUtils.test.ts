@@ -129,3 +129,48 @@ describe("buildGoalShareMessage — combined", () => {
     expect(msg.startsWith(PREFIX)).toBe(true);
   });
 });
+
+// ── topTip suffix ─────────────────────────────────────────────────────────────
+
+describe("buildGoalShareMessage — topTip", () => {
+  it("omits the tip line when topTip is not provided", () => {
+    const msg = buildGoalShareMessage({ sessionCount: 3 });
+    expect(msg).not.toContain("Tip:");
+  });
+
+  it("omits the tip line when topTip is an empty string", () => {
+    const msg = buildGoalShareMessage({ sessionCount: 3, topTip: "" });
+    expect(msg).not.toContain("Tip:");
+  });
+
+  it("appends the tip on a new line prefixed with 'Tip:' when topTip is provided", () => {
+    const msg = buildGoalShareMessage({ sessionCount: 3, topTip: "Keep your knees soft on landing." });
+    expect(msg).toContain("\nTip: Keep your knees soft on landing.");
+  });
+
+  it("truncates a tip longer than 80 chars to 77 chars + ellipsis", () => {
+    const longTip = "A".repeat(90);
+    const msg = buildGoalShareMessage({ sessionCount: 3, topTip: longTip });
+    expect(msg).toContain("\nTip: " + "A".repeat(77) + "…");
+    expect(msg).not.toContain("A".repeat(78));
+  });
+
+  it("does not truncate a tip of exactly 80 chars", () => {
+    const tip80 = "B".repeat(80);
+    const msg = buildGoalShareMessage({ sessionCount: 3, topTip: tip80 });
+    expect(msg).toContain("\nTip: " + tip80);
+    expect(msg).not.toContain("…");
+  });
+
+  it("combines tip with sport and streak correctly", () => {
+    const msg = buildGoalShareMessage({
+      sessionCount: 5,
+      sport: "football",
+      streakDays: 10,
+      topTip: "Drive from your hips.",
+    });
+    expect(msg).toBe(
+      `${PREFIX} 5 sessions this week (football). 10-day streak and counting!\nTip: Drive from your hips.`,
+    );
+  });
+});

@@ -347,6 +347,7 @@ export default function HomeScreen() {
       sessionCount: thisWeek,
       sport: profile?.sport,
       streakDays,
+      topTip,
     });
 
     try {
@@ -375,7 +376,7 @@ export default function HomeScreen() {
         // no-op
       }
     }
-  }, [profile?.sport, thisWeek, streakDays]);
+  }, [profile?.sport, thisWeek, streakDays, topTip]);
 
   useEffect(() => {
     if (!showShareHint) return;

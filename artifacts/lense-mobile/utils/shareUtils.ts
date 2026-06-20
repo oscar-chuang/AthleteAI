@@ -2,6 +2,7 @@ export interface GoalShareParams {
   sessionCount: number;
   sport?: string | null;
   streakDays?: number;
+  topTip?: string;
 }
 
 /**
@@ -11,16 +12,21 @@ export interface GoalShareParams {
  *  - Session count is always included and correctly pluralised.
  *  - Sport name is appended in parentheses when provided.
  *  - A streak suffix is appended only when streakDays > 1.
+ *  - When topTip is provided it is appended on a new line, truncated to 80 chars.
  */
 export function buildGoalShareMessage({
   sessionCount,
   sport,
   streakDays = 0,
+  topTip,
 }: GoalShareParams): string {
   const sportSuffix  = sport ? ` (${sport})` : "";
   const streakSuffix = streakDays > 1 ? ` ${streakDays}-day streak and counting!` : "";
   const sessions     = `${sessionCount} session${sessionCount !== 1 ? "s" : ""}`;
-  return `I hit my weekly training goal on AthleteAI! 🏆 ${sessions} this week${sportSuffix}.${streakSuffix}`;
+  const base = `I hit my weekly training goal on AthleteAI! 🏆 ${sessions} this week${sportSuffix}.${streakSuffix}`;
+  if (!topTip) return base;
+  const truncated = topTip.length > 80 ? topTip.slice(0, 77) + "…" : topTip;
+  return `${base}\nTip: ${truncated}`;
 }
 
 // ─── Session share payload ────────────────────────────────────────────────────
