@@ -1352,6 +1352,7 @@ export default function ProgressScreen() {
               const riskColor = RISK_COLOR_MAP[latestRisk] ?? colors.mutedForeground;
               const riskLabel = RISK_LABEL_MAP[latestRisk] ?? "";
               const imp = filteredTrends.improvements.find((i) => i.joint === joint);
+              const latestAnalysisId = last.analysisId || null;
 
               return (
                 <TouchableOpacity
@@ -1380,6 +1381,25 @@ export default function ProgressScreen() {
                             {deltaDeg >= 0 ? "+" : ""}{deltaDeg}° over {history.length} scan{history.length === 1 ? "" : "s"}
                           </Text>
                         </View>
+                      )}
+                      {latestAnalysisId && (
+                        <Pressable
+                          testID={`joint-session-link-${joint}`}
+                          onPress={() => router.push(`/analysis/skeleton/${latestAnalysisId}` as any)}
+                          style={({ pressed }) => ({
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 3,
+                            marginTop: 8,
+                            alignSelf: "flex-start",
+                            opacity: pressed ? 0.6 : 1,
+                          })}
+                        >
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.primary }}>
+                            Latest session
+                          </Text>
+                          <Feather name="chevron-right" size={11} color={colors.primary} />
+                        </Pressable>
                       )}
                     </View>
                     <View style={{ alignItems: "flex-end", gap: 6 }}>
