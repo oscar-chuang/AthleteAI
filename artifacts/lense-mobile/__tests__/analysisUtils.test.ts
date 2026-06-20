@@ -1,6 +1,4 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
-import { resolve } from "path";
 import {
   computeFlaggedJoints,
   computeWorstLvl,
@@ -11,6 +9,10 @@ import {
   type RiskMap,
   type TipForConflict,
 } from "../utils/analysisUtils";
+import {
+  INJURY_CONFLICT_LABEL,
+  PERFORMANCE_CONFLICT_LABEL,
+} from "../constants/conflictBanner";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -363,10 +365,6 @@ describe("sortPerformanceTips", () => {
 // apply that exact conditional to derive the label string each tip card would
 // display, asserting on the literal text rather than just the positional order.
 //
-// Label constants — kept in sync with [id].tsx renderTip() ──────────────────
-const INJURY_CONFLICT_LABEL      = "⚠ Fix this first";
-const PERFORMANCE_CONFLICT_LABEL = "After injury risk is resolved";
-
 /**
  * Mirrors the renderTip() label-derivation logic from the skeleton screen.
  * Returns the conflict banner text the tip card would display, or null if the
@@ -502,35 +500,3 @@ describe("full pipeline: computeConflictedJoints → sortInjuryTips / sortPerfor
   });
 });
 
-// ── Banner-text contract: constants must match what [id].tsx renders ──────────
-//
-// These tests guard against silent copy drift: if a developer edits the
-// literal strings inside renderTip() in [id].tsx without updating the
-// INJURY_CONFLICT_LABEL / PERFORMANCE_CONFLICT_LABEL constants used above
-// (and vice-versa), one of the assertions below will fail immediately.
-//
-// Strategy: read the raw source of the skeleton screen at test time and
-// assert both banner strings appear verbatim, exactly as the constants define.
-
-describe("banner-text contract: [id].tsx rendered strings match test constants", () => {
-  const skeletonSource = readFileSync(
-    resolve(__dirname, "../app/analysis/skeleton/[id].tsx"),
-    "utf8",
-  );
-
-  it("injury conflict banner text in [id].tsx matches INJURY_CONFLICT_LABEL constant", () => {
-    expect(skeletonSource).toContain(INJURY_CONFLICT_LABEL);
-  });
-
-  it("performance conflict banner text in [id].tsx matches PERFORMANCE_CONFLICT_LABEL constant", () => {
-    expect(skeletonSource).toContain(PERFORMANCE_CONFLICT_LABEL);
-  });
-
-  it("both banner strings appear in the conflict-banner JSX block (not just comments)", () => {
-    // Verify each string sits inside a <Text> element, not only in a comment.
-    const injuryBannerMatch  = skeletonSource.match(/<Text[^>]*>⚠ Fix this first<\/Text>/);
-    const perfBannerMatch    = skeletonSource.match(/<Text[^>]*>After injury risk is resolved<\/Text>/);
-    expect(injuryBannerMatch).not.toBeNull();
-    expect(perfBannerMatch).not.toBeNull();
-  });
-});

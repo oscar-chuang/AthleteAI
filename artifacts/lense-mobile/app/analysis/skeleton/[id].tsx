@@ -23,8 +23,11 @@ import { Feather } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  INJURY_CONFLICT_LABEL,
+  PERFORMANCE_CONFLICT_LABEL,
+} from "@/constants/conflictBanner";
 import { analyses as analysesApi, drills as drillsApi, jointTrends, type TipRecord, type DrillRecord, type RiskRecord, type JointTrendsResponse, type JointDataPoint, type FrameTick } from "@/lib/api";
-import { useColors } from "@/hooks/useColors";
 import JointHistorySheet from "@/components/JointHistorySheet";
 import { scheduleImprovementNotification } from "@/utils/notifications";
 import { useAuth } from "@/lib/authContext";
@@ -535,7 +538,6 @@ export default function SkeletonScreen() {
   const insets    = useSafeAreaInsets();
   const router    = useRouter();
   const { profile } = useAuth();
-  const colors    = useColors();
   const { width: screenW, height: screenH } = useWindowDimensions();
   const webviewRef = useRef<WebView>(null);
   const scrollRef  = useRef<ScrollView>(null);
@@ -1223,13 +1225,13 @@ export default function SkeletonScreen() {
         {hasConflict && kind === "injury" && (
           <View style={ss.conflictBannerInjury}>
             <Feather name="alert-triangle" size={11} color="#f59e0b" />
-            <Text style={ss.conflictBannerInjuryText}>⚠ Fix this first</Text>
+            <Text style={ss.conflictBannerInjuryText}>{INJURY_CONFLICT_LABEL}</Text>
           </View>
         )}
         {hasConflict && kind === "performance" && (
           <View style={ss.conflictBannerPerf}>
             <Feather name="clock" size={11} color="#8888aa" />
-            <Text style={ss.conflictBannerPerfText}>After injury risk is resolved</Text>
+            <Text style={ss.conflictBannerPerfText}>{PERFORMANCE_CONFLICT_LABEL}</Text>
           </View>
         )}
         <TouchableOpacity activeOpacity={0.85} onPress={() => openTip(tip)}>
