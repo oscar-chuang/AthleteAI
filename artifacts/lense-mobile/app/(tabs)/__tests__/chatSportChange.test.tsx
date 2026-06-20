@@ -47,6 +47,9 @@ const mockRefreshProfile = jest.fn(async () => {});
 // Capture useFocusEffect callback so tests can fire it on demand.
 let mockFocusCallback: (() => (() => void) | void) | null = null;
 
+// Controls whether the user has Pro access (true → full chat, false → paywall).
+let mockCanAccess = true;
+
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
 jest.mock("expo-router", () => ({
@@ -107,7 +110,7 @@ jest.mock("@/lib/authContext", () => ({
     profile: mockProfile,
     refreshProfile: mockRefreshProfile,
   }),
-  useCanAccessFeature: () => true,
+  useCanAccessFeature: () => mockCanAccess,
 }));
 
 jest.mock("@/components/MarkdownText", () => ({
@@ -146,6 +149,7 @@ async function simulateFocus() {
 // ─── Setup / teardown ─────────────────────────────────────────────────────────
 
 beforeEach(() => {
+  mockCanAccess = true;
   mockProfile = {
     sport: "running",
     level: "intermediate",
@@ -329,5 +333,78 @@ describe("ChatScreen — Coach header subtitle reflects current profile", () => 
     await simulateFocus();
 
     expect(getByText("Online · Ready to help")).toBeTruthy();
+  });
+});
+
+// ─── Paywall header subtitle reflects current profile ─────────────────────────
+//
+// The paywall branch (canChat = false) renders its own copy of the Coach
+// header.  The subtitle must derive from `profile` the same way the full-chat
+// header does — so profile updates propagate to it too.
+
+describe("ChatScreen — paywall header subtitle reflects current profile", () => {
+  beforeEach(() => {
+    mockCanAccess = false;
+  });
+
+  // ── Test 1 ─────────────────────────────────────────────────────────────────
+
+  it("displays the initial sport and level in the paywall header subtitle", async () => {
+    mockProfile = {
+      sport: "running",
+      level: "intermediate",
+      name: "Test Athlete",
+      avatarUrl: null,
+    };
+
+    const { getByText } = render(<ChatScreen />);
+    await flush();
+
+    expect(getByText("Running · Intermediate")).toBeTruthy();
+  });
+
+  // ── Test 2 ─────────────────────────────────────────────────────────────────
+
+  it("updates the paywall header subtitle immediately when profile sport/level change", async () => {
+    mockProfile = {
+      sport: "running",
+      level: "intermediate",
+      name: "Test Athlete",
+      avatarUrl: null,
+    };
+
+    const { getByText, rerender } = render(<ChatScreen />);
+    await flush();
+
+    expect(getByText("Running · Intermediate")).toBeTruthy();
+
+    // Athlete opens profile settings and saves a new sport + level.
+    mockProfile = {
+      sport: "swimming",
+      level: "advanced",
+      name: "Test Athlete",
+      avatarUrl: null,
+    };
+
+    rerender(<ChatScreen />);
+    await flush();
+
+    expect(getByText("Swimming · Advanced")).toBeTruthy();
+  });
+
+  // ── Test 3 ─────────────────────────────────────────────────────────────────
+
+  it("falls back to 'Pro feature' when profile has no sport/level in paywall view", async () => {
+    mockProfile = {
+      sport: "",
+      level: "",
+      name: "Test Athlete",
+      avatarUrl: null,
+    };
+
+    const { getByText } = render(<ChatScreen />);
+    await flush();
+
+    expect(getByText("Pro feature")).toBeTruthy();
   });
 });
