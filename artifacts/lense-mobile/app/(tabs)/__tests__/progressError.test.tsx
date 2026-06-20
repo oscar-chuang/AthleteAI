@@ -19,7 +19,7 @@
 
 import React from "react";
 import { RefreshControl, ScrollView } from "react-native";
-import { render, act, within } from "@testing-library/react-native";
+import { render, act, waitFor, within } from "@testing-library/react-native";
 
 // ─── Module-level mock state ──────────────────────────────────────────────────
 
@@ -122,20 +122,21 @@ const ERROR_BANNER_TEXT = "Couldn't load your progress. Pull down to try again."
 const EMPTY_PROGRESS = { entries: [] };
 const EMPTY_ACHIEVEMENTS = { achievements: [] };
 
-/** Flush pending React state updates and async effects. */
-async function flush(rounds = 5) {
-  for (let i = 0; i < rounds; i++) {
-    // eslint-disable-next-line no-await-in-loop
-    await act(async () => {});
-  }
-}
-
 /** Simulate the tab gaining focus (fires the useFocusEffect callback). */
 async function simulateFocus() {
   await act(async () => {
     mockFocusCallback?.();
   });
-  await flush();
+}
+
+/**
+ * Wait for the screen title to appear, confirming the full async load chain
+ * has settled. Use before asserting element absence.
+ */
+async function waitForLoaded(queryByText: (text: string) => any) {
+  await waitFor(() => {
+    expect(queryByText("Progress")).toBeTruthy();
+  });
 }
 
 /**
@@ -153,7 +154,6 @@ async function triggerRefresh(
   await act(async () => {
     rc.props.onRefresh();
   });
-  await flush();
 }
 
 // ─── Setup / teardown ─────────────────────────────────────────────────────────
@@ -188,7 +188,7 @@ describe("ProgressScreen — error banner", () => {
     const { getByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    expect(getByText(ERROR_BANNER_TEXT)).toBeTruthy();
+    await waitFor(() => expect(getByText(ERROR_BANNER_TEXT)).toBeTruthy());
   });
 
   // ── Test 2 ───────────────────────────────────────────────────────────────────
@@ -200,7 +200,7 @@ describe("ProgressScreen — error banner", () => {
     const { getByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    expect(getByText(ERROR_BANNER_TEXT)).toBeTruthy();
+    await waitFor(() => expect(getByText(ERROR_BANNER_TEXT)).toBeTruthy());
   });
 
   // ── Test 3 ───────────────────────────────────────────────────────────────────
@@ -214,7 +214,7 @@ describe("ProgressScreen — error banner", () => {
     await simulateFocus();
 
     // Banner must be visible after the failed load.
-    expect(getByText(ERROR_BANNER_TEXT)).toBeTruthy();
+    await waitFor(() => expect(getByText(ERROR_BANNER_TEXT)).toBeTruthy());
 
     // Refresh load succeeds.
     mockProgressList.mockResolvedValueOnce(EMPTY_PROGRESS);
@@ -223,7 +223,7 @@ describe("ProgressScreen — error banner", () => {
     await triggerRefresh(UNSAFE_getByType);
 
     // Banner must be gone after the successful refresh.
-    expect(queryByText(ERROR_BANNER_TEXT)).toBeNull();
+    await waitFor(() => expect(queryByText(ERROR_BANNER_TEXT)).toBeNull());
   });
 
   // ── Test 4 ───────────────────────────────────────────────────────────────────
@@ -235,6 +235,7 @@ describe("ProgressScreen — error banner", () => {
     const { queryByText } = render(<ProgressScreen />);
     await simulateFocus();
 
+    await waitForLoaded(queryByText);
     expect(queryByText(ERROR_BANNER_TEXT)).toBeNull();
   });
 });

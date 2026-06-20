@@ -22,7 +22,7 @@
  */
 
 import React from "react";
-import { render, act, fireEvent } from "@testing-library/react-native";
+import { render, act, waitFor, fireEvent } from "@testing-library/react-native";
 
 // ─── Module-level mock state ──────────────────────────────────────────────────
 
@@ -152,20 +152,21 @@ const SWIMMING_ENTRY = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Flush pending React state updates and async effects. */
-async function flush(rounds = 8) {
-  for (let i = 0; i < rounds; i++) {
-    // eslint-disable-next-line no-await-in-loop
-    await act(async () => {});
-  }
-}
-
 /** Simulate the tab gaining focus (fires the useFocusEffect callback). */
 async function simulateFocus() {
   await act(async () => {
     mockFocusCallback?.();
   });
-  await flush();
+}
+
+/**
+ * Wait for the screen title to appear, confirming the full async load chain
+ * has settled. Use before asserting element absence.
+ */
+async function waitForLoaded(queryByText: (text: string) => any) {
+  await waitFor(() => {
+    expect(queryByText("Progress")).toBeTruthy();
+  });
 }
 
 // ─── Setup / teardown ─────────────────────────────────────────────────────────
@@ -205,7 +206,7 @@ describe("ProgressScreen — sport selector chips", () => {
 
     // Each sport name appears as a chip label (textTransform: capitalize in RN
     // does not change the JS string, so the text node still holds the lowercase value).
-    expect(getAllByText("running").length).toBeGreaterThanOrEqual(1);
+    await waitFor(() => expect(getAllByText("running").length).toBeGreaterThanOrEqual(1));
     expect(getAllByText("swimming").length).toBeGreaterThanOrEqual(1);
   });
 
@@ -220,7 +221,7 @@ describe("ProgressScreen — sport selector chips", () => {
     await simulateFocus();
 
     // Initially running is auto-selected — running entries should be visible.
-    expect(getByText("Morning Run")).toBeTruthy();
+    await waitFor(() => expect(getByText("Morning Run")).toBeTruthy());
     expect(getByText("Interval Session")).toBeTruthy();
     expect(queryByText("Pool Practice")).toBeNull();
 
@@ -229,10 +230,9 @@ describe("ProgressScreen — sport selector chips", () => {
     await act(async () => {
       fireEvent.press(swimmingChip!);
     });
-    await flush();
 
     // Now only the swimming entry should appear in the session log.
-    expect(getByText("Pool Practice")).toBeTruthy();
+    await waitFor(() => expect(getByText("Pool Practice")).toBeTruthy());
     expect(queryByText("Morning Run")).toBeNull();
     expect(queryByText("Interval Session")).toBeNull();
   });
@@ -245,6 +245,9 @@ describe("ProgressScreen — sport selector chips", () => {
     const { getAllByText } = render(<ProgressScreen />);
     await simulateFocus();
 
+    // Wait for initial load to settle.
+    await waitFor(() => expect(getAllByText("swimming").length).toBeGreaterThanOrEqual(1));
+
     // Clear call history from the initial auto-selection of "running".
     mockProgressPersonalRecords.mockClear();
 
@@ -253,9 +256,10 @@ describe("ProgressScreen — sport selector chips", () => {
     await act(async () => {
       fireEvent.press(swimmingChip!);
     });
-    await flush();
 
-    expect(mockProgressPersonalRecords).toHaveBeenCalledWith("swimming");
+    await waitFor(() =>
+      expect(mockProgressPersonalRecords).toHaveBeenCalledWith("swimming"),
+    );
   });
 });
 
@@ -277,6 +281,7 @@ describe("ProgressScreen — movement type sub-filter", () => {
     await simulateFocus();
 
     // The sub-filter only appears when movementTypes.length >= 2.
+    await waitForLoaded(queryByText);
     expect(queryByText("Sprint")).toBeNull();
     expect(queryByText("All Movements")).toBeNull();
   });
@@ -296,7 +301,7 @@ describe("ProgressScreen — movement type sub-filter", () => {
     await simulateFocus();
 
     // "All Movements" catch-all chip plus each named type should be visible.
-    expect(getByText("All Movements")).toBeTruthy();
+    await waitFor(() => expect(getByText("All Movements")).toBeTruthy());
     expect(getByText("Sprint")).toBeTruthy();
     expect(getByText("Long Distance")).toBeTruthy();
   });
@@ -318,17 +323,16 @@ describe("ProgressScreen — movement type sub-filter", () => {
     await simulateFocus();
 
     // Running is auto-selected — movement chips should be visible.
-    expect(getByText("All Movements")).toBeTruthy();
+    await waitFor(() => expect(getByText("All Movements")).toBeTruthy());
 
     // Switch to swimming which has no movement types.
     const [swimmingChip] = getAllByText("swimming");
     await act(async () => {
       fireEvent.press(swimmingChip!);
     });
-    await flush();
 
     // Movement chips should disappear.
-    expect(queryByText("All Movements")).toBeNull();
+    await waitFor(() => expect(queryByText("All Movements")).toBeNull());
     expect(queryByText("Sprint")).toBeNull();
   });
 });
@@ -348,7 +352,7 @@ describe("ProgressScreen — AI summary card", () => {
     const { getByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    expect(getByText("Generating insight…")).toBeTruthy();
+    await waitFor(() => expect(getByText("Generating insight…")).toBeTruthy());
   });
 
   it("shows the summary text once the API resolves", async () => {
@@ -363,7 +367,7 @@ describe("ProgressScreen — AI summary card", () => {
     const { getByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    expect(getByText(SUMMARY_TEXT)).toBeTruthy();
+    await waitFor(() => expect(getByText(SUMMARY_TEXT)).toBeTruthy());
     // "AI Progress Insight" label should also be present.
     expect(getByText("AI Progress Insight")).toBeTruthy();
   });
@@ -379,6 +383,7 @@ describe("ProgressScreen — AI summary card", () => {
     const { queryByText } = render(<ProgressScreen />);
     await simulateFocus();
 
+    await waitForLoaded(queryByText);
     expect(queryByText("AI Progress Insight")).toBeNull();
     expect(queryByText("Generating insight…")).toBeNull();
   });
@@ -396,6 +401,7 @@ describe("ProgressScreen — AI summary card", () => {
     const { queryByText } = render(<ProgressScreen />);
     await simulateFocus();
 
+    await waitForLoaded(queryByText);
     expect(queryByText("AI Progress Insight")).toBeNull();
     expect(queryByText("Generating insight…")).toBeNull();
   });
@@ -411,6 +417,9 @@ describe("ProgressScreen — AI summary card", () => {
     const { getByText } = render(<ProgressScreen />);
     await simulateFocus();
 
+    // Wait for initial load to settle.
+    await waitFor(() => expect(getByText("All Movements")).toBeTruthy());
+
     // Clear after initial auto-selection.
     mockProgressSummary.mockClear();
     mockProgressSummary.mockResolvedValue({ summary: "Sprint insight.", cached: false });
@@ -420,10 +429,11 @@ describe("ProgressScreen — AI summary card", () => {
     await act(async () => {
       fireEvent.press(sprintChip);
     });
-    await flush();
 
     // summary should have been called with the sport + movement type.
-    expect(mockProgressSummary).toHaveBeenCalledWith("running", "Sprint");
+    await waitFor(() =>
+      expect(mockProgressSummary).toHaveBeenCalledWith("running", "Sprint"),
+    );
   });
 });
 
@@ -446,7 +456,7 @@ describe("ProgressScreen — personal records grid", () => {
     const { getByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    expect(getByText("Personal Records")).toBeTruthy();
+    await waitFor(() => expect(getByText("Personal Records")).toBeTruthy());
   });
 
   it("renders the best score value for each returned metric", async () => {
@@ -471,7 +481,7 @@ describe("ProgressScreen — personal records grid", () => {
     await simulateFocus();
 
     // The score is rendered via Math.round(rec.value).
-    expect(getByText("91")).toBeTruthy();
+    await waitFor(() => expect(getByText("91")).toBeTruthy());
     expect(getByText("76")).toBeTruthy();
   });
 
@@ -487,6 +497,7 @@ describe("ProgressScreen — personal records grid", () => {
     const { queryByText } = render(<ProgressScreen />);
     await simulateFocus();
 
+    await waitForLoaded(queryByText);
     expect(queryByText("Personal Records")).toBeNull();
   });
 });
@@ -539,7 +550,7 @@ describe("ProgressScreen — movement type chip filters session log", () => {
     await simulateFocus();
 
     // All three entries should be visible before any chip is tapped.
-    expect(getByText("Sprint Drills A")).toBeTruthy();
+    await waitFor(() => expect(getByText("Sprint Drills A")).toBeTruthy());
     expect(getByText("Sprint Drills B")).toBeTruthy();
     expect(getByText("Long Distance Run")).toBeTruthy();
   });
@@ -548,16 +559,18 @@ describe("ProgressScreen — movement type chip filters session log", () => {
     const { getByText, queryByText, getAllByText } = render(<ProgressScreen />);
     await simulateFocus();
 
+    // Wait for initial data to render.
+    await waitFor(() => expect(getByText("Sprint Drills A")).toBeTruthy());
+
     // "Sprint" appears as both the chip label and in each sprint entry's movement badge.
     // The chip is always the first occurrence in render order (chips render above the log).
     const [sprintChip] = getAllByText("Sprint");
     await act(async () => {
       fireEvent.press(sprintChip!);
     });
-    await flush();
 
     // Only sprint entries should appear.
-    expect(getByText("Sprint Drills A")).toBeTruthy();
+    await waitFor(() => expect(getByText("Sprint Drills A")).toBeTruthy());
     expect(getByText("Sprint Drills B")).toBeTruthy();
     expect(queryByText("Long Distance Run")).toBeNull();
   });
@@ -566,15 +579,16 @@ describe("ProgressScreen — movement type chip filters session log", () => {
     const { getByText, queryByText, getAllByText } = render(<ProgressScreen />);
     await simulateFocus();
 
+    await waitFor(() => expect(getByText("Long Distance Run")).toBeTruthy());
+
     // "Long Distance" also appears in each entry's movement badge, so take the first.
     const [longDistanceChip] = getAllByText("Long Distance");
     await act(async () => {
       fireEvent.press(longDistanceChip!);
     });
-    await flush();
 
     // Only the long distance entry should appear.
-    expect(getByText("Long Distance Run")).toBeTruthy();
+    await waitFor(() => expect(getByText("Long Distance Run")).toBeTruthy());
     expect(queryByText("Sprint Drills A")).toBeNull();
     expect(queryByText("Sprint Drills B")).toBeNull();
   });
@@ -583,23 +597,24 @@ describe("ProgressScreen — movement type chip filters session log", () => {
     const { getByText, getAllByText } = render(<ProgressScreen />);
     await simulateFocus();
 
+    await waitFor(() => expect(getByText("Sprint Drills A")).toBeTruthy());
+
     // First narrow down to Sprint.
     const [sprintChip] = getAllByText("Sprint");
     await act(async () => {
       fireEvent.press(sprintChip!);
     });
-    await flush();
 
-    // Now reset via "All Movements".
-    const allMovementsChip = getByText("All Movements");
+    await waitFor(() => expect(getByText("Sprint Drills A")).toBeTruthy());
+
+    // Press "All Movements" to restore the full list.
     await act(async () => {
-      fireEvent.press(allMovementsChip);
+      fireEvent.press(getByText("All Movements"));
     });
-    await flush();
 
     // All three entries should be visible again.
+    await waitFor(() => expect(getByText("Long Distance Run")).toBeTruthy());
     expect(getByText("Sprint Drills A")).toBeTruthy();
     expect(getByText("Sprint Drills B")).toBeTruthy();
-    expect(getByText("Long Distance Run")).toBeTruthy();
   });
 });

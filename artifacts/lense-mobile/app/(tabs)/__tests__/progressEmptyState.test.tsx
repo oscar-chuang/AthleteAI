@@ -20,7 +20,7 @@
  */
 
 import React from "react";
-import { render, act, fireEvent } from "@testing-library/react-native";
+import { render, act, waitFor, fireEvent } from "@testing-library/react-native";
 
 // ─── Module-level mock state ──────────────────────────────────────────────────
 
@@ -125,20 +125,21 @@ const EMPTY_STATE_BTN  = "Analyze a Video";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Flush pending React state updates and async effects. */
-async function flush(rounds = 5) {
-  for (let i = 0; i < rounds; i++) {
-    // eslint-disable-next-line no-await-in-loop
-    await act(async () => {});
-  }
-}
-
 /** Simulate the tab gaining focus (fires the useFocusEffect callback). */
 async function simulateFocus() {
   await act(async () => {
     mockFocusCallback?.();
   });
-  await flush();
+}
+
+/**
+ * Wait for the screen title to appear, confirming the full async load chain
+ * has settled. Use before asserting element absence.
+ */
+async function waitForLoaded(queryByText: (text: string) => any) {
+  await waitFor(() => {
+    expect(queryByText("Progress")).toBeTruthy();
+  });
 }
 
 // ─── Setup / teardown ─────────────────────────────────────────────────────────
@@ -169,7 +170,7 @@ describe("ProgressScreen — primary empty state (no sessions logged)", () => {
     await simulateFocus();
 
     // The primary empty-state copy and its CTA button must be rendered.
-    expect(getByText(EMPTY_STATE_TEXT)).toBeTruthy();
+    await waitFor(() => expect(getByText(EMPTY_STATE_TEXT)).toBeTruthy());
     expect(getByText(EMPTY_STATE_BTN)).toBeTruthy();
   });
 
@@ -200,6 +201,7 @@ describe("ProgressScreen — primary empty state (no sessions logged)", () => {
     await simulateFocus();
 
     // Empty-state copy must NOT appear when there is data.
+    await waitForLoaded(queryByText);
     expect(queryByText(EMPTY_STATE_TEXT)).toBeNull();
     expect(queryByText(EMPTY_STATE_BTN)).toBeNull();
   });
@@ -262,7 +264,8 @@ describe("ProgressScreen — filter-scoped empty state (sport/period filter excl
     const { getByText, queryByText, getAllByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    // allEntries has data — primary empty state must NOT be visible.
+    // Wait for loading to finish, then confirm primary empty state is absent.
+    await waitForLoaded(queryByText);
     expect(queryByText(EMPTY_STATE_TEXT)).toBeNull();
     expect(queryByText(EMPTY_STATE_BTN)).toBeNull();
 
@@ -271,12 +274,13 @@ describe("ProgressScreen — filter-scoped empty state (sport/period filter excl
     await act(async () => {
       fireEvent.press(getByText("1W"));
     });
-    await flush();
 
     // The filter-scoped empty-state text is rendered in two places inside the
     // component (the trend-chart inline notice and the session-log card).
     // Use getAllByText to confirm at least one instance is visible.
-    expect(getAllByText(/No sessions in this period/).length).toBeGreaterThan(0);
+    await waitFor(() =>
+      expect(getAllByText(/No sessions in this period/).length).toBeGreaterThan(0),
+    );
     expect(getByText("Show All Time")).toBeTruthy();
   });
 
@@ -293,18 +297,18 @@ describe("ProgressScreen — filter-scoped empty state (sport/period filter excl
     await act(async () => {
       fireEvent.press(getByText("1W"));
     });
-    await flush();
 
-    expect(queryAllByText(/No sessions in this period/).length).toBeGreaterThan(0);
+    await waitFor(() =>
+      expect(queryAllByText(/No sessions in this period/).length).toBeGreaterThan(0),
+    );
 
     // Pressing "Show All Time" resets period to "All" — filteredEntries is
     // repopulated with the single running entry, so the empty state disappears.
     await act(async () => {
       fireEvent.press(getByText("Show All Time"));
     });
-    await flush();
 
-    expect(queryAllByText(/No sessions in this period/).length).toBe(0);
+    await waitFor(() => expect(queryAllByText(/No sessions in this period/).length).toBe(0));
     expect(queryByText("Show All Time")).toBeNull();
   });
 });

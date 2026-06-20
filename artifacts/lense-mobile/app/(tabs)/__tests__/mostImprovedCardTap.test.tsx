@@ -17,11 +17,12 @@
  *   - JointHistorySheet is stubbed to a lightweight recorder component so we
  *     can assert which joint prop it received.
  *   - ScrollView.prototype.scrollTo is spied on to assert the scroll happens.
- *   - jest.useFakeTimers covers the 100 ms setTimeout that guards the scroll.
+ *   - jest.useFakeTimers covers the 100 ms setTimeout that guards the scroll,
+ *     switched on AFTER simulateFocus so waitFor can poll with real timers.
  */
 
 import React from "react";
-import { fireEvent, render, act } from "@testing-library/react-native";
+import { fireEvent, render, act, waitFor } from "@testing-library/react-native";
 import { ScrollView } from "react-native";
 
 // ─── Module-level mock state ──────────────────────────────────────────────────
@@ -152,17 +153,11 @@ const TRENDS_WITH_MOST_IMPROVED = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function flush(rounds = 5) {
-  for (let i = 0; i < rounds; i++) {
-    await act(async () => {});
-  }
-}
-
+/** Simulate the tab gaining focus (fires the useFocusEffect callback). */
 async function simulateFocus() {
   await act(async () => {
     mockFocusCallback?.();
   });
-  await flush();
 }
 
 // ─── Setup / teardown ─────────────────────────────────────────────────────────
@@ -189,29 +184,37 @@ describe("ProgressScreen — most-improved card tap", () => {
     const { getByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    // The card subtitle must be visible before we press.
-    expect(getByText("Most improved · tap to view trend")).toBeTruthy();
+    // Wait for the card to appear after async data loads.
+    await waitFor(() =>
+      expect(getByText("Most improved · tap to view trend")).toBeTruthy(),
+    );
 
     await act(async () => {
       fireEvent.press(getByText("Most improved · tap to view trend"));
     });
-    await flush();
 
     // JointHistorySheet must mount with the winning joint.
-    expect(capturedJointProp).toBe("leftKnee");
+    await waitFor(() => expect(capturedJointProp).toBe("leftKnee"));
   });
 
   // ── Test 2 ──────────────────────────────────────────────────────────────────
 
   it("calls scrollTo toward the trends section when the card is pressed", async () => {
+    // Render and drain async effects with real timers so waitFor can poll.
+    const { getByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // Wait for the most-improved card to be visible before setting up fake timers.
+    await waitFor(() =>
+      expect(getByText("Most improved · tap to view trend")).toBeTruthy(),
+    );
+
+    // Switch to fake timers only for the 100 ms scroll-defer setTimeout.
     jest.useFakeTimers();
 
     const scrollToSpy = jest
       .spyOn(ScrollView.prototype, "scrollTo")
       .mockImplementation(() => {});
-
-    const { getByText } = render(<ProgressScreen />);
-    await simulateFocus();
 
     // Fire the onLayout event on the Joint Angle Trends section so that
     // trendsYRef.current becomes > 0, which is the guard for the scrollTo call.

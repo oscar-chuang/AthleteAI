@@ -20,7 +20,7 @@
  */
 
 import React from "react";
-import { render, act } from "@testing-library/react-native";
+import { render, act, waitFor } from "@testing-library/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // ─── Module-level mock state ──────────────────────────────────────────────────
@@ -115,18 +115,21 @@ const DRILLS_LABEL_SINGULAR = "Drill completed · all sessions";
 const EMPTY_PROGRESS     = { entries: [] };
 const EMPTY_ACHIEVEMENTS = { achievements: [] };
 
-async function flush(rounds = 5) {
-  for (let i = 0; i < rounds; i++) {
-    // eslint-disable-next-line no-await-in-loop
-    await act(async () => {});
-  }
-}
-
+/** Simulate the tab gaining focus (fires the useFocusEffect callback). */
 async function simulateFocus() {
   await act(async () => {
     mockFocusCallback?.();
   });
-  await flush();
+}
+
+/**
+ * Wait for the screen title to appear, confirming the full async load chain
+ * has settled. Use before asserting element absence.
+ */
+async function waitForLoaded(queryByText: (text: string) => any) {
+  await waitFor(() => {
+    expect(queryByText("Progress")).toBeTruthy();
+  });
 }
 
 // ─── Setup / teardown ─────────────────────────────────────────────────────────
@@ -165,7 +168,7 @@ describe("Progress — loadDrillsDone", () => {
     const { getByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    expect(getByText("5")).toBeTruthy();
+    await waitFor(() => expect(getByText("5")).toBeTruthy());
     expect(getByText(DRILLS_LABEL_PLURAL)).toBeTruthy();
   });
 
@@ -184,7 +187,7 @@ describe("Progress — loadDrillsDone", () => {
     const { getByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    expect(getByText("2")).toBeTruthy();
+    await waitFor(() => expect(getByText("2")).toBeTruthy());
     expect(getByText(DRILLS_LABEL_PLURAL)).toBeTruthy();
   });
 
@@ -199,6 +202,7 @@ describe("Progress — loadDrillsDone", () => {
     const { queryByText } = render(<ProgressScreen />);
     await simulateFocus();
 
+    await waitForLoaded(queryByText);
     expect(queryByText(DRILLS_LABEL_PLURAL)).toBeNull();
     expect(queryByText(DRILLS_LABEL_SINGULAR)).toBeNull();
   });
@@ -211,6 +215,7 @@ describe("Progress — loadDrillsDone", () => {
     const { queryByText } = render(<ProgressScreen />);
     await simulateFocus();
 
+    await waitForLoaded(queryByText);
     expect(queryByText(DRILLS_LABEL_PLURAL)).toBeNull();
     expect(queryByText(DRILLS_LABEL_SINGULAR)).toBeNull();
   });
@@ -228,7 +233,7 @@ describe("Progress — loadDrillsDone", () => {
     const { getByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    expect(getByText("1")).toBeTruthy();
+    await waitFor(() => expect(getByText("1")).toBeTruthy());
     expect(getByText(DRILLS_LABEL_SINGULAR)).toBeTruthy();
   });
 
@@ -259,19 +264,21 @@ describe("Progress — loadDrillsDone", () => {
     const { getByText, getAllByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    // Total should include drills from both analyses (3)
-    expect(getByText("3")).toBeTruthy();
-    expect(getByText(DRILLS_LABEL_PLURAL)).toBeTruthy();
-    // Breakdown must be visible — "Corrective" and "Performance" labels appear
-    expect(getByText("Corrective")).toBeTruthy();
-    expect(getByText("Performance")).toBeTruthy();
-    // Corrective=1 and Performance=1 — both counts should appear
-    expect(getAllByText("1").length).toBeGreaterThanOrEqual(2);
+    // Wait for the total and the full breakdown to settle together.
+    await waitFor(() => {
+      expect(getByText("3")).toBeTruthy();
+      expect(getByText(DRILLS_LABEL_PLURAL)).toBeTruthy();
+      // Breakdown must be visible — "Corrective" and "Performance" labels appear
+      expect(getByText("Corrective")).toBeTruthy();
+      expect(getByText("Performance")).toBeTruthy();
+      // Corrective=1 and Performance=1 — both counts should appear
+      expect(getAllByText("1").length).toBeGreaterThanOrEqual(2);
+    });
   });
 
   // ── Test 7 ────────────────────────────────────────────────────────────────
 
-  it("shows an unclassified footnote when some fetches fail and the counts don't add up to the total", async () => {
+  it("shows 'Some sessions couldn't be classified' when at least one analysis fetch fails", async () => {
     (AsyncStorage.getAllKeys as jest.Mock).mockResolvedValue([
       "drill_done_analysis-ok",
       "drill_done_analysis-fail",
@@ -282,6 +289,7 @@ describe("Progress — loadDrillsDone", () => {
     ]);
 
     // Only the first analysis fetch succeeds — the second drill can't be classified
+    // because the fetch failed (drillsPartialFailure = true).
     mockAnalysesGet
       .mockResolvedValueOnce({
         analysis: { id: "analysis-ok" },
@@ -296,11 +304,13 @@ describe("Progress — loadDrillsDone", () => {
     const { getByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    // Total = 3; classified = 2 (corrective + performance from analysis-ok);
-    // one drill (from analysis-fail) can't be attributed — partial-failure
-    // branch fires, showing the caveat note instead of a raw count.
-    expect(getByText("3")).toBeTruthy();
-    expect(getByText("Some sessions couldn\u2019t be classified")).toBeTruthy();
+    // Total = 3, breakdown visible, and the partial-failure notice appears
+    // (the component uses "Some sessions couldn't be classified" when
+    // drillsPartialFailure is true — i.e., at least one analysis fetch rejected).
+    await waitFor(() => {
+      expect(getByText("3")).toBeTruthy();
+      expect(getByText("Some sessions couldn\u2019t be classified")).toBeTruthy();
+    });
   });
 
   // ── Test 8 ────────────────────────────────────────────────────────────────
@@ -320,8 +330,11 @@ describe("Progress — loadDrillsDone", () => {
     const { getByText, queryByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    expect(getByText("2")).toBeTruthy();
-    expect(getByText(DRILLS_LABEL_PLURAL)).toBeTruthy();
+    // Wait for the total and label, then confirm breakdown is absent.
+    await waitFor(() => {
+      expect(getByText("2")).toBeTruthy();
+      expect(getByText(DRILLS_LABEL_PLURAL)).toBeTruthy();
+    });
     // Breakdown rows should not appear (Corrective / Performance labels absent)
     expect(queryByText("Corrective")).toBeNull();
     expect(queryByText("Performance")).toBeNull();
