@@ -1,0 +1,323 @@
+STOP REDESIGNING ATHLETEAI AS A DASHBOARD.
+
+The current UI still looks AI-generated because it follows the common AI-generated pattern:
+
+* Stacked cards everywhere
+* Too many sections
+* Too many borders
+* Too many containers
+* Too much information visible at once
+* Every element fighting for attention
+* Generic analytics layout
+
+The result feels like a SaaS dashboard instead of a premium consumer sports app.
+
+NEW DESIGN PHILOSOPHY
+
+AthleteAI should feel closer to:
+
+* Linear
+* Arc Browser
+* Strava
+* Nike Run Club
+* Apple Fitness
+
+and much further away from:
+
+* Admin dashboards
+* Crypto apps
+* Generic analytics apps
+* Template marketplaces
+* Replit-generated UIs
+
+CORE PRINCIPLE
+
+Movement is the product.
+
+The athlete’s body.
+The video.
+The performance.
+
+Those should dominate every screen.
+
+Metrics should support the experience.
+
+Do not build screens around cards.
+
+Build screens around movement.
+
+COLOR SYSTEM
+
+Delete the current visual language.
+
+Remove:
+
+* Purple
+* Neon gradients
+* Bright rainbow accents
+* Multiple accent colors fighting each other
+
+New color system:
+
+Background:
+#0B0D0F
+
+Surface:
+#121417
+
+Panel:
+#171A1F
+
+Primary Accent:
+Performance Blue (#2F7BFF)
+
+Success:
+#22C55E
+
+Warning:
+#F59E0B
+
+Danger:
+#EF4444
+
+Muted:
+#8A94A6
+
+Rules:
+
+95% of the UI should be dark neutrals.
+
+The blue accent should only appear when something deserves attention.
+
+The interface should still look beautiful if all accent colors were removed.
+
+TYPOGRAPHY
+
+Current typography feels generic.
+
+Replace the entire typography system.
+
+Use:
+
+Inter
+Geist
+SF Pro
+
+Pick ONE.
+
+Use it everywhere.
+
+Typography scale:
+
+Hero:
+40-48px
+
+Page Title:
+28-32px
+
+Section:
+20-24px
+
+Metric:
+24-32px
+
+Body:
+15-17px
+
+Caption:
+12-13px
+
+Rules:
+
+Use fewer weights.
+
+Stop using tiny fonts.
+
+Increase readability dramatically.
+
+Users should scan, not read.
+
+LAYOUT
+
+Current issue:
+
+Everything is a card.
+
+Everything is boxed.
+
+Everything looks identical.
+
+Fix this.
+
+Reduce card usage by at least 60%.
+
+Use:
+
+* Hero sections
+* Full-width modules
+* Edge-to-edge content
+* Large imagery
+* Video-first layouts
+* Floating information
+* Timelines
+* Highlight strips
+
+The screen should feel open.
+
+ANALYSIS SCREEN
+
+This is the most important redesign.
+
+Current issue:
+
+Looks like ChatGPT generated a report.
+
+Desired experience:
+
+Feels like a coach reviewing game film.
+
+Top 50% of screen:
+
+Large video preview.
+
+Skeleton overlay.
+
+Key movement snapshot.
+
+Below that:
+
+Four insights only.
+
+1. Overall Performance
+2. Biggest Strength
+3. Biggest Improvement
+4. Next Action
+
+Nothing else should compete.
+
+All other details should be hidden behind expandable sections.
+
+HOME SCREEN
+
+Current issue:
+
+Feels like an analytics dashboard.
+
+New approach:
+
+One main focus.
+
+Show:
+
+Recent Analysis
+
+Then:
+
+Quick Action
+
+Then:
+
+Training Progress
+
+Remove everything else.
+
+Users should immediately know what to do.
+
+PROGRESS SCREEN
+
+Current issue:
+
+Looks like generic charts.
+
+New approach:
+
+Strava-style.
+
+Focus on trends.
+
+Focus on momentum.
+
+Focus on improvement.
+
+Show:
+
+* Current streak
+* Recent improvement
+* Sport-specific progression
+* Personal records
+
+Avoid giant analytics panels.
+
+MOVEMENT BREAKDOWN
+
+Make this feel like Hudl.
+
+Large video.
+
+Timeline.
+
+Moment markers.
+
+Minimal text.
+
+Visual coaching.
+
+The video should dominate.
+
+NOT THE DATA.
+
+NAVIGATION
+
+Current navigation feels generic.
+
+Use:
+
+4 tabs maximum.
+
+Analyze.
+Progress.
+Drills.
+Profile.
+
+Remove unnecessary destinations.
+
+SPACING
+
+Increase spacing everywhere.
+
+Double most padding values.
+
+Use:
+
+8
+16
+24
+32
+48
+64
+
+as the primary spacing system.
+
+Nothing should feel cramped.
+
+FINAL TEST
+
+After redesigning every screen:
+
+Take screenshots.
+
+Ask:
+
+“Would this look normal if it were shown on Apple’s website?”
+
+If the answer is no:
+
+Continue redesigning.
+
+The goal is not to look like a startup.
+
+The goal is to look like a product built by the design team behind Linear, Arc, or Strava.
+
+The app should feel calm, confident, minimal, athletic, and premium.
+
+It should never feel like an AI-generated dashboard.
