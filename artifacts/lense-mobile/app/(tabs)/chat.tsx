@@ -225,7 +225,7 @@ export default function ChatScreen() {
                 <Text style={[s.headerSub, { color: colors.mutedForeground }]}>
                   {profile?.sport && profile?.level
                     ? `${toTitleCase(profile.sport)} · ${toTitleCase(profile.level)}`
-                    : "Pro feature"}
+                    : "Set sport & level →"}
                 </Text>
                 <Feather name="edit-2" size={10} color={colors.mutedForeground} />
               </TouchableOpacity>
@@ -284,7 +284,7 @@ export default function ChatScreen() {
               <Text style={s.headerSub}>
                 {profile?.sport && profile?.level
                   ? `${toTitleCase(profile.sport)} · ${toTitleCase(profile.level)}`
-                  : "Online · Ready to help"}
+                  : "Set sport & level →"}
               </Text>
               {profile?.sport && profile?.level && (
                 <Feather name="edit-2" size={10} color={colors.mutedForeground} />

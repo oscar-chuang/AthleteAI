@@ -321,7 +321,7 @@ describe("ChatScreen — Coach header subtitle reflects current profile", () => 
 
   // ── Test 3 ─────────────────────────────────────────────────────────────────
 
-  it("falls back to 'Online · Ready to help' when profile has no sport/level", async () => {
+  it("falls back to 'Set sport & level →' when profile has no sport/level", async () => {
     mockProfile = {
       sport: "",
       level: "",
@@ -332,12 +332,12 @@ describe("ChatScreen — Coach header subtitle reflects current profile", () => 
     const { getByText } = render(<ChatScreen />);
     await simulateFocus();
 
-    expect(getByText("Online · Ready to help")).toBeTruthy();
+    expect(getByText("Set sport & level →")).toBeTruthy();
   });
 
   // ── Test 4 ─────────────────────────────────────────────────────────────────
 
-  it("falls back to 'Online · Ready to help' when only sport is set (no level)", async () => {
+  it("falls back to 'Set sport & level →' when only sport is set (no level)", async () => {
     mockProfile = {
       sport: "cycling",
       level: "",
@@ -349,12 +349,12 @@ describe("ChatScreen — Coach header subtitle reflects current profile", () => 
     await simulateFocus();
 
     // level is missing — the `sport && level` guard falls through to the fallback.
-    expect(getByText("Online · Ready to help")).toBeTruthy();
+    expect(getByText("Set sport & level →")).toBeTruthy();
   });
 
   // ── Test 5 ─────────────────────────────────────────────────────────────────
 
-  it("falls back to 'Online · Ready to help' when only level is set (no sport)", async () => {
+  it("falls back to 'Set sport & level →' when only level is set (no sport)", async () => {
     mockProfile = {
       sport: "",
       level: "advanced",
@@ -366,7 +366,7 @@ describe("ChatScreen — Coach header subtitle reflects current profile", () => 
     await simulateFocus();
 
     // sport is missing — the `sport && level` guard falls through to the fallback.
-    expect(getByText("Online · Ready to help")).toBeTruthy();
+    expect(getByText("Set sport & level →")).toBeTruthy();
   });
 });
 
@@ -428,7 +428,7 @@ describe("ChatScreen — paywall header subtitle reflects current profile", () =
 
   // ── Test 3 ─────────────────────────────────────────────────────────────────
 
-  it("falls back to 'Pro feature' when profile has no sport/level in paywall view", async () => {
+  it("falls back to 'Set sport & level →' when profile has no sport/level in paywall view", async () => {
     mockProfile = {
       sport: "",
       level: "",
@@ -439,6 +439,6 @@ describe("ChatScreen — paywall header subtitle reflects current profile", () =
     const { getByText } = render(<ChatScreen />);
     await flush();
 
-    expect(getByText("Pro feature")).toBeTruthy();
+    expect(getByText("Set sport & level →")).toBeTruthy();
   });
 });
