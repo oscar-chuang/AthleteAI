@@ -335,6 +335,49 @@ describe("ProfileSettingsScreen — Remove photo button", () => {
   });
 });
 
+// ─── Remove photo rolls back when the server rejects it ───────────────────────
+
+describe("ProfileSettingsScreen — Remove photo rolls back on server error", () => {
+  const PHOTO_URI = "data:image/jpeg;base64,/9j/abc123==";
+
+  beforeEach(() => {
+    mockProfile.avatarUrl = PHOTO_URI;
+  });
+
+  it("keeps the avatar displayed (Remove photo button still visible) when updateProfile rejects", async () => {
+    mockUpdateProfile.mockRejectedValueOnce(new Error("Server error"));
+
+    const { getByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    // Button is visible before removal attempt.
+    expect(getByText("Remove photo")).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(getByText("Remove photo"));
+    });
+    await flush();
+
+    // Optimistic clear was rolled back — photo avatar is restored, so the
+    // "Remove photo" button must still be visible.
+    expect(getByText("Remove photo")).toBeTruthy();
+  });
+
+  it("shows the error banner when updateProfile rejects", async () => {
+    mockUpdateProfile.mockRejectedValueOnce(new Error("Server error"));
+
+    const { getByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.press(getByText("Remove photo"));
+    });
+    await flush();
+
+    expect(getByText("Couldn't remove photo. Please try again.")).toBeTruthy();
+  });
+});
+
 // ─── Training-day toggle auto-syncs weekly goal ───────────────────────────────
 
 describe("ProfileSettingsScreen — training-day toggle auto-updates weekly goal", () => {
