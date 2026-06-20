@@ -25,7 +25,7 @@
  */
 
 import React from "react";
-import { render, act } from "@testing-library/react-native";
+import { render, act, fireEvent } from "@testing-library/react-native";
 
 // ─── Module-level mock state ──────────────────────────────────────────────────
 
@@ -248,6 +248,44 @@ describe("ProgressScreen — Movement Quality section", () => {
 
     const { queryByText } = render(<ProgressScreen />);
     await simulateFocus();
+
+    expect(queryByText(SECTION_HEADING)).toBeNull();
+  });
+
+  // ── Test 5 ───────────────────────────────────────────────────────────────────
+
+  it("hides the Movement Quality section when the period filter excludes all history entries", async () => {
+    // The only movement history entry is from 2020 — well outside the 1W window.
+    const OLD_SESSION = {
+      ...MQ_SESSION_RUNNING,
+      analysisId: "a-old",
+      date: "2020-01-01T10:00:00Z",
+    };
+    mockMovementSummaryHistoryGet.mockResolvedValue({ history: [OLD_SESSION] });
+
+    // Provide a recent ProgressRecord so `allEntries.length > 0` renders the
+    // period-selector row ("1W" / "1M" / "3M" / "All" buttons).
+    const PROGRESS_ENTRY = {
+      id: "p1",
+      title: "Running session",
+      sport: "running",
+      movementType: null,
+      date: new Date().toISOString(),
+      overallScore: 72,
+    };
+    mockProgressList.mockResolvedValue({ entries: [PROGRESS_ENTRY] });
+
+    const { queryByText, getByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // With the default "All" period the movement quality section must be visible.
+    expect(getByText(SECTION_HEADING)).toBeTruthy();
+
+    // Switch to "1W" — the 2020 entry falls outside the 7-day window.
+    await act(async () => {
+      fireEvent.press(getByText("1W"));
+    });
+    await flush();
 
     expect(queryByText(SECTION_HEADING)).toBeNull();
   });
