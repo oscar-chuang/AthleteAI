@@ -54,6 +54,7 @@ import {
 } from "@/utils/skeleton";
 import { buildNextStepCue } from "@/utils/buildNextStepCue";
 import FrozenSkeleton from "@/components/FrozenSkeleton";
+import { applyScanProgressAnim } from "@/utils/scanProgressAnim";
 
 const PENDING_CHAT_KEY = "pendingChatMessage";
 
@@ -574,16 +575,7 @@ export default function SkeletonScreen() {
   const [scanProgress, setScanProgress] = useState(0);
   const scanProgressAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    if (scanProgress === 0) {
-      scanProgressAnim.setValue(0);
-    } else {
-      Animated.timing(scanProgressAnim, {
-        toValue: scanProgress,
-        duration: 300,
-        easing: Easing.linear,
-        useNativeDriver: false,
-      }).start();
-    }
+    applyScanProgressAnim(scanProgressAnim, scanProgress, Animated.timing, Easing.linear);
   }, [scanProgress]);
   const [layoutReady, setLayoutReady]   = useState(false);
   const [hasFrameTicks, setHasFrameTicks] = useState(false);
