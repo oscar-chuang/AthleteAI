@@ -1274,8 +1274,6 @@ describe("Section 7 — Next Workout Goal", () => {
 // When movementSummary is present all five dimension labels must be visible.
 // When it is absent (undefined) the entire section must not render.
 
-import type { MovementSummary } from "@/lib/api";
-
 const MOVEMENT_SUMMARY: MovementSummary = {
   flowScore: 82,
   efficiencyScore: 75,

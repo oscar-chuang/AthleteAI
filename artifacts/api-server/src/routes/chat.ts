@@ -46,7 +46,7 @@ export async function buildSystemPrompt(userId: number): Promise<string> {
     db
       .select()
       .from(analysesTable)
-      .where(eq(analysesTable.userId, userId))
+      .where(and(eq(analysesTable.userId, userId), eq(analysesTable.status, "complete")))
       .orderBy(desc(analysesTable.uploadedAt))
       .limit(5),
     db
@@ -87,11 +87,9 @@ export async function buildSystemPrompt(userId: number): Promise<string> {
     systemPrompt += `\nActive injury concerns: ${injuries.join(", ")} — always factor these into advice.`;
   }
 
-  const completedAnalyses = recentAnalyses.filter(a => a.status === "complete");
-
-  if (completedAnalyses.length > 0) {
+  if (recentAnalyses.length > 0) {
     systemPrompt += `\n\nRecent training data (most recent first):`;
-    for (const a of completedAnalyses) {
+    for (const a of recentAnalyses) {
       const scores = [
         a.overallScore != null ? `Overall ${Math.round(a.overallScore)}` : null,
         a.techniqueScore != null ? `Technique ${Math.round(a.techniqueScore)}` : null,

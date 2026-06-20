@@ -91,6 +91,7 @@ const h = vi.hoisted(() => {
     __name: "analyses",
     userId: col("userId"),
     uploadedAt: col("uploadedAt"),
+    status: col("status"),
   };
   const completedDrillsTable: any = {
     __name: "completed_drills",
@@ -864,5 +865,108 @@ describe("buildSystemPrompt — athlete name appears in coaching context", () =>
     });
     const prompt = await buildSystemPrompt(USER_ID);
     expect(prompt).toContain("this athlete");
+  });
+});
+
+describe("buildSystemPrompt — limit-before-filter ordering (>5 analyses edge case)", () => {
+  /**
+   * CONTRACT (as of the fix that moved status filtering into the SQL WHERE clause):
+   *
+   * buildSystemPrompt fetches the 5 most-recent COMPLETED analyses using a single
+   * WHERE clause:  WHERE userId = ? AND status = 'complete'  ORDER BY uploadedAt DESC LIMIT 5
+   *
+   * This means the .limit(5) cap applies AFTER filtering for complete status, so
+   * older completed sessions are never hidden by a wave of recent processing uploads.
+   *
+   * Before the fix the query fetched ANY 5 most-recent analyses and then filtered
+   * client-side — if those 5 were all "processing", the prompt said "no completed
+   * analyses yet" even though coaching data existed in older rows.
+   *
+   * These tests document and lock in the corrected contract.
+   */
+
+  beforeEach(() => {
+    setProfile("running", "Sam", "intermediate");
+    clearAnalyses();
+  });
+
+  it("shows an older completed session even when 5+ more-recent sessions are processing", async () => {
+    // The mock store is iterated in insertion order; since orderBy() is a no-op in
+    // the mock, we insert "processing" entries first (simulating most-recent) and the
+    // "complete" entry last (simulating oldest). The WHERE clause filters for complete
+    // first, so the complete entry survives the limit regardless of its position.
+    for (let i = 1; i <= 5; i++) {
+      addAnalysis({ status: "processing", title: `Processing ${i}`, sport: "running" });
+    }
+    addAnalysis({ status: "complete", title: "Older Complete Session", sport: "running", overallScore: 88 });
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    // The older completed session must appear — this is the key regression guard
+    expect(prompt).toContain("Older Complete Session");
+    expect(prompt).toContain("Overall 88");
+    expect(prompt).toContain("Recent training data");
+    expect(prompt).not.toContain("no completed analyses yet");
+
+    // None of the processing sessions should leak into the prompt
+    for (let i = 1; i <= 5; i++) {
+      expect(prompt).not.toContain(`Processing ${i}`);
+    }
+  });
+
+  it("returns the fallback only when every one of many analyses is still processing", async () => {
+    for (let i = 1; i <= 8; i++) {
+      addAnalysis({ status: "processing", title: `Processing ${i}`, sport: "running" });
+    }
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).toContain("no completed analyses yet");
+    expect(prompt).not.toContain("Recent training data");
+  });
+
+  it("includes up to 5 completed sessions and ignores processing ones beyond the limit", async () => {
+    // 6 complete sessions — limit should cap at 5
+    for (let i = 1; i <= 6; i++) {
+      addAnalysis({ status: "complete", title: `Complete ${i}`, sport: "running", overallScore: 70 + i });
+    }
+    // Several processing sessions interspersed
+    for (let i = 1; i <= 3; i++) {
+      addAnalysis({ status: "processing", title: `Processing ${i}`, sport: "running" });
+    }
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    // Prompt should have completed session data — at most 5
+    expect(prompt).toContain("Recent training data");
+    expect(prompt).not.toContain("no completed analyses yet");
+
+    // Processing sessions must not appear
+    for (let i = 1; i <= 3; i++) {
+      expect(prompt).not.toContain(`Processing ${i}`);
+    }
+  });
+
+  it("shows a mixed-age batch of completed sessions correctly when 10 total analyses exist", async () => {
+    // 7 processing (most recent), then 3 complete (older)
+    for (let i = 1; i <= 7; i++) {
+      addAnalysis({ status: "processing", title: `Pending ${i}`, sport: "running" });
+    }
+    addAnalysis({ status: "complete", title: "Old Complete A", sport: "running", strengths: ["Stride efficiency"] });
+    addAnalysis({ status: "complete", title: "Old Complete B", sport: "running", strengths: ["Hip drive"] });
+    addAnalysis({ status: "complete", title: "Old Complete C", sport: "running", improvements: ["Arm swing"] });
+
+    const prompt = await buildSystemPrompt(USER_ID);
+
+    expect(prompt).toContain("Old Complete A");
+    expect(prompt).toContain("Stride efficiency");
+    expect(prompt).toContain("Old Complete B");
+    expect(prompt).toContain("Hip drive");
+    expect(prompt).toContain("Old Complete C");
+    expect(prompt).toContain("Arm swing");
+
+    for (let i = 1; i <= 7; i++) {
+      expect(prompt).not.toContain(`Pending ${i}`);
+    }
   });
 });

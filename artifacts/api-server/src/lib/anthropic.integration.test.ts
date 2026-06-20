@@ -2,16 +2,19 @@
  * Integration test — calls Claude directly to verify the prompt reliably
  * produces drillFeelCue on every tip drill.
  *
- * SKIPPED automatically when ANTHROPIC_API_KEY is absent (CI-safe).
- * Run locally with a real key to catch prompt regressions.
+ * SKIPPED automatically unless RUN_LIVE_API_TESTS=1 is set.
+ * This prevents the test from failing when ANTHROPIC_API_KEY is present but
+ * has insufficient credits (common in development environments).
+ *
+ * To run: RUN_LIVE_API_TESTS=1 pnpm --filter @workspace/api-server test
  */
 import { describe, it, expect } from "vitest";
 import { analyzeAthletePerformance } from "./anthropic";
 
-const HAS_KEY = !!process.env.ANTHROPIC_API_KEY;
+const RUN_LIVE = !!process.env.RUN_LIVE_API_TESTS;
 
-describe.skipIf(!HAS_KEY)(
-  "analyzeAthletePerformance — live Claude contract (requires ANTHROPIC_API_KEY)",
+describe.skipIf(!RUN_LIVE)(
+  "analyzeAthletePerformance — live Claude contract (requires RUN_LIVE_API_TESTS=1)",
   () => {
     it(
       "returns a non-empty drillFeelCue on every tip drill (weightlifting fixture with high-risk knee angles)",

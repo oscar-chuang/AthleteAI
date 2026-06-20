@@ -404,6 +404,52 @@ describe("POST /chat — systemPrompt only reflects completed sessions", () => {
     expect(prompt).not.toContain("Tried hard");
   });
 
+  it("shows an older completed session even when the 5 most-recent analyses are all processing", async () => {
+    /**
+     * Regression guard for the limit-before-filter bug.
+     *
+     * Old behaviour: WHERE userId LIMIT 5 → client filter for complete
+     *   → if all 5 most-recent are "processing", the fallback fired even though
+     *     older completed sessions existed.
+     *
+     * Fixed behaviour: WHERE userId AND status='complete' LIMIT 5
+     *   → .limit(5) applies AFTER filtering, so older completed sessions are
+     *     always reachable.
+     */
+    setProfile("triathlon");
+
+    // 5 processing analyses followed by 1 older completed session
+    for (let i = 1; i <= 5; i++) {
+      addAnalysis({ status: "processing", title: `Pending Session ${i}` });
+    }
+    addAnalysis({
+      status: "complete",
+      title: "Older Completed Triathlon",
+      strengths: ["Solid T1 transition"],
+      overallScore: 79,
+    });
+
+    const app = makeApp();
+    const res = await request(app)
+      .post("/chat")
+      .send({ content: "What should I work on?" });
+
+    expect(res.status).toBe(200);
+
+    const prompt = h.captured.systemPrompt;
+    // The older completed session must appear in the prompt
+    expect(prompt).toContain("Older Completed Triathlon");
+    expect(prompt).toContain("Solid T1 transition");
+    expect(prompt).toContain("Overall 79");
+    expect(prompt).toContain("Recent training data");
+    expect(prompt).not.toContain("no completed analyses yet");
+
+    // Processing sessions must not bleed into the coach context
+    for (let i = 1; i <= 5; i++) {
+      expect(prompt).not.toContain(`Pending Session ${i}`);
+    }
+  });
+
   it("includes drill tips from a completed session but not from a processing session", async () => {
     setProfile("running");
     addAnalysis({
