@@ -320,4 +320,57 @@ describe("HomeScreen — goal-saved checkmark micro-animation", () => {
     // And the goal label reverts to the previous value.
     expect(getByText("Goal: 3 sessions/week")).toBeTruthy();
   });
+
+  // ── Test 5 ────────────────────────────────────────────────────────────────
+  it("does NOT re-fire 'Goal saved!' or call updateProfile again when the same new goal is picked twice in a row", async () => {
+    // Intercept Animated.sequence so we can manually fire the completion
+    // callback — otherwise the badge stays visible forever in Jest and we
+    // cannot simulate the fade-out that precedes the second tap.
+    const realSequence = Animated.sequence.bind(Animated);
+    let capturedCallback: ((result: { finished: boolean }) => void) | null = null;
+
+    const sequenceSpy = jest
+      .spyOn(Animated, "sequence")
+      .mockImplementation((animations) => {
+        const compositeAnim = realSequence(animations);
+        const originalStart = compositeAnim.start.bind(compositeAnim);
+        compositeAnim.start = (cb?: (result: { finished: boolean }) => void) => {
+          if (cb) capturedCallback = cb;
+          originalStart(cb);
+        };
+        return compositeAnim;
+      });
+
+    try {
+      const { getByText, queryByText } = render(<HomeScreen />);
+      await simulateFocus();
+
+      // ── First pick: goal 3 → 5 ──────────────────────────────────────────
+      fireEvent.press(getByText("Goal: 3 sessions/week"));
+      fireEvent.press(getByText("5"));
+      await flush();
+
+      // Badge must be visible and updateProfile called once.
+      expect(getByText("Goal saved!")).toBeTruthy();
+      expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+
+      // Simulate animation completion → badge disappears.
+      expect(capturedCallback).not.toBeNull();
+      await act(async () => { capturedCallback!({ finished: true }); });
+      expect(queryByText("Goal saved!")).toBeNull();
+
+      // ── Second pick: goal 5 again (same value) ──────────────────────────
+      // localWeeklyGoal is now 5; the label reflects this.
+      fireEvent.press(getByText("Goal: 5 sessions/week"));
+      fireEvent.press(getByText("5"));
+      await flush();
+
+      // handleGoalSelect returns early because n === localWeeklyGoal — no
+      // second API call and no second badge flash.
+      expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+      expect(queryByText("Goal saved!")).toBeNull();
+    } finally {
+      sequenceSpy.mockRestore();
+    }
+  });
 });
