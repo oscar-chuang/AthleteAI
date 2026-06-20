@@ -1153,6 +1153,44 @@ export default function SkeletonScreen() {
   const miniW = screenW - 64;
 
   /**
+   * computeBestImprovement — finds the most-improved joint for a tip's joints.
+   * Returns null when no trend data exists or no measurable risk drop is detected.
+   */
+  function computeBestImprovement(
+    joints: JointKey[],
+  ): { joint: JointKey; delta: number; sessionCount: number } | null {
+    if (!joints || joints.length === 0 || !jointTrendsData) return null;
+    let bestJoint: JointKey | null = null;
+    let bestRiskDrop = 0;
+    let bestAngleDelta = 0;
+    let bestSessionCount = 0;
+
+    for (const joint of joints) {
+      const points = jointTrendsData.joints[joint];
+      if (!points || points.length < 2) continue;
+      const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
+      const oldest = sorted[0]!;
+      const newest = sorted[sorted.length - 1]!;
+      const riskDrop = oldest.risk - newest.risk;
+      const angleDelta = Math.abs(newest.angle - oldest.angle);
+      if (
+        riskDrop > bestRiskDrop ||
+        (riskDrop === bestRiskDrop && angleDelta > bestAngleDelta)
+      ) {
+        bestRiskDrop = riskDrop;
+        bestAngleDelta = angleDelta;
+        bestJoint = joint;
+        bestSessionCount = sorted.length;
+      }
+    }
+
+    if (!bestJoint || bestRiskDrop <= 0) return null;
+    const delta = Math.round(bestAngleDelta);
+    if (delta < 1) return null;
+    return { joint: bestJoint, delta, sessionCount: bestSessionCount };
+  }
+
+  /**
    * buildNextStepCue — personalises the "What's next?" hint using joint trend history.
    *
    * Priority order:
@@ -1397,6 +1435,21 @@ export default function SkeletonScreen() {
                       <View style={ss.nextStepHeader}>
                         <Feather name="arrow-right-circle" size={13} color="#22c55e" />
                         <Text style={ss.nextStepLabel}>WHAT'S NEXT?</Text>
+                        {(() => {
+                          const best = computeBestImprovement(tjoints);
+                          if (!best) return null;
+                          return (
+                            <TouchableOpacity
+                              onPress={() => setHistoryJoint(best.joint)}
+                              activeOpacity={0.75}
+                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                              style={ss.improvementBadge}
+                            >
+                              <Feather name="trending-up" size={9} color="#22c55e" />
+                              <Text style={ss.improvementBadgeText}>↑ {best.delta}° over {best.sessionCount} scans</Text>
+                            </TouchableOpacity>
+                          );
+                        })()}
                       </View>
                       <Text style={ss.nextStepCue}>
                         {buildNextStepCue(drill, kind, tjoints)}
@@ -2194,6 +2247,8 @@ const ss = StyleSheet.create({
   nextStepCard:       { marginTop: 8, backgroundColor: "#0a1e0f", borderRadius: 10, borderWidth: 1, borderColor: "#22c55e33", padding: 10, gap: 6 },
   nextStepHeader:     { flexDirection: "row", alignItems: "center", gap: 6 },
   nextStepLabel:      { fontSize: 9, color: "#22c55e", fontFamily: "Inter_700Bold", letterSpacing: 1 },
+  improvementBadge:     { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#22c55e18", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: "#22c55e55" },
+  improvementBadgeText: { fontSize: 9, color: "#22c55e", fontFamily: "Inter_600SemiBold", letterSpacing: 0.3 },
   nextStepCue:        { fontSize: 12, color: "#9adba8", fontFamily: "Inter_400Regular", lineHeight: 17 },
   nextStepAskBtn:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#0d2010", borderRadius: 8, paddingVertical: 7, paddingHorizontal: 10, borderWidth: 1, borderColor: "#22c55e55", alignSelf: "flex-start", marginTop: 2 },
   nextStepAskBtnText: { fontSize: 11, color: "#22c55e", fontFamily: "Inter_600SemiBold" },
