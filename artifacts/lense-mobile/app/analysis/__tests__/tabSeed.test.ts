@@ -105,6 +105,7 @@ jest.mock("@/lib/api", () => ({
       Promise.resolve({ profile: { weeklyGoal: 3, sport: "running" } })
     ),
   },
+  jointTrends: { get: jest.fn().mockResolvedValue({ joints: {} }) },
 }));
 
 jest.mock("@/lib/authContext", () => ({

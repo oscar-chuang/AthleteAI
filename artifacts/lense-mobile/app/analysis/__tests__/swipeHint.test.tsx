@@ -129,6 +129,7 @@ jest.mock("@/lib/api", () => ({
       profile: { weeklyGoal: 3, sport: "running", level: "intermediate", name: "Test", avatarUrl: null },
     }),
   },
+  jointTrends: { get: jest.fn().mockResolvedValue({ joints: {} }) },
 }));
 
 jest.mock("@/lib/authContext", () => ({

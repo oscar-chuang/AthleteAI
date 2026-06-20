@@ -42,11 +42,14 @@ import {
 import {
   analyses as analysesApi,
   profile as profileApi,
+  jointTrends as jointTrendsApi,
   type AnalysisRecord,
   type TipRecord,
   type RiskRecord,
+  type JointTrendsResponse,
 } from "@/lib/api";
 import { useAuth } from "@/lib/authContext";
+import JointHistorySheet from "@/components/JointHistorySheet";
 import { ScoreRing } from "@/components/ScoreRing";
 import { ScoreCard, getScoreBand } from "@/components/analysis/ScoreCard";
 import { SectionHeader } from "@/components/analysis/SectionHeader";
@@ -348,6 +351,8 @@ export default function AnalysisDetailScreen() {
   const [note, setNote] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [pollExhausted, setPollExhausted] = useState(false);
+  const [historyJoint, setHistoryJoint] = useState<string | null>(null);
+  const [jointTrendsData, setJointTrendsData] = useState<JointTrendsResponse | null>(null);
   const [sharing, setSharing] = useState(false);
   const [sharingUnavailable, setSharingUnavailable] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -748,6 +753,10 @@ export default function AnalysisDetailScreen() {
       setLoading(false);
     }
   }, [id]);
+
+  useEffect(() => {
+    jointTrendsApi.get().then(setJointTrendsData).catch(() => {});
+  }, []);
 
   function dismissToast() {
     if (toastTimerRef.current) {
@@ -1798,11 +1807,21 @@ export default function AnalysisDetailScreen() {
             risks.map((risk, idx) => {
               const clr = risk.riskPercent >= 50 ? colors.destructive : risk.riskPercent >= 30 ? colors.warning : colors.success;
               const rl = getRiskLabel(risk.riskPercent);
+              const hasHistory = !!(jointTrendsData?.joints[risk.joint]?.length);
               return (
-                <View key={risk.id} style={[styles.riskCard, { backgroundColor: colors.card, borderColor: clr + "33" }]}>
+                <TouchableOpacity
+                  key={risk.id}
+                  testID={`joint-risk-row-${risk.joint}`}
+                  activeOpacity={hasHistory ? 0.75 : 1}
+                  onPress={() => { if (hasHistory) setHistoryJoint(risk.joint); }}
+                  style={[styles.riskCard, { backgroundColor: colors.card, borderColor: clr + "33" }]}
+                >
                   <View style={styles.riskHeaderRow}>
                     <Text style={[styles.riskJoint, { color: colors.foreground }]}>{JOINT_LABEL[risk.joint] ?? risk.joint}</Text>
                     <View style={styles.riskRightCol}>
+                      {hasHistory && (
+                        <Feather name="bar-chart-2" size={12} color={colors.primary} style={{ marginRight: 4 }} />
+                      )}
                       <View style={[styles.riskBadge, { backgroundColor: clr + "18" }]}>
                         <Text style={[styles.riskBadgeText, { color: clr }]}>{rl.label}</Text>
                       </View>
@@ -1818,7 +1837,7 @@ export default function AnalysisDetailScreen() {
                     <Text style={[styles.prevLabel, { color: colors.primary }]}>Prevention: </Text>
                     {risk.prevention}
                   </Text>
-                </View>
+                </TouchableOpacity>
               );
             })
           )}
@@ -1895,6 +1914,18 @@ export default function AnalysisDetailScreen() {
           )}
         </TouchableOpacity>
       </Animated.View>
+
+      {/* ── Joint History Sheet ── */}
+      {historyJoint && jointTrendsData?.joints[historyJoint] && id && (
+        <JointHistorySheet
+          joint={historyJoint}
+          data={[...(jointTrendsData.joints[historyJoint] ?? [])].sort(
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+          )}
+          currentAnalysisId={id}
+          onClose={() => setHistoryJoint(null)}
+        />
+      )}
 
       {/* ── Goal reached toast ── */}
       {goalToast && (

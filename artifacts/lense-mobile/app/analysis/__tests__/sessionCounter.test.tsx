@@ -105,6 +105,7 @@ jest.mock("@/lib/api", () => ({
     }),
     stats: jest.fn().mockResolvedValue({ thisWeekCount: 1 }),
   },
+  jointTrends: { get: jest.fn().mockResolvedValue({ joints: {} }) },
 }));
 
 jest.mock("@/lib/authContext", () => ({
