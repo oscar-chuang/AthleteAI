@@ -32,6 +32,7 @@ const mockProgressList = jest.fn();
 const mockAchievementsList = jest.fn();
 const mockProfileStats = jest.fn();
 const mockJointTrendsGet = jest.fn();
+const mockSports = jest.fn();
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -90,7 +91,7 @@ jest.mock("@/hooks/useColors", () => ({
 jest.mock("@/lib/api", () => ({
   progress: {
     list: (...args: any[]) => mockProgressList(...args),
-    sports: jest.fn().mockResolvedValue({ sports: [] }),
+    sports: (...args: any[]) => mockSports(...args),
     personalRecords: jest.fn().mockResolvedValue({ records: {} }),
     summary: jest.fn().mockResolvedValue({ summary: "" }),
   },
@@ -155,6 +156,7 @@ beforeEach(() => {
   mockAchievementsList.mockResolvedValue(EMPTY_ACHIEVEMENTS);
   mockProfileStats.mockRejectedValue(new Error("not needed"));
   mockJointTrendsGet.mockRejectedValue(new Error("not needed"));
+  mockSports.mockResolvedValue({ sports: [] });
 });
 
 afterEach(() => {
@@ -265,7 +267,7 @@ describe("ProgressScreen — most improved joint card", () => {
 
   // ── Test 6 ──────────────────────────────────────────────────────────────────
 
-  it("hides the card after a period-filter change reduces history to a single scan (deltaDeg = 0)", async () => {
+  it("hides the card after a period-filter change reduces history to a single scan (deltaDeg = 0 )", async () => {
     // Provide a progress entry with a recent date so allEntries.length > 0,
     // which is required for the period-filter buttons ("1W", "1M", "3M", "All")
     // to render (they live inside {allEntries.length > 0 && <View>…</View>}).
@@ -327,5 +329,77 @@ describe("ProgressScreen — most improved joint card", () => {
 
     await waitForLoaded(queryByText);
     expect(queryByText(MOST_IMPROVED_LABEL)).toBeNull();
+  });
+});
+
+// ─── Sport-filter tests ────────────────────────────────────────────────────────
+//
+// filteredTrends in progress.tsx restricts improvements to availableJoints for
+// the selected sport.  These tests verify that:
+//   7. When a sport filter is active, only that sport's joints are eligible to
+//      win the card — the global winner is suppressed if its joint is absent
+//      from the sport's joint list.
+//   8. A different sport whose joint list DOES include the global winner shows
+//      it correctly (baseline check that sport filtering is directional).
+//
+// Sport choices:
+//   tennis  → joints: [leftElbow, rightElbow, leftHip, rightHip]  — no knees
+//   running → joints: [leftKnee, rightKnee, leftHip, rightHip]    — no elbows
+
+describe("ProgressScreen — most improved joint card with sport filter", () => {
+  // Shared trend data: leftKnee is the global winner (deltaDeg=15), leftElbow
+  // is the runner-up (deltaDeg=7).  rightHip trails at deltaDeg=3.
+  const SPORT_FILTER_IMPROVEMENTS = [
+    { joint: "leftKnee",  deltaDeg: 15, sessions: 4, improved: true },
+    { joint: "leftElbow", deltaDeg: 7,  sessions: 3, improved: true },
+    { joint: "rightHip",  deltaDeg: 3,  sessions: 2, improved: true },
+  ];
+
+  // ── Test 7 ──────────────────────────────────────────────────────────────────
+
+  it("promotes the runner-up when the sport filter excludes the global winner joint", async () => {
+    // Tennis has no knee joints → leftKnee must be excluded from eligibility.
+    // The runner-up leftElbow (+7°) should win instead.
+    mockSports.mockResolvedValue({
+      sports: [{ sport: "tennis", count: 5, movementTypes: [] }],
+    });
+    mockJointTrendsGet.mockResolvedValue({
+      joints: {},
+      improvements: SPORT_FILTER_IMPROVEMENTS,
+    });
+
+    const { getByText, queryByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // Runner-up (leftElbow) must win because tennis excludes knee joints.
+    await waitFor(() => expect(getByText("Left Elbow +7°")).toBeTruthy());
+    expect(getByText(MOST_IMPROVED_LABEL)).toBeTruthy();
+
+    // Global winner (leftKnee) must NOT appear in a Most improved context.
+    expect(queryByText("Left Knee +15°")).toBeNull();
+  });
+
+  // ── Test 8 ──────────────────────────────────────────────────────────────────
+
+  it("shows the global winner when the sport filter includes its joint", async () => {
+    // Running joints include leftKnee → the global winner (leftKnee +15°) wins.
+    // leftElbow is excluded because running has no elbow joints.
+    mockSports.mockResolvedValue({
+      sports: [{ sport: "running", count: 5, movementTypes: [] }],
+    });
+    mockJointTrendsGet.mockResolvedValue({
+      joints: {},
+      improvements: SPORT_FILTER_IMPROVEMENTS,
+    });
+
+    const { getByText, queryByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // Global winner must appear.
+    await waitFor(() => expect(getByText("Left Knee +15°")).toBeTruthy());
+    expect(getByText(MOST_IMPROVED_LABEL)).toBeTruthy();
+
+    // Runner-up (leftElbow) must not appear — running excludes elbow joints.
+    expect(queryByText("Left Elbow +7°")).toBeNull();
   });
 });
