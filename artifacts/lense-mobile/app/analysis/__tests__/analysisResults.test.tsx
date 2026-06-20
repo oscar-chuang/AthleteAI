@@ -980,3 +980,37 @@ describe("AnimatedRiskBar — re-animation guard", () => {
     expect(spy).toHaveBeenCalledTimes(1);
   });
 });
+
+// ─── Section 7: Score Card Icons ─────────────────────────────────────────────
+//
+// Verifies that each SCORE_KEY maps to its documented icon name.
+// A copy-paste swap (e.g. mobility getting "zap" instead of "maximize-2") would
+// cause the wrong icon to appear on that card; these tests make such a regression
+// immediately visible.
+
+describe("Score card icons — each key maps to its documented icon", () => {
+  const EXPECTED: Record<string, string> = {
+    technique: "target",
+    power: "zap",
+    balance: "activity",
+    consistency: "refresh-cw",
+    mobility: "maximize-2",
+    speed: "wind",
+  };
+
+  it.each(SCORE_KEYS)("%s uses the correct Feather icon", (key) => {
+    expect(SCORE_META[key].icon).toBe(EXPECTED[key]);
+  });
+
+  it("every SCORE_KEY has an entry in SCORE_META", () => {
+    for (const key of SCORE_KEYS) {
+      expect(SCORE_META).toHaveProperty(key);
+    }
+  });
+
+  it("no two score keys share the same icon", () => {
+    const icons = SCORE_KEYS.map((key) => SCORE_META[key].icon);
+    const unique = new Set(icons);
+    expect(unique.size).toBe(icons.length);
+  });
+});
