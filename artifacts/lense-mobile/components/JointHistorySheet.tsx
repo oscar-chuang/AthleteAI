@@ -66,6 +66,16 @@ export default function JointHistorySheet({
   const chartW = sw - 48 - CHART_PAD_L - CHART_PAD_R;
   const label = JOINT_HISTORY_DISPLAY[joint] ?? joint;
 
+  // Guard against double-dismiss (e.g. rapid Android back-swipe firing twice).
+  // Once a close is initiated, all subsequent calls within the same mount are
+  // swallowed so the sheet only unmounts once.
+  const closingRef = useRef(false);
+  const handleClose = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    onClose();
+  }, [onClose]);
+
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [displayedIndex, setDisplayedIndex] = useState<number | null>(null);
   const tooltipOpacity = useRef(new Animated.Value(0)).current;
@@ -74,12 +84,17 @@ export default function JointHistorySheet({
 
   const SWIPE_DOWN_THRESHOLD = 80;
 
+  // Always points to the latest handleClose so the panResponder (created once)
+  // never holds a stale closure.
+  const handleCloseRef = useRef(handleClose);
+  handleCloseRef.current = handleClose;
+
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_evt, gs) => gs.dy > 10 && Math.abs(gs.dy) > Math.abs(gs.dx),
       onPanResponderRelease: (_evt, gs) => {
         if (gs.dy >= SWIPE_DOWN_THRESHOLD) {
-          onClose();
+          handleCloseRef.current();
         }
       },
     })
@@ -193,7 +208,7 @@ export default function JointHistorySheet({
     : data.length - 1;
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible transparent animationType="slide" onRequestClose={handleClose}>
       <Pressable
         testID="history-sheet-backdrop"
         style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.60)", justifyContent: "flex-end" }}
@@ -275,7 +290,7 @@ export default function JointHistorySheet({
                 )}
               </View>
             </View>
-            <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={{ padding: 4 }}>
+            <TouchableOpacity onPress={handleClose} activeOpacity={0.7} style={{ padding: 4 }}>
               <Feather name="x" size={20} color="#8888aa" />
             </TouchableOpacity>
           </View>
@@ -523,7 +538,7 @@ export default function JointHistorySheet({
 
                   function handleTooltipPress() {
                     if (!canNavigate) return;
-                    onClose();
+                    handleClose();
                     router.push(`/analysis/skeleton/${sel.analysisId}` as any);
                   }
 
