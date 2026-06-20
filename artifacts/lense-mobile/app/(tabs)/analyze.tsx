@@ -749,7 +749,7 @@ export default function AnalyzeScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={s.cardTitle} numberOfLines={1}>{item.title}</Text>
                   <Text style={s.cardMeta}>
-                    {toTitleCase(item.sport)} · {formatDate(item.uploadedAt)}
+                    {toTitleCase(item.sport)}{item.movementType ? ` · ${toTitleCase(item.movementType)}` : ""} · {formatDate(item.uploadedAt)}
                     {item.duration ? ` · ${Math.round(item.duration)}s` : ""}
                   </Text>
                   {deltaBadge && (() => {
