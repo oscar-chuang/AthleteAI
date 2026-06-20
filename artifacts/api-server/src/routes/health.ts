@@ -24,12 +24,31 @@ function checkRateLimit(): boolean {
   return _window.count <= RATE_LIMIT_MAX;
 }
 
+const DEFAULT_RESIZE_FAIL_WARN_THRESHOLD = 5;
+
+function getResizeFailWarnThreshold(): number {
+  const parsed = parseInt(
+    process.env.RESIZE_FAIL_WARN_THRESHOLD ?? String(DEFAULT_RESIZE_FAIL_WARN_THRESHOLD),
+    10,
+  );
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_RESIZE_FAIL_WARN_THRESHOLD;
+}
+
 router.get("/health/metrics", (_req: Request, res: Response) => {
   if (!checkRateLimit()) {
     res.status(429).json({ error: "rate limit exceeded" });
     return;
   }
-  res.json({ thumbnail_resize_failed: getAlertCounter("thumbnail_resize_failed") });
+  const resizeFailed = getAlertCounter("thumbnail_resize_failed");
+  const threshold = getResizeFailWarnThreshold();
+  res.json({
+    thumbnail_resize_failed: resizeFailed,
+    alerts: {
+      thumbnail_resize_failed: resizeFailed >= threshold ? "warn" : "ok",
+    },
+  });
 });
 
 export { _window as _metricsRateLimitWindow };

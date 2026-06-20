@@ -53,6 +53,15 @@ components:
       properties:
         thumbnail_resize_failed:
           type: integer
+        alerts:
+          type: object
+          properties:
+            thumbnail_resize_failed:
+              type: string
+              enum: [ok, warn]
+          required:
+            - thumbnail_resize_failed
       required:
         - thumbnail_resize_failed
+        - alerts
 

@@ -5,9 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface HealthStatus {
-  status: string;
-}
 
 export type HealthMetricsAlertsThumbnailResizeFailed = typeof HealthMetricsAlertsThumbnailResizeFailed[keyof typeof HealthMetricsAlertsThumbnailResizeFailed];
 
@@ -16,13 +13,3 @@ export const HealthMetricsAlertsThumbnailResizeFailed = {
   ok: 'ok',
   warn: 'warn',
 } as const;
-
-export type HealthMetricsAlerts = {
-  thumbnail_resize_failed: HealthMetricsAlertsThumbnailResizeFailed;
-};
-
-export interface HealthMetrics {
-  thumbnail_resize_failed: number;
-  alerts: HealthMetricsAlerts;
-}
-

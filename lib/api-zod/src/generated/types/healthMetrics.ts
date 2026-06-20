@@ -5,7 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { HealthMetricsAlerts } from './healthMetricsAlerts';
 
 export interface HealthMetrics {
   thumbnail_resize_failed: number;
+  alerts: HealthMetricsAlerts;
 }

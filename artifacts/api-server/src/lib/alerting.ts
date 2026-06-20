@@ -23,6 +23,11 @@ export function _resetAlertCounters(): void {
   }
 }
 
+/** Directly increment a counter — only intended for use in tests. */
+export function incrementAlertCounter(event: string, by = 1): void {
+  _counters[event] = (_counters[event] ?? 0) + by;
+}
+
 export interface ThumbnailResizeAlertPayload {
   error: string;
   inputBytes: number;

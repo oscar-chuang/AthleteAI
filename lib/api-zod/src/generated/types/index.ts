@@ -7,4 +7,6 @@
  */
 
 export * from './healthMetrics';
+export * from './healthMetricsAlerts';
+export * from './healthMetricsAlertsThumbnailResizeFailed';
 export * from './healthStatus';

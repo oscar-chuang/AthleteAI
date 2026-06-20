@@ -22,7 +22,10 @@ export const HealthCheckResponse = zod.object({
  * @summary Alert event counters
  */
 export const HealthMetricsResponse = zod.object({
-  "thumbnail_resize_failed": zod.number()
+  "thumbnail_resize_failed": zod.number(),
+  "alerts": zod.object({
+  "thumbnail_resize_failed": zod.enum(['ok', 'warn'])
+})
 })
 
 
