@@ -11,6 +11,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/lib/authContext";
 import { requestNotificationPermission } from "@/utils/notifications";
@@ -91,7 +93,14 @@ export default function OnboardingScreen() {
       } catch {
         // non-critical — continue anyway
       }
-      await requestNotificationPermission();
+      const notifGranted = await requestNotificationPermission();
+      if (!notifGranted) {
+        try {
+          await AsyncStorage.setItem("notif_denied_nudge", "pending");
+        } catch {
+          // non-fatal
+        }
+      }
       router.replace("/(tabs)" as any);
     }
   }

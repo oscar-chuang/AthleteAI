@@ -16,6 +16,7 @@ import {
   Share,
   Modal,
   Pressable,
+  Linking,
 } from "react-native";
 import * as Sharing from "expo-sharing";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -124,6 +125,7 @@ export default function HomeScreen() {
   const [showGoalSaved, setShowGoalSaved] = useState(false);
   const [showRestDayTooltip, setShowRestDayTooltip] = useState(false);
   const [showSharePreview, setShowSharePreview] = useState(false);
+  const [showNotifDeniedBanner, setShowNotifDeniedBanner] = useState(false);
   const lastFetchedTipIdRef = useRef<string | null>(null);
 
   // When the server (or a background profile refresh) delivers a new weeklyGoal,
@@ -262,6 +264,10 @@ export default function HomeScreen() {
           }
         }
       }
+      const notifNudge = await AsyncStorage.getItem("notif_denied_nudge").catch(() => null);
+      if (notifNudge === "pending") {
+        setShowNotifDeniedBanner(true);
+      }
     } catch {
       setError(true);
     } finally {
@@ -335,6 +341,11 @@ export default function HomeScreen() {
   const dismissRestDayTooltip = useCallback(async () => {
     setShowRestDayTooltip(false);
     await AsyncStorage.setItem("rest_day_tooltip_dismissed", "true").catch(() => {});
+  }, []);
+
+  const dismissNotifDeniedBanner = useCallback(async () => {
+    setShowNotifDeniedBanner(false);
+    await AsyncStorage.setItem("notif_denied_nudge", "dismissed").catch(() => {});
   }, []);
 
   const handleShareGoal = useCallback(() => {
@@ -546,6 +557,7 @@ export default function HomeScreen() {
     restDayTooltipText: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground },
     restDayTooltipDismiss: { padding: 4 },
 
+    notifDeniedBanner: { marginHorizontal: 20, marginBottom: 16, backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, flexDirection: "row", alignItems: "flex-start", gap: 10, borderWidth: 1, borderColor: colors.border },
     errorBanner:    { marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.warning + "14", borderRadius: colors.radius, padding: 14, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: colors.warning + "44" },
     upgradeCard:    { backgroundColor: colors.primary + "14", borderRadius: colors.radius, padding: 16, borderWidth: 1, borderColor: colors.primary + "40", flexDirection: "row", alignItems: "center", gap: 14, marginHorizontal: 20, marginBottom: 24 },
     upgradeText:    { flex: 1 },
@@ -631,6 +643,37 @@ export default function HomeScreen() {
             )}
           </View>
         </View>
+
+        {/* ── Notification denied nudge ── */}
+        {showNotifDeniedBanner && (
+          <View style={s.notifDeniedBanner} testID="notif-denied-banner">
+            <Feather name="bell-off" size={16} color={colors.mutedForeground} style={{ marginTop: 1 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.foreground, marginBottom: 2 }}>
+                Improvement alerts are off
+              </Text>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 17 }}>
+                You won't be notified when a joint risk drops after a scan. To enable alerts, go to your device Settings and allow notifications for this app.
+              </Text>
+              <TouchableOpacity
+                testID="notif-denied-open-settings-btn"
+                onPress={() => Linking.openSettings()}
+                activeOpacity={0.75}
+                style={{ alignSelf: "flex-start", marginTop: 10, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: colors.primary + "18", borderWidth: 1, borderColor: colors.primary + "44" }}
+              >
+                <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.primary }}>Open Settings</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              testID="notif-denied-dismiss-btn"
+              onPress={dismissNotifDeniedBanner}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+            >
+              <Feather name="x" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* ── Empty state for fresh users ── */}
         {!error && allAnalyses.length === 0 && (
