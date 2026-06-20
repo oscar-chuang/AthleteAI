@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, analysesTable } from "@workspace/db";
-import { eq, asc, and } from "drizzle-orm";
+import { eq, asc, and, type SQL } from "drizzle-orm";
 import { requireAuth } from "./auth";
 import { generateProgressSummary } from "../lib/anthropic";
 
@@ -11,7 +11,7 @@ const summaryCache = new Map<string, { summary: string; expiresAt: number }>();
 const SUMMARY_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 router.get("/progress/sports", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
 
   const rows = await db
     .select({
@@ -47,10 +47,10 @@ router.get("/progress/sports", requireAuth, async (req: Request, res: Response) 
 });
 
 router.get("/progress/personal-records", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const sport = typeof req.query["sport"] === "string" ? req.query["sport"].toLowerCase() : null;
 
-  const conditions = [
+  const conditions: SQL<unknown>[] = [
     eq(analysesTable.userId, userId),
     eq(analysesTable.status, "complete"),
     ...(sport ? [eq(analysesTable.sport, sport)] : []),
@@ -59,7 +59,7 @@ router.get("/progress/personal-records", requireAuth, async (req: Request, res: 
   const rows = await db
     .select()
     .from(analysesTable)
-    .where(and(...conditions as any))
+    .where(and(...conditions))
     .orderBy(asc(analysesTable.uploadedAt));
 
   const scored = rows.filter((r) => r.overallScore != null);
@@ -93,7 +93,7 @@ router.get("/progress/personal-records", requireAuth, async (req: Request, res: 
 });
 
 router.get("/progress/summary", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const sport = typeof req.query["sport"] === "string" ? req.query["sport"].toLowerCase() : null;
   const movementType = typeof req.query["movementType"] === "string" ? req.query["movementType"] : null;
 
@@ -109,7 +109,7 @@ router.get("/progress/summary", requireAuth, async (req: Request, res: Response)
     return;
   }
 
-  const conditions = [
+  const conditions: SQL<unknown>[] = [
     eq(analysesTable.userId, userId),
     eq(analysesTable.status, "complete"),
     eq(analysesTable.sport, sport),
@@ -126,7 +126,7 @@ router.get("/progress/summary", requireAuth, async (req: Request, res: Response)
       biomechanicsApplied: analysesTable.biomechanicsApplied,
     })
     .from(analysesTable)
-    .where(and(...conditions as any))
+    .where(and(...conditions))
     .orderBy(asc(analysesTable.uploadedAt));
 
   let sessions = rows.filter((r) => r.overallScore != null);
@@ -178,11 +178,11 @@ router.get("/progress/summary", requireAuth, async (req: Request, res: Response)
 });
 
 router.get("/progress", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const sport = typeof req.query["sport"] === "string" ? req.query["sport"].toLowerCase() : null;
   const movementType = typeof req.query["movementType"] === "string" ? req.query["movementType"] : null;
 
-  const conditions = [
+  const conditions: SQL<unknown>[] = [
     eq(analysesTable.userId, userId),
     ...(sport ? [eq(analysesTable.sport, sport)] : []),
   ];
@@ -190,7 +190,7 @@ router.get("/progress", requireAuth, async (req: Request, res: Response) => {
   const rows = await db
     .select()
     .from(analysesTable)
-    .where(and(...conditions as any))
+    .where(and(...conditions))
     .orderBy(asc(analysesTable.uploadedAt));
 
   let scored = rows.filter((r) => r.overallScore != null);

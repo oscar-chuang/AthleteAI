@@ -13,6 +13,7 @@ type TipDrill = {
 };
 
 type Tip = {
+  id?: string;
   tipType?: string;
   title?: string;
   drill?: TipDrill;
@@ -112,7 +113,7 @@ export async function buildSystemPrompt(userId: number): Promise<string> {
         systemPrompt += `\n  Coaching tips & drills:`;
         for (const tip of tips) {
           if (!tip.title) continue;
-          const done = (tip as any).id && doneTipIds.has((tip as any).id);
+          const done = tip.id != null && doneTipIds.has(tip.id);
           systemPrompt += `\n    • [${tip.tipType ?? "tip"}] ${tip.title}${done ? " ✓ COMPLETED" : ""}`;
           if (tip.drill?.name) {
             systemPrompt += `\n      Drill: ${tip.drill.name}${done ? " (done)" : ""}`;
@@ -168,7 +169,7 @@ function getWorstMetric(a: typeof analysesTable.$inferSelect): string {
 }
 
 router.get("/chat/suggestions", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
 
   const [latest] = await db
     .select()
@@ -180,8 +181,17 @@ router.get("/chat/suggestions", requireAuth, async (req: Request, res: Response)
   const sport = latest?.sport ?? "general";
   const worst = latest ? getWorstMetric(latest) : null;
 
+  const scoreMap: Record<string, number | null | undefined> = {
+    technique: latest?.techniqueScore,
+    power: latest?.powerScore,
+    balance: latest?.balanceScore,
+    consistency: latest?.consistencyScore,
+    mobility: latest?.mobilityScore,
+    speed: latest?.speedScore,
+  };
+  const worstKey = worst ?? "technique";
   const suggestions = latest ? [
-    `How do I improve my ${worst ?? "technique"} score from ${Math.round((latest as any)[`${worst ?? "technique"}Score`] ?? 0)}?`,
+    `How do I improve my ${worstKey} score from ${Math.round(scoreMap[worstKey] ?? 0)}?`,
     `Give me a weekly drill plan for my ${sport} training`,
     "What are my biggest injury risks right now?",
     "How can I make my next session more effective?",
@@ -196,7 +206,7 @@ router.get("/chat/suggestions", requireAuth, async (req: Request, res: Response)
 });
 
 router.get("/chat", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
 
   const rows = await db
     .select()
@@ -209,7 +219,7 @@ router.get("/chat", requireAuth, async (req: Request, res: Response) => {
 });
 
 router.post("/chat", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const { content, referencedAnalysisId } = req.body as {
     content?: string;
     referencedAnalysisId?: string;
@@ -294,7 +304,7 @@ router.post("/chat", requireAuth, async (req: Request, res: Response) => {
 });
 
 router.delete("/chat", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   await db.delete(chatMessagesTable).where(eq(chatMessagesTable.userId, userId));
   res.json({ success: true });
 });

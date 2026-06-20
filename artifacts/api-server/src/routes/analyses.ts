@@ -2,8 +2,8 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { db, analysesTable, profilesTable, completedDrillsTable } from "@workspace/db";
 import { eq, and, desc, ne } from "drizzle-orm";
 import { requireAuth } from "./auth";
-import { analyzeAthletePerformance, detectSportFromFrame, generateCoachingMoments, generateMovementSummary, type AIAnalysisResult, type FlaggedMoment } from "../lib/anthropic";
-import { resizeThumbnail, THUMBNAIL_MAX_WIDTH } from "../lib/resize-thumbnail";
+import { analyzeAthletePerformance, detectSportFromFrame, generateCoachingMoments, generateMovementSummary, type AIAnalysisResult, type FlaggedMoment, type JointAngles, type JointRisks } from "../lib/anthropic";
+import { resizeThumbnail } from "../lib/resize-thumbnail";
 
 const router: IRouter = Router();
 
@@ -86,7 +86,7 @@ function formatAnalysis(a: typeof analysesTable.$inferSelect) {
 }
 
 router.get("/analyses", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const rows = await db
     .select()
     .from(analysesTable)
@@ -96,7 +96,7 @@ router.get("/analyses", requireAuth, async (req: Request, res: Response) => {
 });
 
 router.post("/analyses", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const { title, sport, videoUrl, duration, movementType } = req.body as {
     title?: string; sport?: string; videoUrl?: string; duration?: number; movementType?: string;
   };
@@ -170,7 +170,7 @@ async function runAIAnalysis(
     ? { name: profileRow.name, level: profileRow.level, goals: profileRow.goals ?? [], injuryConcerns: profileRow.injuryConcerns ?? [] }
     : null;
 
-  const result: AIAnalysisResult = await analyzeAthletePerformance(sport, title, videoUrl, athleteProfile, jointAngles as any, jointRisks as any, frameBase64);
+  const result: AIAnalysisResult = await analyzeAthletePerformance(sport, title, videoUrl, athleteProfile, jointAngles as JointAngles | null, jointRisks as JointRisks | null, frameBase64);
 
   const values = {
     status: "complete" as const,
@@ -223,7 +223,7 @@ router.post("/analyses/detect-sport", requireAuth, async (req: Request, res: Res
 // IMPORTANT: this route must be declared before GET /analyses/:id so Express does
 // not swallow "joint-trends" as an :id value.
 router.get("/analyses/joint-trends", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
 
   const rows = await db
     .select({
@@ -301,7 +301,7 @@ router.get("/analyses/joint-trends", requireAuth, async (req: Request, res: Resp
 // IMPORTANT: must be declared before GET /analyses/:id for the same reason as
 // joint-trends — to prevent Express from treating the path as an :id value.
 router.get("/analyses/movement-summary-history", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const sport = typeof req.query.sport === "string" ? req.query.sport.toLowerCase() : undefined;
 
   type SummaryShape = {
@@ -350,7 +350,7 @@ router.get("/analyses/movement-summary-history", requireAuth, async (req: Reques
 });
 
 router.get("/analyses/:id", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const id = parseInt(String(req.params.id ?? ""), 10);
   if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
 
@@ -379,7 +379,7 @@ router.get("/analyses/:id", requireAuth, async (req: Request, res: Response) => 
 });
 
 router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const id = parseInt(String(req.params.id ?? ""), 10);
   if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
 
@@ -539,7 +539,7 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
 });
 
 router.post("/analyses/:id/coaching-moments", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const id = parseInt(String(req.params.id ?? ""), 10);
   if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
 
@@ -591,7 +591,7 @@ router.post("/analyses/:id/coaching-moments", requireAuth, async (req: Request, 
 });
 
 router.post("/analyses/:id/movement-summary", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const id = parseInt(String(req.params.id ?? ""), 10);
   if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
 
@@ -655,7 +655,7 @@ router.post("/analyses/:id/movement-summary", requireAuth, async (req: Request, 
 // ─── Completed drills ─────────────────────────────────────────────────────────
 
 router.get("/analyses/:id/drills/completed", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const id = parseInt(String(req.params.id ?? ""), 10);
   if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
 
@@ -675,7 +675,7 @@ router.get("/analyses/:id/drills/completed", requireAuth, async (req: Request, r
 });
 
 router.post("/analyses/:id/drills/:tipId/complete", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const id = parseInt(String(req.params.id ?? ""), 10);
   const tipId = String(req.params.tipId ?? "").trim();
   if (isNaN(id) || !tipId) { res.status(400).json({ error: "Invalid request" }); return; }
@@ -707,7 +707,7 @@ router.post("/analyses/:id/drills/:tipId/complete", requireAuth, async (req: Req
 });
 
 router.delete("/analyses/:id/drills/:tipId/complete", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const id = parseInt(String(req.params.id ?? ""), 10);
   const tipId = String(req.params.tipId ?? "").trim();
   if (isNaN(id) || !tipId) { res.status(400).json({ error: "Invalid request" }); return; }
@@ -724,7 +724,7 @@ router.delete("/analyses/:id/drills/:tipId/complete", requireAuth, async (req: R
 });
 
 router.delete("/analyses/:id", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const id = parseInt(String(req.params.id ?? ""), 10);
   if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
 

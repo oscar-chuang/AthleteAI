@@ -14,7 +14,7 @@ function mk(
 }
 
 router.get("/achievements", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
 
   const rows = await db
     .select()

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import sharp from "sharp";
 import { resizeThumbnail, THUMBNAIL_MAX_WIDTH } from "./resize-thumbnail";
 import { getAlertCounter, _resetAlertCounters, emitThumbnailResizeAlert } from "./alerting";

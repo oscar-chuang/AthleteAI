@@ -26,7 +26,7 @@ router.post("/storage/uploads/request-url", requireAuth, async (req: Request, re
   }
 
   try {
-    const userId = String((req as any).userId);
+    const userId = String(req.userId);
     const { name, size, contentType } = parsed.data;
     const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL(userId);
 
@@ -72,7 +72,7 @@ router.get("/storage/objects/*filePath", requireAuth, async (req: Request, res: 
   try {
     const raw = req.params.filePath;
     const filePath = Array.isArray(raw) ? raw.join("/") : raw;
-    const userId = String((req as any).userId);
+    const userId = String(req.userId);
 
     // Strict ownership: ONLY allow paths in the exact format uploads/{userId}/{objectId}.
     const normalized = filePath.replace(/^\/+/, "");

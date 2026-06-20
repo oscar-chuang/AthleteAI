@@ -56,7 +56,7 @@ function formatProfile(
 }
 
 router.get("/profile", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
 
   const [row] = await db
     .select()
@@ -80,7 +80,7 @@ router.get("/profile", requireAuth, async (req: Request, res: Response) => {
 });
 
 router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
   const { name, sport, level, goals, injuryConcerns, weeklyGoal, trainingDays, checkInHour, avatarUrl, weeklyGoalCelebratedAt } = req.body as {
     name?: string;
     sport?: string;
@@ -94,7 +94,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
     weeklyGoalCelebratedAt?: string | null;
   };
 
-  if (level !== undefined && !VALID_LEVELS.includes(level as any)) {
+  if (level !== undefined && !VALID_LEVELS.includes(level as typeof VALID_LEVELS[number])) {
     res.status(400).json({ error: `level must be one of: ${VALID_LEVELS.join(", ")}` });
     return;
   }
@@ -178,7 +178,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
 });
 
 router.get("/profile/stats", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).userId as number;
+  const userId = req.userId!;
 
   const [profileRow, rows, drillsMasteredResult] = await Promise.all([
     db
