@@ -31,6 +31,7 @@ import { analyses as analysesApi, drills as drillsApi, jointTrends, type TipReco
 import JointHistorySheet from "@/components/JointHistorySheet";
 import { scheduleImprovementNotification } from "@/utils/notifications";
 import { useAuth } from "@/lib/authContext";
+import { useColors } from "@/hooks/useColors";
 import {
   computeFlaggedJoints,
   computeWorstLvl,
@@ -848,6 +849,17 @@ export default function SkeletonScreen() {
             jointRisks: msg.risks as RiskMap,
             frameBase64: msg.frame || undefined,
           }, sport);
+        }
+        // Clear any previous dismissal when the re-scan yields a good result so
+        // the banner can resurface if the user later downgrades back to low quality.
+        if (id && captures.length > 0) {
+          const heroCapture = pickHeroCapture(captures);
+          if (heroCapture) {
+            const quality = computeScanQuality(heroCapture);
+            if (quality === "high" || quality === "medium") {
+              AsyncStorage.removeItem(`scanQualityDismissed_${id}`).catch(() => {});
+            }
+          }
         }
         return;
       }

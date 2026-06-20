@@ -104,6 +104,20 @@ function emit(msg: any) {
   });
 }
 
+// A capture whose landmarks all have high visibility (0.85) so that
+// computeScanQuality returns "high" (threshold is avg >= 0.70 for KEY_LANDMARKS).
+const highQualityCapture = {
+  id: "cap-high",
+  kind: "worst",
+  time: 1.0,
+  aspect: 0.6,
+  frame: "data:image/jpeg;base64,hhh",
+  lm: Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, v: 0.85 })),
+  jr: { leftKnee: { deg: 88, lvl: 2 } },
+  joints: ["leftKnee"],
+  maxLvl: 2,
+};
+
 // A capture whose landmarks all have very low visibility (0.10) so that
 // computeScanQuality returns "low" (threshold is avg < 0.45 for KEY_LANDMARKS).
 const lowQualityCapture = {
@@ -263,5 +277,27 @@ describe("scan quality banner — persistence across mounts", () => {
 
     expect(screen.queryByTestId("scan-quality-banner-dismiss")).toBeNull();
     expect(AsyncStorage.setItem).toHaveBeenCalledWith("scanQualityDismissed_42", "1");
+  });
+
+  it("clears the dismissed key when a high-quality scan completes", async () => {
+    mockApiGet.mockResolvedValue(apiResp());
+
+    const AsyncStorage = getAsyncStorage();
+    AsyncStorage.getItem.mockImplementation((key: string) => {
+      if (key === "video_uri_42") return Promise.resolve("file:///video.mp4");
+      return Promise.resolve(null);
+    });
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Drive a high-quality capture then complete the scan.
+    emit({ type: "capture", capture: highQualityCapture });
+    await flush();
+    emit(scanMsg);
+    await flush();
+
+    // The dismissal key must have been removed so the banner can resurface later.
+    expect(AsyncStorage.removeItem).toHaveBeenCalledWith("scanQualityDismissed_42");
   });
 });
