@@ -1,9 +1,10 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import {
   View,
   Text,
   Modal,
   Pressable,
+  ScrollView,
   TouchableOpacity,
   Dimensions,
   Animated,
@@ -66,13 +67,26 @@ export default function MovementDimensionHistorySheet({
   const { width: sw } = Dimensions.get("window");
   const chartW = sw - 48 - CHART_PAD_L - CHART_PAD_R;
 
-  const scores = data.map((d) => d[dimensionKey] as number);
-  const latest = scores[scores.length - 1] ?? 0;
-  const first = scores[0] ?? 0;
-  const delta = Math.round(latest - first);
-
+  const [selectedSport, setSelectedSport] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [displayedIndex, setDisplayedIndex] = useState<number | null>(null);
+
+  const sports = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const d of data) {
+      const s = d.sport.toLowerCase();
+      counts.set(s, (counts.get(s) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).map(([sport, count]) => ({ sport, count }));
+  }, [data]);
+
+  const filteredData = useMemo(
+    () =>
+      selectedSport
+        ? data.filter((d) => d.sport.toLowerCase() === selectedSport)
+        : data,
+    [data, selectedSport]
+  );
   const tooltipOpacity = useRef(new Animated.Value(0)).current;
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fadeAnim = useRef<Animated.CompositeAnimation | null>(null);
@@ -142,29 +156,38 @@ export default function MovementDimensionHistorySheet({
     };
   }, []);
 
+  useEffect(() => {
+    dismissTooltip();
+  }, [selectedSport]);
+
+  const scores = filteredData.map((d) => d[dimensionKey] as number);
+  const latest = scores[scores.length - 1] ?? 0;
+  const first = scores[0] ?? 0;
+  const delta = Math.round(latest - first);
+
   const minScore = Math.max(0, Math.min(...scores) - 8);
   const maxScore = Math.min(100, Math.max(...scores) + 8);
   const range = maxScore - minScore || 1;
 
   function toX(i: number) {
-    if (data.length === 1) return CHART_PAD_L + chartW / 2;
-    return CHART_PAD_L + (i / (data.length - 1)) * chartW;
+    if (filteredData.length === 1) return CHART_PAD_L + chartW / 2;
+    return CHART_PAD_L + (i / (filteredData.length - 1)) * chartW;
   }
   function toY(score: number) {
     return CHART_PAD_T + CHART_H_INNER - ((score - minScore) / range) * CHART_H_INNER;
   }
 
   const polyPts =
-    data.length > 1
+    filteredData.length > 1
       ? scores.map((s, i) => `${toX(i).toFixed(1)},${toY(s).toFixed(1)}`).join(" ")
       : "";
 
   const areaPath =
-    data.length > 1
+    filteredData.length > 1
       ? [
           `M ${toX(0).toFixed(1)} ${toY(scores[0]!).toFixed(1)}`,
           ...scores.slice(1).map((s, i) => `L ${toX(i + 1).toFixed(1)} ${toY(s).toFixed(1)}`),
-          `L ${toX(data.length - 1).toFixed(1)} ${(CHART_PAD_T + CHART_H_INNER).toFixed(1)}`,
+          `L ${toX(filteredData.length - 1).toFixed(1)} ${(CHART_PAD_T + CHART_H_INNER).toFixed(1)}`,
           `L ${CHART_PAD_L.toFixed(1)} ${(CHART_PAD_T + CHART_H_INNER).toFixed(1)}`,
           "Z",
         ].join(" ")
@@ -220,7 +243,7 @@ export default function MovementDimensionHistorySheet({
               </Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
                 <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color }}>
-                  {data.length > 0 ? Math.round(latest) : "—"}
+                  {filteredData.length > 0 ? Math.round(latest) : "—"}
                 </Text>
                 <View
                   style={{
@@ -234,7 +257,7 @@ export default function MovementDimensionHistorySheet({
                     {latestBand}
                   </Text>
                 </View>
-                {data.length >= 2 && (
+                {filteredData.length >= 2 && (
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                     <Feather
                       name={delta >= 0 ? "arrow-up-right" : "arrow-down-right"}
@@ -249,7 +272,7 @@ export default function MovementDimensionHistorySheet({
                       }}
                     >
                       {delta >= 0 ? "+" : ""}
-                      {delta} over {data.length} session{data.length === 1 ? "" : "s"}
+                      {delta} over {filteredData.length} session{filteredData.length === 1 ? "" : "s"}
                     </Text>
                   </View>
                 )}
@@ -260,14 +283,98 @@ export default function MovementDimensionHistorySheet({
             </TouchableOpacity>
           </View>
 
+          {/* Sport Filter Pills */}
+          {sports.length >= 2 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, flexDirection: "row", paddingBottom: 14 }}
+            >
+              <TouchableOpacity
+                testID="sport-filter-all"
+                onPress={() => setSelectedSport(null)}
+                activeOpacity={0.8}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 7,
+                  borderRadius: 20,
+                  backgroundColor: selectedSport === null ? color + "20" : "#1a1a2e",
+                  borderWidth: 1.5,
+                  borderColor: selectedSport === null ? color : "#2a2a40",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontFamily: selectedSport === null ? "Inter_600SemiBold" : "Inter_400Regular",
+                    color: selectedSport === null ? color : "#8888aa",
+                  }}
+                >
+                  All
+                </Text>
+              </TouchableOpacity>
+              {sports.map(({ sport, count }) => {
+                const isActive = selectedSport === sport;
+                return (
+                  <TouchableOpacity
+                    key={sport}
+                    testID={`sport-filter-${sport}`}
+                    onPress={() => setSelectedSport(sport)}
+                    activeOpacity={0.8}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                      paddingHorizontal: 14,
+                      paddingVertical: 7,
+                      borderRadius: 20,
+                      backgroundColor: isActive ? color + "20" : "#1a1a2e",
+                      borderWidth: 1.5,
+                      borderColor: isActive ? color : "#2a2a40",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontFamily: isActive ? "Inter_600SemiBold" : "Inter_400Regular",
+                        color: isActive ? color : "#8888aa",
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {sport}
+                    </Text>
+                    <View
+                      style={{
+                        backgroundColor: isActive ? color + "30" : "#2a2a40",
+                        borderRadius: 10,
+                        paddingHorizontal: 5,
+                        paddingVertical: 1,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          fontFamily: "Inter_600SemiBold",
+                          color: isActive ? color : "#55556e",
+                        }}
+                      >
+                        {count}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+
           {/* Chart */}
-          {data.length === 0 ? (
+          {filteredData.length === 0 ? (
             <View style={{ alignItems: "center", paddingVertical: 32 }}>
               <Text style={{ color: "#8888aa", fontFamily: "Inter_400Regular", fontSize: 13 }}>
                 No history yet
               </Text>
             </View>
-          ) : data.length === 1 ? (
+          ) : filteredData.length === 1 ? (
             <View
               style={{
                 alignItems: "center",
@@ -356,9 +463,9 @@ export default function MovementDimensionHistorySheet({
                 />
 
                 {/* Data points */}
-                {data.map((d, i) => {
+                {filteredData.map((d, i) => {
                   const isSelected = selectedIndex === i;
-                  const isLatest = i === data.length - 1;
+                  const isLatest = i === filteredData.length - 1;
                   const cx = toX(i);
                   const cy = toY(scores[i]!);
                   const dotR = isSelected ? 8 : isLatest ? 6 : 4;
@@ -400,12 +507,12 @@ export default function MovementDimensionHistorySheet({
                 {/* X-axis date labels */}
                 {(() => {
                   const labels: { i: number; text: string }[] = [];
-                  if (data.length === 2) {
-                    labels.push({ i: 0, text: formatDate(data[0]!.date) });
-                    labels.push({ i: 1, text: formatDate(data[1]!.date) });
+                  if (filteredData.length === 2) {
+                    labels.push({ i: 0, text: formatDate(filteredData[0]!.date) });
+                    labels.push({ i: 1, text: formatDate(filteredData[1]!.date) });
                   } else {
-                    labels.push({ i: 0, text: formatDate(data[0]!.date) });
-                    labels.push({ i: data.length - 1, text: formatDate(data[data.length - 1]!.date) });
+                    labels.push({ i: 0, text: formatDate(filteredData[0]!.date) });
+                    labels.push({ i: filteredData.length - 1, text: formatDate(filteredData[filteredData.length - 1]!.date) });
                   }
                   return labels.map(({ i, text }) => (
                     <SvgText
@@ -426,7 +533,7 @@ export default function MovementDimensionHistorySheet({
               {/* Tooltip overlay */}
               {displayedIndex !== null &&
                 (() => {
-                  const sel = data[displayedIndex]!;
+                  const sel = filteredData[displayedIndex]!;
                   const selScore = scores[displayedIndex]!;
                   const cx = toX(displayedIndex);
                   const cy = toY(selScore);
@@ -514,7 +621,7 @@ export default function MovementDimensionHistorySheet({
               textAlign: "center",
             }}
           >
-            {data.length} session{data.length === 1 ? "" : "s"} · {label.toLowerCase()} history
+            {filteredData.length} session{filteredData.length === 1 ? "" : "s"} · {label.toLowerCase()} history{selectedSport ? ` · ${toTitleCase(selectedSport)}` : ""}
           </Text>
         </Pressable>
       </Pressable>
