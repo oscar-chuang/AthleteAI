@@ -283,6 +283,62 @@ describe("home screen — confetti fires exactly once when weekly goal is crosse
     expect(fetchStats).toHaveBeenCalledTimes(4);
   });
 
+  // ── Test 9 — server auto-reset for a new week ────────────────────────────────
+
+  it("fires confetti on the first load of a new week after the server has auto-reset weeklyGoalCelebratedAt to null", async () => {
+    // Context: the user celebrated last week. The server ran its weekly reset,
+    // setting weeklyGoalCelebratedAt → null. The NEW_WEEK_KEY is a fresh ISO
+    // week; the old celebrated key in AsyncStorage belongs to OLD_WEEK_KEY and
+    // is therefore invisible to the gate (different key name).
+    const OLD_WEEK_KEY = "2026-06-15";
+    const NEW_WEEK_KEY = "2026-06-22";
+
+    // Seed last week's celebrated flag (survives in storage across weeks).
+    store[`confetti_celebrated_${OLD_WEEK_KEY}`] = "true";
+
+    // Load 1 of new week: count below goal; serverCelebratedWeekKey is null
+    // (server reset it). No pending flag, no prevCount for NEW_WEEK_KEY yet.
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 2 });
+    const load1 = await simulateLoadDataConfetti(
+      fetchStats,
+      WEEKLY_GOAL,
+      NEW_WEEK_KEY,
+      storage,
+      null, // server has reset weeklyGoalCelebratedAt
+    );
+    expect(load1).toBe(false);
+    // Gate must snapshot the count for the new week.
+    expect(store[`confetti_prev_count_${NEW_WEEK_KEY}`]).toBe("2");
+    // Old week's flag must remain untouched.
+    expect(store[`confetti_celebrated_${OLD_WEEK_KEY}`]).toBe("true");
+
+    // Load 2 of new week: count crosses the goal — confetti must fire.
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 3 });
+    const load2 = await simulateLoadDataConfetti(
+      fetchStats,
+      WEEKLY_GOAL,
+      NEW_WEEK_KEY,
+      storage,
+      null,
+    );
+    expect(load2).toBe(true);
+    // Celebrated flag for the NEW week must be written.
+    expect(store[`confetti_celebrated_${NEW_WEEK_KEY}`]).toBe("true");
+
+    // Load 3 of new week: same count; celebrated flag must block a second fire.
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 3 });
+    const load3 = await simulateLoadDataConfetti(
+      fetchStats,
+      WEEKLY_GOAL,
+      NEW_WEEK_KEY,
+      storage,
+      null,
+    );
+    expect(load3).toBe(false);
+
+    expect(fetchStats).toHaveBeenCalledTimes(3);
+  });
+
   // ── Test 8 — reinstall + goal change (server-flag path) ──────────────────────
 
   it("does NOT re-fire confetti after reinstall when the server flag matches the current week, even if the goal was subsequently lowered", async () => {
