@@ -49,6 +49,7 @@ import {
   computeScanQuality,
   containRect,
 } from "@/utils/skeleton";
+import { buildNextStepCue } from "@/utils/buildNextStepCue";
 import FrozenSkeleton from "@/components/FrozenSkeleton";
 
 const PENDING_CHAT_KEY = "pendingChatMessage";
@@ -1192,85 +1193,12 @@ export default function SkeletonScreen() {
     return { joint: bestJoint, delta, sessionCount: bestSessionCount };
   }
 
-  /**
-   * buildNextStepCue — personalises the "What's next?" hint using joint trend history.
-   *
-   * Priority order:
-   *  1. If a relevant joint improved out of the risky range across sessions → load-progression cue.
-   *  2. If a relevant joint improved at least one risk level → "keep going" cue.
-   *  3. Generic drill-based fallback (unchanged behaviour when no trend data exists).
-   *
-   * Uses the already-fetched jointTrendsData state — zero extra network requests.
-   */
-  function buildNextStepCue(
+  function buildNextStepCueForScreen(
     drill: DrillRecord | string,
     kind: "injury" | "performance",
     joints?: JointKey[],
   ): string {
-    // ── Personalised path: scan history available ─────────────────────────────
-    if (joints && joints.length > 0 && jointTrendsData) {
-      let bestJoint: JointKey | null = null;
-      let bestRiskDrop = 0;
-      let bestAngleDelta = 0;
-
-      for (const joint of joints) {
-        const points = jointTrendsData.joints[joint];
-        if (!points || points.length < 2) continue;
-
-        const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
-        const oldest = sorted[0]!;
-        const newest = sorted[sorted.length - 1]!;
-        const riskDrop = oldest.risk - newest.risk;
-        const angleDelta = Math.abs(newest.angle - oldest.angle);
-
-        if (
-          riskDrop > bestRiskDrop ||
-          (riskDrop === bestRiskDrop && angleDelta > bestAngleDelta)
-        ) {
-          bestRiskDrop = riskDrop;
-          bestAngleDelta = angleDelta;
-          bestJoint = joint;
-        }
-      }
-
-      if (bestJoint && bestRiskDrop > 0) {
-        const points = jointTrendsData.joints[bestJoint]!;
-        const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
-        const newest = sorted[sorted.length - 1]!;
-        const sessionCount = sorted.length;
-        const angleDeltaRounded = Math.round(bestAngleDelta);
-        const jointLabel = JOINT_LABEL[bestJoint as JointKey] ?? bestJoint;
-        const deltaStr = angleDeltaRounded >= 3 ? ` ${angleDeltaRounded}°` : "";
-
-        if (newest.risk === 0) {
-          // Fully out of the risky range → progress to harder variation / load
-          return kind === "performance"
-            ? `Your ${jointLabel} improved${deltaStr} across ${sessionCount} scans and is now in the safe range — time to advance. Try a harder variation or add external load to build on this momentum.`
-            : `Your ${jointLabel} is now out of the risky range (improved${deltaStr} since your first scan). Consider progressing to a loaded variation while maintaining this form.`;
-        } else {
-          // Still some risk but clearly trending better → encourage + reinforce
-          return kind === "performance"
-            ? `Your ${jointLabel} has improved${deltaStr} across ${sessionCount} scans — solid progress. Add one more set or cut rest to 45 s to keep the stimulus growing.`
-            : `Your ${jointLabel} is trending better (improved${deltaStr} since your first scan). Keep the corrective work going — try adding a 2-second pause at end range to reinforce the pattern.`;
-        }
-      }
-    }
-
-    // ── Generic fallback (no trend data or no improvement detected) ───────────
-    if (typeof drill === "object" && drill !== null) {
-      const setsNum = parseInt((drill as DrillRecord).sets, 10);
-      if (!isNaN(setsNum)) {
-        return kind === "performance"
-          ? `Try ${setsNum + 1} sets next session, or cut rest to 45 s between rounds.`
-          : `Progress to ${setsNum + 1} sets, or slow the eccentric to 3 seconds per rep.`;
-      }
-      return kind === "performance"
-        ? `Add one more round, or reduce rest time to increase the training stimulus.`
-        : `Increase volume gradually, or add a 2-second pause at end range.`;
-    }
-    return kind === "performance"
-      ? `Build on this by adding one more round or advancing to a harder variation.`
-      : `Increase volume gradually, or add a 2-second end-range pause each rep.`;
+    return buildNextStepCue(drill, kind, joints, jointTrendsData);
   }
 
   function renderTip(tip: TipRecord, kind: "injury" | "performance") {
@@ -1454,7 +1382,7 @@ export default function SkeletonScreen() {
                         })()}
                       </View>
                       <Text style={ss.nextStepCue}>
-                        {buildNextStepCue(drill, kind, tjoints)}
+                        {buildNextStepCueForScreen(drill, kind, tjoints)}
                       </Text>
                       <TouchableOpacity
                         style={ss.nextStepAskBtn}
