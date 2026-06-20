@@ -437,6 +437,43 @@ describe("AnalysisDetailScreen — share preview modal", () => {
     expect(mockShareAsync).not.toHaveBeenCalled();
   });
 
+  it("reopening the modal clears the unavailability banner (sharingUnavailable resets on open)", async () => {
+    // Device where expo-sharing is unavailable — same setup as the banner-appears test.
+    mockIsAvailableAsync.mockResolvedValue(false);
+
+    render(<AnalysisDetailScreen />);
+    await simulateFocus();
+
+    // ── Step 1: open the modal ──────────────────────────────────────────────────
+    fireEvent.press(screen.getByRole("button", { name: "Share analysis" }));
+    await flush();
+
+    expect(screen.getByText("Share your session")).toBeTruthy();
+
+    // ── Step 2: tap Share → banner appears ─────────────────────────────────────
+    fireEvent.press(screen.getByText("Share"));
+    await flush();
+
+    expect(
+      screen.getByText("Sharing isn't supported on this device. Save to photos instead."),
+    ).toBeTruthy();
+
+    // ── Step 3: cancel the modal ────────────────────────────────────────────────
+    fireEvent.press(screen.getByText("Cancel"));
+    await flush();
+
+    expect(screen.queryByText("Share your session")).toBeNull();
+
+    // ── Step 4: reopen the modal → banner must be gone ─────────────────────────
+    fireEvent.press(screen.getByRole("button", { name: "Share analysis" }));
+    await flush();
+
+    expect(screen.getByText("Share your session")).toBeTruthy();
+    expect(
+      screen.queryByText("Sharing isn't supported on this device. Save to photos instead."),
+    ).toBeNull();
+  });
+
   it("Save to photos shows a permission error and does not capture when the user denies access", async () => {
     // Override the default "granted" permission with "denied".
     mockRequestPermissionsAsync.mockResolvedValue({ status: "denied" });
