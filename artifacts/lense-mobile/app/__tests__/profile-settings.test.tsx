@@ -862,3 +862,99 @@ describe("ProfileSettingsScreen — avatar upload rolls back when server rejects
     expect(queryByText("Couldn't save photo. Please try again.")).toBeNull();
   });
 });
+
+// ─── Oversized avatar data URI guard ──────────────────────────────────────────
+//
+// When handleCropConfirm receives a CropResult whose assembled data URI exceeds
+// MAX_AVATAR_DATA_URI_CHARS (2 MB of base64 characters) it must:
+//   • NOT call updateProfile
+//   • Set the error banner to the "still too large" message
+//   • Leave the avatar URL state unchanged (no optimistic update)
+
+describe("ProfileSettingsScreen — oversized avatar data URI is rejected with a friendly error", () => {
+  const OLD_AVATAR = "data:image/jpeg;base64,OLD==";
+
+  const ImagePicker = require("expo-image-picker") as {
+    requestMediaLibraryPermissionsAsync: jest.Mock;
+    launchImageLibraryAsync: jest.Mock;
+  };
+
+  beforeEach(() => {
+    mockProfile.avatarUrl = OLD_AVATAR;
+    ImagePicker.requestMediaLibraryPermissionsAsync.mockResolvedValue({ status: "granted" });
+    ImagePicker.launchImageLibraryAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: "file:///tmp/huge.jpg", width: 800, height: 800 }],
+    });
+  });
+
+  /** Press the avatar button and wait for ImagePicker to resolve so the
+   *  CropModal mock captures the onConfirm callback. */
+  async function pickPhoto(getByTestId: ReturnType<typeof render>["getByTestId"]) {
+    await act(async () => {
+      fireEvent.press(getByTestId("avatar-photo-btn"));
+    });
+    await flush();
+  }
+
+  /** Build a CropResult whose assembled data URI is longer than
+   *  MAX_AVATAR_DATA_URI_CHARS (2 * 1024 * 1024 characters). */
+  function makeOversizedCrop(): { mimeType: string; base64: string } {
+    // "data:image/jpeg;base64," is 23 chars; pad base64 to exceed the limit.
+    const oversizedBase64 = "A".repeat(2 * 1024 * 1024);
+    return { mimeType: "image/jpeg", base64: oversizedBase64 };
+  }
+
+  it("does NOT call updateProfile when the data URI exceeds MAX_AVATAR_DATA_URI_CHARS", async () => {
+    const { getByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    await pickPhoto(getByTestId);
+    expect(capturedCropConfirm).not.toBeNull();
+
+    await act(async () => {
+      await capturedCropConfirm!(makeOversizedCrop());
+    });
+    await flush();
+
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+  });
+
+  it("shows the 'still too large' error banner when the data URI is oversized", async () => {
+    const { getByTestId, getByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    await pickPhoto(getByTestId);
+    expect(capturedCropConfirm).not.toBeNull();
+
+    await act(async () => {
+      await capturedCropConfirm!(makeOversizedCrop());
+    });
+    await flush();
+
+    expect(
+      getByText(
+        "This image is still too large after processing. Please choose a smaller photo and try again."
+      )
+    ).toBeTruthy();
+  });
+
+  it("leaves the avatar URL unchanged (no optimistic update) when the data URI is oversized", async () => {
+    const { getByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    // Before: avatar shows the OLD_AVATAR URI.
+    expect(getByTestId("avatar-image").props.source.uri).toBe(OLD_AVATAR);
+
+    await pickPhoto(getByTestId);
+    expect(capturedCropConfirm).not.toBeNull();
+
+    await act(async () => {
+      await capturedCropConfirm!(makeOversizedCrop());
+    });
+    await flush();
+
+    // After: avatar must still show the original URI — no optimistic update applied.
+    expect(getByTestId("avatar-image").props.source.uri).toBe(OLD_AVATAR);
+  });
+});
