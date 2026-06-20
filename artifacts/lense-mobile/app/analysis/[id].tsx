@@ -580,6 +580,11 @@ export default function AnalysisDetailScreen() {
 
   // Keep a mutable ref so the PanResponder closure (created once) always sees
   // the latest prevId / nextId without needing to be recreated.
+  const activeTabRef = useRef<AnalysisTab>(activeTab);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
   const navRef = useRef<{ prevId: string | null; nextId: string | null }>({
     prevId: null,
     nextId: null,
@@ -617,7 +622,7 @@ export default function AnalysisDetailScreen() {
             useNativeDriver: true,
           }).start(() => {
             swipeAnim.setValue(0);
-            routerRef.current.replace(`/analysis/${nId}` as any);
+            routerRef.current.replace(`/analysis/${nId}?tab=${activeTabRef.current}` as any);
           });
         } else if (goPrev) {
           dismissHintRef.current();
@@ -627,7 +632,7 @@ export default function AnalysisDetailScreen() {
             useNativeDriver: true,
           }).start(() => {
             swipeAnim.setValue(0);
-            routerRef.current.replace(`/analysis/${pId}` as any);
+            routerRef.current.replace(`/analysis/${pId}?tab=${activeTabRef.current}` as any);
           });
         } else {
           Animated.spring(swipeAnim, {

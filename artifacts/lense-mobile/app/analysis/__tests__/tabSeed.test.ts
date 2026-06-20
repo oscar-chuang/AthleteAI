@@ -26,6 +26,7 @@ const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockAnalysesGet = jest.fn();
 const mockAnalysesList = jest.fn();
+const mockResolveSwipeDirection = jest.fn();
 
 // ── Module mocks (hoisted by Jest before any imports) ─────────────────────────
 
@@ -142,10 +143,16 @@ jest.mock("@/components/analysis/ShareCard", () => ({
   SHARE_CARD_LIGHT: {},
 }));
 
+jest.mock("@/utils/swipeNavigation", () => ({
+  ...jest.requireActual("@/utils/swipeNavigation"),
+  resolveSwipeDirection: (...args: unknown[]) => mockResolveSwipeDirection(...args as any),
+}));
+
 // ── Imports (after all mocks are registered) ──────────────────────────────────
 
 import React from "react";
 import { render, act, fireEvent } from "@testing-library/react-native";
+import { Animated } from "react-native";
 import { seedActiveTab, VALID_TABS } from "../[id]";
 import AnalysisDetailScreen from "../[id]";
 
@@ -324,6 +331,91 @@ describe("Skeleton CTA — tab param is included in the router.push to person-se
     expect(mockPush).toHaveBeenCalledTimes(1);
     const callArg: string = mockPush.mock.calls[0][0];
     expect(callArg).toContain("person-select/session-a");
+    expect(callArg).toMatch(/\?tab=scores$/);
+  });
+});
+
+// ── 9 & 10: Swipe gesture carries ?tab= in the router.replace call ────────────
+//
+// Strategy:
+//   - Mock resolveSwipeDirection (at module level) to return "prev", so the
+//     PanResponder's internal gesture state (all zeros — no simulated moves)
+//     doesn't matter.  The component calls resolveSwipeDirection(dx, vx, …)
+//     and we force it to the "prev" branch.
+//   - Trigger the gesture via swipe-container's onResponderRelease prop so
+//     PanResponder calls onPanResponderRelease naturally.
+//   - Spy on Animated.timing to call its start callback synchronously.  The
+//     callback must receive { finished: true } to satisfy Animated.parallel's
+//     internal bookkeeping (which reads result.finished).
+
+describe("swipe gesture — tab param is preserved in router.replace", () => {
+  beforeEach(() => {
+    mockReplace.mockClear();
+    mockAnalysesGet.mockReset();
+    mockAnalysesList.mockReset();
+
+    // Force the swipe direction to "prev" regardless of gesture state values.
+    mockResolveSwipeDirection.mockReturnValue("prev");
+
+    // Animated.timing must call its start callback synchronously so that the
+    // replace() call inside the animation completion handler fires immediately.
+    // Must pass { finished: true } so Animated.parallel's internal finished
+    // handler doesn't throw on a missing result.finished property.
+    jest.spyOn(Animated, "timing").mockImplementation(() => ({
+      start: (cb?: (result: { finished: boolean }) => void) => {
+        cb?.({ finished: true });
+      },
+      stop: jest.fn(),
+      reset: jest.fn(),
+    } as any));
+
+    mockAnalysesGet.mockResolvedValue({
+      analysis: COMPLETE_ANALYSIS_A,
+      tips: [],
+      injuryRisks: [],
+    });
+    // B is newer (sorted first) → A is at index 1 → prevId = "session-b".
+    mockAnalysesList.mockResolvedValue({
+      analyses: [COMPLETE_ANALYSIS_B, COMPLETE_ANALYSIS_A],
+    });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.clearAllMocks();
+  });
+
+  it("router.replace receives ?tab=tips when swiping to the previous session", async () => {
+    mockTabParam = "tips";
+
+    const { getByTestId } = render(React.createElement(AnalysisDetailScreen));
+    await flush();
+
+    const swipeContainer = getByTestId("swipe-container");
+    await act(async () => {
+      swipeContainer.props.onResponderRelease?.({ nativeEvent: {} }, {});
+    });
+    await flush();
+
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+    const callArg: string = mockReplace.mock.calls[0][0];
+    expect(callArg).toMatch(/\?tab=tips$/);
+  });
+
+  it("router.replace receives ?tab=scores when swiping with no tab param in URL", async () => {
+    mockTabParam = undefined;
+
+    const { getByTestId } = render(React.createElement(AnalysisDetailScreen));
+    await flush();
+
+    const swipeContainer = getByTestId("swipe-container");
+    await act(async () => {
+      swipeContainer.props.onResponderRelease?.({ nativeEvent: {} }, {});
+    });
+    await flush();
+
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+    const callArg: string = mockReplace.mock.calls[0][0];
     expect(callArg).toMatch(/\?tab=scores$/);
   });
 });
