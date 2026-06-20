@@ -14,12 +14,13 @@
  *   4. Coaching Tips — all tip titles are rendered
  *   5. Joint Health — shows "All clear" when risks is empty; shows joint names when not
  *   6. Score Grid — all six SCORE_KEYS map to correct labels/scores; missing fields default to 0
+ *   7. Movement Quality — all 5 dimension labels visible when movementSummary present; section absent when not
  */
 
 import React, { useRef, useEffect } from "react";
 import { View, Text, Animated } from "react-native";
 import { render } from "@testing-library/react-native";
-import type { AnalysisRecord, TipRecord, RiskRecord, DrillRecord } from "@/lib/api";
+import type { AnalysisRecord, TipRecord, RiskRecord, DrillRecord, MovementSummary } from "@/lib/api";
 import { formatBiomechanicsText } from "@/utils/formatBiomechanics";
 import { SCORE_KEYS, SCORE_META, scoreForKey } from "@/utils/scoreGrid";
 
@@ -1258,5 +1259,128 @@ describe("Section 7 — Next Workout Goal", () => {
       />,
     );
     expect(getByTestId("next-focus-drill-name").props.children).toBe("Wall ankle stretch");
+  });
+});
+
+// ─── Movement Quality section ─────────────────────────────────────────────────
+// Mirrors the conditional block in [id].tsx:
+//   {analysis.movementSummary && (
+//     <View>
+//       <SectionHeader title="Movement Quality" … />
+//       {[Flow, Efficiency, Control, Consistency, Rhythm].map(…)}
+//     </View>
+//   )}
+//
+// When movementSummary is present all five dimension labels must be visible.
+// When it is absent (undefined) the entire section must not render.
+
+const MOVEMENT_SUMMARY: MovementSummary = {
+  flowScore: 82,
+  efficiencyScore: 75,
+  bodyControlScore: 68,
+  consistencyScore: 71,
+  rhythmScore: 79,
+  overallScore: 75,
+  topStrengths: ["Good arm drive"],
+  topImprovements: ["Improve hip extension"],
+  mostImportantFix: "Improve hip extension timing",
+  coachSummary: "Solid session overall.",
+};
+
+const DIMENSION_LABELS = ["Flow", "Efficiency", "Control", "Consistency", "Rhythm"] as const;
+
+function MovementQualitySection({
+  analysis,
+}: {
+  analysis: AnalysisRecord;
+}) {
+  if (!analysis.movementSummary) return null;
+  const { movementSummary } = analysis;
+  const dimensions: { label: string; score: number }[] = [
+    { label: "Flow",        score: movementSummary.flowScore },
+    { label: "Efficiency",  score: movementSummary.efficiencyScore },
+    { label: "Control",     score: movementSummary.bodyControlScore },
+    { label: "Consistency", score: movementSummary.consistencyScore },
+    { label: "Rhythm",      score: movementSummary.rhythmScore },
+  ];
+  return (
+    <View testID="movement-quality-section">
+      <Text testID="movement-quality-heading">Movement Quality</Text>
+      {dimensions.map(({ label, score }) => (
+        <View key={label} testID={`movement-quality-cell-${label}`}>
+          <Text testID={`movement-quality-label-${label}`}>{label}</Text>
+          <Text testID={`movement-quality-score-${label}`}>{score}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+describe("Movement Quality section", () => {
+  describe("with movementSummary present", () => {
+    const analysis: AnalysisRecord = { ...BASE_ANALYSIS, movementSummary: MOVEMENT_SUMMARY };
+
+    it("renders the section container", () => {
+      const { getByTestId } = render(<MovementQualitySection analysis={analysis} />);
+      expect(getByTestId("movement-quality-section")).not.toBeNull();
+    });
+
+    it("renders the 'Movement Quality' heading", () => {
+      const { getByTestId } = render(<MovementQualitySection analysis={analysis} />);
+      expect(getByTestId("movement-quality-heading").props.children).toBe("Movement Quality");
+    });
+
+    it.each(DIMENSION_LABELS)("renders the '%s' label", (label) => {
+      const { getByTestId } = render(<MovementQualitySection analysis={analysis} />);
+      expect(getByTestId(`movement-quality-label-${label}`).props.children).toBe(label);
+    });
+
+    it("renders all five dimension cells", () => {
+      const { getByTestId } = render(<MovementQualitySection analysis={analysis} />);
+      DIMENSION_LABELS.forEach((label) => {
+        expect(getByTestId(`movement-quality-cell-${label}`)).not.toBeNull();
+      });
+    });
+
+    it("Flow cell shows the flowScore value", () => {
+      const { getByTestId } = render(<MovementQualitySection analysis={analysis} />);
+      expect(getByTestId("movement-quality-score-Flow").props.children).toBe(82);
+    });
+
+    it("Efficiency cell shows the efficiencyScore value", () => {
+      const { getByTestId } = render(<MovementQualitySection analysis={analysis} />);
+      expect(getByTestId("movement-quality-score-Efficiency").props.children).toBe(75);
+    });
+
+    it("Control cell shows the bodyControlScore value", () => {
+      const { getByTestId } = render(<MovementQualitySection analysis={analysis} />);
+      expect(getByTestId("movement-quality-score-Control").props.children).toBe(68);
+    });
+
+    it("Consistency cell shows the consistencyScore value", () => {
+      const { getByTestId } = render(<MovementQualitySection analysis={analysis} />);
+      expect(getByTestId("movement-quality-score-Consistency").props.children).toBe(71);
+    });
+
+    it("Rhythm cell shows the rhythmScore value", () => {
+      const { getByTestId } = render(<MovementQualitySection analysis={analysis} />);
+      expect(getByTestId("movement-quality-score-Rhythm").props.children).toBe(79);
+    });
+  });
+
+  describe("without movementSummary", () => {
+    it("does NOT render the section container when movementSummary is undefined", () => {
+      const analysis: AnalysisRecord = { ...BASE_ANALYSIS, movementSummary: undefined };
+      const { queryByTestId } = render(<MovementQualitySection analysis={analysis} />);
+      expect(queryByTestId("movement-quality-section")).toBeNull();
+    });
+
+    it("does NOT render any dimension label when movementSummary is absent", () => {
+      const analysis: AnalysisRecord = { ...BASE_ANALYSIS, movementSummary: undefined };
+      const { queryByTestId } = render(<MovementQualitySection analysis={analysis} />);
+      DIMENSION_LABELS.forEach((label) => {
+        expect(queryByTestId(`movement-quality-label-${label}`)).toBeNull();
+      });
+    });
   });
 });
