@@ -417,6 +417,36 @@ describe("AnalysisDetailScreen — share preview modal", () => {
     expect(mockShareAsync).not.toHaveBeenCalled();
   });
 
+  it("Save to photos shows a permission error and does not capture when the user denies access", async () => {
+    // Override the default "granted" permission with "denied".
+    mockRequestPermissionsAsync.mockResolvedValue({ status: "denied" });
+
+    render(<AnalysisDetailScreen />);
+    await simulateFocus();
+
+    // Open the share preview modal.
+    fireEvent.press(screen.getByRole("button", { name: "Share analysis" }));
+    await flush();
+
+    expect(screen.getByText("Share your session")).toBeTruthy();
+
+    // Tap "Save to photos" — permission will be denied.
+    fireEvent.press(screen.getByText("Save to photos"));
+    await flush();
+
+    // captureRef must NOT have been called — we should have bailed early.
+    expect(mockCaptureRef).not.toHaveBeenCalled();
+    // saveToLibraryAsync must NOT have been called.
+    expect(mockSaveToLibraryAsync).not.toHaveBeenCalled();
+    // The permission-error Alert must have been shown.
+    expect(alertSpy).toHaveBeenCalledWith(
+      "Permission required",
+      "Please allow photo library access in your device settings to save images.",
+    );
+    // The modal must still be visible — denial does not close it.
+    expect(screen.getByText("Share your session")).toBeTruthy();
+  });
+
   it("tip picker remembers the last-chosen tip when the share preview is reopened", async () => {
     // Provide two tips so the tip picker renders (requires sortedTips.length > 1).
     mockAnalysesGet.mockResolvedValue({
