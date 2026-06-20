@@ -29,7 +29,7 @@
 
 import React from "react";
 import { Animated } from "react-native";
-import { render, act } from "@testing-library/react-native";
+import { render, act, waitFor } from "@testing-library/react-native";
 
 // ─── Mutable profile for per-test overrides ───────────────────────────────────
 
@@ -216,17 +216,25 @@ const PRIMARY = "#6c63ff";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Flush pending React state updates and async effects. */
-async function flush(rounds = 6) {
-  for (let i = 0; i < rounds; i++) {
-    await act(async () => {});
-  }
-}
-
-/** Simulate the Home tab gaining focus (fires the useFocusEffect callback). */
+/**
+ * Simulate the Home tab gaining focus (fires the useFocusEffect callback).
+ *
+ * We fire the callback inside act() to batch synchronous state updates, then
+ * use waitFor() to poll until Animated.timing has been called.  waitFor()
+ * internally wraps each polling attempt in act(), so every React state update
+ * that loadData() triggers — including the setBarAnimDone(true) fast-path —
+ * is guaranteed to be flushed inside an act() boundary before we return.
+ * This replaces the old fixed-count flush() loop which could close the act()
+ * boundary before the full Promise.all + AsyncStorage await chain resolved,
+ * causing intermittent "not wrapped in act()" warnings from setBarAnimDone.
+ */
 async function simulateFocus() {
+  const prevTimingCount = barTimingCalls.length;
   await act(async () => { mockFocusCallback?.(); });
-  await flush();
+  await waitFor(
+    () => { expect(barTimingCalls.length).toBeGreaterThan(prevTimingCount); },
+    { timeout: 5000 },
+  );
 }
 
 /**
