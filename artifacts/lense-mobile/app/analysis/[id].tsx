@@ -1110,6 +1110,7 @@ export default function AnalysisDetailScreen() {
           views; off-screen placement produces a blank PNG. */}
       <View
         ref={shareCardRef}
+        testID="share-card-wrapper"
         collapsable={false}
         pointerEvents="none"
         style={HIDDEN_SHARE_CARD_STYLE}
