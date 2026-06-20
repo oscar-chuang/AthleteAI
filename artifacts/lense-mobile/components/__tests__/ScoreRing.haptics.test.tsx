@@ -118,3 +118,38 @@ describe("ScoreRing — animation re-trigger on score change", () => {
     expect(Haptics.impactAsync).not.toHaveBeenCalled();
   });
 });
+
+// ─── Same score guard ─────────────────────────────────────────────────────────
+
+describe("ScoreRing — same score guard", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    (Haptics.impactAsync as jest.Mock).mockClear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("does NOT fire impactAsync a second time when the same score is re-passed with animate=true", async () => {
+    const { rerender } = render(<ScoreRing score={70} color="#6c63ff" animate />);
+
+    // Complete the first animation — haptic fires exactly once.
+    await act(async () => {
+      jest.advanceTimersByTime(900);
+    });
+    expect(Haptics.impactAsync).toHaveBeenCalledTimes(1);
+
+    // Re-render with the identical score and animate=true (simulates a parent
+    // context update that does not change the score value).
+    rerender(<ScoreRing score={70} color="#6c63ff" animate />);
+
+    // Advance timers again — the lastAnimatedScore guard should block a second run.
+    await act(async () => {
+      jest.advanceTimersByTime(900);
+    });
+
+    // Still only one haptic — the guard prevented a re-animation.
+    expect(Haptics.impactAsync).toHaveBeenCalledTimes(1);
+  });
+});
