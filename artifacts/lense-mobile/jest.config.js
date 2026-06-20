@@ -17,5 +17,4 @@ module.exports = {
     "**/lib/**/__tests__/**/*.test.{ts,tsx}",
   ],
   testTimeout: 30000,
-  forceExit: true,
 };

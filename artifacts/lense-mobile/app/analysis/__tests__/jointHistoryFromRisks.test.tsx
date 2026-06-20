@@ -209,6 +209,15 @@ async function flush(rounds = 8) {
 
 // ─── Setup / teardown ─────────────────────────────────────────────────────────
 
+beforeAll(() => {
+  jest.useFakeTimers();
+});
+
+afterAll(() => {
+  jest.clearAllTimers();
+  jest.useRealTimers();
+});
+
 beforeEach(() => {
   capturedJointProp = null;
   mockAnalysesGet.mockResolvedValue({ analysis: BASE_ANALYSIS, tips: [], injuryRisks: RISKS });
@@ -217,6 +226,7 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.clearAllMocks();
+  jest.clearAllTimers();
 });
 
 // ─── Tests ────────────────────────────────────────────────────────────────────

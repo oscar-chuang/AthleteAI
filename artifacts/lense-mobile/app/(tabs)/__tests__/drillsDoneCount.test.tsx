@@ -296,9 +296,11 @@ describe("Progress — loadDrillsDone", () => {
     const { getByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    // Total = 3, classified = 2, unclassified = 1
+    // Total = 3; classified = 2 (corrective + performance from analysis-ok);
+    // one drill (from analysis-fail) can't be attributed — partial-failure
+    // branch fires, showing the caveat note instead of a raw count.
     expect(getByText("3")).toBeTruthy();
-    expect(getByText("+ 1 unclassified")).toBeTruthy();
+    expect(getByText("Some sessions couldn\u2019t be classified")).toBeTruthy();
   });
 
   // ── Test 8 ────────────────────────────────────────────────────────────────
