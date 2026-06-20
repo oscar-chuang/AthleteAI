@@ -297,7 +297,7 @@ ${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto">
     cropY0=Math.max(0,focusNY*H-halfH);
     const x1=Math.min(W,focusNX*W+halfW), y1=Math.min(H,focusNY*H+halfH);
     cropW=x1-cropX0; cropH=y1-cropY0;
-    if(cropW<8){cropX0=0;cropW=W;} if(cropH<8){cropY0=0;cropH=H;}
+    if(cropW<8||cropH<8){ cropX0=0;cropY0=0;cropW=W;cropH=H; post({type:"cropFallback"}); }
   }
   // ── Padded crop bounds (15% margin clamped to video bounds) ─────────────────
   // Used by both snapCrop and lmRemapped so the stored image and landmarks stay in sync.
@@ -574,6 +574,9 @@ export default function SkeletonScreen() {
   const [captures,    setCaptures]    = useState<Capture[]>([]);
   const [scanDone,    setScanDone]    = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
+  const [showCropWarn, setShowCropWarn] = useState(false);
+  const cropWarnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cropWarnFiredRef = useRef(false);
   const scanProgressAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     applyScanProgressAnim(scanProgressAnim, scanProgress, Animated.timing, Easing.linear);
@@ -720,7 +723,11 @@ export default function SkeletonScreen() {
   // Track mount so the biomechanics poll loop never calls setState after unmount.
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; if (pollRef.current) clearTimeout(pollRef.current); };
+    return () => {
+      mountedRef.current = false;
+      if (pollRef.current) clearTimeout(pollRef.current);
+      if (cropWarnTimerRef.current) clearTimeout(cropWarnTimerRef.current);
+    };
   }, []);
 
   // After a scan we PATCH the measured worst-frame data, then poll the analysis
@@ -795,6 +802,14 @@ export default function SkeletonScreen() {
       }
       if (msg.type === "layoutReady") {
         setLayoutReady(true);
+        return;
+      }
+      if (msg.type === "cropFallback") {
+        if (!cropWarnFiredRef.current) {
+          cropWarnFiredRef.current = true;
+          setShowCropWarn(true);
+          cropWarnTimerRef.current = setTimeout(() => setShowCropWarn(false), 4000);
+        }
         return;
       }
       if (msg.type === "progress" || msg.type === "heartbeat") {
@@ -1512,6 +1527,13 @@ export default function SkeletonScreen() {
             : "Waiting for first frame…"}
         </Text>
       </View>
+      {/* Crop fallback warning */}
+      {showCropWarn && (
+        <View style={ss.cropWarnBanner} pointerEvents="none">
+          <Feather name="alert-triangle" size={13} color="#f59e0b" />
+          <Text style={ss.cropWarnText}>Person too far — try moving closer or selecting a more prominent athlete</Text>
+        </View>
+      )}
     </View>
   ) : hero ? (
     <View>
@@ -2177,6 +2199,8 @@ function makeStyles(c: ReturnType<typeof useColors>) {
     scanOverlay:   { position: "absolute", bottom: 16, left: 0, right: 0, alignItems: "center", gap: 5, pointerEvents: "none" } as any,
     scanOverlayTitle: { fontSize: 12, color: "rgba(255,255,255,0.82)", fontFamily: "Inter_600SemiBold", textShadowColor: "#000", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
     scanOverlaySub:   { fontSize: 10, color: "rgba(255,255,255,0.50)", fontFamily: "Inter_400Regular" },
+    cropWarnBanner: { position: "absolute", top: 12, left: 12, right: 12, flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "rgba(15,12,30,0.88)", borderWidth: 1, borderColor: "#f59e0b66", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+    cropWarnText:   { flex: 1, fontSize: 11, color: "#fcd34d", fontFamily: "Inter_400Regular", lineHeight: 16 },
     reselectBtn:   { flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: c.primary, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 9, marginTop: 6 },
     reselectText:  { fontSize: 13, color: "#fff", fontFamily: "Inter_600SemiBold" },
 
