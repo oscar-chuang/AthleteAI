@@ -166,6 +166,13 @@ jest.mock("@/components/analysis/ShareCard", () => ({
   SHARE_CARD_LIGHT: {},
 }));
 
+// index.tsx now imports the home-specific ShareCard as the default export.
+// We expose a plain jest.fn so Scenarios 4 & 5 can inspect its call props.
+jest.mock("@/components/ShareCard", () => ({
+  __esModule: true,
+  default: jest.fn((_props: any) => null),
+}));
+
 jest.mock("react-native-view-shot", () => ({
   captureRef: jest.fn(async () => "file:///tmp/share-card.png"),
 }));
@@ -380,10 +387,10 @@ describe("HomeScreen — share card receives correct props from analysis record"
   let MockShareCard: jest.Mock;
 
   beforeEach(() => {
-    const mod = jest.requireMock("@/components/analysis/ShareCard") as {
-      ShareCard: jest.Mock;
-    };
-    MockShareCard = mod.ShareCard;
+    // index.tsx now uses the home-specific ShareCard (default export from
+    // @/components/ShareCard) with props: sessions, weeklyGoal, streakDays,
+    // sport, topTip — not the analysis-specific card.
+    MockShareCard = jest.requireMock("@/components/ShareCard").default as jest.Mock;
     MockShareCard.mockClear();
 
     mockProfile = {
@@ -405,9 +412,9 @@ describe("HomeScreen — share card receives correct props from analysis record"
     });
   });
 
-  // ── Scenario 4: correct analysis prop ──────────────────────────────────────
+  // ── Scenario 4: correct stat props passed to ShareCard ─────────────────────
 
-  it("passes the latest complete analysis record to ShareCard when the share preview opens", async () => {
+  it("passes sessions, weeklyGoal, streakDays, and sport to ShareCard when the share preview opens", async () => {
     mockAnalysesGet.mockResolvedValue({ tips: [] });
 
     const { getByTestId } = render(<HomeScreen />);
@@ -418,10 +425,10 @@ describe("HomeScreen — share card receives correct props from analysis record"
     await flush();
 
     // ShareCard is rendered in both the off-screen capture view and the modal
-    // preview — at least one call must carry the correct analysis record.
-    const calls = MockShareCard.mock.calls as Array<[{ analysis: typeof ANALYSIS_ROW; topTip?: string }]>;
-    const analysisProps = calls.map(([props]) => props.analysis);
-    expect(analysisProps.some(a => a?.id === ANALYSIS_ROW.id)).toBe(true);
+    // preview — at least one call must carry the correct stat props.
+    const calls = MockShareCard.mock.calls as Array<[{ sessions: number; weeklyGoal: number; streakDays: number; sport: string; topTip?: string }]>;
+    const propsList = calls.map(([props]) => props);
+    expect(propsList.some(p => p?.sessions === 3 && p?.sport === "running")).toBe(true);
   });
 
   // ── Scenario 5: topTip wired through ───────────────────────────────────────
@@ -450,7 +457,7 @@ describe("HomeScreen — share card receives correct props from analysis record"
     await act(async () => { fireEvent.press(getByTestId("goal-share-btn")); });
     await flush();
 
-    const calls = MockShareCard.mock.calls as Array<[{ analysis: typeof ANALYSIS_ROW; topTip?: string }]>;
+    const calls = MockShareCard.mock.calls as Array<[{ topTip?: string }]>;
     const topTipValues = calls.map(([props]) => props.topTip);
     expect(topTipValues.some(t => t === TIP_TITLE)).toBe(true);
   });

@@ -49,7 +49,7 @@ import { toTitleCase } from "@/utils/formatDisplay";
 import { buildDeltaMap } from "@/lib/sessionDelta";
 import { WeekDotRow } from "@/components/WeekDotRow";
 import { captureRef } from "react-native-view-shot";
-import { ShareCard } from "@/components/analysis/ShareCard";
+import ShareCard from "@/components/ShareCard";
 import { HIDDEN_SHARE_CARD_STYLE, SHARE_CARD_CAPTURE_OPTIONS } from "@/utils/shareCardCapture";
 
 const SCORE_KEYS = ["technique", "power", "balance", "consistency", "mobility", "speed"] as const;
@@ -1200,7 +1200,10 @@ export default function HomeScreen() {
           collapsable={false}
         >
           <ShareCard
-            analysis={latestComplete}
+            sessions={thisWeek}
+            weeklyGoal={weeklyGoal}
+            streakDays={streakDays}
+            sport={latestComplete.sport ?? profile?.sport ?? ""}
             topTip={topTip}
           />
         </View>
@@ -1313,7 +1316,10 @@ export default function HomeScreen() {
             {/* Visible card preview */}
             {latestComplete && (
               <ShareCard
-                analysis={latestComplete}
+                sessions={thisWeek}
+                weeklyGoal={weeklyGoal}
+                streakDays={streakDays}
+                sport={latestComplete.sport ?? profile?.sport ?? ""}
                 topTip={topTip}
               />
             )}
