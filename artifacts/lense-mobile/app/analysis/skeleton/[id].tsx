@@ -788,6 +788,12 @@ export default function SkeletonScreen() {
       if (msg.type === "capture" && msg.capture && msg.capture.id) {
         const cap = msg.capture as Capture;
         setCaptures((prev) => (prev.some((c) => c.id === cap.id) ? prev : [...prev, cap]));
+        // A "worst" frame is the canonical representative for a scan. Updating the
+        // hero whenever a new worst-frame arrives ensures a re-scan with better
+        // lighting immediately refreshes the quality badge and banner state.
+        if (cap.kind === "worst") {
+          setHero({ capture: cap, emphasize: cap.joints.slice(0, 2) });
+        }
         return;
       }
       if (msg.type === "scanComplete") {

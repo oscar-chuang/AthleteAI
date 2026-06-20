@@ -922,6 +922,33 @@ describe("scan quality banner — low/medium confidence UI", () => {
     expect(screen.queryByText("Athlete not clearly visible")).toBeNull();
     expect(screen.queryByText(/Some joints weren't fully visible/)).toBeNull();
   });
+
+  it("updates badge to 'High confidence' and removes the low-confidence banner after re-scan", async () => {
+    mockApiGet.mockResolvedValue(resp(false));
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // First scan: low-confidence capture (avg = 0.3 → "low") triggers the warning banner.
+    // Use a distinct id so the dedup check in setCaptures doesn't drop the second capture.
+    emit(qualityCapture(0.3));
+    await flush();
+    emit(scanMsg);
+    await flush();
+
+    expect(screen.getByText("Athlete not clearly visible")).toBeTruthy();
+    expect(screen.queryByText("High confidence")).toBeNull();
+
+    // Second scan: high-confidence capture with a distinct id ("qcap1") so it passes the
+    // dedup guard in setCaptures and the component updates the hero via the worst-frame path.
+    emit({ ...qualityCapture(0.9), capture: { ...qualityCapture(0.9).capture, id: "qcap1" } });
+    await flush();
+    emit(scanMsg);
+    await flush();
+
+    expect(screen.getByText("High confidence")).toBeTruthy();
+    expect(screen.queryByText("Athlete not clearly visible")).toBeNull();
+  });
 });
 
 // ─── Completed-drills — server-side persistence ───────────────────────────────
