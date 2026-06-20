@@ -1126,7 +1126,7 @@ export default function HomeScreen() {
                         style={s.breakdownChip}
                         onPress={(e) => { e.stopPropagation(); router.push(`/analysis/live/${a.id}` as any); }}
                         activeOpacity={0.7}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                       >
                         <Feather name="play" size={9} color={colors.primary} />
                         <Text style={s.breakdownChipText}>Breakdown</Text>

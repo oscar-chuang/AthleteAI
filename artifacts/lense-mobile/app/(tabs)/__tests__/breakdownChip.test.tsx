@@ -291,6 +291,35 @@ describe("HomeScreen — Breakdown chip visibility", () => {
 
   // ── Test 4 ─────────────────────────────────────────────────────────────────
 
+  it("chip is tappable when a DeltaBadge is also present on the same card", async () => {
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key: string) => {
+      if (key === `frameTicks_${SCANNED_ID}`) return FRAME_TICKS_JSON;
+      return null;
+    });
+
+    const { buildDeltaMap } = jest.requireMock("@/lib/sessionDelta") as { buildDeltaMap: jest.Mock };
+    buildDeltaMap.mockReturnValue(
+      new Map([
+        [
+          SCANNED_ID,
+          { jointKey: "leftKnee", direction: "improved", deltaPct: 5, label: "Left Knee" },
+        ],
+      ])
+    );
+
+    mockAnalysesList.mockResolvedValue({ analyses: [SCANNED_ANALYSIS] });
+
+    const { getByTestId } = render(<HomeScreen />);
+    await simulateFocus();
+
+    const chip = getByTestId(`breakdown-chip-${SCANNED_ID}`);
+    expect(chip).toBeTruthy();
+    fireEvent.press(chip, { stopPropagation: jest.fn() });
+    expect(mockRouterPush).toHaveBeenCalledWith(`/analysis/live/${SCANNED_ID}`);
+  });
+
+  // ── Test 5 ─────────────────────────────────────────────────────────────────
+
   it("tapping the chip calls router.push with the correct /analysis/live/<id> path", async () => {
     (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key: string) => {
       if (key === `frameTicks_${SCANNED_ID}`) return FRAME_TICKS_JSON;
