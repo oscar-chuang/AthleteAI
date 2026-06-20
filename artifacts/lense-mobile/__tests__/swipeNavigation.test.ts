@@ -6,6 +6,7 @@ import {
   shouldActivateSwipe,
   resolveSwipeDirection,
   resolveSwipeTranslation,
+  resolveReleaseOutcome,
 } from "../utils/swipeNavigation";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -181,6 +182,70 @@ describe("resolveSwipeDirection — navigation on release", () => {
 
   it("slightly past SWIPE_VELOCITY_THRESHOLD triggers navigation", () => {
     expect(resolveSwipeDirection(0, -(SWIPE_VELOCITY_THRESHOLD + 0.01), "prev-id", "next-id")).toBe("next");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests: spring-back animation target on release (resolveReleaseOutcome)
+//
+// This suite confirms that releasing at a boundary produces { action:
+// "spring-back", toValue: 0 } — the values passed to Animated.spring in
+// PanResponder.onPanResponderRelease (and onPanResponderTerminate) inside
+// app/analysis/[id].tsx.  A wrong outcome here would leave the rubber-banded
+// card stuck off-centre instead of snapping back to origin.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("resolveReleaseOutcome — spring-back at boundaries", () => {
+  it("spring-back: right swipe at left boundary (prevId = null, dx > threshold)", () => {
+    const result = resolveReleaseOutcome(80, 0, null, "next-id");
+    expect(result).toEqual({ action: "spring-back", toValue: 0 });
+  });
+
+  it("spring-back: left swipe at right boundary (nextId = null, dx < -threshold)", () => {
+    const result = resolveReleaseOutcome(-80, 0, "prev-id", null);
+    expect(result).toEqual({ action: "spring-back", toValue: 0 });
+  });
+
+  it("spring-back: right flick at left boundary via velocity alone", () => {
+    const result = resolveReleaseOutcome(10, 0.6, null, "next-id");
+    expect(result).toEqual({ action: "spring-back", toValue: 0 });
+  });
+
+  it("spring-back: left flick at right boundary via velocity alone", () => {
+    const result = resolveReleaseOutcome(-10, -0.6, "prev-id", null);
+    expect(result).toEqual({ action: "spring-back", toValue: 0 });
+  });
+
+  it("spring-back: gesture below both thresholds mid-list (no boundary)", () => {
+    const result = resolveReleaseOutcome(-30, -0.2, "prev-id", "next-id");
+    expect(result).toEqual({ action: "spring-back", toValue: 0 });
+  });
+
+  it("spring-back: both IDs null, right swipe exceeds threshold", () => {
+    const result = resolveReleaseOutcome(80, 0, null, null);
+    expect(result).toEqual({ action: "spring-back", toValue: 0 });
+  });
+
+  it("spring-back: both IDs null, left flick exceeds velocity threshold", () => {
+    const result = resolveReleaseOutcome(-10, -0.6, null, null);
+    expect(result).toEqual({ action: "spring-back", toValue: 0 });
+  });
+
+  it("spring-back toValue is exactly 0 (the Animated.spring toValue)", () => {
+    const result = resolveReleaseOutcome(80, 0, null, "next-id");
+    if (result.action === "spring-back") {
+      expect(result.toValue).toBe(0);
+    }
+  });
+
+  it("navigate-next when left swipe exceeds threshold and nextId exists (not spring-back)", () => {
+    const result = resolveReleaseOutcome(-80, 0, "prev-id", "next-id");
+    expect(result).toEqual({ action: "navigate-next" });
+  });
+
+  it("navigate-prev when right swipe exceeds threshold and prevId exists (not spring-back)", () => {
+    const result = resolveReleaseOutcome(80, 0, "prev-id", "next-id");
+    expect(result).toEqual({ action: "navigate-prev" });
   });
 });
 

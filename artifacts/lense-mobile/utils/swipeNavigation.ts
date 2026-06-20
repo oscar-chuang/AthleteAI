@@ -52,6 +52,35 @@ export function resolveSwipeDirection(
 }
 
 /**
+ * Maps the outcome of a pan-responder release to a typed action.
+ *
+ * - "navigate-next" / "navigate-prev" → slide the card off-screen then route.
+ * - "spring-back" → animate back to toValue 0 (rubber-band snap).
+ *   This is the path taken when the user releases at a boundary (prevId = null
+ *   with a rightward drag, or nextId = null with a leftward drag) or when the
+ *   gesture simply did not exceed the navigation thresholds.
+ *
+ * Mirrors the if/else tree in PanResponder.onPanResponderRelease in
+ * app/analysis/[id].tsx, and is also used for onPanResponderTerminate.
+ */
+export type ReleaseOutcome =
+  | { action: "navigate-next" }
+  | { action: "navigate-prev" }
+  | { action: "spring-back"; toValue: 0 };
+
+export function resolveReleaseOutcome(
+  dx: number,
+  vx: number,
+  prevId: string | null,
+  nextId: string | null,
+): ReleaseOutcome {
+  const direction = resolveSwipeDirection(dx, vx, prevId, nextId);
+  if (direction === "next") return { action: "navigate-next" };
+  if (direction === "prev") return { action: "navigate-prev" };
+  return { action: "spring-back", toValue: 0 };
+}
+
+/**
  * Returns the animated translation value to apply during a pan move.
  * Applies rubber-band resistance (× 0.18) when the user swipes toward a
  * boundary that has no adjacent session.
