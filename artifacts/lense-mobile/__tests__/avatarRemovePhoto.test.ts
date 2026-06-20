@@ -371,4 +371,35 @@ describe("profile settings — crop cancel rollback on handleCropCancel", () => 
     expect(state.cropVisible).toBe(false);
     expect(state.avatarUrl).toBe(EXISTING_AVATAR);
   });
+
+  // ── Test 6 ──────────────────────────────────────────────────────────────────
+
+  it("stays in a consistent idle state after cancelling twice in a row (pick → cancel → pick → cancel)", () => {
+    const SECOND_PENDING_URI = "file:///tmp/picked-photo-2.jpg";
+
+    const { state, handleCropCancel } = makeCropCancelMachine(
+      EXISTING_AVATAR,
+      PENDING_URI,
+    );
+
+    // ── First pick + cancel ──────────────────────────────────────────────────
+    handleCropCancel();
+
+    expect(state.cropVisible).toBe(false);
+    expect(state.pendingImageUri).toBeNull();
+    expect(state.avatarUrl).toBe(EXISTING_AVATAR);
+
+    // ── Simulate the user immediately picking a new photo again ───────────────
+    // (mirrors what the image picker callback does: set a new pending URI and
+    //  re-open the crop modal before the user confirms or cancels)
+    state.cropVisible = true;
+    state.pendingImageUri = SECOND_PENDING_URI;
+
+    // ── Second cancel ────────────────────────────────────────────────────────
+    handleCropCancel();
+
+    expect(state.cropVisible).toBe(false);
+    expect(state.pendingImageUri).toBeNull();
+    expect(state.avatarUrl).toBe(EXISTING_AVATAR);
+  });
 });
