@@ -311,4 +311,64 @@ describe("ProgressScreen — filter-scoped empty state (sport/period filter excl
     await waitFor(() => expect(queryAllByText(/No sessions in this period/).length).toBe(0));
     expect(queryByText("Show All Time")).toBeNull();
   });
+
+  // ── Test 6 ───────────────────────────────────────────────────────────────────
+  //
+  // Sport-filter path: selecting a sport with no matching sessions renders the
+  // "No <Sport> sessions" message.  This catches regressions in toTitleCase()
+  // or the conditional sport-prefix logic at line 1718 of progress.tsx.
+
+  it("shows 'No Cycling sessions' when the Cycling sport pill is pressed but only running entries exist", async () => {
+    // One recent "running" entry — within every rolling-window period so the
+    // sport filter, not the period filter, is what empties filteredEntries.
+    const RUNNING_ENTRY_RECENT = {
+      id:               "s1",
+      userId:           "u1",
+      analysisId:       "a1",
+      date:             new Date().toISOString(),
+      sport:            "running",
+      overallScore:     74,
+      techniqueScore:   70,
+      powerScore:       72,
+      balanceScore:     68,
+      consistencyScore: 75,
+      mobilityScore:    80,
+      speedScore:       65,
+    };
+
+    mockProgressList.mockResolvedValue({ entries: [RUNNING_ENTRY_RECENT] });
+    mockAchievementsList.mockResolvedValue(EMPTY_ACHIEVEMENTS);
+
+    // Two sports returned so the sport-pill row renders (requires >= 2).
+    // cycling has count 0 — no entries exist for it.
+    mockProgressSports.mockResolvedValue({
+      sports: [
+        { sport: "running", count: 1 },
+        { sport: "cycling", count: 0 },
+      ],
+    });
+
+    const { getByText, queryAllByText, queryByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // Wait for load to settle; primary empty state must be absent (data loaded).
+    await waitForLoaded(queryByText);
+    expect(queryByText(EMPTY_STATE_TEXT)).toBeNull();
+
+    // Press the "Cycling" sport pill — raw string is "cycling" (textTransform
+    // is a CSS-only visual transform; RNTL matches the JS string).
+    await act(async () => {
+      fireEvent.press(getByText("cycling"));
+    });
+
+    // filteredEntries is now empty (no cycling entries).
+    // The session-log empty-state card must show the sport-prefixed message.
+    await waitFor(() =>
+      expect(queryAllByText(/No Cycling sessions/).length).toBeGreaterThan(0),
+    );
+
+    // The running session's data (overallScore 74) must no longer be visible —
+    // confirms filteredEntries.length === 0 (session-log cards are gone).
+    expect(queryByText("74")).toBeNull();
+  });
 });
