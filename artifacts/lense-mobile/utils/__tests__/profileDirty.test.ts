@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { buildSnapshot, computeIsDirty } from "../profileDirty";
+import { buildSnapshot, computeIsDirty, type ProfileSnapshot } from "../profileDirty";
+
+const ALL_SNAPSHOT_KEYS: Array<keyof ProfileSnapshot> = [
+  "name",
+  "sport",
+  "level",
+  "goals",
+  "injuries",
+];
 
 const base = {
   name: "Alex Smith",
@@ -10,6 +18,13 @@ const base = {
 };
 
 describe("buildSnapshot", () => {
+  it("includes every key declared in ProfileSnapshot", () => {
+    const parsed = JSON.parse(buildSnapshot(base));
+    for (const key of ALL_SNAPSHOT_KEYS) {
+      expect(parsed).toHaveProperty(key);
+    }
+  });
+
   it("returns a stable JSON string", () => {
     const s = buildSnapshot(base);
     expect(typeof s).toBe("string");
