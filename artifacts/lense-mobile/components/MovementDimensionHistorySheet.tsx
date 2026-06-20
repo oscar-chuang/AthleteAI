@@ -22,6 +22,14 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { type MovementSummaryDataPoint } from "@/lib/api";
 
+const DIMENSION_DESC: Partial<Record<string, string>> = {
+  flowScore:        "How smoothly your body transitions between positions",
+  efficiencyScore:  "How little wasted energy goes into each movement",
+  bodyControlScore: "How precisely you manage your body through each motion",
+  consistencyScore: "How repeatable your technique is from rep to rep",
+  rhythmScore:      "How well your timing and cadence match ideal patterns",
+};
+
 const SCORE_BANDS = [
   { min: 85, label: "Elite" },
   { min: 70, label: "Advanced" },
@@ -237,10 +245,23 @@ export default function MovementDimensionHistorySheet({
               marginBottom: 14,
             }}
           >
-            <View>
+            <View style={{ flex: 1, marginRight: 12 }}>
               <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#f1f1fa" }}>
                 {label}
               </Text>
+              {DIMENSION_DESC[dimensionKey as string] && (
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontFamily: "Inter_400Regular",
+                    color: "#8888aa",
+                    marginTop: 2,
+                    lineHeight: 15,
+                  }}
+                >
+                  {DIMENSION_DESC[dimensionKey as string]}
+                </Text>
+              )}
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
                 <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color }}>
                   {filteredData.length > 0 ? Math.round(latest) : "—"}

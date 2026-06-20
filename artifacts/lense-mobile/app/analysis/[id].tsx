@@ -43,13 +43,16 @@ import {
   analyses as analysesApi,
   profile as profileApi,
   jointTrends as jointTrendsApi,
+  movementSummaryHistory as movementSummaryHistoryApi,
   type AnalysisRecord,
   type TipRecord,
   type RiskRecord,
   type JointTrendsResponse,
+  type MovementSummaryDataPoint,
 } from "@/lib/api";
 import { useAuth } from "@/lib/authContext";
 import JointHistorySheet from "@/components/JointHistorySheet";
+import MovementDimensionHistorySheet from "@/components/MovementDimensionHistorySheet";
 import { ScoreRing } from "@/components/ScoreRing";
 import { ScoreCard, getScoreBand } from "@/components/analysis/ScoreCard";
 import { SectionHeader } from "@/components/analysis/SectionHeader";
@@ -373,6 +376,12 @@ export default function AnalysisDetailScreen() {
   const [pollExhausted, setPollExhausted] = useState(false);
   const [historyJoint, setHistoryJoint] = useState<string | null>(null);
   const [jointTrendsData, setJointTrendsData] = useState<JointTrendsResponse | null>(null);
+  const [movementHistory, setMovementHistory] = useState<MovementSummaryDataPoint[]>([]);
+  const [selectedMovementDim, setSelectedMovementDim] = useState<{
+    key: keyof MovementSummaryDataPoint;
+    label: string;
+    color: string;
+  } | null>(null);
   const [sharing, setSharing] = useState(false);
   const [sharingUnavailable, setSharingUnavailable] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -495,6 +504,15 @@ export default function AnalysisDetailScreen() {
       setSiblingIds(ordered);
     }).catch(() => {});
   }, []);
+
+  // Fetch movement quality history scoped to this session's sport once the
+  // analysis is known, so multi-sport athletes only see same-sport trends.
+  useEffect(() => {
+    if (!analysis) return;
+    movementSummaryHistoryApi.get(analysis.sport).then(({ history }) => {
+      setMovementHistory(history);
+    }).catch(() => {});
+  }, [analysis?.sport]);
 
   const { currIndex, prevId, nextId } = resolveAdjacentIds(siblingIds, id);
 
@@ -1721,13 +1739,19 @@ export default function AnalysisDetailScreen() {
             <SectionHeader title="Movement Quality" icon="activity" accentColor="#00C2FF" />
             <View style={styles.movementQualityRow}>
               {([
-                { label: "Flow",        score: analysis.movementSummary.flowScore,        color: "#00C2FF" },
-                { label: "Efficiency",  score: analysis.movementSummary.efficiencyScore,  color: "#1DB954" },
-                { label: "Control",     score: analysis.movementSummary.bodyControlScore, color: "#FF6B35" },
-                { label: "Consistency", score: analysis.movementSummary.consistencyScore, color: "#06b6d4" },
-                { label: "Rhythm",      score: analysis.movementSummary.rhythmScore,      color: "#00C2FF" },
-              ] as const).map(({ label, score, color }) => (
-                <View key={label} style={styles.movementQualityCell}>
+                { label: "Flow",        key: "flowScore" as keyof MovementSummaryDataPoint,        score: analysis.movementSummary.flowScore,        color: "#00C2FF" },
+                { label: "Efficiency",  key: "efficiencyScore" as keyof MovementSummaryDataPoint,  score: analysis.movementSummary.efficiencyScore,  color: "#1DB954" },
+                { label: "Control",     key: "bodyControlScore" as keyof MovementSummaryDataPoint, score: analysis.movementSummary.bodyControlScore, color: "#FF6B35" },
+                { label: "Consistency", key: "consistencyScore" as keyof MovementSummaryDataPoint, score: analysis.movementSummary.consistencyScore, color: "#06b6d4" },
+                { label: "Rhythm",      key: "rhythmScore" as keyof MovementSummaryDataPoint,      score: analysis.movementSummary.rhythmScore,      color: "#00C2FF" },
+              ]).map(({ label, key, score, color }) => (
+                <TouchableOpacity
+                  key={label}
+                  style={styles.movementQualityCell}
+                  onPress={() => setSelectedMovementDim({ key, label, color })}
+                  activeOpacity={0.75}
+                  testID={`movement-dim-${label.toLowerCase()}`}
+                >
                   <ScoreRing
                     score={score}
                     size={64}
@@ -1737,7 +1761,7 @@ export default function AnalysisDetailScreen() {
                   <Text style={[styles.movementQualityLabel, { color: colors.mutedForeground }]}>
                     {label}
                   </Text>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           </View>
@@ -2114,6 +2138,47 @@ export default function AnalysisDetailScreen() {
           onClose={() => setHistoryJoint(null)}
         />
       )}
+
+      {/* ── Movement Dimension History Sheet ── */}
+      {selectedMovementDim && analysis && (() => {
+        const sortedHistory = [...movementHistory].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+        // Anchor the trend window to the current analysis so viewing an older
+        // session shows that session's score vs its own prior 2 sessions, not
+        // unrelated newer sessions.
+        const currentIdx = id ? sortedHistory.findIndex((p) => p.analysisId === id) : -1;
+        let windowHistory: MovementSummaryDataPoint[];
+        if (currentIdx >= 0) {
+          windowHistory = sortedHistory.slice(Math.max(0, currentIdx - 2), currentIdx + 1);
+        } else if (analysis.movementSummary && id) {
+          // Current session not yet in history (e.g. movementSummary just generated):
+          // inject it as a synthetic tail point so the sheet always reflects the viewed session.
+          const syntheticPoint: MovementSummaryDataPoint = {
+            analysisId: id,
+            date: analysis.uploadedAt,
+            sport: analysis.sport ?? "",
+            flowScore:        analysis.movementSummary.flowScore,
+            efficiencyScore:  analysis.movementSummary.efficiencyScore,
+            bodyControlScore: analysis.movementSummary.bodyControlScore,
+            consistencyScore: analysis.movementSummary.consistencyScore,
+            rhythmScore:      analysis.movementSummary.rhythmScore,
+            overallScore:     analysis.movementSummary.overallScore,
+          };
+          windowHistory = [...sortedHistory.slice(-2), syntheticPoint];
+        } else {
+          windowHistory = sortedHistory.slice(-3);
+        }
+        return (
+          <MovementDimensionHistorySheet
+            dimensionKey={selectedMovementDim.key}
+            label={selectedMovementDim.label}
+            color={selectedMovementDim.color}
+            data={windowHistory}
+            onClose={() => setSelectedMovementDim(null)}
+          />
+        );
+      })()}
 
       {/* ── Goal reached confetti burst ── */}
       {showConfetti && (

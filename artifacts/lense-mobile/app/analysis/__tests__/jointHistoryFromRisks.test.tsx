@@ -134,6 +134,7 @@ jest.mock("@/lib/api", () => ({
   drills: {
     list: jest.fn().mockResolvedValue({ drills: [] }),
   },
+  movementSummaryHistory: { get: jest.fn().mockResolvedValue({ history: [] }) },
 }));
 
 /**
