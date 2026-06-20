@@ -72,6 +72,7 @@ const PENDING_CHAT_KEY = "pendingChatMessage";
 const SWIPE_HINT_SEEN_KEY = "swipe_hint_seen";
 const LAST_SHARE_ACTION_KEY = "lastShareAction";
 const SHARE_CARD_SCHEME_KEY = "shareCardScheme";
+const SHARE_TIP_KEY_PREFIX = "shareTip_";
 
 // Module-level: tracks which analysis IDs have already completed their first ring animation.
 // Persists across component re-mounts (session navigation), so switching sessions and coming
@@ -391,7 +392,8 @@ export default function AnalysisDetailScreen() {
   }, []);
   const shareCardRef = useRef<View>(null);
   // Remembers the last tip the user picked on the share sheet, keyed by analysis ID.
-  // Survives modal close/reopen within the same screen session; not persisted across restarts.
+  // Survives modal close/reopen within the same screen session; also persisted to AsyncStorage
+  // (key: "shareTip_<id>") so the choice is restored after app restarts.
   const shareTipMemoryRef = useRef<Record<string, string | null>>({});
   const {
     showSharePreview,
@@ -661,12 +663,17 @@ export default function AnalysisDetailScreen() {
     router.push("/(tabs)/chat" as any);
   }
 
-  function handleShare() {
+  async function handleShare() {
     if (!analysis) return;
-    // Use the previously chosen tip for this analysis if the user has already picked one;
-    // otherwise fall back to the highest-severity tip.
-    const remembered = shareTipMemoryRef.current[analysis.id];
-    const initialTip = remembered !== undefined ? remembered : (topTip?.id ?? null);
+    // Prefer the AsyncStorage-persisted tip for this analysis (survives restarts);
+    // fall back to the in-session memory ref, then to the highest-severity tip.
+    let initialTip: string | null;
+    try {
+      const stored = await AsyncStorage.getItem(`${SHARE_TIP_KEY_PREFIX}${analysis.id}`);
+      initialTip = stored ?? shareTipMemoryRef.current[analysis.id] ?? (topTip?.id ?? null);
+    } catch {
+      initialTip = shareTipMemoryRef.current[analysis.id] ?? (topTip?.id ?? null);
+    }
     setSelectedShareTipId(initialTip);
     setSharingUnavailable(false);
     _openSharePreview();
@@ -1252,6 +1259,7 @@ export default function AnalysisDetailScreen() {
                           setSelectedShareTipId(tip.id);
                           if (analysis) {
                             shareTipMemoryRef.current[analysis.id] = tip.id;
+                            AsyncStorage.setItem(`${SHARE_TIP_KEY_PREFIX}${analysis.id}`, tip.id).catch(() => {});
                           }
                         }}
                         activeOpacity={0.7}

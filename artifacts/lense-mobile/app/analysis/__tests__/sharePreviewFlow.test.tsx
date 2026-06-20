@@ -8,6 +8,8 @@
  *      captureRef or Sharing.shareAsync.
  *   3. Tapping the modal's Share CTA calls captureRef exactly once, then
  *      Sharing.shareAsync exactly once, and finally closes the modal.
+ *   4. The last-chosen share tip is persisted to AsyncStorage (keyed by
+ *      analysis ID) so it survives app restarts.
  *
  * Strategy:
  *   - Render the real AnalysisDetailScreen with a complete analysis fixture.
@@ -531,5 +533,104 @@ describe("AnalysisDetailScreen — share preview modal", () => {
     // After reopen the ShareCard must still receive the remembered (warning) tip,
     // not fall back to the default critical tip.
     expect(lastShareCardTopTip).toBe("Watch your lower back");
+  });
+});
+
+// ─── AsyncStorage persistence tests ───────────────────────────────────────────
+
+const TWO_TIPS = [
+  {
+    id:          "tip-critical",
+    tipType:     "performance",
+    category:    "form",
+    severity:    "critical",
+    title:       "Fix your knee alignment",
+    description: "Your knee tracks inward during the squat.",
+  },
+  {
+    id:          "tip-warning",
+    tipType:     "injury",
+    category:    "safety",
+    severity:    "warning",
+    title:       "Watch your lower back",
+    description: "Slight rounding detected in the lumbar region.",
+  },
+];
+
+describe("AnalysisDetailScreen — share tip AsyncStorage persistence", () => {
+  // Grab the AsyncStorage mock so each test can inspect or override it.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const AsyncStorageMock = require("@react-native-async-storage/async-storage").default as {
+    getItem:    jest.Mock;
+    setItem:    jest.Mock;
+    removeItem: jest.Mock;
+  };
+
+  beforeEach(() => {
+    AsyncStorageMock.getItem.mockReset();
+    AsyncStorageMock.setItem.mockReset();
+    AsyncStorageMock.getItem.mockResolvedValue(null);
+    AsyncStorageMock.setItem.mockResolvedValue(undefined);
+
+    mockAnalysesGet.mockResolvedValue({
+      analysis:    COMPLETE_ANALYSIS,
+      tips:        TWO_TIPS,
+      injuryRisks: [],
+    });
+  });
+
+  it("writes the chosen tip ID to AsyncStorage when the picker is tapped", async () => {
+    render(<AnalysisDetailScreen />);
+    await simulateFocus();
+
+    // Open share modal.
+    fireEvent.press(screen.getByRole("button", { name: "Share analysis" }));
+    await flush();
+
+    expect(screen.getByText("Share your session")).toBeTruthy();
+
+    // Pick the warning tip from the picker.
+    fireEvent.press(screen.getByTestId("tip-picker-tip-warning"));
+    await flush();
+
+    // AsyncStorage must have been written with the correct key and tip ID.
+    expect(AsyncStorageMock.setItem).toHaveBeenCalledWith(
+      "shareTip_share-test-1",
+      "tip-warning",
+    );
+  });
+
+  it("reads the persisted tip from AsyncStorage on handleShare open and pre-selects it", async () => {
+    // Simulate AsyncStorage already holding the warning tip from a previous session.
+    AsyncStorageMock.getItem.mockImplementation(async (key: string) => {
+      if (key === "shareTip_share-test-1") return "tip-warning";
+      return null;
+    });
+
+    render(<AnalysisDetailScreen />);
+    await simulateFocus();
+
+    // Open the share preview — handleShare() reads AsyncStorage before rendering.
+    fireEvent.press(screen.getByRole("button", { name: "Share analysis" }));
+    await flush();
+
+    expect(screen.getByText("Share your session")).toBeTruthy();
+
+    // ShareCard must display the persisted warning tip, not the default critical tip.
+    expect(lastShareCardTopTip).toBe("Watch your lower back");
+  });
+
+  it("falls back to the highest-severity tip when AsyncStorage has no entry", async () => {
+    // getItem returns null (default mock) — no prior persistence.
+    render(<AnalysisDetailScreen />);
+    await simulateFocus();
+
+    fireEvent.press(screen.getByRole("button", { name: "Share analysis" }));
+    await flush();
+
+    expect(screen.getByText("Share your session")).toBeTruthy();
+
+    // The critical tip is the default (highest severity = index 0).
+    expect(lastShareCardTopTip).toBe("Fix your knee alignment");
   });
 });
