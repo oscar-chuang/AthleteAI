@@ -11,7 +11,7 @@ import {
   RefreshControl,
   Pressable,
 } from "react-native";
-import Svg, { Line, Path, Polyline, Circle, Text as SvgText } from "react-native-svg";
+import Svg, { Line, Path, Polyline, Circle, Text as SvgText, Rect, G } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
@@ -195,6 +195,9 @@ export default function ProgressScreen() {
   const [error, setError] = useState(false);
   const [selectedJoint, setSelectedJoint] = useState<string | null>(null);
   const [selectedDimension, setSelectedDimension] = useState<(typeof MOVEMENT_DIMENSIONS)[number] | null>(null);
+  const [compareTooltip, setCompareTooltip] = useState<{
+    x: number; y: number; date: string; score: number; series: "A" | "B"; id: string;
+  } | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
@@ -365,7 +368,13 @@ export default function ProgressScreen() {
     setSelectedMovementType(null);
     setCompareMode(false);
     setCompareMovementType(null);
+    setCompareTooltip(null);
   }, [selectedSport]);
+
+  // Dismiss tooltip when compare selection changes
+  useEffect(() => {
+    setCompareTooltip(null);
+  }, [selectedMovementType, compareMovementType, activeMetric, period]);
 
   // Scroll to trends on deep-link
   useEffect(() => {
@@ -689,6 +698,7 @@ export default function ProgressScreen() {
                 onPress={() => {
                   const next = !compareMode;
                   setCompareMode(next);
+                  setCompareTooltip(null);
                   if (next) {
                     // Entering compare: ensure a primary movement is selected
                     if (!selectedMovementType && availableMovementTypes.length >= 1) {
@@ -1206,31 +1216,87 @@ export default function ProgressScreen() {
                         />
                       )}
 
-                      {/* Dots A */}
-                      {ptsA.map((p, i) => (
-                        <Circle
-                          key={`a${i}`}
-                          cx={ptsA.length === 1 ? chartWidth / 2 : p.x}
-                          cy={ptsA.length === 1 ? CHART_H / 2 : p.y}
-                          r={i === ptsA.length - 1 ? 6 : 4}
-                          fill={i === ptsA.length - 1 ? accentColor : accentColor + "aa"}
-                          stroke={i === ptsA.length - 1 ? colors.card : "none"}
-                          strokeWidth={i === ptsA.length - 1 ? 2 : 0}
-                        />
-                      ))}
+                      {/* Dots A — tappable */}
+                      {ptsA.map((p, i) => {
+                        const entry = filteredEntries[i]!;
+                        const cx = ptsA.length === 1 ? chartWidth / 2 : p.x;
+                        const cy = ptsA.length === 1 ? CHART_H / 2 : p.y;
+                        const isLast = i === ptsA.length - 1;
+                        return (
+                          <G
+                            key={`a${i}`}
+                            onPress={() => setCompareTooltip({ x: cx, y: cy, date: entry.date, score: p.v, series: "A", id: entry.id })}
+                          >
+                            <Circle cx={cx} cy={cy} r={18} fill="transparent" />
+                            <Circle
+                              cx={cx} cy={cy}
+                              r={isLast ? 6 : 4}
+                              fill={isLast ? accentColor : accentColor + "aa"}
+                              stroke={isLast ? colors.card : "none"}
+                              strokeWidth={isLast ? 2 : 0}
+                            />
+                          </G>
+                        );
+                      })}
 
-                      {/* Dots B */}
-                      {ptsB.map((p, i) => (
-                        <Circle
-                          key={`b${i}`}
-                          cx={ptsB.length === 1 ? chartWidth / 2 : p.x}
-                          cy={ptsB.length === 1 ? CHART_H / 2 : p.y}
-                          r={i === ptsB.length - 1 ? 6 : 4}
-                          fill={i === ptsB.length - 1 ? COMPARE_COLOR_B : COMPARE_COLOR_B + "aa"}
-                          stroke={i === ptsB.length - 1 ? colors.card : "none"}
-                          strokeWidth={i === ptsB.length - 1 ? 2 : 0}
-                        />
-                      ))}
+                      {/* Dots B — tappable */}
+                      {ptsB.map((p, i) => {
+                        const entry = compareEntries[i]!;
+                        const cx = ptsB.length === 1 ? chartWidth / 2 : p.x;
+                        const cy = ptsB.length === 1 ? CHART_H / 2 : p.y;
+                        const isLast = i === ptsB.length - 1;
+                        return (
+                          <G
+                            key={`b${i}`}
+                            onPress={() => setCompareTooltip({ x: cx, y: cy, date: entry.date, score: p.v, series: "B", id: entry.id })}
+                          >
+                            <Circle cx={cx} cy={cy} r={18} fill="transparent" />
+                            <Circle
+                              cx={cx} cy={cy}
+                              r={isLast ? 6 : 4}
+                              fill={isLast ? COMPARE_COLOR_B : COMPARE_COLOR_B + "aa"}
+                              stroke={isLast ? colors.card : "none"}
+                              strokeWidth={isLast ? 2 : 0}
+                            />
+                          </G>
+                        );
+                      })}
+
+                      {/* Tooltip — shown on dot tap */}
+                      {compareTooltip && (() => {
+                        const tt = compareTooltip;
+                        const ttColor = tt.series === "A" ? accentColor : COMPARE_COLOR_B;
+                        const boxW = 118;
+                        const boxH = 56;
+                        const boxX = Math.min(Math.max(tt.x - boxW / 2, 2), chartWidth - boxW - 2);
+                        const boxY = tt.y - boxH - 14 < 0 ? tt.y + 14 : tt.y - boxH - 14;
+                        return (
+                          <G>
+                            {/* Dismiss overlay — full chart, drawn first (underneath bubble) */}
+                            <Rect
+                              x={0} y={0} width={chartWidth} height={CHART_H}
+                              fill="transparent"
+                              onPress={() => setCompareTooltip(null)}
+                            />
+                            {/* Bubble — drawn on top; its own G handles navigation */}
+                            <G onPress={() => router.push(`/analysis/${tt.id}` as any)}>
+                              <Rect x={boxX} y={boxY} width={boxW} height={boxH} rx={8} fill={colors.card} stroke={ttColor} strokeWidth={1.5} />
+                              <SvgText x={boxX + boxW / 2} y={boxY + 15} fontSize={10} fill={ttColor} fontFamily="Inter_600SemiBold" textAnchor="middle">
+                                {tt.series === "A" ? selectedMovementType : compareMovementType}
+                              </SvgText>
+                              <SvgText x={boxX + boxW / 2} y={boxY + 30} fontSize={17} fill={colors.foreground} fontFamily="Inter_700Bold" textAnchor="middle">
+                                {Math.round(tt.score)}
+                              </SvgText>
+                              <SvgText x={boxX + boxW / 2} y={boxY + 43} fontSize={9} fill={colors.mutedForeground} fontFamily="Inter_400Regular" textAnchor="middle">
+                                {formatDate(tt.date)}
+                              </SvgText>
+                              <SvgText x={boxX + boxW / 2} y={boxY + 54} fontSize={8} fill={ttColor} fontFamily="Inter_500Medium" textAnchor="middle">
+                                Tap to view session →
+                              </SvgText>
+                            </G>
+                          </G>
+                        );
+                      })()}
                     </Svg>
 
                     {/* Date range label */}
