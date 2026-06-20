@@ -375,6 +375,122 @@ describe("home screen — confetti fires exactly once when weekly goal is crosse
   });
 });
 
+// ── Week-rollover / auto-reset tests ───────────────────────────────────────────
+//
+// These tests model the scenario where the server's GET /profile auto-reset
+// clears weeklyGoalCelebratedAt when a new ISO week starts.  The client
+// receives null (or a stale prior-week key) for serverCelebratedWeekKey, and
+// the new weekKey means all prior-week AsyncStorage keys are irrelevant.
+
+describe("confetti gate resets correctly when a new week arrives", () => {
+  const PREV_WEEK_KEY = "2026-06-08"; // the week that just ended
+  const NEW_WEEK_KEY  = "2026-06-15"; // the week that just started
+  const WEEKLY_GOAL   = 3;
+
+  let storage: AsyncStorageLike;
+  let store:   Record<string, string>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let fetchStats: any;
+
+  beforeEach(() => {
+    ({ storage, store } = makeFakeStorage());
+    fetchStats = vi.fn();
+  });
+
+  // ── Rollover test 1 ──────────────────────────────────────────────────────────
+  // The previous week's celebrated flag lives under the OLD weekKey and must
+  // have zero effect on the new week's gate — the keys don't overlap.
+
+  it("old week's celebrated flag (different weekKey) does not suppress confetti in the new week", async () => {
+    // Simulate leftover storage from the previous week.
+    store[`confetti_celebrated_${PREV_WEEK_KEY}`]  = "true";
+    store[`confetti_prev_count_${PREV_WEEK_KEY}`]  = "3";
+
+    // Load 1 of the new week: 2 sessions — below goal; storage for NEW_WEEK_KEY is empty.
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 2 });
+    const load1 = await simulateLoadDataConfetti(
+      fetchStats, WEEKLY_GOAL, NEW_WEEK_KEY, storage,
+      null, // server auto-reset → null
+    );
+    expect(load1).toBe(false);
+    // A snapshot must have been written for the new week.
+    expect(store[`confetti_prev_count_${NEW_WEEK_KEY}`]).toBe("2");
+
+    // Load 2: 3 sessions — goal just crossed; confetti MUST fire.
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 3 });
+    const load2 = await simulateLoadDataConfetti(
+      fetchStats, WEEKLY_GOAL, NEW_WEEK_KEY, storage,
+      null,
+    );
+    expect(load2).toBe(true);
+    expect(store[`confetti_celebrated_${NEW_WEEK_KEY}`]).toBe("true");
+
+    // Old week flags must be untouched.
+    expect(store[`confetti_celebrated_${PREV_WEEK_KEY}`]).toBe("true");
+
+    expect(fetchStats).toHaveBeenCalledTimes(2);
+  });
+
+  // ── Rollover test 2 ──────────────────────────────────────────────────────────
+  // Server auto-reset has cleared weeklyGoalCelebratedAt (returns null).
+  // Even if the local store is completely empty for the new week, the gate
+  // must allow confetti once the goal is crossed.
+
+  it("gate allows confetti in the new week when server returns null (auto-reset cleared the flag)", async () => {
+    // No leftover storage at all — clean install or first week.
+    // Load 1: already at the goal on first load → no prevCount → justCrossed=false → no fire.
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 3 });
+    const firstLoad = await simulateLoadDataConfetti(
+      fetchStats, WEEKLY_GOAL, NEW_WEEK_KEY, storage,
+      null, // server auto-reset → null
+    );
+    expect(firstLoad).toBe(false);
+    // Snapshot written; next load can detect a crossing if count rises.
+    expect(store[`confetti_prev_count_${NEW_WEEK_KEY}`]).toBe("3");
+
+    // Load 2: a new upload pushes count above goal again (e.g. goal was raised
+    // and re-crossed).  The gate's pending-flag path should still be respected.
+    store[`confetti_pending_${NEW_WEEK_KEY}`] = "true";
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 4 });
+    const load2 = await simulateLoadDataConfetti(
+      fetchStats, WEEKLY_GOAL, NEW_WEEK_KEY, storage,
+      null,
+    );
+    expect(load2).toBe(true);
+    expect(store[`confetti_celebrated_${NEW_WEEK_KEY}`]).toBe("true");
+
+    expect(fetchStats).toHaveBeenCalledTimes(2);
+  });
+
+  // ── Rollover test 3 ──────────────────────────────────────────────────────────
+  // Server still returns the CURRENT week key (celebration already recorded
+  // this week via a different device / same session before reinstall).
+  // Gate must block confetti regardless of the new weekKey.
+
+  it("gate blocks confetti in the new week when server has already recorded this week's celebration", async () => {
+    // Server was updated this week (e.g. from another device).
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 3 });
+    const fired = await simulateLoadDataConfetti(
+      fetchStats, WEEKLY_GOAL, NEW_WEEK_KEY, storage,
+      NEW_WEEK_KEY, // server recorded celebration for this exact new week
+    );
+    expect(fired).toBe(false);
+
+    // Local celebrated flag must have been written for future loads.
+    expect(store[`confetti_celebrated_${NEW_WEEK_KEY}`]).toBe("true");
+
+    // A follow-up load (no server round-trip) must also be blocked.
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 3 });
+    const load2 = await simulateLoadDataConfetti(
+      fetchStats, WEEKLY_GOAL, NEW_WEEK_KEY, storage,
+      NEW_WEEK_KEY,
+    );
+    expect(load2).toBe(false);
+
+    expect(fetchStats).toHaveBeenCalledTimes(2);
+  });
+});
+
 // ── Server-sync durability tests ───────────────────────────────────────────────
 
 describe("persistCelebrationToServer + retryCelebrationSync", () => {
