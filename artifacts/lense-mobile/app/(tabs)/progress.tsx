@@ -904,15 +904,16 @@ export default function ProgressScreen() {
                     <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.primary, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Performance</Text>
                   </View>
                 </View>
-                {drillsPartialFailure ? (
-                  <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center" }}>
-                    {"Some sessions couldn\u2019t be classified"}
-                  </Text>
-                ) : drillsUnclassified > 0 ? (
+                {drillsUnclassified > 0 && (
                   <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center" }}>
                     {`+ ${drillsUnclassified} unclassified`}
                   </Text>
-                ) : null}
+                )}
+                {drillsPartialFailure && (
+                  <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center" }}>
+                    {"Some sessions couldn\u2019t be classified"}
+                  </Text>
+                )}
               </View>
             )}
           </View>

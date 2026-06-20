@@ -1009,6 +1009,46 @@ describe("completed drills — server-side persistence", () => {
     expect(screen.getByText("Done")).toBeTruthy();
   });
 
+  it("Done badge survives screen unmount + remount (cross-session memory)", async () => {
+    getDrillsMock().getCompleted.mockResolvedValue({ completedTipIds: [] });
+    mockApiGet.mockResolvedValue(rcResp());
+
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+
+    const { unmount } = render(<SkeletonScreen />);
+    await flush();
+
+    // Expand the tip and mark the drill done — writes drill_done_1 to AsyncStorage.
+    fireEvent.press(screen.getByText("RC_DRILL_TIP"));
+    await flush();
+    fireEvent.press(screen.getByText("Mark done"));
+    await flush();
+
+    // Capture what was written so the remounted screen sees it.
+    const setItemCalls: [string, string][] = AsyncStorage.setItem.mock.calls;
+    const drillDoneCall = setItemCalls.find(([k]) => k === "drill_done_1");
+    expect(drillDoneCall).toBeDefined();
+    const storedValue = drillDoneCall![1];
+
+    // Simulate the user leaving the screen (unmount) then returning (remount).
+    unmount();
+
+    // Wire the next getItem to return the persisted drill_done_1 entry.
+    AsyncStorage.getItem.mockImplementation(async (key: string) => {
+      if (key === "video_uri_1") return "file:///video.mp4";
+      if (key === "drill_done_1") return storedValue;
+      return null;
+    });
+    // Server has no completed records — badge must come from AsyncStorage alone.
+    getDrillsMock().getCompleted.mockResolvedValue({ completedTipIds: [] });
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Done badge must be visible in the collapsed tip header without any interaction.
+    expect(screen.getByText("Done")).toBeTruthy();
+  });
+
   it("calls drills.markDone with the correct tipId and drillName when toggling a drill done", async () => {
     getDrillsMock().getCompleted.mockResolvedValue({ completedTipIds: [] });
     mockApiGet.mockResolvedValue(rcResp());
