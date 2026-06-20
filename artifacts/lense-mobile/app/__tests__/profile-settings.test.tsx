@@ -421,6 +421,41 @@ describe("ProfileSettingsScreen — training-day toggle auto-updates weekly goal
 
     expect(queryByText(/to match your training days/i)).toBeNull();
   });
+
+  it("resets the weekly goal to 7 when all days are toggled back on", async () => {
+    // Start with 6 training days (Friday/dayIdx=5 deselected) and a goal of 3
+    // so that re-adding Friday triggers the auto-sync path (6→7, goal 3→7).
+    mockProfile.trainingDays = [0, 1, 2, 3, 4, 6];
+    mockProfile.weeklyGoal = 3;
+
+    const { getByText, getByTestId, getAllByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    // Confirm the starting state: goal chip "3" is selected, "7" is not.
+    expect(getByTestId("weekly-goal-btn-3").props.accessibilityState.selected).toBe(true);
+    expect(getByTestId("weekly-goal-btn-7").props.accessibilityState.selected).toBe(false);
+
+    // Press Friday ("F") to re-add it → trainingDays: 6→7, weeklyGoal auto-syncs 3→7.
+    await act(async () => {
+      fireEvent.press(getByText("F"));
+    });
+    await flush();
+
+    // The "7" chip is now selected and "3" is no longer selected.
+    expect(getByTestId("weekly-goal-btn-7").props.accessibilityState.selected).toBe(true);
+    expect(getByTestId("weekly-goal-btn-3").props.accessibilityState.selected).toBe(false);
+
+    // updateProfile was called with weeklyGoal: 7 — confirms the change reached the server.
+    expect(mockUpdateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ weeklyGoal: 7 })
+    );
+
+    // The hint banner is visible and shows "7" as the suggested count.
+    expect(getByText(/We set your weekly goal to/i)).toBeTruthy();
+    expect(getByText(/to match your training days/i)).toBeTruthy();
+    // "7" appears in both the goal chip row and the hint banner.
+    expect(getAllByText("7").length).toBeGreaterThanOrEqual(2);
+  });
 });
 
 // ─── Preset color swatch selection ────────────────────────────────────────────
