@@ -128,6 +128,18 @@ describe("ScoreRing onAnimationComplete callback", () => {
   });
 });
 
+// ─── ScoreRing label visibility (no custom child) ───────────────────────────
+
+describe("ScoreRing label visibility", () => {
+  it("renders the label text when no children are provided", () => {
+    const { getByText } = render(
+      <ScoreRing score={75} color="#fff" label="Overall" />,
+    );
+
+    expect(getByText("Overall")).toBeTruthy();
+  });
+});
+
 // ─── ScoreRing custom children ───────────────────────────────────────────────
 
 describe("ScoreRing custom children", () => {
