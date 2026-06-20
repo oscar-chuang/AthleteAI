@@ -28,7 +28,7 @@
  */
 
 import React from "react";
-import { Animated } from "react-native";
+import { Animated, RefreshControl } from "react-native";
 import { render, act, waitFor } from "@testing-library/react-native";
 
 // ─── Mutable profile for per-test overrides ───────────────────────────────────
@@ -505,6 +505,57 @@ describe("HomeScreen — progress bar animation", () => {
     // Bar is still gold after the second visit (fast-path re-applies).
     const { getByTestId } = render(<HomeScreen />);
     await simulateFocus();
+    const style = getBarFillStyle(getByTestId);
+    expect(style.backgroundColor).toBe(GOLD);
+  });
+
+  // ── Test 8 ──────────────────────────────────────────────────────────────────
+  //
+  // Pull-to-refresh when the goal is already met.
+  // onRefresh() calls loadData(true), which: (1) resets the bar via setValue(0)
+  // and setBarAnimDone(false), then (2) because targetRatio >= 1, fires the
+  // fast-path setBarAnimDone(true) BEFORE Animated.timing starts.
+  // The bar must be gold immediately after the refresh completes — without
+  // waiting for capturedBarCallback to fire.
+
+  it("pull-to-refresh with goal already met: bar is gold immediately via fast-path (no callback needed)", async () => {
+    mockProfile = { ...DEFAULT_PROFILE, weeklyGoal: 4, weeklyProgress: 4 };
+    mockProfileStats.mockResolvedValue({
+      ...MOCK_STATS_PARTIAL,
+      thisWeekCount: 4,
+      weeklyGoal:    4,
+      weeklyProgress: 4,
+    });
+
+    const { getByTestId, UNSAFE_getByType } = render(<HomeScreen />);
+
+    // Initial load via focus so the component is in its post-load state.
+    await simulateFocus();
+
+    // Record baselines and reset the callback-fired flag before the refresh.
+    const zerosBaseline   = setValueSpy.mock.calls.filter(([v]) => v === 0).length;
+    const timingsBaseline = barTimingCalls.length;
+    barCallbackFired      = false;
+    capturedBarCallback   = null;
+
+    // Trigger pull-to-refresh via the RefreshControl's onRefresh prop.
+    const refreshControl = UNSAFE_getByType(RefreshControl);
+    await act(async () => { refreshControl.props.onRefresh(); });
+    await waitFor(
+      () => { expect(barTimingCalls.length).toBeGreaterThan(timingsBaseline); },
+      { timeout: 5000 },
+    );
+
+    // Bar was reset to 0 before re-animating (loadData(true) path).
+    expect(setValueSpy.mock.calls.filter(([v]) => v === 0).length)
+      .toBeGreaterThan(zerosBaseline);
+
+    // Animation targets the full bar (targetRatio = 4 / 4 = 1).
+    const lastCall = barTimingCalls[barTimingCalls.length - 1]!;
+    expect(lastCall).toMatchObject({ toValue: 1, duration: 600 });
+
+    // Gold appears immediately via the fast-path — callback was never fired.
+    expect(barCallbackFired).toBe(false);
     const style = getBarFillStyle(getByTestId);
     expect(style.backgroundColor).toBe(GOLD);
   });
