@@ -285,4 +285,38 @@ describe("HomeScreen — share hint visibility", () => {
 
     expect(AsyncStorage.setItem).toHaveBeenCalledWith("share_hint_shown", "true");
   });
+
+  // ── Test 4 ──────────────────────────────────────────────────────────────────
+
+  it("auto-dismisses the hint after 5 seconds and writes share_hint_shown='true'", async () => {
+    jest.useFakeTimers();
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+
+    const { queryByText } = render(<HomeScreen />);
+    await simulateFocus();
+
+    // Hint must be visible before the timer fires.
+    expect(queryByText(HINT_TEXT)).toBeTruthy();
+
+    // Advance past the 5-second auto-dismiss timeout.
+    await act(async () => {
+      jest.advanceTimersByTime(5001);
+    });
+    // Flush microtasks so the async dismissShareHint reaches the Animated.timing call.
+    await flush();
+    // Advance past the 200 ms fade-out animation so its start() callback fires
+    // and setShowShareHint(false) runs.
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+    });
+    await flush();
+
+    // The hint should be gone after the auto-dismiss fires.
+    expect(queryByText(HINT_TEXT)).toBeNull();
+
+    // AsyncStorage must have been updated by the auto-dismiss path.
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith("share_hint_shown", "true");
+
+    jest.useRealTimers();
+  });
 });
