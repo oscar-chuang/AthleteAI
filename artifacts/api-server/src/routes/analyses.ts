@@ -11,8 +11,8 @@ const router: IRouter = Router();
 const JOINT_KEYS = ["leftKnee", "rightKnee", "leftHip", "rightHip", "leftElbow", "rightElbow"] as const;
 // A 640x360 JPEG data URL is ~30-60KB; cap well above that to reject abuse.
 const MAX_FRAME_CHARS = 3_000_000;
-const MAX_TITLE_LENGTH = 120;
-const MAX_SPORT_LENGTH = 60;
+export const MAX_TITLE_LENGTH = 120;
+export const MAX_SPORT_LENGTH = 60;
 // videoUrl must be a real URL, never inline base64. 4096 bytes is well above
 // any plausible URL length and well below any base64-encoded video payload.
 export const MAX_VIDEO_URL_BYTES = 4_096;
@@ -394,10 +394,21 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
     jointAngles?: Record<string, unknown>;
     jointRisks?: Record<string, unknown>;
     frameBase64?: unknown;
+    title?: unknown;
     sport?: unknown;
     movementType?: unknown;
     videoUrl?: unknown;
   };
+
+  if (typeof body.title === "string" && body.title.length > MAX_TITLE_LENGTH) {
+    res.status(400).json({ error: `title must be ${MAX_TITLE_LENGTH} characters or fewer` });
+    return;
+  }
+
+  if (typeof body.sport === "string" && body.sport.trim().length > MAX_SPORT_LENGTH) {
+    res.status(400).json({ error: `sport must be ${MAX_SPORT_LENGTH} characters or fewer` });
+    return;
+  }
 
   // Validate the measured payload before trusting it. Only the six tracked joints
   // are accepted; angles are clamped to a sane range and risks to {0,1,2}.
@@ -408,7 +419,7 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
       ? body.frameBase64
       : undefined;
   const newSport =
-    typeof body.sport === "string" && body.sport.trim().length > 0 && body.sport.trim().length <= MAX_SPORT_LENGTH
+    typeof body.sport === "string" && body.sport.trim().length > 0
       ? body.sport.trim().toLowerCase()
       : null;
   const newMovementType =

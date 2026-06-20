@@ -19,7 +19,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { validateVideoUrl, MAX_VIDEO_URL_BYTES } from "../routes/analyses";
+import { validateVideoUrl, MAX_VIDEO_URL_BYTES, MAX_TITLE_LENGTH, MAX_SPORT_LENGTH } from "../routes/analyses";
 
 // ─── Shared mock setup ─────────────────────────────────────────────────────────
 //
@@ -298,6 +298,90 @@ describe("PATCH /analyses/:id — videoUrl guard applied at route level", () => 
     const res = await request(app)
       .patch("/analyses/1")
       .send({ videoUrl: "https://cdn.example.com/videos/session-42.mp4", sport: "running" });
+
+    expect(res.status).toBe(200);
+  });
+});
+
+// ─── Route-level tests: POST /analyses enforces title and sport length limits ──
+
+describe("POST /analyses — title and sport length limits", () => {
+  it("rejects a title longer than MAX_TITLE_LENGTH with 400", async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .post("/analyses")
+      .send({ title: "a".repeat(MAX_TITLE_LENGTH + 1), sport: "running" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/title must be/);
+  });
+
+  it("accepts a title exactly at MAX_TITLE_LENGTH with 201", async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .post("/analyses")
+      .send({ title: "a".repeat(MAX_TITLE_LENGTH), sport: "running" });
+
+    expect(res.status).toBe(201);
+  });
+
+  it("rejects a sport longer than MAX_SPORT_LENGTH with 400", async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .post("/analyses")
+      .send({ title: "Test session", sport: "b".repeat(MAX_SPORT_LENGTH + 1) });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/sport must be/);
+  });
+
+  it("accepts a sport exactly at MAX_SPORT_LENGTH with 201", async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .post("/analyses")
+      .send({ title: "Test session", sport: "b".repeat(MAX_SPORT_LENGTH) });
+
+    expect(res.status).toBe(201);
+  });
+});
+
+// ─── Route-level tests: PATCH /analyses/:id enforces title and sport length limits
+
+describe("PATCH /analyses/:id — title and sport length limits", () => {
+  it("rejects a title longer than MAX_TITLE_LENGTH with 400", async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .patch("/analyses/1")
+      .send({ title: "a".repeat(MAX_TITLE_LENGTH + 1), sport: "running" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/title must be/);
+  });
+
+  it("accepts a title exactly at MAX_TITLE_LENGTH", async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .patch("/analyses/1")
+      .send({ title: "a".repeat(MAX_TITLE_LENGTH), sport: "running" });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects a sport longer than MAX_SPORT_LENGTH with 400", async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .patch("/analyses/1")
+      .send({ sport: "b".repeat(MAX_SPORT_LENGTH + 1) });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/sport must be/);
+  });
+
+  it("accepts a sport exactly at MAX_SPORT_LENGTH", async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .patch("/analyses/1")
+      .send({ sport: "b".repeat(MAX_SPORT_LENGTH) });
 
     expect(res.status).toBe(200);
   });
