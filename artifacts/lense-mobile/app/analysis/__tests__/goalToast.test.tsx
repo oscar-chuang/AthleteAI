@@ -447,72 +447,86 @@ describe("AnalysisDetailScreen — 'Weekly goal reached!' toast", () => {
     expect(queryByText("Weekly goal reached!")).not.toBeNull();
   });
 
-  // ── Test 10 — auto-dismiss after 3.5 s ──────────────────────────────────────
+});
 
-  it("automatically dismisses the toast after 3.5 s without any user interaction", async () => {
+// ── Tests 9 & 10 — timer-controlled dismiss behaviours ───────────────────────
+// These tests control the 4 s polling clock and the 3.5 s auto-dismiss timer
+// with fake timers.  The beforeEach/afterEach here mirror the pattern used in
+// the "Polling path" describe block at the bottom of this file: fake timers
+// are set up at the describe level (not inside the test body) to keep React's
+// scheduler stable across all await/act calls.
+describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () => {
+  beforeEach(() => {
     jest.useFakeTimers();
-    try {
-      mockAnalysesGet
-        .mockResolvedValueOnce({ analysis: PROCESSING_ANALYSIS, tips: [], injuryRisks: [] })
-        .mockResolvedValueOnce({ analysis: COMPLETE_ANALYSIS,   tips: [], injuryRisks: [] });
-
-      const { queryByText } = render(<AnalysisDetailScreen />);
-      await simulateFocus();
-      await simulateFocus();
-
-      // Toast must be visible immediately after the status transition.
-      expect(queryByText("Weekly goal reached!")).not.toBeNull();
-
-      // Advance past the 3.5 s auto-dismiss timer, then past the 250 ms
-      // fade-out animation so the Animated.timing completion callback fires
-      // and sets goalToast to null.
-      await act(async () => {
-        jest.advanceTimersByTime(3500 + 300);
-      });
-      await flush();
-
-      // Toast must be gone after the auto-dismiss timer + animation elapse.
-      expect(queryByText("Weekly goal reached!")).toBeNull();
-    } finally {
-      jest.clearAllTimers();
-      jest.useRealTimers();
-    }
   });
 
-  // ── Test 9 — tapping the toast body dismisses it ─────────────────────────────
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+  });
+
+  // ── Test 10 — auto-dismiss after 3.5 s ──────────────────────────────────
+
+  it("automatically dismisses the toast after 3.5 s without any user interaction", async () => {
+    mockAnalysesGet
+      .mockResolvedValueOnce({ analysis: PROCESSING_ANALYSIS, tips: [], injuryRisks: [] })
+      .mockResolvedValueOnce({ analysis: COMPLETE_ANALYSIS,   tips: [], injuryRisks: [] });
+
+    const { queryByText } = render(<AnalysisDetailScreen />);
+
+    // First focus: loads 'processing'. isProcessing → true, polling setInterval starts.
+    await simulateFocus();
+    expect(queryByText("Weekly goal reached!")).toBeNull();
+
+    // Advance one poll interval — the setInterval fires load(), which returns
+    // COMPLETE_ANALYSIS.  prevStatusRef was "processing" → toast appears.
+    await act(async () => { jest.advanceTimersByTime(4000); });
+    await flush();
+
+    // Toast must be visible immediately after the status transition.
+    expect(queryByText("Weekly goal reached!")).not.toBeNull();
+
+    // Advance past the 3.5 s auto-dismiss timer and the 250 ms fade-out
+    // animation so the Animated.timing completion callback fires and sets
+    // goalToast to null.
+    await act(async () => { jest.advanceTimersByTime(3500 + 300); });
+    await flush();
+
+    // Toast must be gone after the auto-dismiss timer + animation elapse.
+    expect(queryByText("Weekly goal reached!")).toBeNull();
+  });
+
+  // ── Test 9 — tapping the toast body dismisses it ─────────────────────────
 
   it("dismisses the toast when the toast body is tapped (not just the ✕ icon)", async () => {
-    jest.useFakeTimers();
-    try {
-      // Set up the standard processing → complete transition so the toast appears.
-      mockAnalysesGet
-        .mockResolvedValueOnce({ analysis: PROCESSING_ANALYSIS, tips: [], injuryRisks: [] })
-        .mockResolvedValueOnce({ analysis: COMPLETE_ANALYSIS,   tips: [], injuryRisks: [] });
+    mockAnalysesGet
+      .mockResolvedValueOnce({ analysis: PROCESSING_ANALYSIS, tips: [], injuryRisks: [] })
+      .mockResolvedValueOnce({ analysis: COMPLETE_ANALYSIS,   tips: [], injuryRisks: [] });
 
-      const { queryByText } = render(<AnalysisDetailScreen />);
-      await simulateFocus();
-      await simulateFocus();
+    const { queryByText } = render(<AnalysisDetailScreen />);
 
-      // Confirm the toast is visible before we tap it.
-      expect(queryByText("Weekly goal reached!")).not.toBeNull();
+    // First focus: loads 'processing'.
+    await simulateFocus();
+    expect(queryByText("Weekly goal reached!")).toBeNull();
 
-      // Tap the toast title text — this is inside the TouchableOpacity that covers
-      // the entire toast body (onPress={dismissToast}).  The press bubbles up to
-      // the TouchableOpacity and calls dismissToast(), which starts a 250 ms
-      // fade-out animation whose completion callback sets goalToast to null.
-      await act(async () => {
-        fireEvent.press(queryByText("Weekly goal reached!")!);
-        // Advance past the 250 ms animation so its start() callback fires.
-        jest.advanceTimersByTime(300);
-      });
-      await flush();
+    // Poll fires → 'complete' → toast appears.
+    await act(async () => { jest.advanceTimersByTime(4000); });
+    await flush();
 
-      // After the animation completes, goalToast is null → toast must be gone.
-      expect(queryByText("Weekly goal reached!")).toBeNull();
-    } finally {
-      jest.clearAllTimers();
-      jest.useRealTimers();
-    }
+    // Confirm the toast is visible before we tap it.
+    expect(queryByText("Weekly goal reached!")).not.toBeNull();
+
+    // Tap the toast title text — inside the TouchableOpacity that covers the
+    // entire toast body (onPress={dismissToast}).  dismissToast() starts a
+    // 250 ms fade-out animation whose completion callback sets goalToast to null.
+    await act(async () => {
+      fireEvent.press(queryByText("Weekly goal reached!")!);
+      jest.advanceTimersByTime(300);
+    });
+    await flush();
+
+    // After the animation completes, goalToast is null → toast must be gone.
+    expect(queryByText("Weekly goal reached!")).toBeNull();
   });
 });
 
