@@ -127,64 +127,43 @@ describe("RecordingTipsModal — upload gate", () => {
 });
 
 describe("RecordingTipsModal — example images", () => {
-  function getExampleImages(renderResult: ReturnType<typeof render>) {
-    const { Image } = require("react-native");
-    return renderResult.UNSAFE_getAllByType(Image);
-  }
-
-  it("renders exactly four Image components", () => {
-    const result = render(
+  it("renders exactly four accessible image components", () => {
+    const { getAllByRole } = render(
       <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
     );
-    expect(getExampleImages(result)).toHaveLength(4);
+    expect(getAllByRole("image")).toHaveLength(4);
   });
 
   it("the 'Full body in frame' image loads good.png", () => {
-    const result = render(
+    const { getByLabelText } = render(
       <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
     );
-    const imgs = getExampleImages(result);
-    const img = imgs.find((el: { props: { accessibilityLabel?: string } }) =>
-      el.props.accessibilityLabel === "Full body in frame",
-    );
-    expect(img).toBeTruthy();
-    expect(img!.props.source).toEqual(GOOD_IMG);
+    const img = getByLabelText("Full body in frame");
+    expect(img.props.source).toEqual(GOOD_IMG);
   });
 
   it("the 'Too far away' image loads too-far.png", () => {
-    const result = render(
+    const { getByLabelText } = render(
       <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
     );
-    const imgs = getExampleImages(result);
-    const img = imgs.find((el: { props: { accessibilityLabel?: string } }) =>
-      el.props.accessibilityLabel === "Too far away",
-    );
-    expect(img).toBeTruthy();
-    expect(img!.props.source).toEqual(TOO_FAR_IMG);
+    const img = getByLabelText("Too far away");
+    expect(img.props.source).toEqual(TOO_FAR_IMG);
   });
 
   it("the 'Limbs cropped' image loads cropped.png", () => {
-    const result = render(
+    const { getByLabelText } = render(
       <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
     );
-    const imgs = getExampleImages(result);
-    const img = imgs.find((el: { props: { accessibilityLabel?: string } }) =>
-      el.props.accessibilityLabel === "Limbs cropped",
-    );
-    expect(img).toBeTruthy();
-    expect(img!.props.source).toEqual(CROPPED_IMG);
+    const img = getByLabelText("Limbs cropped");
+    expect(img.props.source).toEqual(CROPPED_IMG);
   });
 
   it("the 'Poor lighting' image loads dark.png", () => {
-    const result = render(
+    const { getByLabelText } = render(
       <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
     );
-    const imgs = getExampleImages(result);
-    const img = imgs.find((el: { props: { accessibilityLabel?: string } }) =>
-      el.props.accessibilityLabel === "Poor lighting",
-    );
-    expect(img).toBeTruthy();
-    expect(img!.props.source).toEqual(DARK_IMG);
+    const img = getByLabelText("Poor lighting");
+    expect(img.props.source).toEqual(DARK_IMG);
   });
 
   it("exactly one card carries the 'Do this' badge (good.png card)", () => {

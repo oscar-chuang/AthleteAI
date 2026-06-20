@@ -240,6 +240,8 @@ export default function RecordingTipsModal({ visible, onClose, onContinue }: Pro
                   source={card.image}
                   style={s.cardImage}
                   resizeMode="cover"
+                  accessible={true}
+                  accessibilityRole="image"
                   accessibilityLabel={card.label}
                 />
                 <Text style={s.cardLabel}>{card.label}</Text>
