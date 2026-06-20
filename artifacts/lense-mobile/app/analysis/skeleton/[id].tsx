@@ -673,6 +673,14 @@ export default function SkeletonScreen() {
   // ── Load + persist completed drills per-analysis ─────────────────────────────
   // AsyncStorage is the source of truth for the current session UI; the server
   // is the persistence layer so the AI coach always knows the full history.
+  //
+  // Guard: if a re-scan is in progress for this analysis (drill_rescan_<id> flag
+  // is set in AsyncStorage), skip the remote merge entirely.  The flag is written
+  // by runBiomechanics before it fires the PATCH so it survives a navigation-away
+  // and back; the flag is cleared once the poll confirms biomechanicsApplied=true.
+  // Without this guard, navigating away and back during the grounding window
+  // would re-merge a stale remote list and re-show "Completed" badges for drills
+  // that belong to the old, deleted tips.
   useEffect(() => {
     if (!id) return;
     setCompletedDrills(new Set());
@@ -684,10 +692,14 @@ export default function SkeletonScreen() {
       return new Set<string>();
     }).catch(() => new Set<string>());
 
+    const loadRescanFlag = AsyncStorage.getItem(`drill_rescan_${id}`).catch(() => null);
     const loadRemote = drillsApi.getCompleted(id).then((r) => new Set(r.completedTipIds)).catch(() => new Set<string>());
 
-    Promise.all([loadLocal, loadRemote]).then(([local, remote]) => {
-      const merged = new Set([...local, ...remote]);
+    Promise.all([loadLocal, loadRescanFlag, loadRemote]).then(([local, rescanFlag, remote]) => {
+      // If a re-scan is in progress, trust only local (which was cleared when the
+      // re-scan started).  Merging remote here would resurrect stale "Completed"
+      // badges for tips the server has already deleted.
+      const merged = rescanFlag ? local : new Set([...local, ...remote]);
       setCompletedDrills(merged);
       if (merged.size > 0 && id) {
         AsyncStorage.setItem(`drill_done_${id}`, JSON.stringify([...merged])).catch(() => {});
@@ -731,6 +743,13 @@ export default function SkeletonScreen() {
     const token = ++runTokenRef.current;
     const isCurrent = () => mountedRef.current && currentIdRef.current === analysisId && runTokenRef.current === token;
     setRefining(true);
+    // Eagerly wipe completed drills so "Completed" badges disappear the moment the
+    // re-scan starts.  Also write a persistent AsyncStorage flag so that if the user
+    // navigates away and back before the grounding poll resolves, the drill-load effect
+    // skips the remote merge (which may still return stale data) and stays blank.
+    setCompletedDrills(new Set());
+    AsyncStorage.removeItem(`drill_done_${analysisId}`).catch(() => {});
+    AsyncStorage.setItem(`drill_rescan_${analysisId}`, "1").catch(() => {});
     analysesApi.update(analysisId, payload)
       .then(({ improvements }) => {
         if (improvements?.length) {
@@ -749,7 +768,11 @@ export default function SkeletonScreen() {
                 setGroundedReady(true);
                 setRefining(false);
                 pollRef.current = null;
+                // Clear both the completed-drill cache and the rescan-in-progress flag
+                // now that grounding is confirmed.  The flag must be removed here so
+                // subsequent navigations back to this screen resume normal remote merging.
                 AsyncStorage.removeItem(`drill_done_${analysisId}`).catch(() => {});
+                AsyncStorage.removeItem(`drill_rescan_${analysisId}`).catch(() => {});
                 setCompletedDrills(new Set());
               } else if (attempts < 20) {
                 pollRef.current = setTimeout(poll, 1800);
