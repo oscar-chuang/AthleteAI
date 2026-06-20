@@ -228,3 +228,89 @@ describe("Scheme picker — persisted preference (AsyncStorage)", () => {
     expect(getByTestId("share-card-dark")).not.toBeNull();
   });
 });
+
+// ─── Reopen tests ─────────────────────────────────────────────────────────────
+// These tests simulate the full close-and-reopen cycle by unmounting the picker
+// (= closing the share sheet) and remounting it (= reopening).  The goal is to
+// confirm that whatever scheme the user picked is still pre-selected the next
+// time the sheet opens, rather than resetting to the "dark" default.
+
+describe("Scheme picker — card style remembered when share sheet reopens", () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+  });
+
+  it("restores 'light' when the share sheet is closed and reopened after switching", async () => {
+    // ── First open: mount, switch to light, then unmount (close sheet) ──────
+    const firstOpen = render(
+      <SchemePickerWithStorage analysis={BASE_ANALYSIS} />,
+    );
+
+    // Wait for the initial effect to settle (default dark).
+    await waitFor(() =>
+      expect(firstOpen.getByTestId("share-card-dark")).not.toBeNull(),
+    );
+
+    // Switch to light — this also writes "light" to AsyncStorage.
+    fireEvent.press(firstOpen.getByTestId("btn-light"));
+    await waitFor(() =>
+      expect(firstOpen.getByTestId("share-card-light")).not.toBeNull(),
+    );
+
+    // Unmount = close the share sheet.
+    firstOpen.unmount();
+
+    // ── Second open: remount and confirm light is pre-selected ───────────────
+    const secondOpen = render(
+      <SchemePickerWithStorage analysis={BASE_ANALYSIS} />,
+    );
+
+    await waitFor(() =>
+      expect(secondOpen.getByTestId("share-card-light")).not.toBeNull(),
+    );
+    expect(secondOpen.queryByTestId("share-card-dark")).toBeNull();
+  });
+
+  it("defaults to 'dark' on first open when no preference has been saved", async () => {
+    // AsyncStorage is empty (cleared in beforeEach); this is a first-time user.
+    const { getByTestId, queryByTestId } = render(
+      <SchemePickerWithStorage analysis={BASE_ANALYSIS} />,
+    );
+
+    // The effect runs but finds nothing — the default "dark" must remain.
+    await waitFor(() =>
+      expect(getByTestId("share-card-dark")).not.toBeNull(),
+    );
+    expect(queryByTestId("share-card-light")).toBeNull();
+  });
+
+  it("keeps 'dark' when the sheet is closed and reopened without changing scheme", async () => {
+    // ── First open: mount, leave on default dark, then unmount ───────────────
+    const firstOpen = render(
+      <SchemePickerWithStorage analysis={BASE_ANALYSIS} />,
+    );
+
+    await waitFor(() =>
+      expect(firstOpen.getByTestId("share-card-dark")).not.toBeNull(),
+    );
+
+    // Press dark explicitly to ensure AsyncStorage has "dark" written.
+    fireEvent.press(firstOpen.getByTestId("btn-dark"));
+    await waitFor(async () => {
+      const stored = await AsyncStorage.getItem(SHARE_CARD_SCHEME_KEY);
+      expect(stored).toBe("dark");
+    });
+
+    firstOpen.unmount();
+
+    // ── Second open: dark must still be pre-selected ─────────────────────────
+    const secondOpen = render(
+      <SchemePickerWithStorage analysis={BASE_ANALYSIS} />,
+    );
+
+    await waitFor(() =>
+      expect(secondOpen.getByTestId("share-card-dark")).not.toBeNull(),
+    );
+    expect(secondOpen.queryByTestId("share-card-light")).toBeNull();
+  });
+});
