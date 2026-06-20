@@ -594,6 +594,27 @@ describe("'What's next?' card — appears after marking drill done", () => {
     expect(calls[0]![1]).toContain("already completed this drill");
     expect(calls[0]![1]).toContain("progression");
   });
+
+  it("hides the WHAT'S NEXT? card after tapping Completed to toggle back to undone", async () => {
+    mockApiGet.mockResolvedValue(nextResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Expand the tip
+    fireEvent.press(screen.getByText("NEXT_STEP_TIP"));
+    await flush();
+
+    // Mark the drill as done — card must appear
+    fireEvent.press(screen.getByText("Mark done"));
+    await flush();
+    expect(screen.getByText("WHAT'S NEXT?")).toBeTruthy();
+
+    // Toggle back to undone — card must disappear
+    fireEvent.press(screen.getByText("Completed"));
+    await flush();
+    expect(screen.queryByText("WHAT'S NEXT?")).toBeNull();
+  });
 });
 
 // ─── askCoach — conflict warning in pending message ───────────────────────────
