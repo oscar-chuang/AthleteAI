@@ -179,4 +179,50 @@ describe("JointHistorySheet — tooltip fade animation", () => {
 
     expect(getByTestId("joint-tooltip")).toBeTruthy();
   });
+
+  it("auto-dismisses the tooltip after 3 s via the auto-timer (fake timers path)", async () => {
+    const { calls, spy } = spyAnimatedTiming();
+
+    const { getAllByTestId, queryByTestId } = render(
+      <JointHistorySheet joint="leftKnee" data={SAMPLE_DATA} onClose={noop} />,
+    );
+
+    const dots = getAllByTestId("dot-hit-target");
+
+    // Tap a dot — tooltip appears and the 3 s auto-dismiss timer starts.
+    await act(async () => {
+      fireEvent.press(dots[0]!);
+    });
+
+    expect(queryByTestId("joint-tooltip")).toBeTruthy();
+
+    // At 2999 ms the timer has not yet fired — tooltip must still be visible.
+    await act(async () => {
+      jest.advanceTimersByTime(2999);
+    });
+    expect(queryByTestId("joint-tooltip")).toBeTruthy();
+
+    // Advance past the 3 s threshold then flush all animation ticks so the
+    // fade-out Animated.timing callback fires synchronously and
+    // setDisplayedIndex(null) removes the tooltip from the tree.
+    await act(async () => {
+      jest.advanceTimersByTime(1);
+      jest.runAllTimers();
+    });
+
+    // The tooltip must have been removed from the tree.
+    expect(queryByTestId("joint-tooltip")).toBeNull();
+
+    // A fade-out call (toValue=0) must have been issued by the auto-dismiss path.
+    const autoDismissFadeOut = calls.find(
+      ([, config]) => (config as { toValue: number }).toValue === 0,
+    );
+    expect(autoDismissFadeOut).toBeDefined();
+    const cfg = autoDismissFadeOut![1] as { toValue: number; duration: number; useNativeDriver: boolean };
+    expect(cfg.toValue).toBe(0);
+    expect(cfg.duration).toBeLessThanOrEqual(300);
+    expect(cfg.useNativeDriver).toBe(true);
+
+    spy.mockRestore();
+  });
 });
