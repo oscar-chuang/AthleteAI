@@ -458,7 +458,7 @@ describe("AnalysisDetailScreen — 'Weekly goal reached!' toast", () => {
 // scheduler stable across all await/act calls.
 describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    jest.useFakeTimers({ doNotFake: ["MessageChannel"] });
   });
 
   afterEach(() => {
@@ -481,7 +481,10 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
 
     // Advance one poll interval — the setInterval fires load(), which returns
     // COMPLETE_ANALYSIS.  prevStatusRef was "processing" → toast appears.
-    await act(async () => { jest.advanceTimersByTime(4000); });
+    // Use synchronous act() + manual microtask drain to avoid React 18 scheduler
+    // hanging when async act() waits for its internal setTimeout(0) which fake
+    // timers capture and never fire.
+    act(() => { jest.advanceTimersByTime(4000); });
     await flush();
 
     // Toast must be visible immediately after the status transition.
@@ -490,7 +493,7 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
     // Advance past the 3.5 s auto-dismiss timer and the 250 ms fade-out
     // animation so the Animated.timing completion callback fires and sets
     // goalToast to null.
-    await act(async () => { jest.advanceTimersByTime(3500 + 300); });
+    act(() => { jest.advanceTimersByTime(3500 + 300); });
     await flush();
 
     // Toast must be gone after the auto-dismiss timer + animation elapse.
@@ -511,7 +514,7 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
     expect(queryByText("Weekly goal reached!")).toBeNull();
 
     // Poll fires → 'complete' → toast appears.
-    await act(async () => { jest.advanceTimersByTime(4000); });
+    act(() => { jest.advanceTimersByTime(4000); });
     await flush();
 
     // Confirm the toast is visible before we tap it.
@@ -520,7 +523,7 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
     // Tap the toast title text — inside the TouchableOpacity that covers the
     // entire toast body (onPress={dismissToast}).  dismissToast() starts a
     // 250 ms fade-out animation whose completion callback sets goalToast to null.
-    await act(async () => {
+    act(() => {
       fireEvent.press(queryByText("Weekly goal reached!")!);
       jest.advanceTimersByTime(300);
     });
@@ -535,7 +538,7 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
 
 describe("AnalysisDetailScreen — toast fires from the 4 s polling path", () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    jest.useFakeTimers({ doNotFake: ["MessageChannel"] });
   });
 
   afterEach(() => {
@@ -560,9 +563,9 @@ describe("AnalysisDetailScreen — toast fires from the 4 s polling path", () =>
 
     // Advance fake clock by exactly one poll interval — the setInterval fires load(),
     // which returns COMPLETE_ANALYSIS.  prevStatusRef was "processing" → checkGoalToast runs.
-    await act(async () => {
-      jest.advanceTimersByTime(4000);
-    });
+    // Use synchronous act() to avoid React 18's internal setTimeout(0) scheduler
+    // being captured by fake timers and causing act() to hang indefinitely.
+    act(() => { jest.advanceTimersByTime(4000); });
 
     // Settle all async state updates triggered by the poll.
     await flush();

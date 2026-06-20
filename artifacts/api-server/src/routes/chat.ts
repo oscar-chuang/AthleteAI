@@ -273,12 +273,19 @@ router.post("/chat", requireAuth, async (req: Request, res: Response) => {
     content: m.content,
   }));
 
-  const response = await client.messages.create({
-    model: "claude-opus-4-5",
-    max_tokens: 1024,
-    system: systemPrompt,
-    messages,
-  });
+  let response;
+  try {
+    response = await client.messages.create({
+      model: "claude-opus-4-5",
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: `Coach is temporarily unavailable: ${message}` });
+    return;
+  }
 
   const assistantContent = response.content
     .filter((b) => b.type === "text")
