@@ -213,6 +213,15 @@ export default function JointHistorySheet({
         testID="history-sheet-backdrop"
         style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.60)", justifyContent: "flex-end" }}
       >
+        {/* Hint in the dimmed backdrop area so athletes know how to close on large phones */}
+        <View
+          testID="backdrop-close-hint"
+          pointerEvents="none"
+          style={backdropHintStyles.wrapper}
+        >
+          <Text style={backdropHintStyles.text}>Tap × to close</Text>
+        </View>
+
           <View
           testID="sheet-swipe-container"
           {...panResponder.panHandlers}
@@ -290,8 +299,21 @@ export default function JointHistorySheet({
                 )}
               </View>
             </View>
-            <TouchableOpacity onPress={handleClose} activeOpacity={0.7} style={{ padding: 4 }}>
-              <Feather name="x" size={20} color="#8888aa" />
+            <TouchableOpacity
+              onPress={handleClose}
+              activeOpacity={0.7}
+              testID="close-button"
+              style={{
+                padding: 8,
+                backgroundColor: "#2a2a40",
+                borderRadius: 16,
+                minWidth: 36,
+                minHeight: 36,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Feather name="x" size={18} color="#c8c8e8" />
             </TouchableOpacity>
           </View>
 
@@ -621,6 +643,25 @@ export default function JointHistorySheet({
     </Modal>
   );
 }
+
+const backdropHintStyles = StyleSheet.create({
+  wrapper: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingTop: 52,
+  },
+  text: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.30)",
+    letterSpacing: 0.4,
+  },
+});
 
 const tooltipStyles = StyleSheet.create({
   container: {
