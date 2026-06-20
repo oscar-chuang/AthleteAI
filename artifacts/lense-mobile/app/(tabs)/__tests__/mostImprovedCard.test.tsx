@@ -17,10 +17,12 @@
  *   3. All deltaDeg <= 0 → card is absent.
  *   4. All improved === false → card is absent.
  *   5. trends is null (API fails) → card is absent.
+ *   6. Card visible initially; after period-filter change reduces to a single
+ *      scan (deltaDeg = 0 on reload), the card is absent.
  */
 
 import React from "react";
-import { render, act, waitFor } from "@testing-library/react-native";
+import { render, act, waitFor, fireEvent } from "@testing-library/react-native";
 
 // ─── Module-level mock state ──────────────────────────────────────────────────
 
@@ -255,6 +257,72 @@ describe("ProgressScreen — most improved joint card", () => {
     // mockJointTrendsGet already rejects by default in beforeEach.
 
     const { queryByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    await waitForLoaded(queryByText);
+    expect(queryByText(MOST_IMPROVED_LABEL)).toBeNull();
+  });
+
+  // ── Test 6 ──────────────────────────────────────────────────────────────────
+
+  it("hides the card after a period-filter change reduces history to a single scan (deltaDeg = 0)", async () => {
+    // Provide a progress entry with a recent date so allEntries.length > 0,
+    // which is required for the period-filter buttons ("1W", "1M", "3M", "All")
+    // to render (they live inside {allEntries.length > 0 && <View>…</View>}).
+    mockProgressList.mockResolvedValue({
+      entries: [
+        {
+          id: "s1",
+          userId: "u1",
+          analysisId: "a1",
+          date: new Date().toISOString(),
+          sport: "running",
+          overallScore: 74,
+          techniqueScore: 70,
+          powerScore: 72,
+          balanceScore: 68,
+          consistencyScore: 75,
+          mobilityScore: 80,
+          speedScore: 65,
+        },
+      ],
+    });
+
+    // Initial load: two sessions in history → positive deltaDeg → card visible.
+    mockJointTrendsGet.mockResolvedValue({
+      joints: {},
+      improvements: [
+        { joint: "leftKnee", deltaDeg: 8, sessions: 2, improved: true },
+      ],
+    });
+
+    const { getByText, queryByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // Card must be present after the initial load.
+    await waitFor(() => expect(getByText("Left Knee +8°")).toBeTruthy());
+    expect(getByText(MOST_IMPROVED_LABEL)).toBeTruthy();
+
+    // Press the "1W" period-filter button (visible because allEntries.length > 0).
+    // This narrows the visible window. In production the next server fetch for
+    // joint trends will return only a single session in range, so deltaDeg = 0.
+    await act(async () => {
+      fireEvent.press(getByText("1W"));
+    });
+
+    // Update the mock to reflect single-scan data — deltaDeg = 0 because only
+    // one session falls in the selected window (no before/after pair to compare).
+    mockJointTrendsGet.mockResolvedValue({
+      joints: {},
+      improvements: [
+        { joint: "leftKnee", deltaDeg: 0, sessions: 1, improved: false },
+      ],
+    });
+
+    // Re-focus the screen (user navigates away then back). This triggers
+    // loadData, which re-fetches joint trends and sets allTrends to the
+    // single-scan result. filteredTrends.improvements then contains only an
+    // entry with deltaDeg = 0, so mostImproved reduces to null.
     await simulateFocus();
 
     await waitForLoaded(queryByText);
