@@ -348,6 +348,26 @@ describe("HomeScreen — weekly goal picker", () => {
 
   // ── Test 7 ────────────────────────────────────────────────────────────────
 
+  it("closes the sheet when the Cancel button is tapped", async () => {
+    const { getByText, queryByText } = render(<HomeScreen />);
+    await simulateFocus();
+
+    // Open the picker sheet.
+    fireEvent.press(getByText("Goal: 3 sessions/week"));
+
+    // The sheet is now visible — the "Weekly Goal" heading should be present.
+    expect(getByText("Weekly Goal")).toBeTruthy();
+
+    // Tap the Cancel button at the bottom of the sheet.
+    fireEvent.press(getByText("Cancel"));
+    await flush();
+
+    // The "Weekly Goal" heading must be gone after dismissal.
+    expect(queryByText("Weekly Goal")).toBeNull();
+  });
+
+  // ── Test 6 ────────────────────────────────────────────────────────────────
+
   it("closes the sheet when the backdrop is tapped", async () => {
     const { getByText, getByTestId, queryByText } = render(<HomeScreen />);
     await simulateFocus();
