@@ -307,6 +307,7 @@ export default function HomeScreen() {
   const weekPct       = Math.min((thisWeek / weeklyGoal) * 100, 100);
   const goalReached   = weeklyGoal > 0 && thisWeek >= weeklyGoal;
   const scoreDelta    = stats?.scoreDelta ?? null;
+  const hasMismatch   = (profile?.trainingDays ?? [0,1,2,3,4,5,6]).length !== weeklyGoal;
 
   const handleGoalSelect = useCallback(async (n: number) => {
     if (goalSheetSaving || n === weeklyGoal) { setShowGoalSheet(false); return; }
@@ -902,6 +903,11 @@ export default function HomeScreen() {
                       <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
                         Goal: {weeklyGoal} session{weeklyGoal !== 1 ? "s" : ""}/week
                       </Text>
+                      {hasMismatch && (
+                        <View testID="goal-mismatch-icon" style={{ justifyContent: "center" }}>
+                          <Feather name="alert-circle" size={11} color={colors.warning} />
+                        </View>
+                      )}
                       <Feather name="edit-2" size={10} color={colors.mutedForeground} />
                     </>
                   )}

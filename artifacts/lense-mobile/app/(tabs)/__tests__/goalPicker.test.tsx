@@ -365,4 +365,39 @@ describe("HomeScreen — weekly goal picker", () => {
     // The "Weekly Goal" heading must be gone after dismissal.
     expect(queryByText("Weekly Goal")).toBeNull();
   });
+
+  // ── Mismatch hint tests ────────────────────────────────────────────────────
+
+  it("shows the mismatch icon when trainingDays count differs from weeklyGoal", async () => {
+    // Default beforeEach: trainingDays = [0,1,2,3,4,5,6] (7 days), weeklyGoal = 3 → mismatch
+    const { getByTestId } = render(<HomeScreen />);
+    await simulateFocus();
+
+    expect(getByTestId("goal-mismatch-icon")).toBeTruthy();
+  });
+
+  it("hides the mismatch icon when trainingDays count equals weeklyGoal", async () => {
+    // Set trainingDays to match weeklyGoal (both = 3)
+    mockProfile = { ...mockProfile, trainingDays: [1, 3, 5], weeklyGoal: 3 };
+
+    const { queryByTestId } = render(<HomeScreen />);
+    await simulateFocus();
+
+    expect(queryByTestId("goal-mismatch-icon")).toBeNull();
+  });
+
+  it("opening the goal sheet from the mismatch row still works", async () => {
+    // Default setup: mismatch exists (7 days vs goal 3)
+    const { getByTestId, getByText } = render(<HomeScreen />);
+    await simulateFocus();
+
+    // Mismatch icon is present
+    expect(getByTestId("goal-mismatch-icon")).toBeTruthy();
+
+    // The whole goal label row is tappable — tapping it opens the sheet
+    fireEvent.press(getByText("Goal: 3 sessions/week"));
+
+    // The goal sheet is now visible
+    expect(getByText("Weekly Goal")).toBeTruthy();
+  });
 });
