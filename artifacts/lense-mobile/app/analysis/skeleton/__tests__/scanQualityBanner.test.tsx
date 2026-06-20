@@ -163,6 +163,50 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
+// ─── Scan quality banner — stays hidden on re-scan within same session ────────
+
+describe("scan quality banner — re-scan within same mounted session", () => {
+  it("does not reappear after pressing × when a new scan completes without unmounting", async () => {
+    mockApiGet.mockResolvedValue(apiResp());
+
+    const AsyncStorage = getAsyncStorage();
+    // No dismissal key pre-set — banner will appear on first low-quality scan.
+    AsyncStorage.getItem.mockImplementation((key: string) => {
+      if (key === "video_uri_42") return Promise.resolve("file:///video.mp4");
+      return Promise.resolve(null);
+    });
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // ── First scan: low quality → banner appears ─────────────────────────────
+    emit({ type: "capture", capture: lowQualityCapture });
+    await flush();
+    emit(scanMsg);
+    await flush();
+
+    const dismissBtn = screen.getByTestId("scan-quality-banner-dismiss");
+    expect(dismissBtn).toBeTruthy();
+
+    // ── User dismisses the banner ─────────────────────────────────────────────
+    fireEvent.press(dismissBtn);
+    await flush();
+
+    expect(screen.queryByTestId("scan-quality-banner-dismiss")).toBeNull();
+
+    // ── Re-scan completes on the same mounted screen (no unmount/remount) ─────
+    // Simulates the WebView completing another pose estimation pass — the same
+    // low-quality result arrives again, which would normally show the banner.
+    emit({ type: "capture", capture: lowQualityCapture });
+    await flush();
+    emit(scanMsg);
+    await flush();
+
+    // The dismissed flag must survive the re-scan; the banner must stay hidden.
+    expect(screen.queryByTestId("scan-quality-banner-dismiss")).toBeNull();
+  });
+});
+
 // ─── Scan quality banner — persistence across mounts ─────────────────────────
 
 describe("scan quality banner — persistence across mounts", () => {
