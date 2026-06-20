@@ -314,6 +314,68 @@ describe("CropModal — Use Photo calls ImageManipulator with the correct crop r
 // 3. Photo-switch reset tests
 // ═════════════════════════════════════════════════════════════════════════════
 
+describe("CropModal — proportional scale adjust when dimensions change while modal stays open", () => {
+  it("swapping imageWidth/imageHeight while visible adjusts scale proportionally and produces the correct crop rect", async () => {
+    // Step 1: open with a square 400×400 image (justOpened branch).
+    //   minScale = max(320/400, 320/400) = 0.8
+    //   useEffect sets scale = 0.8, tx = 0, ty = 0.
+    //
+    // Step 2: while the modal STAYS visible, change to 500×320 landscape
+    //   (dimensionsChanged && wasVisible branch — NOT justOpened):
+    //   newMinScale = max(320/500, 320/320) = 1
+    //   oldMinScale = max(320/400, 320/400) = 0.8
+    //   ratio       = 1 / 0.8 = 1.25
+    //   newScale    = max(1, min(MAX_SCALE, 0.8 * 1.25)) = 1
+    //   halfExtraW  = max(0, (500*1 - 320) / 2) = 90 → tx clamped to 0
+    //   halfExtraH  = max(0, (320*1 - 320) / 2) = 0  → ty clamped to 0
+    //
+    // Pressing "Use Photo" now must call manipulateAsync with:
+    //   computeCropRect(500, 320, 1, 0, 0, 320) → { originX:90, originY:0, width:320, height:320 }
+    //
+    // If the dimensionsChanged branch were absent and stale scale=0.8 were used:
+    //   computeCropRect(500, 320, 0.8, 0, 0, 320) → { originX:50, originY:0, width:400, height:320 }
+    //   (wrong — width 400 exceeds CROP_SIZE; proves stale-scale path)
+
+    const onConfirm = jest.fn();
+
+    const { getByText, rerender } = render(
+      <CropModal
+        visible={true}
+        imageUri="file:///photo1.jpg"
+        imageWidth={400}
+        imageHeight={400}
+        onConfirm={onConfirm}
+        onCancel={jest.fn()}
+      />
+    );
+    await flush();
+
+    // Keep modal VISIBLE — only swap image URI + dimensions (dimensionsChanged && wasVisible branch)
+    rerender(
+      <CropModal
+        visible={true}
+        imageUri="file:///photo2.jpg"
+        imageWidth={500}
+        imageHeight={320}
+        onConfirm={onConfirm}
+        onCancel={jest.fn()}
+      />
+    );
+    await flush();
+
+    // Confirm — crop rect must reflect the proportionally-adjusted scale, not the stale one
+    await act(async () => {
+      fireEvent.press(getByText("Use Photo"));
+    });
+    await flush();
+
+    expect(mockManipulateAsync).toHaveBeenCalledTimes(1);
+    const [uri, actions] = mockManipulateAsync.mock.calls[0];
+    expect(uri).toBe("file:///photo2.jpg");
+    expect(actions[0].crop).toEqual({ originX: 90, originY: 0, width: 320, height: 320 });
+  });
+});
+
 describe("CropModal — crop rect resets correctly when switching to a different photo", () => {
   it("second Use Photo uses crop rect from second image, not stale state from first", async () => {
     // Image 1: 400×400 square. minScale = max(320/400, 320/400) = 0.8
