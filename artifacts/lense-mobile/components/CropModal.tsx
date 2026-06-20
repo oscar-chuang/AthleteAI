@@ -173,7 +173,12 @@ export function CropModal({
     };
   }
 
+  const clearCropError = useCallback(() => setCropError(null), []);
+
   const pinchGesture = Gesture.Pinch()
+    .onBegin(() => {
+      runOnJS(clearCropError)();
+    })
     .onUpdate((e) => {
       const newScale = Math.max(
         minScale,
@@ -195,6 +200,9 @@ export function CropModal({
     });
 
   const panGesture = Gesture.Pan()
+    .onBegin(() => {
+      runOnJS(clearCropError)();
+    })
     .onUpdate((e) => {
       const clamped = clampTranslate(
         savedTX.value + e.translationX,
