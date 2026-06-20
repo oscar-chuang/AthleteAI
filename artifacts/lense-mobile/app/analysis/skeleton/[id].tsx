@@ -919,6 +919,27 @@ export default function SkeletonScreen() {
     return (frameTicks[frameTicks.length - 1]?.t ?? 0) - (frameTicks[0]?.t ?? 0);
   }, [frameTicks]);
 
+  const riskTickPositions = useMemo(() => {
+    if (!frameTicks.length) return [] as number[];
+    const t0 = frameTicks[0]?.t ?? 0;
+    const td = scrubDuration > 0 ? scrubDuration : 1;
+    return frameTicks
+      .filter((tick) => Object.values(tick.jr).some((jr) => (jr?.lvl ?? 0) >= 1))
+      .map((tick) => (tick.t - t0) / td);
+  }, [frameTicks, scrubDuration]);
+
+  const goToPrevRisk = useCallback(() => {
+    if (!riskTickPositions.length) return;
+    const prev = [...riskTickPositions].reverse().find((pos) => pos < scrubRatio - 0.001);
+    setScrubRatio(prev ?? riskTickPositions[riskTickPositions.length - 1]);
+  }, [riskTickPositions, scrubRatio]);
+
+  const goToNextRisk = useCallback(() => {
+    if (!riskTickPositions.length) return;
+    const next = riskTickPositions.find((pos) => pos > scrubRatio + 0.001);
+    setScrubRatio(next ?? riskTickPositions[0]);
+  }, [riskTickPositions, scrubRatio]);
+
   const scrubTrackWidthRef = useRef(1);
 
   const scrubPanResponder = useMemo(
@@ -1722,7 +1743,31 @@ export default function SkeletonScreen() {
             {/* Thumb */}
             <Animated.View style={[ss.scrubberThumb, { transform: [{ translateX: scrubThumbX as any }] }]} />
           </View>
-          <Text style={ss.scrubberHint}>Drag to scrub through frames</Text>
+          {riskTickPositions.length > 0 ? (
+            <View style={ss.scrubberNavRow}>
+              <TouchableOpacity
+                testID="scrubber-prev-risk"
+                style={ss.scrubberNavBtn}
+                onPress={goToPrevRisk}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                activeOpacity={0.7}
+              >
+                <Feather name="chevron-left" size={13} color="#00C2FF" />
+              </TouchableOpacity>
+              <Text style={ss.scrubberHint}>Tap arrows to step through risk moments</Text>
+              <TouchableOpacity
+                testID="scrubber-next-risk"
+                style={ss.scrubberNavBtn}
+                onPress={goToNextRisk}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                activeOpacity={0.7}
+              >
+                <Feather name="chevron-right" size={13} color="#00C2FF" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={ss.scrubberHint}>Drag to scrub through frames</Text>
+          )}
         </View>
       )}
     </View>
@@ -2330,7 +2375,9 @@ function makeStyles(c: ReturnType<typeof useColors>) {
     scrubberProgress: { height: "100%", backgroundColor: c.primary, borderRadius: 2 },
     scrubberTickMark: { position: "absolute", top: "50%", width: 2, height: 10, marginTop: -5, borderRadius: 1, transform: [{ translateX: -1 }] } as any,
     scrubberThumb:    { position: "absolute", left: 0, top: "50%", width: 14, height: 14, borderRadius: 7, backgroundColor: c.primary, borderWidth: 2, borderColor: c.surface1, marginTop: -7 } as any,
-    scrubberHint:     { fontSize: 9, color: c.textTertiary, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 6 },
+    scrubberHint:     { fontSize: 9, color: c.textTertiary, fontFamily: "Inter_400Regular", textAlign: "center", flex: 1 },
+    scrubberNavRow:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6, gap: 4 },
+    scrubberNavBtn:   { width: 24, height: 24, borderRadius: 12, backgroundColor: "rgba(0,194,255,0.12)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(0,194,255,0.25)" },
     scrubFloatingLabel:     { position: "absolute", left: 0, bottom: 26, minWidth: 36, alignItems: "center", backgroundColor: "rgba(108,99,255,0.95)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 } as any,
     scrubFloatingLabelText: { fontSize: 10, color: "#fff", fontFamily: "Inter_600SemiBold", textAlign: "center" },
   });
