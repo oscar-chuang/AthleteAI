@@ -9,7 +9,8 @@
     "classify-tasks": "tsx ./src/classify-tasks.ts",
     "add-pending-task": "tsx ./src/add-pending-task.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "eslint src"
   },
   "dependencies": {
     "@workspace/db": "workspace:*",
@@ -17,8 +18,11 @@
     "sharp": "^0.35.1"
   },
   "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.61.1",
+    "@typescript-eslint/parser": "^8.61.1",
     "@types/node": "catalog:",
     "@types/sharp": "^0.32.0",
+    "eslint": "^10.5.0",
     "tsx": "catalog:",
     "vitest": "^4.1.8"
   }
