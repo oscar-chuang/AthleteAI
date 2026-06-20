@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 import { emitThumbnailResizeAlert } from "./alerting";
 
@@ -34,7 +35,11 @@ export async function resizeThumbnail(frameBase64: string): Promise<string> {
       inputKB,
       note: "oversized raw frame may be stored in DB — investigate input source",
     });
-    void emitThumbnailResizeAlert({ error, inputBytes, inputKB });
+    // Generate a unique key for this failure event. Pass it to emitThumbnailResizeAlert
+    // so that if the caller retries the alert (e.g. because the webhook POST failed) the
+    // in-process counter is not double-incremented for the same logical failure.
+    const idempotencyKey = randomUUID();
+    void emitThumbnailResizeAlert({ error, inputBytes, inputKB }, { idempotencyKey });
     return frameBase64;
   }
 }

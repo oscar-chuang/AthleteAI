@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import sharp from "sharp";
 import { resizeThumbnail, THUMBNAIL_MAX_WIDTH } from "./resize-thumbnail";
-import { getAlertCounter, _resetAlertCounters } from "./alerting";
+import { getAlertCounter, _resetAlertCounters, emitThumbnailResizeAlert } from "./alerting";
 
 /**
  * Build a synthetic JPEG buffer with the given dimensions using sharp.
@@ -193,6 +193,73 @@ describe("resizeThumbnail()", () => {
         delete process.env.ALERT_WEBHOOK_URL;
         vi.restoreAllMocks();
       }
+    });
+
+    it("does not double-count the failure when the webhook retries with the same idempotency key", async () => {
+      // Simulate: webhook POST fails on first attempt, succeeds on second.
+      // The caller retries the entire emitThumbnailResizeAlert call with the
+      // same idempotency key. The counter must reflect only ONE distinct failure.
+      let callCount = 0;
+      vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+        callCount += 1;
+        if (callCount === 1) throw new Error("transient network error");
+        return new Response(null, { status: 200 });
+      });
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      process.env.ALERT_WEBHOOK_URL = "https://hooks.example.com/test";
+      try {
+        const payload = { error: "sharp decode failed", inputBytes: 1024, inputKB: 1 };
+        const idempotencyKey = "unique-failure-event-abc123";
+
+        // First attempt — webhook POST throws.
+        await emitThumbnailResizeAlert(payload, { idempotencyKey });
+        expect(getAlertCounter("thumbnail_resize_failed")).toBe(1);
+
+        // Retry with the same idempotency key — webhook POST now succeeds.
+        await emitThumbnailResizeAlert(payload, { idempotencyKey });
+
+        // Counter must still be 1 — only one logical failure occurred.
+        expect(getAlertCounter("thumbnail_resize_failed")).toBe(1);
+
+        // The webhook was called twice (first failed, second succeeded).
+        expect(callCount).toBe(2);
+      } finally {
+        delete process.env.ALERT_WEBHOOK_URL;
+        vi.restoreAllMocks();
+      }
+    });
+
+    it("counts two calls with different idempotency keys as two distinct failures", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      process.env.ALERT_WEBHOOK_URL = "https://hooks.example.com/test";
+      try {
+        const payload = { error: "sharp decode failed", inputBytes: 512, inputKB: 0 };
+
+        await emitThumbnailResizeAlert(payload, { idempotencyKey: "event-1" });
+        expect(getAlertCounter("thumbnail_resize_failed")).toBe(1);
+
+        await emitThumbnailResizeAlert(payload, { idempotencyKey: "event-2" });
+        expect(getAlertCounter("thumbnail_resize_failed")).toBe(2);
+      } finally {
+        delete process.env.ALERT_WEBHOOK_URL;
+        vi.restoreAllMocks();
+      }
+    });
+
+    it("counts every call as a new failure when no idempotency key is supplied (backward-compatible)", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const payload = { error: "sharp decode failed", inputBytes: 512, inputKB: 0 };
+
+      await emitThumbnailResizeAlert(payload);
+      await emitThumbnailResizeAlert(payload);
+
+      expect(getAlertCounter("thumbnail_resize_failed")).toBe(2);
+
+      vi.restoreAllMocks();
     });
   });
 });

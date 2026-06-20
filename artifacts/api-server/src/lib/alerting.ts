@@ -7,9 +7,22 @@
  *
  * Failures in the alerting path are swallowed and logged — they must never affect
  * the caller's main control flow.
+ *
+ * ## Idempotency / retry safety
+ * The caller may pass an `idempotencyKey` to guard against double-counting when the
+ * webhook POST fails and the whole alert call is retried.  If the same key is seen
+ * within DEDUP_WINDOW_MS the counter is NOT incremented again — only the webhook POST
+ * is re-attempted.  When no key is supplied every call is treated as a new event
+ * (backward-compatible default).
  */
 
 const _counters: Record<string, number> = {};
+
+/** Idempotency-key → expiry timestamp (ms). */
+const _seenKeys = new Map<string, number>();
+
+/** Window within which the same idempotency key is considered a retry, not a new event. */
+export const DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
 /** Returns how many times an event has been emitted since process start. */
 export function getAlertCounter(event: string): number {
@@ -21,6 +34,7 @@ export function _resetAlertCounters(): void {
   for (const key of Object.keys(_counters)) {
     delete _counters[key];
   }
+  _seenKeys.clear();
 }
 
 /** Directly increment a counter — only intended for use in tests. */
@@ -34,6 +48,15 @@ export interface ThumbnailResizeAlertPayload {
   inputKB: number;
 }
 
+export interface EmitAlertOptions {
+  /**
+   * Caller-supplied key that uniquely identifies this logical failure event.
+   * Pass the same key on every retry so that the in-process counter is only
+   * incremented once, even if the webhook POST needs multiple attempts.
+   */
+  idempotencyKey?: string;
+}
+
 /**
  * Emit a `thumbnail_resize_failed` alert.
  *
@@ -42,10 +65,29 @@ export interface ThumbnailResizeAlertPayload {
  * only for forwarding the event to an external sink.
  */
 export async function emitThumbnailResizeAlert(
-  payload: ThumbnailResizeAlertPayload
+  payload: ThumbnailResizeAlertPayload,
+  options: EmitAlertOptions = {}
 ): Promise<void> {
-  _counters["thumbnail_resize_failed"] =
-    (_counters["thumbnail_resize_failed"] ?? 0) + 1;
+  const { idempotencyKey } = options;
+  const now = Date.now();
+
+  // Evict expired keys to avoid unbounded memory growth.
+  for (const [k, expiry] of _seenKeys) {
+    if (now >= expiry) _seenKeys.delete(k);
+  }
+
+  // Only increment the counter when this is a genuinely new event.
+  const isRetry =
+    idempotencyKey !== undefined && _seenKeys.has(idempotencyKey);
+
+  if (!isRetry) {
+    _counters["thumbnail_resize_failed"] =
+      (_counters["thumbnail_resize_failed"] ?? 0) + 1;
+
+    if (idempotencyKey !== undefined) {
+      _seenKeys.set(idempotencyKey, now + DEDUP_WINDOW_MS);
+    }
+  }
 
   const webhookUrl = process.env.ALERT_WEBHOOK_URL;
   if (!webhookUrl) return;
