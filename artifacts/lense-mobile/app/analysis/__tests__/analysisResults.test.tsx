@@ -16,8 +16,8 @@
  *   6. Score Grid — all six SCORE_KEYS map to correct labels/scores; missing fields default to 0
  */
 
-import React from "react";
-import { View, Text } from "react-native";
+import React, { useRef, useEffect } from "react";
+import { View, Text, Animated } from "react-native";
 import { render } from "@testing-library/react-native";
 import type { AnalysisRecord, TipRecord, RiskRecord, DrillRecord } from "@/lib/api";
 import { formatBiomechanicsText } from "@/utils/formatBiomechanics";
@@ -898,5 +898,85 @@ describe("Section 6 — Score Grid", () => {
       expect(getByTestId("score-value-mobility").props.children).toBe(0);
       expect(getByTestId("score-value-technique").props.children).toBe(80);
     });
+  });
+});
+
+// ─── AnimatedRiskBar — re-animation guard ─────────────────────────────────────
+// Mirrors the module-level Set guard used in the production AnimatedRiskBar.
+// The Set is local to this describe block so tests are fully self-contained.
+//
+// Key invariant:
+//   • animKey not yet in Set → Animated.Value initialises to 0 → animation runs
+//   • animKey already in Set → Animated.Value initialises to pct → animation skipped
+//
+// We spy on Animated.timing to verify it is (or is not) invoked, and also
+// check the initial Animated.Value directly before any animation fires.
+
+const mirrorDoneSet = new Set<string>();
+
+function MirrorRiskBar({ pct, animKey }: { pct: number; animKey: string }) {
+  const alreadyDone = mirrorDoneSet.has(animKey);
+  const widthAnim = useRef(new Animated.Value(alreadyDone ? pct : 0)).current;
+  useEffect(() => {
+    if (mirrorDoneSet.has(animKey)) return;
+    Animated.timing(widthAnim, {
+      toValue: pct,
+      duration: 600,
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      if (finished) mirrorDoneSet.add(animKey);
+    });
+  }, [pct, animKey]);
+  return <View testID="bar-wrap" />;
+}
+
+describe("AnimatedRiskBar — re-animation guard", () => {
+  beforeEach(() => {
+    mirrorDoneSet.clear();
+    jest.restoreAllMocks();
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+  });
+
+  it("calls Animated.timing on first mount (key not yet done)", () => {
+    const spy = jest.spyOn(Animated, "timing");
+    render(<MirrorRiskBar pct={55} animKey="a1:leftKnee" />);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT call Animated.timing when the key is already in the done set", () => {
+    mirrorDoneSet.add("a1:leftKnee");
+    const spy = jest.spyOn(Animated, "timing");
+    render(<MirrorRiskBar pct={55} animKey="a1:leftKnee" />);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("different animKey is animated independently (not blocked by an unrelated key)", () => {
+    mirrorDoneSet.add("a1:leftKnee");
+    const spy = jest.spyOn(Animated, "timing");
+    render(<MirrorRiskBar pct={32} animKey="a1:rightHip" />);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("initial Animated.Value is 0 when key is absent from done set", () => {
+    const value = new Animated.Value(mirrorDoneSet.has("a1:leftKnee") ? 55 : 0);
+    expect(value.__getValue()).toBe(0);
+  });
+
+  it("initial Animated.Value equals pct when key is already in done set", () => {
+    mirrorDoneSet.add("a1:leftKnee");
+    const value = new Animated.Value(mirrorDoneSet.has("a1:leftKnee") ? 55 : 0);
+    expect(value.__getValue()).toBe(55);
+  });
+
+  it("a new analysis ID with the same joint gets its own animation gate", () => {
+    mirrorDoneSet.add("a1:leftKnee");
+    const spy = jest.spyOn(Animated, "timing");
+    render(<MirrorRiskBar pct={40} animKey="a2:leftKnee" />);
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });

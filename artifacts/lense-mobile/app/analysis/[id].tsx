@@ -78,6 +78,11 @@ const SHARE_CARD_SCHEME_KEY = "shareCardScheme";
 // back never replays the stagger — and re-focusing the tab never re-fires it either.
 const ringAnimationDone = new Set<string>();
 
+// Module-level: tracks which risk bar keys have already completed their first fill animation.
+// Key format: `${analysisId}:${joint}` — persists across unmounts so tab-switching never
+// replays the bar fill for bars that have already animated.
+const riskBarAnimationDone = new Set<string>();
+
 function getWeekKey(): string {
   const d = new Date();
   const sunday = new Date(d);
@@ -129,25 +134,35 @@ function getRiskLabel(pct: number) {
 }
 
 // ── Animated risk bar ──────────────────────────────────────────────────────────
+// animKey — a stable, unique string (e.g. `${analysisId}:${joint}`) used to
+// gate re-animation via the module-level riskBarAnimationDone Set. When the key
+// is already in the Set the bar starts at its final value and no animation runs,
+// preventing the fill from replaying when the user switches tabs and returns.
 function AnimatedRiskBar({
   pct,
   color,
   delay = 0,
+  animKey,
 }: {
   pct: number;
   color: string;
   delay?: number;
+  animKey: string;
 }) {
-  const widthAnim = useRef(new Animated.Value(0)).current;
+  const alreadyDone = riskBarAnimationDone.has(animKey);
+  const widthAnim = useRef(new Animated.Value(alreadyDone ? pct : 0)).current;
 
   useEffect(() => {
+    if (riskBarAnimationDone.has(animKey)) return;
     Animated.timing(widthAnim, {
       toValue: pct,
       duration: 600,
       delay,
       useNativeDriver: false,
-    }).start();
-  }, [pct]);
+    }).start(({ finished }) => {
+      if (finished) riskBarAnimationDone.add(animKey);
+    });
+  }, [pct, animKey]);
 
   return (
     <View style={{ height: 7, backgroundColor: color + "22", borderRadius: 4, marginVertical: 8 }}>
@@ -1982,7 +1997,7 @@ export default function AnalysisDetailScreen() {
                       <Text style={[styles.riskPct, { color: clr }]}>{risk.riskPercent}%</Text>
                     </View>
                   </View>
-                  <AnimatedRiskBar pct={risk.riskPercent} color={clr} delay={idx * 80} />
+                  <AnimatedRiskBar pct={risk.riskPercent} color={clr} delay={idx * 80} animKey={`${analysis.id}:${risk.joint}`} />
                   <View style={[styles.whatThisMeansBox, { backgroundColor: clr + "08", borderColor: clr + "22" }]}>
                     <Text style={[styles.whatThisMeansLabel, { color: clr }]}>WHAT THIS MEANS</Text>
                     <Text style={[styles.riskDesc, { color: colors.foreground }]}>{formatBiomechanicsText(risk.description)}</Text>
