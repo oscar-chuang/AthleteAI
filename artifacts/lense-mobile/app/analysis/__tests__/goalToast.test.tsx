@@ -24,7 +24,7 @@
  */
 
 import React from "react";
-import { render, act } from "@testing-library/react-native";
+import { render, act, fireEvent } from "@testing-library/react-native";
 
 // ─── Week key helper (mirrors the component exactly) ──────────────────────────
 
@@ -445,6 +445,42 @@ describe("AnalysisDetailScreen — 'Weekly goal reached!' toast", () => {
     await simulateFocus();
 
     expect(queryByText("Weekly goal reached!")).not.toBeNull();
+  });
+
+  // ── Test 9 — tapping the toast body dismisses it ─────────────────────────────
+
+  it("dismisses the toast when the toast body is tapped (not just the ✕ icon)", async () => {
+    jest.useFakeTimers();
+    try {
+      // Set up the standard processing → complete transition so the toast appears.
+      mockAnalysesGet
+        .mockResolvedValueOnce({ analysis: PROCESSING_ANALYSIS, tips: [], injuryRisks: [] })
+        .mockResolvedValueOnce({ analysis: COMPLETE_ANALYSIS,   tips: [], injuryRisks: [] });
+
+      const { queryByText } = render(<AnalysisDetailScreen />);
+      await simulateFocus();
+      await simulateFocus();
+
+      // Confirm the toast is visible before we tap it.
+      expect(queryByText("Weekly goal reached!")).not.toBeNull();
+
+      // Tap the toast title text — this is inside the TouchableOpacity that covers
+      // the entire toast body (onPress={dismissToast}).  The press bubbles up to
+      // the TouchableOpacity and calls dismissToast(), which starts a 250 ms
+      // fade-out animation whose completion callback sets goalToast to null.
+      await act(async () => {
+        fireEvent.press(queryByText("Weekly goal reached!")!);
+        // Advance past the 250 ms animation so its start() callback fires.
+        jest.advanceTimersByTime(300);
+      });
+      await flush();
+
+      // After the animation completes, goalToast is null → toast must be gone.
+      expect(queryByText("Weekly goal reached!")).toBeNull();
+    } finally {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    }
   });
 });
 
