@@ -1723,6 +1723,7 @@ export default function SkeletonScreen() {
               return (
                 <TouchableOpacity
                   key={idx}
+                  testID={`scrub-tick-${idx}`}
                   style={[ss.scrubberTickMark, { left: `${Math.round(pos * 100)}%` as any, backgroundColor: color }]}
                   onPress={() => setScrubRatio(pos)}
                   hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}

@@ -1,5 +1,5 @@
 import React from "react";
-import { render, act, screen, within } from "@testing-library/react-native";
+import { render, act, screen, within, fireEvent } from "@testing-library/react-native";
 import { Animated, Dimensions, PanResponder } from "react-native";
 
 // ─── Module-level mock handles ─────────────────────────────────────────────────
@@ -500,5 +500,101 @@ describe("frame scrubber — floating scrub label visibility", () => {
       ([, cfg]: [unknown, { toValue: number }]) => cfg.toValue === 0,
     );
     expect(fadeOut).toBeTruthy();
+  });
+});
+
+// ─── Frame scrubber: tapping a risk tick mark snaps the scrubber ──────────────
+//
+// FRAME_TICKS has two entries both with risk:
+//   [0] t=0.0  leftKnee lvl=2 → rendered as scrub-tick-0, pos=0
+//   [1] t=10.0 leftKnee lvl=1 → rendered as scrub-tick-1, pos=1
+//
+// Pressing scrub-tick-1 must call setScrubRatio(1) → scrubTick becomes
+// frameTicks[1] (t=10 s) → timecode label shows "0:10 / 0:10".
+
+describe("frame scrubber — tapping a risk tick mark snaps the scrubber", () => {
+  it("pressing a risk tick mark updates the timecode to that tick's timestamp", async () => {
+    render(<SkeletonScreen />);
+    await flush();
+
+    emit(CAPTURE_MSG);
+    await flush();
+    emit(SCAN_COMPLETE_MSG);
+    await flush();
+
+    // Scrubber starts at the first tick (t=0 s).
+    expect(screen.getByText("0:00 / 0:10")).toBeTruthy();
+
+    // Both FRAME_TICKS have risk so two tick marks are rendered.
+    // scrub-tick-1 maps to frameTicks[1] at t=10 s → pos=1.
+    await act(async () => {
+      fireEvent.press(screen.getByTestId("scrub-tick-1"));
+    });
+
+    // scrubRatio is now 1 → bsearchTick picks frameTicks[1] (t=10 s).
+    expect(screen.getByText("0:10 / 0:10")).toBeTruthy();
+  });
+
+  it("pressing the first risk tick mark snaps the scrubber back to t=0", async () => {
+    render(<SkeletonScreen />);
+    await flush();
+
+    emit(CAPTURE_MSG);
+    await flush();
+    emit(SCAN_COMPLETE_MSG);
+    await flush();
+
+    // First drag to the end so we know a state change happens when we tap tick 0.
+    await act(async () => {
+      capturedPanGrant?.({ nativeEvent: { locationX: 1 } });
+    });
+    expect(screen.getByText("0:10 / 0:10")).toBeTruthy();
+
+    // Tap the first tick mark (t=0 s, pos=0) — scrubber should snap back.
+    await act(async () => {
+      fireEvent.press(screen.getByTestId("scrub-tick-0"));
+    });
+
+    expect(screen.getByText("0:00 / 0:10")).toBeTruthy();
+  });
+
+  it("tick marks are only rendered for frames that have at least one risk joint (lvl >= 1)", async () => {
+    // Build ticks where only the second frame has risk.
+    const SAFE_ONLY_TICKS = [
+      {
+        t: 0.0,
+        lm: FULL_LM,
+        angles: { leftKnee: 100 },
+        jr: { leftKnee: { deg: 100, lvl: 0 }, rightKnee: { deg: 100, lvl: 0 } },
+      },
+      {
+        t: 5.0,
+        lm: FULL_LM,
+        angles: { leftKnee: 170 },
+        jr: { leftKnee: { deg: 170, lvl: 2 }, rightKnee: { deg: 100, lvl: 0 } },
+      },
+    ];
+
+    const AsyncStorage = getAsyncStorage();
+    AsyncStorage.getItem.mockImplementation((key: string) => {
+      if (key === "video_uri_42")  return Promise.resolve("file:///video.mp4");
+      if (key === "frameTicks_42") return Promise.resolve(JSON.stringify(SAFE_ONLY_TICKS));
+      return Promise.resolve(null);
+    });
+
+    const scanWithSafeTicks = { ...SCAN_COMPLETE_MSG, frameTicks: SAFE_ONLY_TICKS };
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    emit(CAPTURE_MSG);
+    await flush();
+    emit(scanWithSafeTicks);
+    await flush();
+
+    // Only the second tick (idx=1, lvl=2) has risk, so scrub-tick-0 must not exist.
+    expect(screen.queryByTestId("scrub-tick-0")).toBeNull();
+    // The risky tick is idx=1 in the ticks array → testID scrub-tick-1.
+    expect(screen.getByTestId("scrub-tick-1")).toBeTruthy();
   });
 });
