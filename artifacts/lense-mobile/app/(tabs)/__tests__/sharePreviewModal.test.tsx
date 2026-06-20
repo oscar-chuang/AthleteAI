@@ -315,7 +315,29 @@ describe("HomeScreen — share preview modal open / close", () => {
     expect(shareSpy).not.toHaveBeenCalled();
   });
 
-  // ── Test 4: Share closes the modal and invokes the share flow ────────────────
+  // ── Test 4: backdrop tap closes the modal without sharing ────────────────────
+
+  it("closes the modal when the backdrop is tapped, without invoking Share.share", async () => {
+    const { getByTestId, getByText, queryByText } = render(<HomeScreen />);
+    await simulateFocus();
+
+    // Open the modal
+    await act(async () => { fireEvent.press(getByTestId("goal-share-btn")); });
+    await flush();
+    expect(getByText("Share your achievement")).toBeTruthy();
+
+    // Tap the backdrop (outer Pressable)
+    await act(async () => { fireEvent.press(getByTestId("share-preview-backdrop")); });
+    await flush();
+
+    // Modal title is gone
+    expect(queryByText("Share your achievement")).toBeNull();
+
+    // Share.share must NOT have been called
+    expect(shareSpy).not.toHaveBeenCalled();
+  });
+
+  // ── Test 5: Share closes the modal and invokes the share flow ────────────────
 
   it("closes the modal and invokes Share.share when the Share button is tapped", async () => {
     const { getByTestId, getByText, queryByText } = render(<HomeScreen />);

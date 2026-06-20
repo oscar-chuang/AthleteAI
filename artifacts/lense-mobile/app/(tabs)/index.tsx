@@ -1304,6 +1304,7 @@ export default function HomeScreen() {
         onRequestClose={() => setShowSharePreview(false)}
       >
         <Pressable
+          testID="share-preview-backdrop"
           style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}
           onPress={() => setShowSharePreview(false)}
         >
