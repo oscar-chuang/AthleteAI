@@ -1,11 +1,32 @@
+/**
+ * One-time migration: compress avatar data-URLs larger than 20 KB down to
+ * a 64×64 JPEG so the profile table stays lean.
+ *
+ * Safe to re-run — rows that are already within the limit, or that store a
+ * plain URL rather than a data-URI, are skipped without modification.
+ *
+ * Usage:
+ *   pnpm --filter @workspace/api-server run migrate-avatars
+ *
+ * Requires DATABASE_URL to be set in the environment.
+ */
+
 import sharp from "sharp";
 import { db, profilesTable } from "@workspace/db";
 import { isNotNull, eq } from "drizzle-orm";
+import { fileURLToPath } from "url";
 
-const AVATAR_MAX_PX = 64;
-const AVATAR_MAX_BYTES = 20 * 1024;
+export const AVATAR_MAX_PX = 64;
+export const AVATAR_MAX_BYTES = 20 * 1024;
 
-async function compressAvatarIfNeeded(avatarUrl: string): Promise<string> {
+/**
+ * Compress a data-URI avatar to ≤ 20 KB / 64×64 px JPEG.
+ *
+ * - Returns the input unchanged if it is not a recognised image data-URI.
+ * - Returns the input unchanged if it is already within the size limit.
+ * - Otherwise re-encodes via sharp, lowering quality until the output fits.
+ */
+export async function compressAvatarIfNeeded(avatarUrl: string): Promise<string> {
   const match = avatarUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
   if (!match) return avatarUrl;
 
@@ -29,7 +50,79 @@ async function compressAvatarIfNeeded(avatarUrl: string): Promise<string> {
   return `data:image/jpeg;base64,${outputBuffer.toString("base64")}`;
 }
 
-async function run() {
+export type ProcessRowResult = "skipped" | "compressed";
+
+/**
+ * Process a single profiles row.
+ *
+ * Extracted for testability — the caller supplies `updateFn` so tests can
+ * inject a mock and assert whether (and with what value) the DB write fires.
+ *
+ * @param row      - The row to process (id, userId, avatarUrl).
+ * @param updateFn - Async callback that persists the compressed data-URI.
+ */
+export async function processRow(
+  row: { id: number; userId: number; avatarUrl: string },
+  updateFn: (id: number, newUrl: string) => Promise<void>,
+): Promise<ProcessRowResult> {
+  const original = row.avatarUrl;
+
+  const match = original.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+  if (!match) {
+    return "skipped";
+  }
+
+  const originalBytes = Buffer.from(match[2], "base64").byteLength;
+  if (originalBytes <= AVATAR_MAX_BYTES) {
+    return "skipped";
+  }
+
+  const updated = await compressAvatarIfNeeded(original);
+  await updateFn(row.id, updated);
+  return "compressed";
+}
+
+export interface RunStats {
+  skipped: number;
+  compressed: number;
+  errors: number;
+}
+
+/**
+ * Process a batch of profile rows using the supplied update callback.
+ *
+ * Errors on individual rows are caught, counted, and logged — they do not
+ * abort processing of subsequent rows.
+ *
+ * @param rows      - Profile rows to process.
+ * @param updateFn  - Async callback that persists a compressed avatar URL.
+ */
+export async function runWithDeps(
+  rows: Array<{ id: number; userId: number; avatarUrl: string }>,
+  updateFn: (id: number, newUrl: string) => Promise<void>,
+): Promise<RunStats> {
+  let skipped = 0;
+  let compressed = 0;
+  let errors = 0;
+
+  for (const row of rows) {
+    try {
+      const result = await processRow(row, updateFn);
+      if (result === "compressed") {
+        compressed++;
+      } else {
+        skipped++;
+      }
+    } catch (err) {
+      console.error(`  Profile ${row.id} (user ${row.userId}): ERROR —`, err);
+      errors++;
+    }
+  }
+
+  return { skipped, compressed, errors };
+}
+
+async function main(): Promise<void> {
   console.log("Fetching profiles with avatars...");
 
   const rows = await db
@@ -39,53 +132,31 @@ async function run() {
 
   console.log(`Found ${rows.length} profile(s) with an avatar.`);
 
-  let skipped = 0;
-  let compressed = 0;
-  let errors = 0;
-
-  for (const row of rows) {
-    const original = row.avatarUrl!;
-
-    try {
-      const match = original.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
-      if (!match) {
-        console.log(`  Profile ${row.id} (user ${row.userId}): not a data-URL — skipping.`);
-        skipped++;
-        continue;
-      }
-
-      const originalBytes = Buffer.from(match[2], "base64").byteLength;
-      if (originalBytes <= AVATAR_MAX_BYTES) {
-        console.log(`  Profile ${row.id} (user ${row.userId}): already within limit (${originalBytes} B) — skipping.`);
-        skipped++;
-        continue;
-      }
-
-      console.log(`  Profile ${row.id} (user ${row.userId}): ${originalBytes} B — compressing...`);
-      const updated = await compressAvatarIfNeeded(original);
-      const updatedBytes = Buffer.from(updated.split(",")[1]!, "base64").byteLength;
-
+  const stats = await runWithDeps(
+    rows.map((r) => ({ id: r.id, userId: r.userId, avatarUrl: r.avatarUrl! })),
+    async (id, newUrl) => {
       await db
         .update(profilesTable)
-        .set({ avatarUrl: updated, updatedAt: new Date() })
-        .where(eq(profilesTable.id, row.id));
-
-      console.log(`    → compressed to ${updatedBytes} B`);
-      compressed++;
-    } catch (err) {
-      console.error(`  Profile ${row.id} (user ${row.userId}): ERROR —`, err);
-      errors++;
-    }
-  }
-
-  console.log(
-    `\nDone. ${compressed} compressed, ${skipped} already OK / non-data-URL, ${errors} error(s).`,
+        .set({ avatarUrl: newUrl, updatedAt: new Date() })
+        .where(eq(profilesTable.id, id));
+    },
   );
 
-  process.exit(errors > 0 ? 1 : 0);
+  console.log(
+    `\nDone. ${stats.compressed} compressed, ${stats.skipped} already OK / non-data-URL, ${stats.errors} error(s).`,
+  );
+
+  process.exit(stats.errors > 0 ? 1 : 0);
 }
 
-run().catch((err) => {
-  console.error("Fatal:", err);
-  process.exit(1);
-});
+const isMain =
+  typeof process !== "undefined" &&
+  process.argv[1] != null &&
+  fileURLToPath(import.meta.url) === process.argv[1];
+
+if (isMain) {
+  main().catch((err) => {
+    console.error("Fatal:", err);
+    process.exit(1);
+  });
+}
