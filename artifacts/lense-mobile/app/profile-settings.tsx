@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   Platform,
-  ActivityIndicator,
   Alert,
   Image,
 } from "react-native";
@@ -24,6 +23,11 @@ import { useTheme } from "@/lib/themeContext";
 import { ACCENT_PALETTES } from "@/constants/colors";
 import type { AccentKey } from "@/constants/colors";
 import { CropModal, type CropResult } from "@/components/CropModal";
+import { Button } from "@/components/ui/Button";
+import { Divider } from "@/components/ui/Divider";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SPACING, RADIUS } from "@/constants/spacing";
+import { TYPE } from "@/constants/typography";
 import { persistCheckInHour } from "@/utils/notifications";
 import { buildSnapshot, computeIsDirty } from "@/utils/profileDirty";
 
@@ -514,9 +518,9 @@ export default function ProfileSettingsScreen() {
   const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     header: {
-      paddingTop: topPad + 12,
-      paddingHorizontal: 20,
-      paddingBottom: 14,
+      paddingTop: topPad + SPACING.sm + SPACING.xs,
+      paddingHorizontal: SPACING.lg,
+      paddingBottom: SPACING.md,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
       flexDirection: "row",
@@ -524,14 +528,13 @@ export default function ProfileSettingsScreen() {
       justifyContent: "space-between",
     },
     headerTitle: {
-      fontSize: 17,
-      fontFamily: "Inter_700Bold",
+      ...TYPE.bodySemi,
       color: colors.foreground,
     },
     closeBtn: {
       width: 36,
       height: 36,
-      borderRadius: 10,
+      borderRadius: RADIUS.sm,
       backgroundColor: colors.card,
       borderWidth: 1,
       borderColor: colors.border,
@@ -540,14 +543,14 @@ export default function ProfileSettingsScreen() {
     },
     scroll: { flex: 1 },
     scrollContent: {
-      paddingHorizontal: 20,
-      paddingTop: 24,
+      paddingHorizontal: SPACING.lg,
+      paddingTop: SPACING.lg,
       paddingBottom: bottomPad + 120,
     },
 
     avatarSection: {
       alignItems: "center",
-      marginBottom: 32,
+      marginBottom: SPACING.xl,
     },
     avatarRing: {
       width: 88,
@@ -556,7 +559,7 @@ export default function ProfileSettingsScreen() {
       alignItems: "center",
       justifyContent: "center",
       position: "relative",
-      marginBottom: 16,
+      marginBottom: SPACING.md,
     },
     avatarEditBadge: {
       position: "absolute",
@@ -571,21 +574,12 @@ export default function ProfileSettingsScreen() {
       borderWidth: 2,
       borderColor: colors.background,
     },
-    presetLabel: {
-      fontSize: 11,
-      fontFamily: "Inter_600SemiBold",
-      color: colors.mutedForeground,
-      textTransform: "uppercase",
-      letterSpacing: 0.9,
-      marginBottom: 10,
-      alignSelf: "flex-start",
-    },
     presetRow: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 10,
+      gap: SPACING.sm + 2,
       justifyContent: "center",
-      marginBottom: 12,
+      marginBottom: SPACING.sm + 4,
     },
     presetDot: {
       width: 36,
@@ -598,67 +592,25 @@ export default function ProfileSettingsScreen() {
       borderWidth: 2.5,
       borderColor: "#fff",
     },
-    photoBtn: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 7,
-      paddingHorizontal: 16,
-      paddingVertical: 9,
-      borderRadius: 22,
-      backgroundColor: colors.card,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    photoBtnText: {
-      fontSize: 13,
-      fontFamily: "Inter_500Medium",
-      color: colors.foreground,
-    },
-    removePhotoBtn: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 7,
-      paddingHorizontal: 16,
-      paddingVertical: 9,
-      borderRadius: 22,
-      backgroundColor: colors.destructive + "12",
-      borderWidth: 1,
-      borderColor: colors.destructive + "44",
-      marginTop: 8,
-    },
-    removePhotoBtnText: {
-      fontSize: 13,
-      fontFamily: "Inter_500Medium",
-      color: colors.destructive,
-    },
 
-    section: { marginBottom: 28 },
-    sectionTitle: {
-      fontSize: 11,
-      fontFamily: "Inter_600SemiBold",
-      color: colors.mutedForeground,
-      textTransform: "uppercase",
-      letterSpacing: 0.9,
-      marginBottom: 10,
-    },
+    section: { marginBottom: SPACING.lg },
 
     input: {
       backgroundColor: colors.card,
-      borderRadius: 12,
+      borderRadius: RADIUS.md,
       borderWidth: 1,
       borderColor: colors.border,
-      paddingHorizontal: 14,
+      paddingHorizontal: SPACING.md - 2,
       paddingVertical: 13,
-      fontSize: 15,
-      fontFamily: "Inter_400Regular",
+      ...TYPE.body,
       color: colors.foreground,
     },
 
     chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 9 },
     chip: {
-      paddingHorizontal: 14,
-      paddingVertical: 9,
-      borderRadius: 22,
+      paddingHorizontal: SPACING.md - 2,
+      paddingVertical: SPACING.sm + 1,
+      borderRadius: RADIUS.pill,
       borderWidth: 1.5,
     },
     chipText: { fontSize: 13, fontFamily: "Inter_500Medium" },
@@ -667,13 +619,13 @@ export default function ProfileSettingsScreen() {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      padding: 14,
-      borderRadius: 12,
+      padding: SPACING.md - 2,
+      borderRadius: RADIUS.md,
       borderWidth: 1.5,
-      marginBottom: 9,
+      marginBottom: SPACING.sm + 1,
     },
-    levelLabel: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-    levelSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+    levelLabel: { ...TYPE.bodySemi },
+    levelSub: { ...TYPE.caption, marginTop: 2 },
     checkCircle: {
       width: 24,
       height: 24,
@@ -682,11 +634,11 @@ export default function ProfileSettingsScreen() {
       justifyContent: "center",
     },
 
-    weeklyRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+    weeklyRow: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm + 2 },
     weeklyBtn: {
       width: 66,
       height: 66,
-      borderRadius: 14,
+      borderRadius: RADIUS.md,
       borderWidth: 2,
       alignItems: "center",
       justifyContent: "center",
@@ -699,60 +651,36 @@ export default function ProfileSettingsScreen() {
       bottom: 0,
       left: 0,
       right: 0,
-      paddingHorizontal: 20,
-      paddingTop: 14,
-      paddingBottom: bottomPad + 20,
+      paddingHorizontal: SPACING.lg,
+      paddingTop: SPACING.md - 2,
+      paddingBottom: bottomPad + SPACING.lg - 4,
       backgroundColor: colors.background,
       borderTopWidth: 1,
       borderTopColor: colors.border,
-      gap: 10,
-    },
-    saveBtn: {
-      borderRadius: 14,
-      paddingVertical: 15,
-      alignItems: "center",
-      justifyContent: "center",
-      flexDirection: "row",
-      gap: 8,
-    },
-    saveBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
-
-    logoutBtn: {
-      borderRadius: 14,
-      paddingVertical: 13,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.destructive + "14",
-      borderWidth: 1,
-      borderColor: colors.destructive + "44",
-    },
-    logoutBtnText: {
-      fontSize: 14,
-      fontFamily: "Inter_600SemiBold",
-      color: colors.destructive,
+      gap: SPACING.sm + 2,
     },
 
     errorBanner: {
       backgroundColor: colors.destructive + "14",
-      borderRadius: 10,
+      borderRadius: RADIUS.sm + 2,
       borderWidth: 1,
       borderColor: colors.destructive + "33",
-      padding: 12,
+      padding: SPACING.sm + 4,
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
-      marginBottom: 16,
+      gap: SPACING.sm,
+      marginBottom: SPACING.md,
     },
     savedBanner: {
       backgroundColor: colors.success + "14",
-      borderRadius: 10,
+      borderRadius: RADIUS.sm + 2,
       borderWidth: 1,
       borderColor: colors.success + "33",
-      padding: 12,
+      padding: SPACING.sm + 4,
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
-      marginBottom: 16,
+      gap: SPACING.sm,
+      marginBottom: SPACING.md,
     },
   });
 
@@ -811,24 +739,13 @@ export default function ProfileSettingsScreen() {
             activeOpacity={0.85}
             disabled={avatarSaving}
           >
-            {avatarSaving ? (
-              <View style={{
-                width: 88, height: 88, borderRadius: 44,
-                backgroundColor: colors.card,
-                alignItems: "center", justifyContent: "center",
-                borderWidth: 2, borderColor: colors.border,
-              }}>
-                <ActivityIndicator color={colors.primary} />
-              </View>
-            ) : (
-              <AvatarDisplay
-                testID="avatar-image"
-                avatarUrl={avatarUrl}
-                name={displayName}
-                size={88}
-                colors={colors}
-              />
-            )}
+            <AvatarDisplay
+              testID="avatar-image"
+              avatarUrl={avatarUrl}
+              name={displayName}
+              size={88}
+              colors={colors}
+            />
             <View style={s.avatarEditBadge}>
               <Feather name="camera" size={12} color="#fff" />
             </View>
@@ -860,32 +777,32 @@ export default function ProfileSettingsScreen() {
             })}
           </View>
 
-          <TouchableOpacity
-            style={s.photoBtn}
+          <Button
+            label="Choose from library"
             onPress={handlePickPhoto}
-            activeOpacity={0.8}
-            disabled={avatarSaving}
-          >
-            <Feather name="image" size={14} color={colors.mutedForeground} />
-            <Text style={s.photoBtnText}>Choose from library</Text>
-          </TouchableOpacity>
+            loading={avatarSaving}
+            icon="image"
+            variant="outline"
+            size="sm"
+          />
 
           {isPhotoAvatar(avatarUrl) && (
-            <TouchableOpacity
-              style={s.removePhotoBtn}
+            <Button
+              label="Remove photo"
               onPress={handleRemovePhoto}
-              activeOpacity={0.8}
-              disabled={avatarSaving}
-            >
-              <Feather name="trash-2" size={14} color={colors.destructive} />
-              <Text style={s.removePhotoBtnText}>Remove photo</Text>
-            </TouchableOpacity>
+              loading={avatarSaving}
+              icon="trash-2"
+              variant="ghost"
+              size="sm"
+            />
           )}
         </View>
 
+        <Divider margin={SPACING.sm} />
+
         {/* ── Name ── */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Your Name</Text>
+          <SectionHeader title="Your Name" />
           <TextInput
             style={s.input}
             value={name}
@@ -897,9 +814,11 @@ export default function ProfileSettingsScreen() {
           />
         </View>
 
+        <Divider margin={SPACING.sm} />
+
         {/* ── Sport ── */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Sport</Text>
+          <SectionHeader title="Sport" />
           <View style={s.chipRow}>
             {SPORTS.map((sp) => {
               const active = sport === sp;
@@ -925,9 +844,11 @@ export default function ProfileSettingsScreen() {
           </View>
         </View>
 
+        <Divider margin={SPACING.sm} />
+
         {/* ── Level ── */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Experience Level</Text>
+          <SectionHeader title="Experience Level" />
           {LEVELS.map((lv) => {
             const active = level === lv.label;
             return (
@@ -957,9 +878,11 @@ export default function ProfileSettingsScreen() {
           })}
         </View>
 
+        <Divider margin={SPACING.sm} />
+
         {/* ── Goals ── */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Training Goals</Text>
+          <SectionHeader title="Training Goals" />
           <View style={s.chipRow}>
             {GOALS.map((goal) => {
               const active = goals.includes(goal);
@@ -985,9 +908,11 @@ export default function ProfileSettingsScreen() {
           </View>
         </View>
 
+        <Divider margin={SPACING.sm} />
+
         {/* ── Injury Concerns ── */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Injury Concerns</Text>
+          <SectionHeader title="Injury Concerns" />
           {INJURIES.map((inj) => {
             const active = injuries.includes(inj);
             return (
@@ -1014,9 +939,11 @@ export default function ProfileSettingsScreen() {
           })}
         </View>
 
+        <Divider margin={SPACING.sm} />
+
         {/* ── Weekly Goal ── */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Weekly Training Goal</Text>
+          <SectionHeader title="Weekly Training Goal" />
           <View style={s.weeklyRow}>
             {WEEKLY_GOAL_OPTIONS.map((n) => {
               const active = weeklyGoal === n;
@@ -1041,13 +968,9 @@ export default function ProfileSettingsScreen() {
                   disabled={goalSaving}
                   activeOpacity={0.75}
                 >
-                  {active && goalSaving ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  ) : (
-                    <Text style={[s.weeklyNum, { color: justSaved ? colors.success : active ? colors.primary : colors.foreground }]}>
+                  <Text style={[s.weeklyNum, { color: justSaved ? colors.success : active ? colors.primary : colors.foreground }]}>
                       {n}
                     </Text>
-                  )}
                   <Text style={[s.weeklyLabel, { color: justSaved ? colors.success : active ? colors.primary : colors.mutedForeground }]}>
                     {n === 1 ? "session" : "sessions"}
                   </Text>
@@ -1055,6 +978,16 @@ export default function ProfileSettingsScreen() {
               );
             })}
           </View>
+          {goalSaving && (
+            <Button
+              label="Saving…"
+              onPress={() => {}}
+              loading={goalSaving}
+              variant="ghost"
+              size="sm"
+              disabled
+            />
+          )}
           {goalAutoSuggestedFor !== null && (
             <View style={{
               flexDirection: "row",
@@ -1141,9 +1074,11 @@ export default function ProfileSettingsScreen() {
           )}
         </View>
 
+        <Divider margin={SPACING.sm} />
+
         {/* ── Check-in Time ── */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Improvement Notification Time</Text>
+          <SectionHeader title="Improvement Notification Time" />
           <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginBottom: 12, lineHeight: 17 }}>
             When you beat a previous scan, we'll remind you at this time the next day.
           </Text>
@@ -1169,25 +1104,33 @@ export default function ProfileSettingsScreen() {
                   disabled={checkInSaving}
                   activeOpacity={0.75}
                 >
-                  {active && checkInSaving ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  ) : (
-                    <Text style={[
+                  <Text style={[
                       s.chipText,
                       { color: justSaved ? colors.success : active ? colors.primary : colors.mutedForeground },
                     ]}>
                       {formatHour(h)}
                     </Text>
-                  )}
                 </TouchableOpacity>
               );
             })}
           </View>
+          {checkInSaving && (
+            <Button
+              label="Saving…"
+              onPress={() => {}}
+              loading={checkInSaving}
+              variant="ghost"
+              size="sm"
+              disabled
+            />
+          )}
         </View>
+
+        <Divider margin={SPACING.sm} />
 
         {/* ── Training Days ── */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Training Days</Text>
+          <SectionHeader title="Training Days" />
           <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginBottom: 12, lineHeight: 17 }}>
             Tap the days you plan to train. Rest days won't count against your weekly goal.
           </Text>
@@ -1224,18 +1167,22 @@ export default function ProfileSettingsScreen() {
             })}
           </View>
           {daysSaving && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 }}>
-              <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>
-                Saving schedule…
-              </Text>
-            </View>
+            <Button
+              label="Saving schedule…"
+              onPress={() => {}}
+              loading={daysSaving}
+              variant="ghost"
+              size="sm"
+              disabled
+            />
           )}
         </View>
 
+        <Divider margin={SPACING.sm} />
+
         {/* ── Display ── */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Display</Text>
+          <SectionHeader title="Display" />
 
           {/* Dark / light toggle */}
           <TouchableOpacity
@@ -1339,23 +1286,21 @@ export default function ProfileSettingsScreen() {
 
       {/* ── Bottom actions ── */}
       <View style={s.bottomBar}>
-        <TouchableOpacity
-          style={[s.saveBtn, { backgroundColor: saving ? colors.primary + "88" : colors.primary }]}
+        <Button
+          label={saving ? "Saving…" : "Save Changes"}
           onPress={handleSave}
-          disabled={saving}
-          activeOpacity={0.85}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Feather name="check" size={16} color="#fff" />
-          )}
-          <Text style={s.saveBtnText}>{saving ? "Saving…" : "Save Changes"}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={s.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
-          <Text style={s.logoutBtnText}>Log Out</Text>
-        </TouchableOpacity>
+          loading={saving}
+          icon="check"
+          size="lg"
+          fullWidth
+        />
+        <Button
+          label="Log Out"
+          onPress={handleLogout}
+          variant="destructive"
+          size="lg"
+          fullWidth
+        />
       </View>
     </View>
   );
