@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Animated,
+  PanResponder,
   StyleSheet,
 } from "react-native";
 import Svg, {
@@ -69,6 +70,19 @@ export default function JointHistorySheet({
   const tooltipOpacity = useRef(new Animated.Value(0)).current;
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fadeAnim = useRef<Animated.CompositeAnimation | null>(null);
+
+  const SWIPE_DOWN_THRESHOLD = 80;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt, gs) => gs.dy > 10 && Math.abs(gs.dy) > Math.abs(gs.dx),
+      onPanResponderRelease: (_evt, gs) => {
+        if (gs.dy >= SWIPE_DOWN_THRESHOLD) {
+          onClose();
+        }
+      },
+    })
+  ).current;
 
   const dismissTooltip = useCallback(() => {
     if (autoTimer.current) {
@@ -183,7 +197,9 @@ export default function JointHistorySheet({
         testID="history-sheet-backdrop"
         style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.60)", justifyContent: "flex-end" }}
       >
-        <Pressable
+          <View
+          testID="sheet-swipe-container"
+          {...panResponder.panHandlers}
           style={{
             backgroundColor: "#0e0e1a",
             borderTopLeftRadius: 20,
@@ -194,10 +210,10 @@ export default function JointHistorySheet({
             paddingBottom: 40,
             paddingTop: 16,
           }}
-          onPress={(e) => e.stopPropagation()}
         >
           {/* Handle */}
           <View
+            testID="sheet-drag-handle"
             style={{
               width: 36,
               height: 4,
@@ -584,7 +600,7 @@ export default function JointHistorySheet({
           >
             {data.length} scan{data.length === 1 ? "" : "s"} · angle history
           </Text>
-        </Pressable>
+        </View>
       </Pressable>
     </Modal>
   );
