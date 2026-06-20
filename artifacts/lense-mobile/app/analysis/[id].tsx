@@ -59,6 +59,7 @@ import { EmptyState } from "@/components/ui";
 import { SPACING, RADIUS } from "@/constants/spacing";
 import { TYPE } from "@/constants/typography";
 import { ShareCard, SHARE_CARD_DARK, SHARE_CARD_LIGHT } from "@/components/analysis/ShareCard";
+import { ConfettiBurst } from "@/components/ConfettiBurst";
 import {
   SHARE_CARD_CAPTURE_OPTIONS,
   HIDDEN_SHARE_CARD_STYLE,
@@ -390,6 +391,7 @@ export default function AnalysisDetailScreen() {
 
   // Goal reached toast
   const [goalToast, setGoalToast] = useState<{ count: number; goal: number } | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const toastTranslate = useRef(new Animated.Value(60)).current;
   const prevStatusRef = useRef<string | null>(null);
@@ -816,6 +818,7 @@ export default function AnalysisDetailScreen() {
           AsyncStorage.setItem(prevCountKey, String(currentCount)),
         ]);
         setGoalToast({ count: currentCount, goal: weeklyGoal });
+        setShowConfetti(true);
         Animated.parallel([
           Animated.timing(toastOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
           Animated.spring(toastTranslate, { toValue: 0, useNativeDriver: true, speed: 14, bounciness: 6 }),
@@ -2077,6 +2080,11 @@ export default function AnalysisDetailScreen() {
           currentAnalysisId={id}
           onClose={() => setHistoryJoint(null)}
         />
+      )}
+
+      {/* ── Goal reached confetti burst ── */}
+      {showConfetti && (
+        <ConfettiBurst onComplete={() => setShowConfetti(false)} />
       )}
 
       {/* ── Goal reached toast ── */}
