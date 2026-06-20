@@ -1280,6 +1280,84 @@ export default function ProfileSettingsScreen() {
                 );
               })}
             </View>
+
+            {/* Live accent preview */}
+            <View
+              testID="accent-preview"
+              style={{
+                marginTop: 16,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+                gap: 10,
+              }}
+            >
+              <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                Preview
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                {/* Mini primary button */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                    borderRadius: 10,
+                    backgroundColor: colors.primary,
+                  }}
+                >
+                  <Feather name="check" size={12} color="#fff" />
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" }}>
+                    Save
+                  </Text>
+                </View>
+
+                {/* Mini score ring */}
+                <View style={{ alignItems: "center", justifyContent: "center" }}>
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      borderWidth: 3,
+                      borderColor: colors.primary,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.primary + "14",
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: colors.primary }}>
+                      82
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Mini chip / tag */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 5,
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                    borderRadius: 20,
+                    borderWidth: 1.5,
+                    borderColor: colors.primary,
+                    backgroundColor: colors.primary + "18",
+                  }}
+                >
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary }} />
+                  <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: colors.primary }}>
+                    Hip
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
         </View>
       </ScrollView>

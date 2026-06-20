@@ -268,7 +268,7 @@ export function CropModal({
       statusBarTranslucent
       onRequestClose={onCancel}
     >
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.topBar}>
           <Text style={styles.title}>Move and scale</Text>
           <Text style={styles.hint}>Pinch to zoom · Drag to reposition</Text>
@@ -352,7 +352,6 @@ export function CropModal({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0a0a0f",
     alignItems: "center",
     justifyContent: "space-between",
     paddingTop: Platform.OS === "android" ? 48 : 60,

@@ -5,11 +5,13 @@ import { Platform, StyleSheet, View } from "react-native";
 import { BlurView } from "expo-blur";
 
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/lib/themeContext";
 import { useAuth } from "@/lib/authContext";
 import { useRouter } from "expo-router";
 
 export default function TabLayout() {
   const colors = useColors();
+  const { isDark } = useTheme();
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
@@ -41,8 +43,8 @@ export default function TabLayout() {
           isIOS ? (
             <BlurView
               intensity={80}
-              tint="dark"
-              style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(10,10,15,0.90)", borderTopWidth: 1, borderTopColor: colors.border }]}
+              tint={isDark ? "dark" : "light"}
+              style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? "rgba(10,10,15,0.90)" : "rgba(245,245,250,0.90)", borderTopWidth: 1, borderTopColor: colors.border }]}
             />
           ) : (
             <View
