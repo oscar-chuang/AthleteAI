@@ -7,6 +7,8 @@
  *   - progress > 0  →  Animated.timing is called with the new value (smooth tween)
  *   - progress === 0 →  Animated.Value.setValue is called directly (instant reset,
  *                       no tween — avoids an awkward reverse animation on re-scan)
+ *   - Any in-flight animation is stopped before a new one starts so simultaneous
+ *     tweens cannot fight each other and produce a visible jump.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -14,10 +16,15 @@ import { applyScanProgressAnim, type AnimValue, type TimingFn } from "../utils/s
 
 // ── Minimal fakes ─────────────────────────────────────────────────────────────
 
-function makeAnimValue(): { mock: AnimValue; setValue: ReturnType<typeof vi.fn> } {
+function makeAnimValue(): {
+  mock: AnimValue;
+  setValue: ReturnType<typeof vi.fn>;
+  stopAnimation: ReturnType<typeof vi.fn>;
+} {
   const setValue = vi.fn();
-  const mock: AnimValue = { setValue };
-  return { mock, setValue };
+  const stopAnimation = vi.fn();
+  const mock: AnimValue = { setValue, stopAnimation };
+  return { mock, setValue, stopAnimation };
 }
 
 function makeTiming(): { timing: TimingFn; start: ReturnType<typeof vi.fn> } {
@@ -33,11 +40,12 @@ const noopEasing = (t: number) => t;
 describe("scan progress bar — smooth animation instead of instant jumps", () => {
   let anim: AnimValue;
   let setValue: ReturnType<typeof vi.fn>;
+  let stopAnimation: ReturnType<typeof vi.fn>;
   let timing: TimingFn;
   let start: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    ({ mock: anim, setValue } = makeAnimValue());
+    ({ mock: anim, setValue, stopAnimation } = makeAnimValue());
     ({ timing, start } = makeTiming());
   });
 
@@ -50,12 +58,12 @@ describe("scan progress bar — smooth animation instead of instant jumps", () =
     expect(setValue).not.toHaveBeenCalled();
   });
 
-  it("passes the correct duration (300 ms) and useNativeDriver: false to Animated.timing", () => {
+  it("passes the correct duration (400 ms) and useNativeDriver: false to Animated.timing", () => {
     applyScanProgressAnim(anim, 0.75, timing, noopEasing);
 
     expect(timing).toHaveBeenCalledWith(
       anim,
-      expect.objectContaining({ duration: 300, useNativeDriver: false }),
+      expect.objectContaining({ duration: 400, useNativeDriver: false }),
     );
   });
 
@@ -78,6 +86,25 @@ describe("scan progress bar — smooth animation instead of instant jumps", () =
     expect(start).not.toHaveBeenCalled();
   });
 
+  it("stops any in-flight animation before starting a new one on advance", () => {
+    applyScanProgressAnim(anim, 0.4, timing, noopEasing);
+
+    expect(stopAnimation).toHaveBeenCalledTimes(1);
+    // stopAnimation must be called before timing so the old tween is cancelled first
+    const stopOrder  = stopAnimation.mock.invocationCallOrder[0]!;
+    const timingOrder = (timing as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]!;
+    expect(stopOrder).toBeLessThan(timingOrder);
+  });
+
+  it("stops any in-flight animation before resetting to 0", () => {
+    applyScanProgressAnim(anim, 0, timing, noopEasing);
+
+    expect(stopAnimation).toHaveBeenCalledTimes(1);
+    const stopOrder   = stopAnimation.mock.invocationCallOrder[0]!;
+    const setValueOrder = setValue.mock.invocationCallOrder[0]!;
+    expect(stopOrder).toBeLessThan(setValueOrder);
+  });
+
   it("animates each distinct non-zero progress value independently", () => {
     applyScanProgressAnim(anim, 0.25, timing, noopEasing);
     applyScanProgressAnim(anim, 0.5, timing, noopEasing);
@@ -98,5 +125,11 @@ describe("scan progress bar — smooth animation instead of instant jumps", () =
     expect(timing).toHaveBeenCalledTimes(2);
     expect(setValue).toHaveBeenCalledTimes(1);
     expect(setValue).toHaveBeenCalledWith(0);
+  });
+
+  it("works correctly when stopAnimation is not provided (optional method)", () => {
+    const minimalAnim: AnimValue = { setValue: vi.fn() }; // no stopAnimation
+    expect(() => applyScanProgressAnim(minimalAnim, 0.5, timing, noopEasing)).not.toThrow();
+    expect(timing).toHaveBeenCalledTimes(1);
   });
 });
