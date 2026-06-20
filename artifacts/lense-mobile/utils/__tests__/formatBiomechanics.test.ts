@@ -395,4 +395,84 @@ describe("formatBiomechanicsText", () => {
       expect(result).toContain("pelvis tilting sideways");
     });
   });
+
+  describe("adjacent terms — spacing preserved between replacements", () => {
+    it("two terms separated by a single space keep exactly one space between their replacements", () => {
+      const result = formatBiomechanicsText("hip flexion knee valgus");
+      expect(result).toBe("Hip bending forward knee caving inward");
+    });
+
+    it("three adjacent terms separated by single spaces keep one space between each replacement", () => {
+      const result = formatBiomechanicsText(
+        "hip flexion knee valgus lumbar flexion"
+      );
+      expect(result).toBe(
+        "Hip bending forward knee caving inward lower back rounding"
+      );
+    });
+
+    it("adjacent terms separated by a comma-space preserve the comma-space", () => {
+      const result = formatBiomechanicsText("hip flexion, knee valgus");
+      expect(result).toBe("Hip bending forward, knee caving inward");
+    });
+
+    it("adjacent terms separated by ' and ' preserve the conjunction", () => {
+      const result = formatBiomechanicsText("knee valgus and lumbar flexion");
+      expect(result).toBe("Knee caving inward and lower back rounding");
+    });
+
+    it("adjacent terms separated by ' — ' preserve the em-dash separator", () => {
+      const result = formatBiomechanicsText(
+        "hip flexion — knee valgus"
+      );
+      expect(result).toBe("Hip bending forward — knee caving inward");
+    });
+  });
+
+  describe("terms at string boundaries — no extra whitespace or punctuation introduced", () => {
+    it("term at the very start produces no leading whitespace", () => {
+      const result = formatBiomechanicsText("knee valgus is present");
+      expect(result).toBe("Knee caving inward is present");
+      expect(result.startsWith("Knee")).toBe(true);
+    });
+
+    it("term at the very end produces no trailing whitespace", () => {
+      const result = formatBiomechanicsText("the issue is knee valgus");
+      expect(result).toBe("The issue is knee caving inward");
+      expect(result.endsWith("inward")).toBe(true);
+    });
+
+    it("term at the very end followed by a full stop keeps the full stop flush", () => {
+      const result = formatBiomechanicsText("the issue is knee valgus.");
+      expect(result).toBe("The issue is knee caving inward.");
+    });
+
+    it("term at the very start followed by a colon keeps the colon flush", () => {
+      const result = formatBiomechanicsText("knee valgus: a common finding");
+      expect(result).toBe("Knee caving inward: a common finding");
+    });
+
+    it("term enclosed in parentheses preserves both parentheses without extra spaces", () => {
+      const result = formatBiomechanicsText(
+        "avoid (knee valgus) during loading"
+      );
+      expect(result).toBe("Avoid (knee caving inward) during loading");
+    });
+
+    it("term at start of string with trailing comma preserves the comma", () => {
+      const result = formatBiomechanicsText("hip flexion, which is common");
+      expect(result).toBe("Hip bending forward, which is common");
+    });
+
+    it("two adjacent terms at the very start of the string — first letter capitalised once only", () => {
+      const result = formatBiomechanicsText("hip flexion knee valgus are present");
+      expect(result.charAt(0)).toBe("H");
+      expect(result).toBe("Hip bending forward knee caving inward are present");
+    });
+
+    it("term at end preceded immediately by punctuation preserves that punctuation", () => {
+      const result = formatBiomechanicsText("watch for (knee valgus)");
+      expect(result).toBe("Watch for (knee caving inward)");
+    });
+  });
 });
