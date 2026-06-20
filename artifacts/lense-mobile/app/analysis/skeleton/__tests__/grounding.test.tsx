@@ -1266,6 +1266,38 @@ describe("group dividers — appear between priority and non-priority tips when 
 
     expect(screen.queryByText("AFTER INJURY RECOVERY")).toBeNull();
   });
+
+  it("hides both dividers when only injury tips are present (no performance section to create a conflict)", async () => {
+    mockApiGet.mockResolvedValue({
+      analysis: { id: 1, sport: "weightlifting", biomechanicsApplied: true },
+      // Only injury tips — without any performance tip on leftKnee there is no
+      // cross-section conflict, so no priority group forms and no divider is needed.
+      tips: [injConflict, injSafe],
+      injuryRisks: [],
+    });
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    expect(screen.queryByText("ADDITIONAL TIPS")).toBeNull();
+    expect(screen.queryByText("AFTER INJURY RECOVERY")).toBeNull();
+  });
+
+  it("hides both dividers when only performance tips are present (no injury section to create a conflict)", async () => {
+    mockApiGet.mockResolvedValue({
+      analysis: { id: 1, sport: "weightlifting", biomechanicsApplied: true },
+      // Only performance tips — without any injury tip on leftKnee there is no
+      // cross-section conflict, so no priority group forms and no divider is needed.
+      tips: [perfConflict, perfSafe],
+      injuryRisks: [],
+    });
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    expect(screen.queryByText("ADDITIONAL TIPS")).toBeNull();
+    expect(screen.queryByText("AFTER INJURY RECOVERY")).toBeNull();
+  });
 });
 
 
