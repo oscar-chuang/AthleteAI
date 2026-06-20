@@ -1681,6 +1681,15 @@ export default function AnalysisDetailScreen() {
                   "{firstDrill.cue}"
                 </Text>
               ) : null}
+              {firstDrill.drillFeelCue ? (
+                <View testID="drill-feel-cue-row" style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, marginTop: 6 }}>
+                  <Feather name="zap" size={11} color={colors.success} style={{ marginTop: 2 }} />
+                  <Text style={{ flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: colors.success, lineHeight: 17, fontStyle: "italic" }}>
+                    <Text style={{ fontFamily: "Inter_600SemiBold", fontStyle: "normal" }}>{"Feel: "}</Text>
+                    {firstDrill.drillFeelCue}
+                  </Text>
+                </View>
+              ) : null}
             </View>
           </View>
         )}
@@ -1774,9 +1783,20 @@ export default function AnalysisDetailScreen() {
                             {typeof tip.drill === "string" ? tip.drill : tip.drill.name}
                           </Text>
                           {typeof tip.drill !== "string" && (
-                            <Text style={[styles.drillMeta, { color: colors.mutedForeground }]}>
-                              {tip.drill.sets} · {tip.drill.reps}{tip.drill.cue ? ` — ${tip.drill.cue}` : ""}
-                            </Text>
+                            <>
+                              <Text style={[styles.drillMeta, { color: colors.mutedForeground }]}>
+                                {tip.drill.sets} · {tip.drill.reps}{tip.drill.cue ? ` — ${tip.drill.cue}` : ""}
+                              </Text>
+                              {tip.drill.drillFeelCue ? (
+                                <View style={styles.drillFeelRow}>
+                                  <Feather name="zap" size={10} color={colors.success} style={{ marginTop: 1 }} />
+                                  <Text style={[styles.drillFeelCue, { color: colors.success }]}>
+                                    <Text style={{ fontFamily: "Inter_600SemiBold", fontStyle: "normal" }}>{"Feel: "}</Text>
+                                    {tip.drill.drillFeelCue}
+                                  </Text>
+                                </View>
+                              ) : null}
+                            </>
                           )}
                         </View>
                       )}
@@ -2264,6 +2284,8 @@ const styles = StyleSheet.create({
   },
   drillName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   drillMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 3 },
+  drillFeelRow: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 5, marginTop: 5 },
+  drillFeelCue: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", fontStyle: "italic" as const, lineHeight: 16 },
   sourceRow: {
     flexDirection: "row",
     alignItems: "flex-start",

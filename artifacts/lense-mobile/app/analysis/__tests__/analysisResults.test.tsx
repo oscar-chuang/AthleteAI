@@ -527,7 +527,7 @@ describe("Section 5 — Why It Matters", () => {
 // Mirrors the conditional block in [id].tsx:
 //   firstDrill = tips.find(t => t.drill)?.drill
 //   renders when firstDrill is truthy
-//   shows: name, sets · reps, and optionally cue (in quotes)
+//   shows: name, sets · reps, optionally cue (in quotes), optionally drillFeelCue
 
 function TryThisDrillSection({ tips }: { tips: TipRecord[] }) {
   const firstDrill: DrillRecord | undefined = tips.find((t) => t.drill)?.drill;
@@ -539,6 +539,11 @@ function TryThisDrillSection({ tips }: { tips: TipRecord[] }) {
       {firstDrill.cue ? (
         <Text testID="drill-cue">{`"${firstDrill.cue}"`}</Text>
       ) : null}
+      {firstDrill.drillFeelCue ? (
+        <View testID="drill-feel-cue-row">
+          <Text testID="drill-feel-cue">{firstDrill.drillFeelCue}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -548,6 +553,11 @@ const DRILL: DrillRecord = {
   sets: "3 sets",
   reps: "30 seconds each",
   cue: "Keep your heel flat on the ground throughout.",
+};
+
+const DRILL_WITH_FEEL_CUE: DrillRecord = {
+  ...DRILL,
+  drillFeelCue: "Feel your heel pressing heavy into the floor.",
 };
 
 const DRILL_NO_CUE: DrillRecord = {
@@ -565,6 +575,12 @@ const TIP_WITH_DRILL: TipRecord = {
   title: "Improve ankle dorsiflexion",
   description: "Tight calves limit ankle range of motion.",
   drill: DRILL,
+};
+
+const TIP_WITH_FEEL_CUE: TipRecord = {
+  ...TIP_WITH_DRILL,
+  id: "td5",
+  drill: DRILL_WITH_FEEL_CUE,
 };
 
 const TIP_WITH_DRILL_NO_CUE: TipRecord = {
@@ -641,6 +657,29 @@ describe("Section 6 — Try This Drill", () => {
       <TryThisDrillSection tips={[TIP_WITHOUT_DRILL, TIP_WITH_DRILL, tipSecondDrill]} />,
     );
     expect(getByTestId("drill-name").props.children).toBe("Wall ankle stretch");
+  });
+
+  it("renders the feel cue row when drillFeelCue is non-empty", () => {
+    const { getByTestId } = render(
+      <TryThisDrillSection tips={[TIP_WITH_FEEL_CUE]} />,
+    );
+    expect(getByTestId("drill-feel-cue-row")).not.toBeNull();
+  });
+
+  it("renders the feel cue text when drillFeelCue is non-empty", () => {
+    const { getByTestId } = render(
+      <TryThisDrillSection tips={[TIP_WITH_FEEL_CUE]} />,
+    );
+    expect(getByTestId("drill-feel-cue").props.children).toBe(
+      "Feel your heel pressing heavy into the floor.",
+    );
+  });
+
+  it("does NOT render the feel cue row when drillFeelCue is absent", () => {
+    const { queryByTestId } = render(
+      <TryThisDrillSection tips={[TIP_WITH_DRILL]} />,
+    );
+    expect(queryByTestId("drill-feel-cue-row")).toBeNull();
   });
 });
 
