@@ -1176,6 +1176,9 @@ export default function AnalysisDetailScreen() {
                       AsyncStorage.setItem(SHARE_CARD_SCHEME_KEY, scheme).catch(() => {});
                     }}
                     activeOpacity={0.75}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={scheme === "dark" ? "Dark" : "Light"}
                     style={[
                       styles.schemePill,
                       selected && { borderColor: colors.primary },
