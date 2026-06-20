@@ -22,6 +22,7 @@
 import React from "react";
 import { render, act, screen, fireEvent } from "@testing-library/react-native";
 import { Platform, Alert } from "react-native";
+import { SHARE_CARD_CAPTURE_OPTIONS } from "@/utils/shareCardCapture";
 
 // ─── Capture useFocusEffect callback ──────────────────────────────────────────
 let mockFocusCallback: (() => (() => void) | void) | null = null;
@@ -257,6 +258,21 @@ describe("AnalysisDetailScreen — Save to photos", () => {
 
     expect(mockCaptureRef).toHaveBeenCalledTimes(1);
     expect(mockSaveToLibraryAsync).toHaveBeenCalledWith(CAPTURED_URI);
+  });
+
+  it("captureRef is called with SHARE_CARD_CAPTURE_OPTIONS during Save to Photos", async () => {
+    mockRequestPermissionsAsync.mockResolvedValue({ status: "granted" });
+
+    await renderAndOpenShareModal();
+
+    fireEvent.press(screen.getByText("Save to photos"));
+    await flush();
+
+    expect(mockCaptureRef).toHaveBeenCalledTimes(1);
+    expect(mockCaptureRef).toHaveBeenCalledWith(
+      expect.anything(),
+      SHARE_CARD_CAPTURE_OPTIONS,
+    );
   });
 
   it("shows a success alert after the card is saved", async () => {

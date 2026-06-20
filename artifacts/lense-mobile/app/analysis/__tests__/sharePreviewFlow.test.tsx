@@ -20,6 +20,7 @@
 import React from "react";
 import { render, act, screen, fireEvent } from "@testing-library/react-native";
 import { Platform, Alert } from "react-native";
+import { SHARE_CARD_CAPTURE_OPTIONS } from "@/utils/shareCardCapture";
 
 // ─── Capture useFocusEffect callback ──────────────────────────────────────────
 let mockFocusCallback: (() => (() => void) | void) | null = null;
@@ -311,6 +312,23 @@ describe("AnalysisDetailScreen — share preview modal", () => {
     expect(mockStartActivityAsync).toHaveBeenCalledTimes(1);
     // Modal closes after the share completes.
     expect(screen.queryByText("Share your session")).toBeNull();
+  });
+
+  it("captureRef is called with SHARE_CARD_CAPTURE_OPTIONS during Share", async () => {
+    render(<AnalysisDetailScreen />);
+    await simulateFocus();
+
+    fireEvent.press(screen.getByRole("button", { name: "Share analysis" }));
+    await flush();
+
+    fireEvent.press(screen.getByText("Share"));
+    await flush();
+
+    expect(mockCaptureRef).toHaveBeenCalledTimes(1);
+    expect(mockCaptureRef).toHaveBeenCalledWith(
+      expect.anything(),
+      SHARE_CARD_CAPTURE_OPTIONS,
+    );
   });
 
   it("Share CTA is disabled while a share is in progress — second press is a no-op", async () => {
