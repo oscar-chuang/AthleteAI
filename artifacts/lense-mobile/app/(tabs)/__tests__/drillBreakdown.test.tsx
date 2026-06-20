@@ -22,6 +22,8 @@
  *     but neither "Corrective" nor "Performance" sub-label appears.
  *  3. AsyncStorage returns no drill_done_ keys → the entire drills section is
  *     hidden (drillsDoneCount === 0), so neither sub-label appears.
+ *  4. Partial failure: one analysis resolves, one rejects → breakdown is shown
+ *     with the partial counts and a "Some sessions couldn't be classified" note.
  */
 
 import React from "react";
@@ -242,6 +244,50 @@ describe("ProgressScreen — drill breakdown (Corrective / Performance)", () => 
     // Sub-labels must be absent.
     expect(queryByText("Corrective")).toBeNull();
     expect(queryByText("Performance")).toBeNull();
+  });
+
+  // ── Test 4 ──────────────────────────────────────────────────────────────────
+
+  it("shows breakdown with a caveat note when only some analyses fail (partial failure)", async () => {
+    // Two analyses: analysis1 resolves (1 corrective), analysis2 rejects.
+    // Expected: breakdown is shown with partial counts + caveat note.
+    mockAsyncStorageGetAllKeys.mockResolvedValue([
+      "drill_done_analysis1",
+      "drill_done_analysis2",
+    ]);
+    mockAsyncStorageMultiGet.mockResolvedValue([
+      ["drill_done_analysis1", JSON.stringify(["tip-ok"])],
+      ["drill_done_analysis2", JSON.stringify(["tip-fail"])],
+    ]);
+
+    mockAnalysesGet.mockImplementation(async (id: string) => {
+      if (id === "analysis1") {
+        return {
+          analysis: {},
+          injuryRisks: [],
+          tips: [{ id: "tip-ok", tipType: "injury", text: "Corrective tip" }],
+        };
+      }
+      throw new Error("Network error");
+    });
+
+    const { getByText, queryByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // Total count reflects both analyses' completed tips.
+    expect(getByText("2")).toBeTruthy();
+    expect(getByText("Drills completed · all sessions")).toBeTruthy();
+
+    // Breakdown is still shown (at least one succeeded).
+    expect(getByText("Corrective")).toBeTruthy();
+    expect(getByText("Performance")).toBeTruthy();
+
+    // Caveat note must be visible (rendered with a right-single-quote \u2019).
+    const caveatNote = "Some sessions couldn\u2019t be classified";
+    expect(getByText(caveatNote)).toBeTruthy();
+
+    // Sanity: queryByText also finds it (ensures we're testing render, not just API calls).
+    expect(queryByText(caveatNote)).not.toBeNull();
   });
 
   // ── Test 3 ──────────────────────────────────────────────────────────────────

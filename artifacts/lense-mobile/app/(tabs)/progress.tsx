@@ -191,6 +191,7 @@ export default function ProgressScreen() {
   const [drillsCorrective, setDrillsCorrective] = useState<number | null>(null);
   const [drillsPerformance, setDrillsPerformance] = useState<number | null>(null);
   const [drillsUnclassified, setDrillsUnclassified] = useState<number>(0);
+  const [drillsPartialFailure, setDrillsPartialFailure] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -269,6 +270,7 @@ export default function ProgressScreen() {
         let corrective = 0;
         let performance = 0;
         let atLeastOneFulfilled = false;
+        let atLeastOneRejected = false;
 
         results.forEach((result, idx) => {
           const analysisId = Object.keys(analysisCompletedTips)[idx]!;
@@ -284,6 +286,8 @@ export default function ProgressScreen() {
                 }
               }
             }
+          } else {
+            atLeastOneRejected = true;
           }
         });
 
@@ -293,16 +297,20 @@ export default function ProgressScreen() {
           setDrillsCorrective(corrective);
           setDrillsPerformance(performance);
           setDrillsUnclassified(Math.max(0, total - corrective - performance));
+          // Flag partial failure so the UI can show a caveat note
+          setDrillsPartialFailure(atLeastOneRejected);
         } else {
           setDrillsCorrective(null);
           setDrillsPerformance(null);
           setDrillsUnclassified(0);
+          setDrillsPartialFailure(false);
         }
       } catch {
         // If tip fetching fails, show total only (no breakdown)
         setDrillsCorrective(null);
         setDrillsPerformance(null);
         setDrillsUnclassified(0);
+        setDrillsPartialFailure(false);
       }
     } catch {}
   }, []);
@@ -896,11 +904,15 @@ export default function ProgressScreen() {
                     <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.primary, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Performance</Text>
                   </View>
                 </View>
-                {drillsUnclassified > 0 && (
+                {drillsPartialFailure ? (
+                  <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center" }}>
+                    {"Some sessions couldn\u2019t be classified"}
+                  </Text>
+                ) : drillsUnclassified > 0 ? (
                   <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center" }}>
                     {`+ ${drillsUnclassified} unclassified`}
                   </Text>
-                )}
+                ) : null}
               </View>
             )}
           </View>
