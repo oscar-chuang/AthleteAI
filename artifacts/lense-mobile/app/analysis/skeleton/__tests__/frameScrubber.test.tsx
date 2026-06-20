@@ -1,6 +1,6 @@
 import React from "react";
-import { render, act, screen } from "@testing-library/react-native";
-import { Dimensions, PanResponder } from "react-native";
+import { render, act, screen, within } from "@testing-library/react-native";
+import { Animated, Dimensions, PanResponder } from "react-native";
 
 // ─── Module-level mock handles ─────────────────────────────────────────────────
 const mockApiGet    = jest.fn();
@@ -392,5 +392,113 @@ describe("frame scrubber — SVG overlay switches from frozen capture to scrub s
     const storedTicks = JSON.parse(ticksWrite![1]);
     expect(Array.isArray(storedTicks)).toBe(true);
     expect(storedTicks.length).toBe(FRAME_TICKS.length);
+  });
+});
+
+// ─── Frame scrubber: floating label appears and disappears ─────────────────────
+
+describe("frame scrubber — floating scrub label visibility", () => {
+  let animTimingSpy: jest.SpyInstance;
+  let capturedPanRelease: (() => void) | undefined;
+
+  beforeEach(() => {
+    // Capture onPanResponderRelease in addition to grant/move.
+    // Restore the outer spy first so we can re-install with release support.
+    panResponderSpy.mockRestore();
+    panResponderSpy = jest.spyOn(PanResponder, "create").mockImplementation((config) => {
+      capturedPanGrant   = (evt) => config.onPanResponderGrant?.(evt as any, {} as any);
+      capturedPanMove    = (evt) => config.onPanResponderMove?.(evt as any, {} as any);
+      capturedPanRelease = ()    => config.onPanResponderRelease?.({} as any, {} as any);
+      return { panHandlers: {} };
+    });
+
+    // Spy on Animated.timing to inspect toValue without running real animations.
+    animTimingSpy = jest.spyOn(Animated, "timing").mockImplementation(
+      (_value, _config) => ({ start: jest.fn(), stop: jest.fn(), reset: jest.fn() } as any),
+    );
+  });
+
+  afterEach(() => {
+    animTimingSpy.mockRestore();
+    capturedPanRelease = undefined;
+  });
+
+  async function setupWithTicks() {
+    render(<SkeletonScreen />);
+    await flush();
+    emit(CAPTURE_MSG);
+    await flush();
+    emit(SCAN_COMPLETE_MSG);
+    await flush();
+  }
+
+  it("floating label element is rendered inside the scrubber track and starts hidden", async () => {
+    await setupWithTicks();
+
+    // Structural: the floating label must be a descendant of scrubber-track.
+    const track = screen.getByTestId("scrubber-track");
+    const label = within(track).getByTestId("scrub-floating-label");
+    expect(label).toBeTruthy();
+
+    // Initial state: opacity must be 0 — the label is hidden before any drag gesture.
+    // The style array contains { opacity: Animated.Value(0) }; read the current value.
+    const styles: any[] = Array.isArray(label.props.style)
+      ? label.props.style
+      : [label.props.style];
+    const styleWithOpacity = styles.find(
+      (s: any) => s && typeof s === "object" && "opacity" in s,
+    );
+    const initialOpacity =
+      typeof styleWithOpacity?.opacity === "number"
+        ? styleWithOpacity.opacity
+        : styleWithOpacity?.opacity?.__getValue?.();
+    expect(initialOpacity).toBe(0);
+  });
+
+  it("animates opacity to 1 when the pan responder grant fires", async () => {
+    await setupWithTicks();
+    animTimingSpy.mockClear();
+
+    await act(async () => {
+      capturedPanGrant?.({ nativeEvent: { locationX: 0 } });
+    });
+
+    // At least one Animated.timing call must target opacity 1 (the fade-in).
+    const fadeIn = animTimingSpy.mock.calls.find(
+      ([, cfg]: [unknown, { toValue: number }]) => cfg.toValue === 1,
+    );
+    expect(fadeIn).toBeTruthy();
+  });
+
+  it("animates opacity to 0 after the 500 ms delay when the pan responder releases", async () => {
+    await setupWithTicks();
+
+    // Grant so the label is visible.
+    await act(async () => {
+      capturedPanGrant?.({ nativeEvent: { locationX: 0 } });
+    });
+
+    animTimingSpy.mockClear();
+
+    // Release — this schedules a 500 ms timer before fading out.
+    await act(async () => {
+      capturedPanRelease?.();
+    });
+
+    // No fade-out should have been triggered yet.
+    const earlyFade = animTimingSpy.mock.calls.find(
+      ([, cfg]: [unknown, { toValue: number }]) => cfg.toValue === 0,
+    );
+    expect(earlyFade).toBeUndefined();
+
+    // Advance past the 500 ms delay — the fade-out animation must now start.
+    await act(async () => {
+      jest.advanceTimersByTime(500);
+    });
+
+    const fadeOut = animTimingSpy.mock.calls.find(
+      ([, cfg]: [unknown, { toValue: number }]) => cfg.toValue === 0,
+    );
+    expect(fadeOut).toBeTruthy();
   });
 });

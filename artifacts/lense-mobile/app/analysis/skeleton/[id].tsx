@@ -1711,6 +1711,7 @@ export default function SkeletonScreen() {
             })}
             {/* Floating time label above thumb — visible while dragging */}
             <Animated.View
+              testID="scrub-floating-label"
               pointerEvents="none"
               style={[ss.scrubFloatingLabel, { opacity: scrubLabelOpacity, transform: [{ translateX: scrubLabelX as any }] }]}
             >
