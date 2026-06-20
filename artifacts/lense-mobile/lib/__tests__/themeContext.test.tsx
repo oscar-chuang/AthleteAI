@@ -67,7 +67,7 @@ describe("ThemeProvider — setMode", () => {
 });
 
 describe("ThemeProvider — toggleTheme", () => {
-  it("toggles from dark to light", async () => {
+  it("toggles from dark to light and flips isDark", async () => {
     const { result } = renderHook(() => useTheme(), { wrapper });
 
     await act(async () => { result.current.toggleTheme(); });
@@ -76,13 +76,32 @@ describe("ThemeProvider — toggleTheme", () => {
     expect(result.current.mode).toBe("light");
   });
 
-  it("toggles from light back to dark", async () => {
+  it("persists 'light' to AsyncStorage when toggling from dark", async () => {
+    const { result } = renderHook(() => useTheme(), { wrapper });
+
+    await act(async () => { result.current.toggleTheme(); });
+
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith("theme_mode", "light");
+  });
+
+  it("toggles from light back to dark and flips isDark", async () => {
     const { result } = renderHook(() => useTheme(), { wrapper });
 
     await act(async () => { result.current.setMode("light"); });
+    (AsyncStorage.setItem as jest.Mock).mockClear();
     await act(async () => { result.current.toggleTheme(); });
 
     expect(result.current.isDark).toBe(true);
     expect(result.current.mode).toBe("dark");
+  });
+
+  it("persists 'dark' to AsyncStorage when toggling from light", async () => {
+    const { result } = renderHook(() => useTheme(), { wrapper });
+
+    await act(async () => { result.current.setMode("light"); });
+    (AsyncStorage.setItem as jest.Mock).mockClear();
+    await act(async () => { result.current.toggleTheme(); });
+
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith("theme_mode", "dark");
   });
 });

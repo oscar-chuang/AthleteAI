@@ -80,10 +80,12 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
   },
 }));
 
+const mockToggleTheme = jest.fn();
+
 jest.mock("@/lib/themeContext", () => ({
   useTheme: () => ({
     isDark: true,
-    toggleTheme: jest.fn(),
+    toggleTheme: mockToggleTheme,
     mode: "dark",
     setMode: jest.fn(),
   }),
@@ -152,6 +154,7 @@ beforeEach(() => {
   AsyncStorage.getItem.mockReset().mockResolvedValue(null);
   AsyncStorage.setItem.mockReset().mockResolvedValue(undefined);
   AsyncStorage.removeItem.mockReset().mockResolvedValue(undefined);
+  mockToggleTheme.mockClear();
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
 });
 
@@ -676,6 +679,29 @@ describe("ProfileSettingsScreen — goal/training-days mismatch nudge", () => {
     await flush();
 
     expect(AsyncStorage.removeItem).toHaveBeenCalledWith("goal_mismatch_dismissed_v1");
+  });
+});
+
+// ─── Dark / light toggle ───────────────────────────────────────────────────────
+
+describe("ProfileSettingsScreen — dark/light mode toggle", () => {
+  it("calls toggleTheme immediately when the toggle row is pressed", async () => {
+    const { getByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    // The mock returns isDark=true, so the toggle shows "Dark Mode".
+    await act(async () => {
+      fireEvent.press(getByText("Dark Mode"));
+    });
+
+    expect(mockToggleTheme).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call toggleTheme when the screen is merely rendered", async () => {
+    render(<ProfileSettingsScreen />);
+    await flush();
+
+    expect(mockToggleTheme).not.toHaveBeenCalled();
   });
 });
 
