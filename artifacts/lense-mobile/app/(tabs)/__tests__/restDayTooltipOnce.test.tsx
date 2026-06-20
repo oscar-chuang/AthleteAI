@@ -18,6 +18,7 @@
  *   1. Key absent  + profile has rest days → tooltip is shown.
  *   2. Key present + profile has rest days → tooltip stays hidden.
  *   3. Dismiss button pressed              → AsyncStorage.setItem("rest_day_tooltip_dismissed", "true").
+ *   4. Full-week schedule (all 7 days)     → AsyncStorage never queried; tooltip never shown.
  */
 
 import React from "react";
@@ -87,7 +88,10 @@ jest.mock("@/hooks/useColors", () => ({
   }),
 }));
 
-// Profile with only 5 training days → 2 rest days → tooltip should appear.
+// Mutable profile so individual tests can override trainingDays.
+let mockTrainingDays: number[] = [1, 2, 3, 4, 5];
+
+// Profile with only 5 training days → 2 rest days → tooltip should appear (default).
 jest.mock("@/lib/authContext", () => ({
   useAuth: () => ({
     user: { id: "u1", email: "test@test.com" },
@@ -95,7 +99,7 @@ jest.mock("@/lib/authContext", () => ({
       weeklyGoal: 3,
       weeklyProgress: 2,
       sport: "basketball",
-      trainingDays: [1, 2, 3, 4, 5],
+      trainingDays: mockTrainingDays,
     },
     updateProfile: jest.fn(),
   }),
@@ -229,6 +233,7 @@ async function simulateFocus() {
 
 beforeEach(() => {
   mockFocusCallback = null;
+  mockTrainingDays = [1, 2, 3, 4, 5]; // default: 5 days, 2 rest days
   mockAnalysesList.mockResolvedValue(ONE_ANALYSIS);
   mockAchievementsList.mockResolvedValue(EMPTY_ACHIEVEMENTS);
   mockProfileStats.mockResolvedValue(STATS);
@@ -289,6 +294,22 @@ describe("HomeScreen — rest-day tooltip visibility", () => {
     expect(AsyncStorage.setItem).toHaveBeenCalledWith(
       "rest_day_tooltip_dismissed",
       "true",
+    );
+  });
+
+  // ── Test 4 ──────────────────────────────────────────────────────────────────
+
+  it("never shows the tooltip and never queries AsyncStorage when trainingDays covers all 7 days", async () => {
+    // Full-week schedule: no rest days, so the guard short-circuits before
+    // touching AsyncStorage at all.
+    mockTrainingDays = [0, 1, 2, 3, 4, 5, 6];
+
+    const { queryByTestId } = render(<HomeScreen />);
+    await simulateFocus();
+
+    expect(queryByTestId("rest-day-tooltip")).toBeNull();
+    expect(AsyncStorage.getItem).not.toHaveBeenCalledWith(
+      "rest_day_tooltip_dismissed",
     );
   });
 });
