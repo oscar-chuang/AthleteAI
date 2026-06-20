@@ -470,6 +470,366 @@ describe("skeleton pipeline integration — 21:9 ultra-wide video, right-edge cr
   });
 });
 
+// ─── Edge-position landmark sets ─────────────────────────────────────────────
+//
+// Each set simulates an athlete who is standing very close to one corner of the
+// crop region.  All coords are pushed toward the extreme (0 or 1) while still
+// forming a plausible standing pose — the pipeline must keep every projected
+// pixel within the display rect regardless of how close to the boundary the
+// landmarks sit.
+
+/** Athlete crammed into the top-left corner of the crop (low x, low y). */
+const EDGE_LANDMARKS_TOP_LEFT: RawLandmark[] = [
+  { x: 0.02, y: 0.01, visibility: 0.99 }, // 0  nose
+  { x: 0.03, y: 0.01, visibility: 0.98 }, // 1  left eye inner
+  { x: 0.04, y: 0.01, visibility: 0.97 }, // 2  left eye
+  { x: 0.05, y: 0.01, visibility: 0.96 }, // 3  left eye outer
+  { x: 0.01, y: 0.01, visibility: 0.98 }, // 4  right eye inner
+  { x: 0.00, y: 0.01, visibility: 0.97 }, // 5  right eye
+  { x: 0.00, y: 0.01, visibility: 0.96 }, // 6  right eye outer
+  { x: 0.05, y: 0.02, visibility: 0.95 }, // 7  left ear
+  { x: 0.00, y: 0.02, visibility: 0.95 }, // 8  right ear
+  { x: 0.03, y: 0.02, visibility: 0.93 }, // 9  mouth left
+  { x: 0.01, y: 0.02, visibility: 0.93 }, // 10 mouth right
+  { x: 0.10, y: 0.10, visibility: 0.97 }, // 11 left shoulder
+  { x: 0.00, y: 0.10, visibility: 0.97 }, // 12 right shoulder
+  { x: 0.14, y: 0.22, visibility: 0.94 }, // 13 left elbow
+  { x: 0.00, y: 0.22, visibility: 0.94 }, // 14 right elbow
+  { x: 0.16, y: 0.35, visibility: 0.90 }, // 15 left wrist
+  { x: 0.00, y: 0.35, visibility: 0.90 }, // 16 right wrist
+  { x: 0.18, y: 0.37, visibility: 0.75 }, // 17 left pinky
+  { x: 0.00, y: 0.37, visibility: 0.75 }, // 18 right pinky
+  { x: 0.17, y: 0.38, visibility: 0.76 }, // 19 left index
+  { x: 0.00, y: 0.38, visibility: 0.76 }, // 20 right index
+  { x: 0.15, y: 0.36, visibility: 0.72 }, // 21 left thumb
+  { x: 0.00, y: 0.36, visibility: 0.72 }, // 22 right thumb
+  { x: 0.07, y: 0.40, visibility: 0.96 }, // 23 left hip
+  { x: 0.00, y: 0.40, visibility: 0.96 }, // 24 right hip
+  { x: 0.09, y: 0.60, visibility: 0.95 }, // 25 left knee
+  { x: 0.00, y: 0.60, visibility: 0.95 }, // 26 right knee
+  { x: 0.10, y: 0.80, visibility: 0.92 }, // 27 left ankle
+  { x: 0.00, y: 0.80, visibility: 0.92 }, // 28 right ankle
+  { x: 0.09, y: 0.85, visibility: 0.88 }, // 29 left heel
+  { x: 0.00, y: 0.85, visibility: 0.88 }, // 30 right heel
+  { x: 0.11, y: 0.90, visibility: 0.85 }, // 31 left foot index
+  { x: 0.00, y: 0.90, visibility: 0.85 }, // 32 right foot index
+];
+
+/** Athlete crammed into the bottom-right corner of the crop (high x, high y). */
+const EDGE_LANDMARKS_BOTTOM_RIGHT: RawLandmark[] = [
+  { x: 0.98, y: 0.10, visibility: 0.99 }, // 0  nose
+  { x: 0.99, y: 0.09, visibility: 0.98 }, // 1  left eye inner
+  { x: 1.00, y: 0.09, visibility: 0.97 }, // 2  left eye
+  { x: 1.00, y: 0.09, visibility: 0.96 }, // 3  left eye outer
+  { x: 0.97, y: 0.09, visibility: 0.98 }, // 4  right eye inner
+  { x: 0.96, y: 0.09, visibility: 0.97 }, // 5  right eye
+  { x: 0.95, y: 0.09, visibility: 0.96 }, // 6  right eye outer
+  { x: 1.00, y: 0.11, visibility: 0.95 }, // 7  left ear
+  { x: 0.95, y: 0.11, visibility: 0.95 }, // 8  right ear
+  { x: 0.99, y: 0.12, visibility: 0.93 }, // 9  mouth left
+  { x: 0.97, y: 0.12, visibility: 0.93 }, // 10 mouth right
+  { x: 1.00, y: 0.28, visibility: 0.97 }, // 11 left shoulder
+  { x: 0.90, y: 0.28, visibility: 0.97 }, // 12 right shoulder
+  { x: 1.00, y: 0.48, visibility: 0.94 }, // 13 left elbow
+  { x: 0.86, y: 0.48, visibility: 0.94 }, // 14 right elbow
+  { x: 1.00, y: 0.65, visibility: 0.90 }, // 15 left wrist
+  { x: 0.84, y: 0.65, visibility: 0.90 }, // 16 right wrist
+  { x: 1.00, y: 0.67, visibility: 0.75 }, // 17 left pinky
+  { x: 0.82, y: 0.67, visibility: 0.75 }, // 18 right pinky
+  { x: 1.00, y: 0.68, visibility: 0.76 }, // 19 left index
+  { x: 0.83, y: 0.68, visibility: 0.76 }, // 20 right index
+  { x: 1.00, y: 0.66, visibility: 0.72 }, // 21 left thumb
+  { x: 0.85, y: 0.66, visibility: 0.72 }, // 22 right thumb
+  { x: 0.97, y: 0.65, visibility: 0.96 }, // 23 left hip
+  { x: 0.88, y: 0.65, visibility: 0.96 }, // 24 right hip
+  { x: 0.98, y: 0.82, visibility: 0.95 }, // 25 left knee
+  { x: 0.89, y: 0.82, visibility: 0.95 }, // 26 right knee
+  { x: 0.99, y: 0.95, visibility: 0.92 }, // 27 left ankle
+  { x: 0.90, y: 0.95, visibility: 0.92 }, // 28 right ankle
+  { x: 0.98, y: 0.98, visibility: 0.88 }, // 29 left heel
+  { x: 0.89, y: 0.98, visibility: 0.88 }, // 30 right heel
+  { x: 1.00, y: 1.00, visibility: 0.85 }, // 31 left foot index
+  { x: 0.91, y: 1.00, visibility: 0.85 }, // 32 right foot index
+];
+
+/** Athlete crammed into the top-right corner of the crop (high x, low y). */
+const EDGE_LANDMARKS_TOP_RIGHT: RawLandmark[] = [
+  { x: 0.98, y: 0.01, visibility: 0.99 }, // 0  nose
+  { x: 0.99, y: 0.01, visibility: 0.98 }, // 1  left eye inner
+  { x: 1.00, y: 0.01, visibility: 0.97 }, // 2  left eye
+  { x: 1.00, y: 0.01, visibility: 0.96 }, // 3  left eye outer
+  { x: 0.97, y: 0.01, visibility: 0.98 }, // 4  right eye inner
+  { x: 0.96, y: 0.01, visibility: 0.97 }, // 5  right eye
+  { x: 0.95, y: 0.01, visibility: 0.96 }, // 6  right eye outer
+  { x: 1.00, y: 0.02, visibility: 0.95 }, // 7  left ear
+  { x: 0.95, y: 0.02, visibility: 0.95 }, // 8  right ear
+  { x: 0.99, y: 0.02, visibility: 0.93 }, // 9  mouth left
+  { x: 0.97, y: 0.02, visibility: 0.93 }, // 10 mouth right
+  { x: 1.00, y: 0.12, visibility: 0.97 }, // 11 left shoulder
+  { x: 0.90, y: 0.12, visibility: 0.97 }, // 12 right shoulder
+  { x: 1.00, y: 0.28, visibility: 0.94 }, // 13 left elbow
+  { x: 0.86, y: 0.28, visibility: 0.94 }, // 14 right elbow
+  { x: 1.00, y: 0.44, visibility: 0.90 }, // 15 left wrist
+  { x: 0.84, y: 0.44, visibility: 0.90 }, // 16 right wrist
+  { x: 1.00, y: 0.46, visibility: 0.75 }, // 17 left pinky
+  { x: 0.82, y: 0.46, visibility: 0.75 }, // 18 right pinky
+  { x: 1.00, y: 0.47, visibility: 0.76 }, // 19 left index
+  { x: 0.83, y: 0.47, visibility: 0.76 }, // 20 right index
+  { x: 1.00, y: 0.45, visibility: 0.72 }, // 21 left thumb
+  { x: 0.85, y: 0.45, visibility: 0.72 }, // 22 right thumb
+  { x: 0.97, y: 0.47, visibility: 0.96 }, // 23 left hip
+  { x: 0.88, y: 0.47, visibility: 0.96 }, // 24 right hip
+  { x: 0.98, y: 0.64, visibility: 0.95 }, // 25 left knee
+  { x: 0.89, y: 0.64, visibility: 0.95 }, // 26 right knee
+  { x: 0.99, y: 0.80, visibility: 0.92 }, // 27 left ankle
+  { x: 0.90, y: 0.80, visibility: 0.92 }, // 28 right ankle
+  { x: 0.98, y: 0.85, visibility: 0.88 }, // 29 left heel
+  { x: 0.89, y: 0.85, visibility: 0.88 }, // 30 right heel
+  { x: 1.00, y: 0.90, visibility: 0.85 }, // 31 left foot index
+  { x: 0.91, y: 0.90, visibility: 0.85 }, // 32 right foot index
+];
+
+/** Athlete crammed into the bottom-left corner of the crop (low x, high y). */
+const EDGE_LANDMARKS_BOTTOM_LEFT: RawLandmark[] = [
+  { x: 0.02, y: 0.10, visibility: 0.99 }, // 0  nose
+  { x: 0.03, y: 0.09, visibility: 0.98 }, // 1  left eye inner
+  { x: 0.04, y: 0.09, visibility: 0.97 }, // 2  left eye
+  { x: 0.05, y: 0.09, visibility: 0.96 }, // 3  left eye outer
+  { x: 0.01, y: 0.09, visibility: 0.98 }, // 4  right eye inner
+  { x: 0.00, y: 0.09, visibility: 0.97 }, // 5  right eye
+  { x: 0.00, y: 0.09, visibility: 0.96 }, // 6  right eye outer
+  { x: 0.05, y: 0.11, visibility: 0.95 }, // 7  left ear
+  { x: 0.00, y: 0.11, visibility: 0.95 }, // 8  right ear
+  { x: 0.03, y: 0.12, visibility: 0.93 }, // 9  mouth left
+  { x: 0.01, y: 0.12, visibility: 0.93 }, // 10 mouth right
+  { x: 0.10, y: 0.30, visibility: 0.97 }, // 11 left shoulder
+  { x: 0.00, y: 0.30, visibility: 0.97 }, // 12 right shoulder
+  { x: 0.14, y: 0.50, visibility: 0.94 }, // 13 left elbow
+  { x: 0.00, y: 0.50, visibility: 0.94 }, // 14 right elbow
+  { x: 0.16, y: 0.65, visibility: 0.90 }, // 15 left wrist
+  { x: 0.00, y: 0.65, visibility: 0.90 }, // 16 right wrist
+  { x: 0.18, y: 0.67, visibility: 0.75 }, // 17 left pinky
+  { x: 0.00, y: 0.67, visibility: 0.75 }, // 18 right pinky
+  { x: 0.17, y: 0.68, visibility: 0.76 }, // 19 left index
+  { x: 0.00, y: 0.68, visibility: 0.76 }, // 20 right index
+  { x: 0.15, y: 0.66, visibility: 0.72 }, // 21 left thumb
+  { x: 0.00, y: 0.66, visibility: 0.72 }, // 22 right thumb
+  { x: 0.07, y: 0.68, visibility: 0.96 }, // 23 left hip
+  { x: 0.00, y: 0.68, visibility: 0.96 }, // 24 right hip
+  { x: 0.09, y: 0.82, visibility: 0.95 }, // 25 left knee
+  { x: 0.00, y: 0.82, visibility: 0.95 }, // 26 right knee
+  { x: 0.10, y: 0.95, visibility: 0.92 }, // 27 left ankle
+  { x: 0.00, y: 0.95, visibility: 0.92 }, // 28 right ankle
+  { x: 0.09, y: 0.98, visibility: 0.88 }, // 29 left heel
+  { x: 0.00, y: 0.98, visibility: 0.88 }, // 30 right heel
+  { x: 0.11, y: 1.00, visibility: 0.85 }, // 31 left foot index
+  { x: 0.00, y: 1.00, visibility: 0.85 }, // 32 right foot index
+];
+
+// ─── 16:9 video — athlete at crop edges ──────────────────────────────────────
+//
+// The centred-crop configuration is used for all four corner-athlete positions
+// so that the 15% padding has room on all sides; this isolates the landmark
+// extremity as the only variable.
+
+describe("skeleton pipeline — 16:9 video, athlete at top-left of crop", () => {
+  const CENTRED_CROP: Crop = { cropX0: 300, cropY0: 80, cropW: 680, cropH: 560 };
+
+  it("all landmarks project inside the display rect", () => {
+    assertAllLandmarksOnScreen(
+      EDGE_LANDMARKS_TOP_LEFT,
+      CENTRED_CROP,
+      VIDEO_16_9,
+      DISPLAY_W,
+      DISPLAY_H,
+    );
+  });
+
+  it("remapped coords are in [0, 1] for all landmarks", () => {
+    const remapped = lmRemapped(EDGE_LANDMARKS_TOP_LEFT, CENTRED_CROP, VIDEO_16_9);
+    for (const lm of remapped) {
+      expect(lm.x).toBeGreaterThanOrEqual(0);
+      expect(lm.x).toBeLessThanOrEqual(1);
+      expect(lm.y).toBeGreaterThanOrEqual(0);
+      expect(lm.y).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("skeleton pipeline — 16:9 video, athlete at bottom-right of crop", () => {
+  const CENTRED_CROP: Crop = { cropX0: 300, cropY0: 80, cropW: 680, cropH: 560 };
+
+  it("all landmarks project inside the display rect", () => {
+    assertAllLandmarksOnScreen(
+      EDGE_LANDMARKS_BOTTOM_RIGHT,
+      CENTRED_CROP,
+      VIDEO_16_9,
+      DISPLAY_W,
+      DISPLAY_H,
+    );
+  });
+
+  it("remapped coords are in [0, 1] for all landmarks", () => {
+    const remapped = lmRemapped(EDGE_LANDMARKS_BOTTOM_RIGHT, CENTRED_CROP, VIDEO_16_9);
+    for (const lm of remapped) {
+      expect(lm.x).toBeGreaterThanOrEqual(0);
+      expect(lm.x).toBeLessThanOrEqual(1);
+      expect(lm.y).toBeGreaterThanOrEqual(0);
+      expect(lm.y).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("skeleton pipeline — 16:9 video, athlete at top-right of crop", () => {
+  const CENTRED_CROP: Crop = { cropX0: 300, cropY0: 80, cropW: 680, cropH: 560 };
+
+  it("all landmarks project inside the display rect", () => {
+    assertAllLandmarksOnScreen(
+      EDGE_LANDMARKS_TOP_RIGHT,
+      CENTRED_CROP,
+      VIDEO_16_9,
+      DISPLAY_W,
+      DISPLAY_H,
+    );
+  });
+
+  it("remapped coords are in [0, 1] for all landmarks", () => {
+    const remapped = lmRemapped(EDGE_LANDMARKS_TOP_RIGHT, CENTRED_CROP, VIDEO_16_9);
+    for (const lm of remapped) {
+      expect(lm.x).toBeGreaterThanOrEqual(0);
+      expect(lm.x).toBeLessThanOrEqual(1);
+      expect(lm.y).toBeGreaterThanOrEqual(0);
+      expect(lm.y).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("skeleton pipeline — 16:9 video, athlete at bottom-left of crop", () => {
+  const CENTRED_CROP: Crop = { cropX0: 300, cropY0: 80, cropW: 680, cropH: 560 };
+
+  it("all landmarks project inside the display rect", () => {
+    assertAllLandmarksOnScreen(
+      EDGE_LANDMARKS_BOTTOM_LEFT,
+      CENTRED_CROP,
+      VIDEO_16_9,
+      DISPLAY_W,
+      DISPLAY_H,
+    );
+  });
+
+  it("remapped coords are in [0, 1] for all landmarks", () => {
+    const remapped = lmRemapped(EDGE_LANDMARKS_BOTTOM_LEFT, CENTRED_CROP, VIDEO_16_9);
+    for (const lm of remapped) {
+      expect(lm.x).toBeGreaterThanOrEqual(0);
+      expect(lm.x).toBeLessThanOrEqual(1);
+      expect(lm.y).toBeGreaterThanOrEqual(0);
+      expect(lm.y).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+// ─── 9:16 portrait video — athlete at crop edges ─────────────────────────────
+//
+// Portrait footage is the most common source of skeleton drift. Running the
+// same four extreme-position landmark sets through the 9:16 pipeline ensures
+// both axis directions are verified at the boundary.
+
+describe("skeleton pipeline — 9:16 portrait video, athlete at top-left of crop", () => {
+  const CENTRED_CROP: Crop = { cropX0: 80, cropY0: 200, cropW: 560, cropH: 880 };
+
+  it("all landmarks project inside the display rect", () => {
+    assertAllLandmarksOnScreen(
+      EDGE_LANDMARKS_TOP_LEFT,
+      CENTRED_CROP,
+      VIDEO_9_16,
+      DISPLAY_W,
+      DISPLAY_H,
+    );
+  });
+
+  it("remapped coords are in [0, 1] for all landmarks", () => {
+    const remapped = lmRemapped(EDGE_LANDMARKS_TOP_LEFT, CENTRED_CROP, VIDEO_9_16);
+    for (const lm of remapped) {
+      expect(lm.x).toBeGreaterThanOrEqual(0);
+      expect(lm.x).toBeLessThanOrEqual(1);
+      expect(lm.y).toBeGreaterThanOrEqual(0);
+      expect(lm.y).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("skeleton pipeline — 9:16 portrait video, athlete at bottom-right of crop", () => {
+  const CENTRED_CROP: Crop = { cropX0: 80, cropY0: 200, cropW: 560, cropH: 880 };
+
+  it("all landmarks project inside the display rect", () => {
+    assertAllLandmarksOnScreen(
+      EDGE_LANDMARKS_BOTTOM_RIGHT,
+      CENTRED_CROP,
+      VIDEO_9_16,
+      DISPLAY_W,
+      DISPLAY_H,
+    );
+  });
+
+  it("remapped coords are in [0, 1] for all landmarks", () => {
+    const remapped = lmRemapped(EDGE_LANDMARKS_BOTTOM_RIGHT, CENTRED_CROP, VIDEO_9_16);
+    for (const lm of remapped) {
+      expect(lm.x).toBeGreaterThanOrEqual(0);
+      expect(lm.x).toBeLessThanOrEqual(1);
+      expect(lm.y).toBeGreaterThanOrEqual(0);
+      expect(lm.y).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("skeleton pipeline — 9:16 portrait video, athlete at top-right of crop", () => {
+  const CENTRED_CROP: Crop = { cropX0: 80, cropY0: 200, cropW: 560, cropH: 880 };
+
+  it("all landmarks project inside the display rect", () => {
+    assertAllLandmarksOnScreen(
+      EDGE_LANDMARKS_TOP_RIGHT,
+      CENTRED_CROP,
+      VIDEO_9_16,
+      DISPLAY_W,
+      DISPLAY_H,
+    );
+  });
+
+  it("remapped coords are in [0, 1] for all landmarks", () => {
+    const remapped = lmRemapped(EDGE_LANDMARKS_TOP_RIGHT, CENTRED_CROP, VIDEO_9_16);
+    for (const lm of remapped) {
+      expect(lm.x).toBeGreaterThanOrEqual(0);
+      expect(lm.x).toBeLessThanOrEqual(1);
+      expect(lm.y).toBeGreaterThanOrEqual(0);
+      expect(lm.y).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("skeleton pipeline — 9:16 portrait video, athlete at bottom-left of crop", () => {
+  const CENTRED_CROP: Crop = { cropX0: 80, cropY0: 200, cropW: 560, cropH: 880 };
+
+  it("all landmarks project inside the display rect", () => {
+    assertAllLandmarksOnScreen(
+      EDGE_LANDMARKS_BOTTOM_LEFT,
+      CENTRED_CROP,
+      VIDEO_9_16,
+      DISPLAY_W,
+      DISPLAY_H,
+    );
+  });
+
+  it("remapped coords are in [0, 1] for all landmarks", () => {
+    const remapped = lmRemapped(EDGE_LANDMARKS_BOTTOM_LEFT, CENTRED_CROP, VIDEO_9_16);
+    for (const lm of remapped) {
+      expect(lm.x).toBeGreaterThanOrEqual(0);
+      expect(lm.x).toBeLessThanOrEqual(1);
+      expect(lm.y).toBeGreaterThanOrEqual(0);
+      expect(lm.y).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
 // ─── Aspect-ratio stress test ──────────────────────────────────────────────────
 //
 // Verifies that the containRect+projectLandmark pair handles cases where the
