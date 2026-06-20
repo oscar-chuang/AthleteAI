@@ -95,6 +95,7 @@ jest.mock("@/hooks/useColors", () => ({
     muted:           "#333333",
     success:         "#22c55e",
     warning:         "#f59e0b",
+    energy:          "#f59e0b",
     destructive:     "#ff4d6d",
     radius:          12,
   }),
