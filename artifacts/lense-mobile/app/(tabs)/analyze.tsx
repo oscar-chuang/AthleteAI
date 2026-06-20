@@ -762,6 +762,7 @@ export default function AnalyzeScreen() {
                     if (hasHistory) {
                       return (
                         <TouchableOpacity
+                          testID={`delta-badge-${item.id}`}
                           style={[s.deltaBadge, { borderColor: deltaBadge.color + "88", backgroundColor: deltaBadge.color + "18" }]}
                           onPress={(e) => { e.stopPropagation(); setHistoryJoint(deltaBadge.jointKey); setHistoryAnalysisId(item.id); }}
                           activeOpacity={0.7}

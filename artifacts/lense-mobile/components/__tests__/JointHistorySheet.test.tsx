@@ -1,16 +1,20 @@
 /**
- * Verifies the empty-state and chart rendering behaviour of JointHistorySheet
- * based on the number of data points supplied.
+ * Verifies the empty-state, chart rendering, and current-session highlight
+ * behaviour of JointHistorySheet.
  *
  * Strategy:
  *  - react-native-svg is mocked so SVG elements render as plain Views /
  *    return null, keeping the test tree simple.
  *  - expo-router useRouter is mocked (the component always calls it).
- *  - Three scenarios are tested:
+ *  - Scenarios tested:
  *      0 items  → "No history yet" is visible
  *      1 item   → "Scan again to see your trend" is visible
  *      2+ items → the chart Pressable (testID="joint-history-chart") is
  *                 rendered and neither empty-state message appears
+ *      currentAnalysisId matches a data point → "This session" legend appears
+ *                 (isCurrent = true for that dot → purple glow ring + legend)
+ *      no currentAnalysisId supplied → "Latest" legend appears instead
+ *      currentAnalysisId not found in data → neither legend appears
  */
 
 import React from "react";
@@ -77,5 +81,44 @@ describe("JointHistorySheet — empty state rendering", () => {
     expect(getByTestId("joint-history-chart")).toBeTruthy();
     expect(queryByText("Scan again to see your trend")).toBeNull();
     expect(queryByText("No history yet")).toBeNull();
+  });
+});
+
+describe("JointHistorySheet — isCurrent dot / current-session legend", () => {
+  it('shows "This session" legend when currentAnalysisId matches a data point', () => {
+    const { getByText, queryByText } = render(
+      <JointHistorySheet
+        joint="leftKnee"
+        data={TWO_POINTS}
+        currentAnalysisId="a1"
+        onClose={noop}
+      />,
+    );
+
+    expect(getByText("This session")).toBeTruthy();
+    expect(queryByText("Latest")).toBeNull();
+  });
+
+  it('shows "Latest" legend when no currentAnalysisId is supplied', () => {
+    const { getByText, queryByText } = render(
+      <JointHistorySheet joint="leftKnee" data={TWO_POINTS} onClose={noop} />,
+    );
+
+    expect(getByText("Latest")).toBeTruthy();
+    expect(queryByText("This session")).toBeNull();
+  });
+
+  it("shows no current-session legend when currentAnalysisId is not found in data", () => {
+    const { queryByText } = render(
+      <JointHistorySheet
+        joint="leftKnee"
+        data={TWO_POINTS}
+        currentAnalysisId="unknown-id"
+        onClose={noop}
+      />,
+    );
+
+    expect(queryByText("This session")).toBeNull();
+    expect(queryByText("Latest")).toBeNull();
   });
 });
