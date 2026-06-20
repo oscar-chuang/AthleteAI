@@ -24,6 +24,7 @@ import { WebView } from "react-native-webview";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { analyses as analysesApi, drills as drillsApi, jointTrends, type TipRecord, type DrillRecord, type RiskRecord, type JointTrendsResponse, type JointDataPoint, type FrameTick } from "@/lib/api";
+import { useColors } from "@/hooks/useColors";
 import JointHistorySheet from "@/components/JointHistorySheet";
 import { scheduleImprovementNotification } from "@/utils/notifications";
 import { useAuth } from "@/lib/authContext";
@@ -530,6 +531,7 @@ export default function SkeletonScreen() {
   const insets    = useSafeAreaInsets();
   const router    = useRouter();
   const { profile } = useAuth();
+  const colors    = useColors();
   const { width: screenW, height: screenH } = useWindowDimensions();
   const webviewRef = useRef<WebView>(null);
   const scrollRef  = useRef<ScrollView>(null);
@@ -1500,7 +1502,7 @@ export default function SkeletonScreen() {
   // ── Hero block ───────────────────────────────────────────────────────────────
   const heroBlock = !videoUri ? null : preparing ? (
     <View style={[ss.heroSlot, { height: heroBoxH }]}>
-      <ActivityIndicator color="#6c63ff" size="large" />
+      <ActivityIndicator color={colors.primary} size="large" />
       <Text style={ss.preparingText}>Preparing your clip…</Text>
     </View>
   ) : !scanDone ? (
@@ -1527,7 +1529,7 @@ export default function SkeletonScreen() {
         />
       ) : (
         <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
-          <ActivityIndicator color="#6c63ff" size="large" />
+          <ActivityIndicator color={colors.primary} size="large" />
           <Text style={ss.preparingText}>Preparing your clip…</Text>
         </View>
       )}
@@ -1865,7 +1867,7 @@ export default function SkeletonScreen() {
               })()
             ) : refining ? (
               <View style={ss.refiningCard}>
-                <ActivityIndicator size="small" color="#6c63ff" />
+                <ActivityIndicator size="small" color={colors.primary} />
                 <View style={{ flex: 1 }}>
                   <Text style={ss.refiningTitle}>Generating coaching from your scan…</Text>
                   <Text style={ss.refiningBody}>Grounding AI tips in the joint angles measured from your video.</Text>

@@ -55,6 +55,9 @@ import { ScoreCard, getScoreBand } from "@/components/analysis/ScoreCard";
 import { SectionHeader } from "@/components/analysis/SectionHeader";
 import { NextFocusCard } from "@/components/analysis/NextFocusCard";
 import { AnimatedLoadingState } from "@/components/analysis/AnimatedLoadingState";
+import { EmptyState } from "@/components/ui";
+import { SPACING, RADIUS } from "@/constants/spacing";
+import { TYPE } from "@/constants/typography";
 import { ShareCard, SHARE_CARD_DARK, SHARE_CARD_LIGHT } from "@/components/analysis/ShareCard";
 import {
   SHARE_CARD_CAPTURE_OPTIONS,
@@ -1792,6 +1795,18 @@ export default function AnalysisDetailScreen() {
         )}
 
 
+        {/* ── No tips empty state ── */}
+        {sortedTips.length === 0 && !loading && !!analysis && (
+          <View style={styles.sectionWrap}>
+            <EmptyState
+              icon="zap"
+              headline="No coaching tips yet"
+              body="Scan your video on the Skeleton screen to generate AI coaching tips grounded in your biomechanics."
+              compact
+            />
+          </View>
+        )}
+
         {/* ── Joint Health (Injury Risks) ── */}
         <View style={styles.sectionWrap}>
           <SectionHeader title="Joint Health" icon="shield" accentColor={colors.destructive} subtitle="Injury risk levels from this session" />
@@ -2003,9 +2018,9 @@ const styles = StyleSheet.create({
 
   // Hero
   heroCard: {
-    margin: 16,
-    borderRadius: 18,
-    padding: 20,
+    margin: SPACING.md,
+    borderRadius: RADIUS.lg + 2,
+    padding: SPACING.md + 4,
     borderWidth: 1,
   },
   heroThumbnail: {
@@ -2016,7 +2031,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 17,
     borderTopRightRadius: 17,
   },
-  heroTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  heroTitle: { ...TYPE.title, fontSize: 20 },
   heroMeta: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",

@@ -26,6 +26,8 @@ import {
   type TickStats,
 } from "@/lib/api";
 import type { JointKey } from "@/utils/analysisUtils";
+import { useColors } from "@/hooks/useColors";
+import { SPACING, RADIUS } from "@/constants/spacing";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -250,6 +252,7 @@ export default function LivePlaybackScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width: screenW } = useWindowDimensions();
+  const colors = useColors();
 
   const videoRef = useRef<Video>(null);
 
@@ -488,7 +491,7 @@ export default function LivePlaybackScreen() {
       const pb = proj(b);
       if (!pa || !pb) return null;
       const risk = Math.max(lmRisk[a] ?? 0, lmRisk[b] ?? 0);
-      const color = risk >= 2 ? "#ef444499" : risk >= 1 ? "#f59e0b99" : "#6c63ff88";
+      const color = risk >= 2 ? "#ef444499" : risk >= 1 ? "#f59e0b99" : colors.primary + "88";
       return <Line key={`c${i}`} x1={pa.cx} y1={pa.cy} x2={pb.cx} y2={pb.cy} stroke={color} strokeWidth={2.5} strokeLinecap="round" />;
     }).filter(Boolean);
 
@@ -497,7 +500,7 @@ export default function LivePlaybackScreen() {
       const cx = videoRect.left + p.x * videoRect.width;
       const cy = videoRect.top + p.y * videoRect.height;
       const risk = lmRisk[i] ?? 0;
-      const color = risk >= 2 ? "#ef4444" : risk >= 1 ? "#f59e0b" : "#6c63ffbb";
+      const color = risk >= 2 ? "#ef4444" : risk >= 1 ? "#f59e0b" : colors.primary + "bb";
       const r = risk >= 1 ? 5 : 3.5;
       return (
         <G key={`d${i}`}>
@@ -553,7 +556,7 @@ export default function LivePlaybackScreen() {
   if (loading) {
     return (
       <View style={[ss.root, ss.center]}>
-        <ActivityIndicator color="#6c63ff" size="large" />
+        <ActivityIndicator color={colors.primary} size="large" />
         <Text style={ss.loadingText}>Loading breakdown…</Text>
       </View>
     );
@@ -564,7 +567,7 @@ export default function LivePlaybackScreen() {
         <Feather name="alert-circle" size={36} color="#55556e" />
         <Text style={ss.noDataTitle}>No video available</Text>
         <Text style={ss.noDataSub}>Complete a scan first to unlock the breakdown.</Text>
-        <TouchableOpacity style={ss.outlineBtn} onPress={() => router.back()} activeOpacity={0.8}>
+        <TouchableOpacity style={[ss.outlineBtn, { backgroundColor: colors.primary + "22", borderColor: colors.primary + "55" }]} onPress={() => router.back()} activeOpacity={0.8}>
           <Text style={ss.outlineBtnText}>Go back</Text>
         </TouchableOpacity>
       </View>
@@ -583,11 +586,11 @@ export default function LivePlaybackScreen() {
         <Text style={ss.headerTitle}>Movement Breakdown</Text>
         {loadingMoments && (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5, opacity: 0.7 }}>
-            <ActivityIndicator size="small" color="#6c63ff" />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={ss.mutedText}>Loading cards…</Text>
           </View>
         )}
-        <TouchableOpacity style={ss.summaryBtn} onPress={fetchMovementSummary} activeOpacity={0.8}>
+        <TouchableOpacity style={[ss.summaryBtn, { backgroundColor: colors.primary + "22", borderColor: colors.primary + "44" }]} onPress={fetchMovementSummary} activeOpacity={0.8}>
           <Feather name="bar-chart-2" size={13} color="#a78bfa" />
           <Text style={ss.summaryBtnText}>Summary</Text>
         </TouchableOpacity>
@@ -635,7 +638,7 @@ export default function LivePlaybackScreen() {
 
       {/* Controls row */}
       <View style={ss.controls}>
-        <TouchableOpacity style={ss.playBtn} onPress={togglePlay} activeOpacity={0.8}>
+        <TouchableOpacity style={[ss.playBtn, { backgroundColor: colors.primary }]} onPress={togglePlay} activeOpacity={0.8}>
           <Feather name={isPlaying ? "pause" : "play"} size={20} color="#fff" />
         </TouchableOpacity>
         <Text style={ss.timeText}>{formatTime(position)} / {formatTime(duration)}</Text>
@@ -657,7 +660,7 @@ export default function LivePlaybackScreen() {
       >
         {/* Track */}
         <View style={ss.timelineTrack}>
-          <View style={[ss.timelineFill, { width: `${progressPct * 100}%` }]} />
+          <View style={[ss.timelineFill, { width: `${progressPct * 100}%`, backgroundColor: colors.primary }]} />
         </View>
         {/* Event markers — each individually tappable */}
         {allEvents.map((ev) => {
@@ -758,7 +761,7 @@ export default function LivePlaybackScreen() {
                   {/* Evidence */}
                   {(m.evidence.joint || m.evidence.angle != null) && (
                     <View style={ss.evidenceRow}>
-                      <Feather name="target" size={11} color="#6c63ff" />
+                      <Feather name="target" size={11} color={colors.primary} />
                       <Text style={ss.evidenceLabel}>Evidence · </Text>
                       <Text style={ss.evidenceValue}>
                         {m.evidence.joint ? JOINT_DISPLAY[m.evidence.joint as JointKey] ?? m.evidence.joint : ""}
@@ -797,7 +800,7 @@ export default function LivePlaybackScreen() {
                   </>
                 )}
                 <TouchableOpacity
-                  style={[ss.actionBtn, ss.actionBtnPrimary, { flex: 1 }]}
+                  style={[ss.actionBtn, ss.actionBtnPrimary, { flex: 1, backgroundColor: colors.primary }]}
                   onPress={continuePlayback}
                   activeOpacity={0.85}
                 >
@@ -824,7 +827,7 @@ export default function LivePlaybackScreen() {
 
           {loadingSummary ? (
             <View style={[ss.center, { flex: 1 }]}>
-              <ActivityIndicator color="#6c63ff" size="large" />
+              <ActivityIndicator color={colors.primary} size="large" />
               <Text style={ss.loadingText}>Analysing your movement…</Text>
               <Text style={ss.mutedText}>Claude is scoring 5 quality dimensions</Text>
             </View>
@@ -845,7 +848,7 @@ export default function LivePlaybackScreen() {
                         <Circle cx={60} cy={60} r={r} stroke="#1e1e30" strokeWidth={8} fill="none" />
                         <Circle
                           cx={60} cy={60} r={r}
-                          stroke="#6c63ff"
+                          stroke={colors.primary}
                           strokeWidth={8}
                           fill="none"
                           strokeDasharray={`${fill} ${circ - fill}`}
@@ -856,7 +859,7 @@ export default function LivePlaybackScreen() {
                     );
                   })()}
                   <View style={[StyleSheet.absoluteFill, ss.center]}>
-                    <Text style={ss.overallScore}>{movementSummary.overallScore}</Text>
+                    <Text style={[ss.overallScore, { color: colors.primary }]}>{movementSummary.overallScore}</Text>
                     <Text style={ss.overallLabel}>OVERALL</Text>
                   </View>
                 </View>
@@ -865,7 +868,7 @@ export default function LivePlaybackScreen() {
 
               {/* 5 dimension rings */}
               <View style={ss.ringsRow}>
-                <ScoreRing label="Flow"        score={movementSummary.flowScore}         color="#6c63ff" />
+                <ScoreRing label="Flow"        score={movementSummary.flowScore}         color={colors.primary} />
                 <ScoreRing label="Efficiency"  score={movementSummary.efficiencyScore}   color="#22c55e" />
                 <ScoreRing label="Control"     score={movementSummary.bodyControlScore}  color="#f59e0b" />
                 <ScoreRing label="Consistency" score={movementSummary.consistencyScore}  color="#06b6d4" />
@@ -910,7 +913,7 @@ export default function LivePlaybackScreen() {
               </View>
 
               <TouchableOpacity
-                style={ss.doneBtn}
+                style={[ss.doneBtn, { backgroundColor: colors.primary }]}
                 onPress={() => setShowSummary(false)}
                 activeOpacity={0.85}
               >
@@ -921,7 +924,7 @@ export default function LivePlaybackScreen() {
             <View style={[ss.center, { flex: 1 }]}>
               <Feather name="alert-circle" size={32} color="#55556e" />
               <Text style={ss.noDataTitle}>Couldn't load summary</Text>
-              <TouchableOpacity style={ss.outlineBtn} onPress={() => setShowSummary(false)} activeOpacity={0.8}>
+              <TouchableOpacity style={[ss.outlineBtn, { backgroundColor: colors.primary + "22", borderColor: colors.primary + "55" }]} onPress={() => setShowSummary(false)} activeOpacity={0.8}>
                 <Text style={ss.outlineBtnText}>Close</Text>
               </TouchableOpacity>
             </View>
@@ -964,10 +967,8 @@ const ss = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: "#6c63ff22",
+    borderRadius: RADIUS.sm,
     borderWidth: 1,
-    borderColor: "#6c63ff44",
   },
   summaryBtnText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#a78bfa" },
 
@@ -1000,8 +1001,7 @@ const ss = StyleSheet.create({
   },
   playBtn: {
     width: 40, height: 40,
-    borderRadius: 20,
-    backgroundColor: "#6c63ff",
+    borderRadius: RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1025,7 +1025,7 @@ const ss = StyleSheet.create({
     borderRadius: 2,
     overflow: "hidden",
   },
-  timelineFill: { height: "100%", backgroundColor: "#6c63ff", borderRadius: 2 },
+  timelineFill: { height: "100%", borderRadius: 2 },
   markerBtn: {
     position: "absolute",
     alignItems: "center",
@@ -1135,17 +1135,15 @@ const ss = StyleSheet.create({
   },
   actionBtnGhost: { borderWidth: 1, borderColor: "#ffffff18", backgroundColor: "#ffffff08" },
   actionBtnGhostText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#8888aa" },
-  actionBtnPrimary: { backgroundColor: "#6c63ff" },
+  actionBtnPrimary: {},
   actionBtnPrimaryText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 
   // Utility
   outlineBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: "#6c63ff22",
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm + 2,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: "#6c63ff55",
   },
   outlineBtnText: { fontSize: 14, fontFamily: "Inter_500Medium", color: "#a78bfa" },
   loadingText: { fontSize: 14, fontFamily: "Inter_400Regular", color: "#8888aa" },
@@ -1165,7 +1163,7 @@ const ss = StyleSheet.create({
   summaryHeaderTitle: { flex: 1, fontSize: 17, fontFamily: "Inter_600SemiBold", color: "#e8e8ff" },
   overallHero: { alignItems: "center", paddingVertical: 24, paddingHorizontal: 20, gap: 14 },
   overallRingWrap: { width: 120, height: 120 },
-  overallScore: { fontSize: 30, fontFamily: "Inter_700Bold", color: "#6c63ff" },
+  overallScore: { fontSize: 30, fontFamily: "Inter_700Bold" },
   overallLabel: { fontSize: 8, fontFamily: "Inter_600SemiBold", color: "#55556e", letterSpacing: 1.5 },
   coachSummary: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#aaaacc", textAlign: "center", lineHeight: 20 },
   ringsRow: {
@@ -1198,10 +1196,9 @@ const ss = StyleSheet.create({
   listDot: { width: 6, height: 6, borderRadius: 3, marginTop: 5 },
   listText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: "#c0c0d8", lineHeight: 19 },
   doneBtn: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    backgroundColor: "#6c63ff",
-    borderRadius: 12,
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.sm,
+    borderRadius: RADIUS.md,
     paddingVertical: 14,
     alignItems: "center",
   },

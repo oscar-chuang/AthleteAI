@@ -17,6 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 
 import { analyses as analysesApi } from "@/lib/api";
+import { useColors } from "@/hooks/useColors";
 
 function buildPersonSelectHtml(videoUri: string): string {
   return `<!DOCTYPE html>
@@ -221,6 +222,7 @@ export default function PersonSelectScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const colors = useColors();
 
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [videoChecked, setVideoChecked] = useState(false);
@@ -488,7 +490,7 @@ export default function PersonSelectScreen() {
         {/* Video / detection area */}
         {!videoChecked || (videoChecked && videoUri && preparing) ? (
           <View style={s.videoSlot}>
-            <ActivityIndicator color="#6c63ff" size="large" />
+            <ActivityIndicator color={colors.primary} size="large" />
             <Text style={{ color: "#55556e", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 10 }}>
               {!videoChecked ? "Loading…" : "Preparing your clip…"}
             </Text>
@@ -516,7 +518,7 @@ export default function PersonSelectScreen() {
           />
         ) : (
           <View style={s.videoSlot}>
-            <ActivityIndicator color="#6c63ff" />
+            <ActivityIndicator color={colors.primary} />
           </View>
         )}
 
@@ -546,7 +548,7 @@ export default function PersonSelectScreen() {
         {/* Claude sport check — loading */}
         {showWebView && sportChecking && (
           <View style={s.claudeRow}>
-            <ActivityIndicator size="small" color="#a78bfa" />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={s.claudeText}>Verifying sport from your video…</Text>
           </View>
         )}
