@@ -157,7 +157,7 @@ interface AvatarDisplayProps {
 export function AvatarDisplay({ avatarUrl, name, size, colors, testID }: AvatarDisplayProps) {
   const presetColor = getPresetColor(avatarUrl);
   const isPhoto = isPhotoAvatar(avatarUrl);
-  const initials = getInitials(name || "Athlete");
+  const initials = name?.trim() ? getInitials(name) : "?";
   const fontSize = size * 0.38;
 
   if (isPhoto && avatarUrl) {

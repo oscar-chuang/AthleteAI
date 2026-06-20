@@ -21,6 +21,7 @@ exports[`ShareCard — accent colour override snapshot: dark scheme + Ocean acce
         "height": 170,
       }
     }
+    testID="share-card-surface"
   >
     <View
       style={

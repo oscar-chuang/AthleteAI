@@ -619,7 +619,7 @@ export default function HomeScreen() {
               >
                 <AvatarDisplay
                   avatarUrl={profile?.avatarUrl}
-                  name={profile?.name ?? user?.name ?? "Athlete"}
+                  name={profile?.name ?? user?.name ?? ""}
                   size={40}
                   colors={colors}
                 />

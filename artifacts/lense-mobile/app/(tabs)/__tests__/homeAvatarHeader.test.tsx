@@ -233,8 +233,10 @@ describe("HomeScreen — AvatarDisplay in the home header", () => {
     const { getByText } = render(<HomeScreen />);
     await simulateFocus();
 
-    // profile?.name is undefined, user?.name is null → fallback to "Athlete"
+    // profile?.name is undefined, user?.name is null → display name falls back to "Athlete"
     expect(getByText("Athlete")).toBeTruthy();
+    // Avatar receives an empty name → shows the "?" placeholder instead of a blank circle
+    expect(getByText("?")).toBeTruthy();
   });
 
   it("renders initials inside a coloured circle when a preset avatar is active", async () => {
