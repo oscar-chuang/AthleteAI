@@ -41,10 +41,14 @@
  *      current week key (server-side durability path).
  *   6. A server flag from a previous week does NOT suppress confetti for the
  *      current week.
- *   7. persistCelebrationToServer: success clears the sync marker.
- *   8. persistCelebrationToServer: failure leaves the sync marker for retry.
- *   9. retryCelebrationSync: retries when a sync marker exists and clears on success.
- *  10. retryCelebrationSync: leaves the marker when the retry also fails.
+ *   7. Server auto-reset for a new week: confetti fires correctly on the first
+ *      load of the new week after weeklyGoalCelebratedAt is reset to null.
+ *   8. Goal raised above count mid-week after celebrating: celebrated flag keeps
+ *      confetti silent even when count later reaches the new higher goal.
+ *   9. persistCelebrationToServer: success clears the sync marker.
+ *  10. persistCelebrationToServer: failure leaves the sync marker for retry.
+ *  11. retryCelebrationSync: retries when a sync marker exists and clears on success.
+ *  12. retryCelebrationSync: leaves the marker when the retry also fails.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -339,7 +343,39 @@ describe("home screen — confetti fires exactly once when weekly goal is crosse
     expect(fetchStats).toHaveBeenCalledTimes(3);
   });
 
-  // ── Test 8 — reinstall + goal change (server-flag path) ──────────────────────
+  // ── Test 10 — goal raised above current count after celebrating ──────────────
+
+  it("does NOT fire confetti when the goal is raised above the current count mid-week after already celebrating", async () => {
+    // Phase 1: user has goal=3, completes 2 sessions (below goal).
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 2 });
+    const load1 = await simulateLoadDataConfetti(fetchStats, WEEKLY_GOAL, WEEK_KEY, storage);
+    expect(load1).toBe(false);
+
+    // Phase 2: user completes a 3rd session — goal crossed, confetti fires.
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 3 });
+    const load2 = await simulateLoadDataConfetti(fetchStats, WEEKLY_GOAL, WEEK_KEY, storage);
+    expect(load2).toBe(true);
+    // Celebrated flag must now be set in AsyncStorage.
+    expect(store[`confetti_celebrated_${WEEK_KEY}`]).toBe("true");
+
+    // Phase 3: user raises their goal to 5 mid-week (still only 3 sessions this week,
+    // so they're now below the new goal). The celebrated flag must keep confetti silent —
+    // a goal increase must not be treated as a fresh "first load" that bypasses the gate.
+    const HIGHER_GOAL = 5;
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 3 });
+    const load3 = await simulateLoadDataConfetti(fetchStats, HIGHER_GOAL, WEEK_KEY, storage);
+    expect(load3).toBe(false); // celebrated flag must block — count still below new goal
+
+    // Phase 4: user eventually reaches the new goal (5 sessions this week).
+    // The celebrated flag must prevent a second confetti burst even though count>=newGoal.
+    fetchStats.mockResolvedValueOnce({ thisWeekCount: 5 });
+    const load4 = await simulateLoadDataConfetti(fetchStats, HIGHER_GOAL, WEEK_KEY, storage);
+    expect(load4).toBe(false); // celebrated flag must block the second burst
+
+    expect(fetchStats).toHaveBeenCalledTimes(4);
+  });
+
+  // ── Test 11 — reinstall + goal change (server-flag path) ─────────────────────
 
   it("does NOT re-fire confetti after reinstall when the server flag matches the current week, even if the goal was subsequently lowered", async () => {
     // Scenario: user celebrated at goal=3 (server recorded weeklyGoalCelebratedAt=WEEK_KEY),
