@@ -1436,4 +1436,22 @@ describe("scan-overlay — 'Preparing scan…' placeholder lifecycle", () => {
     expect(screen.getByText("Tracking your movement")).toBeTruthy();
     expect(screen.getByText(/measuring joints/)).toBeTruthy();
   });
+
+  it("removes the entire progress overlay after scanComplete", async () => {
+    mockApiGet.mockResolvedValue(ungroundedResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Reach the active-progress state: overlay should show "Tracking your movement".
+    emit({ type: "layoutReady" });
+    await flush();
+    expect(screen.getByText("Tracking your movement")).toBeTruthy();
+
+    // Scan finishes — the entire overlay (title + bar + sub-text) must disappear.
+    emit(scanMsg);
+    await flush();
+
+    expect(screen.queryByText("Tracking your movement")).toBeNull();
+  });
 });
