@@ -375,7 +375,7 @@ export default function JointHistorySheet({
               </Text>
             </View>
           ) : (
-            <Pressable onPress={handleBackgroundPress} style={{ position: "relative" }}>
+            <Pressable testID="joint-history-chart" onPress={handleBackgroundPress} style={{ position: "relative" }}>
               <Svg width={sw - 48} height={totalSvgH + 72} style={{ overflow: "visible" }}>
                 {/* Y-axis grid + labels */}
                 {yTicks.map((tick, ti) => {
