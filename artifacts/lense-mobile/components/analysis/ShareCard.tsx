@@ -27,7 +27,7 @@ export const SHARE_CARD_DARK: ShareCardPalette = {
   cardBorder:  "#22223a",
   textPrimary: "#f0f0f8",
   textMuted:   "#7878aa",
-  accent:      "#6c63ff",
+  accent:      "#00C2FF",
   imageOverlay: "#00000044",
 };
 
@@ -37,16 +37,16 @@ export const SHARE_CARD_LIGHT: ShareCardPalette = {
   cardBorder:  "#dcdcf0",
   textPrimary: "#1a1a2e",
   textMuted:   "#6666a0",
-  accent:      "#6c63ff",
+  accent:      "#00C2FF",
   imageOverlay: "#0000001a",
 };
 
 // ─── Score bands ──────────────────────────────────────────────────────────────
 
 const SCORE_BANDS = [
-  { min: 80, color: "#22c55e", label: "Strong"     },
-  { min: 65, color: "#6c63ff", label: "On Track"   },
-  { min: 0,  color: "#f59e0b", label: "Focus Here" },
+  { min: 80, color: "#1DB954", label: "Strong"     },
+  { min: 65, color: "#00C2FF", label: "On Track"   },
+  { min: 0,  color: "#FF6B35", label: "Focus Here" },
 ];
 
 function scoreBandColor(score: number): string {

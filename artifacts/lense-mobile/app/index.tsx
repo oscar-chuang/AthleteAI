@@ -25,12 +25,12 @@ const FEATURES = [
   { icon: "activity" as const,    color: "#06b6d4", label: "AI Motion Analysis" },
   { icon: "shield" as const,      color: "#f97316", label: "Injury Prevention" },
   { icon: "trending-up" as const, color: "#22d3ee", label: "Progress Tracking" },
-  { icon: "zap" as const,         color: "#a78bfa", label: "Performance Coaching" },
+  { icon: "zap" as const,         color: "#FF6B35", label: "Performance Coaching" },
 ];
 
 const HIGHLIGHTS = [
-  { icon: "layers" as const,  color: "#6c63ff", label: "13 Sports", sub: "Supported" },
-  { icon: "book-open" as const, color: "#22c55e", label: "Peer-reviewed", sub: "Research-backed tips" },
+  { icon: "layers" as const,  color: "#00C2FF", label: "13 Sports", sub: "Supported" },
+  { icon: "book-open" as const, color: "#1DB954", label: "Peer-reviewed", sub: "Research-backed tips" },
 ];
 
 export default function LandingScreen() {

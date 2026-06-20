@@ -20,8 +20,6 @@ import * as ImagePicker from "expo-image-picker";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/lib/authContext";
 import { useTheme } from "@/lib/themeContext";
-import { ACCENT_PALETTES } from "@/constants/colors";
-import type { AccentKey } from "@/constants/colors";
 import { CropModal, type CropResult } from "@/components/CropModal";
 import { Button } from "@/components/ui/Button";
 import { Divider } from "@/components/ui/Divider";
@@ -122,9 +120,9 @@ const MAX_RAW_AVATAR_DIMENSION = 1024;
 const MAX_AVATAR_DATA_URI_CHARS = 2 * 1024 * 1024; // 2 MB of base64 characters
 
 const PRESET_AVATARS = [
-  { key: "preset:#6c63ff", color: "#6c63ff" },
-  { key: "preset:#22c55e", color: "#22c55e" },
-  { key: "preset:#f59e0b", color: "#f59e0b" },
+  { key: "preset:#00C2FF", color: "#00C2FF" },
+  { key: "preset:#1DB954", color: "#1DB954" },
+  { key: "preset:#FF6B35", color: "#FF6B35" },
   { key: "preset:#ff4d6d", color: "#ff4d6d" },
   { key: "preset:#06b6d4", color: "#06b6d4" },
   { key: "preset:#a855f7", color: "#a855f7" },
@@ -194,7 +192,7 @@ export function AvatarDisplay({ avatarUrl, name, size, colors, testID }: AvatarD
 
 export default function ProfileSettingsScreen() {
   const colors = useColors();
-  const { isDark, toggleTheme, accentColor, setAccentColor } = useTheme();
+  const { isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const navigation = useNavigation();
@@ -1269,54 +1267,23 @@ export default function ProfileSettingsScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Accent colour palettes */}
+          {/* Accent colour */}
           <View style={{ marginTop: 16 }}>
             <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: colors.foreground, marginBottom: 12 }}>
               Accent Colour
             </Text>
-            <View style={{ flexDirection: "row", gap: 14 }}>
-              {(Object.keys(ACCENT_PALETTES) as AccentKey[]).map((key) => {
-                const palette = ACCENT_PALETTES[key];
-                const isSelected = accentColor === key;
-                return (
-                  <TouchableOpacity
-                    key={key}
-                    onPress={() => setAccentColor(key)}
-                    activeOpacity={0.75}
-                    accessibilityLabel={palette.label}
-                    style={{ alignItems: "center", gap: 6 }}
-                  >
-                    <View
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 20,
-                        backgroundColor: palette.color,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderWidth: isSelected ? 3 : 2,
-                        borderColor: isSelected ? palette.color : colors.border,
-                        shadowColor: isSelected ? palette.color : "transparent",
-                        shadowOffset: { width: 0, height: 0 },
-                        shadowOpacity: isSelected ? 0.55 : 0,
-                        shadowRadius: isSelected ? 8 : 0,
-                        elevation: isSelected ? 6 : 0,
-                      }}
-                    >
-                      {isSelected && (
-                        <Feather name="check" size={16} color="#fff" />
-                      )}
-                    </View>
-                    <Text style={{
-                      fontSize: 11,
-                      fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_400Regular",
-                      color: isSelected ? palette.color : colors.mutedForeground,
-                    }}>
-                      {palette.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View style={{
+                width: 40, height: 40, borderRadius: 20,
+                backgroundColor: colors.primary,
+                alignItems: "center", justifyContent: "center",
+                borderWidth: 3, borderColor: colors.primary,
+              }}>
+                <Feather name="check" size={16} color="#fff" />
+              </View>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.primary }}>
+                Electric Blue
+              </Text>
             </View>
 
             {/* Live accent preview */}

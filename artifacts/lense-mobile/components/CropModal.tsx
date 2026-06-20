@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 15,
     borderRadius: 14,
-    backgroundColor: "#6c63ff",
+    backgroundColor: "#00C2FF",
   },
   confirmBtnText: {
     fontSize: 15,

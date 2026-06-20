@@ -584,7 +584,7 @@ const tooltipStyles = StyleSheet.create({
   navHint: {
     fontSize: 9,
     fontFamily: "Inter_500Medium",
-    color: "#6c63ff",
+    color: "#00C2FF",
     marginTop: 3,
   },
 });

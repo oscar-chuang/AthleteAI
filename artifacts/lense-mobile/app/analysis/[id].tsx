@@ -85,23 +85,23 @@ function getWeekKey(): string {
 }
 
 const SEVERITY_CONFIG = {
-  info: { color: "#38bdf8", icon: "info" as const, label: "Info" },
+  info: { color: "#00C2FF", icon: "info" as const, label: "Info" },
   warning: {
-    color: "#f59e0b",
+    color: "#FF6B35",
     icon: "alert-triangle" as const,
     label: "Warning",
   },
   critical: {
-    color: "#ef4444",
+    color: "#FF4444",
     icon: "alert-circle" as const,
     label: "Critical",
   },
 };
 
 const RISK_LABEL: Record<string, { label: string; color: string }> = {
-  low:      { label: "Low Risk",      color: "#22c55e" },
-  moderate: { label: "Moderate Risk", color: "#f59e0b" },
-  high:     { label: "High Risk",     color: "#ef4444" },
+  low:      { label: "Low Risk",      color: "#1DB954" },
+  moderate: { label: "Moderate Risk", color: "#FF6B35" },
+  high:     { label: "High Risk",     color: "#FF4444" },
 };
 
 const JOINT_LABEL: Record<string, string> = {
@@ -1368,6 +1368,122 @@ export default function AnalysisDetailScreen() {
           }
         }}
       >
+        {/* ── Focal composition: score ring + strength/opportunity + CTA ── */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4, gap: 10 }}>
+
+          {/* Row 1: Score ring (large) + strength/opportunity columns */}
+          <View style={{
+            flexDirection: "row",
+            gap: 10,
+          }}>
+            {/* Score ring module */}
+            <View style={{
+              flex: 1.2,
+              backgroundColor: colors.card,
+              borderRadius: colors.radius,
+              borderWidth: 1, borderColor: colors.border,
+              borderTopWidth: 3, borderTopColor: overallBand.color,
+              padding: 14, alignItems: "center", justifyContent: "center",
+            }}>
+              <ScoreRing
+                score={overallScore}
+                size={88}
+                strokeWidth={7}
+                color={overallBand.color}
+                label="OVERALL"
+                animate={!ringAnimationDone.has(analysis.id)}
+                onAnimationComplete={() => ringAnimationDone.add(analysis.id)}
+              />
+              <Text style={[TYPE.caption, { color: overallBand.color, marginTop: 6, textAlign: "center" }]}>
+                {overallBand.label}
+              </Text>
+            </View>
+
+            {/* Strength + opportunity stacked */}
+            <View style={{ flex: 1, gap: 10 }}>
+              <View style={{
+                flex: 1,
+                backgroundColor: colors.card,
+                borderRadius: colors.radius,
+                borderWidth: 1, borderColor: colors.border,
+                borderTopWidth: 3, borderTopColor: colors.success,
+                padding: 12, alignItems: "center",
+              }}>
+                <Text style={[TYPE.captionMed, { color: colors.mutedForeground, marginBottom: 4 }]}>
+                  Top Strength
+                </Text>
+                <Text style={[TYPE.title, { color: colors.success }]}>
+                  {Math.round(bestMetric.score)}
+                </Text>
+                <Text style={[TYPE.caption, { color: colors.success, marginTop: 2, textTransform: "capitalize" }]}>
+                  {bestMetric.key}
+                </Text>
+              </View>
+
+              <View style={{
+                flex: 1,
+                backgroundColor: colors.card,
+                borderRadius: colors.radius,
+                borderWidth: 1, borderColor: colors.border,
+                borderTopWidth: 3, borderTopColor: colors.warning,
+                padding: 12, alignItems: "center",
+              }}>
+                <Text style={[TYPE.captionMed, { color: colors.mutedForeground, marginBottom: 4 }]}>
+                  Top Opportunity
+                </Text>
+                <Text style={[TYPE.title, { color: colors.warning }]}>
+                  {Math.round(worstMetric.score)}
+                </Text>
+                <Text style={[TYPE.caption, { color: colors.warning, marginTop: 2, textTransform: "capitalize" }]}>
+                  {worstMetric.key}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Row 2: View Movement CTA */}
+          <TouchableOpacity
+            onPress={() => router.push({ pathname: "/analysis/skeleton/[id]", params: { id: id! } } as any)}
+            activeOpacity={0.85}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              backgroundColor: colors.primary,
+              borderRadius: colors.radius,
+              paddingVertical: 14,
+            }}
+          >
+            <Feather name="play-circle" size={18} color="#fff" />
+            <Text style={[TYPE.bodySemi, { color: "#fff" }]}>View Movement Analysis</Text>
+          </TouchableOpacity>
+
+          {/* Row 3: Next action strip */}
+          {topTip && (
+            <View style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              backgroundColor: colors.card,
+              borderRadius: colors.radius,
+              borderWidth: 1, borderColor: colors.border,
+              borderLeftWidth: 3, borderLeftColor: colors.primary,
+              paddingHorizontal: 14, paddingVertical: 12,
+            }}>
+              <Feather name="arrow-right-circle" size={16} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={[TYPE.captionMed, { color: colors.primary, marginBottom: 2 }]}>
+                  Next Action
+                </Text>
+                <Text style={[TYPE.label, { color: colors.foreground }]} numberOfLines={2}>
+                  {topTip.title}
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+
         {/* ── Section 1: Quick Summary ── */}
         <View style={styles.sectionWrap}>
           <SectionHeader title="Quick Summary" icon="zap" accentColor={colors.primary} />
@@ -1472,9 +1588,9 @@ export default function AnalysisDetailScreen() {
                 Score bands
               </Text>
               {[
-                { label: "Strong", color: "#22c55e", range: "80–100", note: "Keep it up" },
-                { label: "On Track", color: "#6c63ff", range: "65–79", note: "Room to grow" },
-                { label: "Focus Here", color: "#f59e0b", range: "0–64", note: "Prioritise this" },
+                { label: "Strong", color: "#1DB954", range: "80–100", note: "Keep it up" },
+                { label: "On Track", color: "#00C2FF", range: "65–79", note: "Room to grow" },
+                { label: "Focus Here", color: "#FF6B35", range: "0–64", note: "Prioritise this" },
               ].map((b) => (
                 <View key={b.label} style={styles.guideBandRow}>
                   <View style={[styles.guideDot, { backgroundColor: b.color }]} />
@@ -1566,14 +1682,14 @@ export default function AnalysisDetailScreen() {
         {/* ── Movement Quality ── */}
         {analysis.movementSummary && (
           <View style={styles.sectionWrap}>
-            <SectionHeader title="Movement Quality" icon="activity" accentColor="#6c63ff" />
+            <SectionHeader title="Movement Quality" icon="activity" accentColor="#00C2FF" />
             <View style={styles.movementQualityRow}>
               {([
-                { label: "Flow",        score: analysis.movementSummary.flowScore,        color: "#6c63ff" },
-                { label: "Efficiency",  score: analysis.movementSummary.efficiencyScore,  color: "#22c55e" },
-                { label: "Control",     score: analysis.movementSummary.bodyControlScore, color: "#f59e0b" },
+                { label: "Flow",        score: analysis.movementSummary.flowScore,        color: "#00C2FF" },
+                { label: "Efficiency",  score: analysis.movementSummary.efficiencyScore,  color: "#1DB954" },
+                { label: "Control",     score: analysis.movementSummary.bodyControlScore, color: "#FF6B35" },
                 { label: "Consistency", score: analysis.movementSummary.consistencyScore, color: "#06b6d4" },
-                { label: "Rhythm",      score: analysis.movementSummary.rhythmScore,      color: "#a78bfa" },
+                { label: "Rhythm",      score: analysis.movementSummary.rhythmScore,      color: "#00C2FF" },
               ] as const).map(({ label, score, color }) => (
                 <View key={label} style={styles.movementQualityCell}>
                   <ScoreRing
@@ -1696,7 +1812,7 @@ export default function AnalysisDetailScreen() {
 
         {/* ── Section 7: Next Workout Goal ── */}
         <View style={styles.sectionWrap}>
-          <SectionHeader title="Next Workout Goal" icon="target" accentColor="#f59e0b" />
+          <SectionHeader title="Next Workout Goal" icon="target" accentColor="#FF6B35" />
           <NextFocusCard
             focusCue={`Focus on your ${worstMetric.key} — ${SCORE_META[worstMetric.key].desc.toLowerCase()}`}
             drill={firstDrill}
@@ -1969,7 +2085,7 @@ export default function AnalysisDetailScreen() {
             styles.goalToast,
             {
               backgroundColor: colors.card,
-              borderColor: "#f59e0b55",
+              borderColor: "#FF6B3555",
               bottom: bottomPad + 16,
               opacity: toastOpacity,
               transform: [{ translateY: toastTranslate }],

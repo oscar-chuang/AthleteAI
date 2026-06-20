@@ -11,8 +11,8 @@ import Animated, {
 const { width: SCREEN_W } = Dimensions.get("window");
 
 const PALETTE = [
-  "#f59e0b", "#6366f1", "#22c55e", "#ef4444",
-  "#38bdf8", "#a855f7", "#fb923c", "#ec4899",
+  "#f59e0b", "#00C2FF", "#22c55e", "#ef4444",
+  "#38bdf8", "#FF6B35", "#fb923c", "#ec4899",
   "#fbbf24", "#34d399", "#60a5fa", "#f472b6",
 ];
 

@@ -4,11 +4,11 @@ import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 
 const STEPS = [
-  { label: "Scanning your video",        icon: "film"        as const, color: "#6366f1" },
+  { label: "Scanning your video",        icon: "film"        as const, color: "#00C2FF" },
   { label: "Finding the athlete",        icon: "user"        as const, color: "#a855f7" },
   { label: "Tracking movement",          icon: "activity"    as const, color: "#3b82f6" },
   { label: "Measuring key positions",    icon: "target"      as const, color: "#10b981" },
-  { label: "Building your coaching plan",icon: "cpu"         as const, color: "#f59e0b" },
+  { label: "Building your coaching plan",icon: "cpu"         as const, color: "#FF6B35" },
 ];
 
 export function AnimatedLoadingState() {

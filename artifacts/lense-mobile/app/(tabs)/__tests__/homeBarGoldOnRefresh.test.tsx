@@ -12,7 +12,7 @@
  *
  * Assertions:
  *   1. After pull-to-refresh resolves, the bar fill has backgroundColor
- *      "#f59e0b" (gold) immediately — the Animated.timing callback has NOT
+ *      "#FF6B35" (gold) immediately — the Animated.timing callback has NOT
  *      been manually fired.
  *   2. The bar fill does NOT show colors.primary at that point.
  */
@@ -82,12 +82,13 @@ jest.mock("@/hooks/useColors", () => ({
     foreground:      "#f5f5f5",
     card:            "#1a1a1a",
     border:          "#2a2a2a",
-    primary:         "#6c63ff",
-    mutedForeground: "#888888",
+    primary:         "#00C2FF",
+    mutedForeground: "#6B7280",
     muted:           "#333333",
-    success:         "#22c55e",
-    warning:         "#f59e0b",
-    destructive:     "#ff4d6d",
+    success:         "#1DB954",
+    warning:         "#FF6B35",
+    energy:          "#FF6B35",
+    destructive:     "#FF4444",
     radius:          12,
   }),
 }));
@@ -168,8 +169,8 @@ import HomeScreen from "../index";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const GOLD    = "#f59e0b";
-const PRIMARY = "#6c63ff";
+const GOLD    = "#FF6B35";
+const PRIMARY = "#00C2FF";
 
 /** Stats where thisWeekCount equals weeklyGoal → targetRatio = 1.0 (goal reached). */
 const MOCK_STATS_GOAL_REACHED = {
@@ -253,7 +254,7 @@ afterEach(() => {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("HomeScreen — progress bar gold on pull-to-refresh when goal reached", () => {
-  it("bar fill is gold (#f59e0b) immediately after pull-to-refresh when goal is already reached, without waiting for animation callback", async () => {
+  it("bar fill is gold (#FF6B35) immediately after pull-to-refresh when goal is already reached, without waiting for animation callback", async () => {
     const { getByTestId, UNSAFE_getByType } = render(<HomeScreen />);
 
     // Initial focus load — stats already show goal reached (3/3).

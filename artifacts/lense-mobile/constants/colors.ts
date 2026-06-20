@@ -1,97 +1,79 @@
-export type AccentKey = "midnight" | "ocean" | "sunset" | "forest";
-
-export interface AccentPalette {
-  label: string;
-  color: string;
-}
-
-export const ACCENT_PALETTES: Record<AccentKey, AccentPalette> = {
-  midnight: { label: "Midnight", color: "#6c63ff" },
-  ocean:    { label: "Ocean",    color: "#0ea5e9" },
-  sunset:   { label: "Sunset",   color: "#f97316" },
-  forest:   { label: "Forest",   color: "#22c55e" },
-};
-
-export const DEFAULT_ACCENT: AccentKey = "midnight";
+const ACCENT_COLOR = "#00C2FF";
 
 const BASE_DARK = {
-  text:                "#f0f0f8",
-  background:          "#0a0a0f",
-  surface1:            "#0a0a0f",
-  surface2:            "#111118",
-  surface3:            "#1a1a24",
-  foreground:          "#f0f0f8",
-  card:                "#111118",
-  cardForeground:      "#f0f0f8",
+  text:                "#F0F4F8",
+  background:          "#0D0F11",
+  surface1:            "#0D0F11",
+  surface2:            "#141618",
+  surface3:            "#1C1F22",
+  surface4:            "#242729",
+  foreground:          "#F0F4F8",
+  card:                "#141618",
+  cardForeground:      "#F0F4F8",
   primaryForeground:   "#ffffff",
-  secondary:           "#1a1a24",
-  secondaryForeground: "#f0f0f8",
-  muted:               "#1e1e2e",
-  mutedForeground:     "#8888aa",
+  secondary:           "#1C1F22",
+  secondaryForeground: "#F0F4F8",
+  muted:               "#1C1F22",
+  mutedForeground:     "#6B7280",
   accentForeground:    "#ffffff",
-  destructive:         "#ff4d6d",
+  destructive:         "#FF4444",
   destructiveForeground: "#ffffff",
-  border:              "#ffffff0f",
-  borderStrong:        "#ffffff1a",
-  input:               "#1a1a24",
-  success:             "#22c55e",
-  warning:             "#f59e0b",
-  textPrimary:         "#f0f0f8",
-  textSecondary:       "#a0a0c0",
-  textTertiary:        "#8888aa",
-  radius:              12,
+  border:              "#ffffff0d",
+  borderStrong:        "#ffffff18",
+  input:               "#1C1F22",
+  success:             "#1DB954",
+  warning:             "#FF6B35",
+  energy:              "#FF6B35",
+  textPrimary:         "#F0F4F8",
+  textSecondary:       "#9CA3AF",
+  textTertiary:        "#6B7280",
+  radius:              14,
 };
 
 const BASE_LIGHT = {
-  text:                "#0f0f1a",
-  background:          "#f5f5fa",
-  surface1:            "#f5f5fa",
-  surface2:            "#ffffff",
-  surface3:            "#ededf8",
-  foreground:          "#0f0f1a",
-  card:                "#ffffff",
-  cardForeground:      "#0f0f1a",
+  text:                "#0A0C0E",
+  background:          "#F5F7FA",
+  surface1:            "#F5F7FA",
+  surface2:            "#FFFFFF",
+  surface3:            "#EAEDF1",
+  surface4:            "#DDE1E7",
+  foreground:          "#0A0C0E",
+  card:                "#FFFFFF",
+  cardForeground:      "#0A0C0E",
   primaryForeground:   "#ffffff",
-  secondary:           "#ededf8",
-  secondaryForeground: "#0f0f1a",
-  muted:               "#ededf8",
-  mutedForeground:     "#6b6b8a",
+  secondary:           "#EAEDF1",
+  secondaryForeground: "#0A0C0E",
+  muted:               "#EAEDF1",
+  mutedForeground:     "#6B7280",
   accentForeground:    "#ffffff",
-  destructive:         "#dc2626",
+  destructive:         "#FF4444",
   destructiveForeground: "#ffffff",
-  border:              "#e0e0ef",
-  borderStrong:        "#c8c8e0",
-  input:               "#ededf8",
-  success:             "#16a34a",
-  warning:             "#d97706",
-  textPrimary:         "#0f0f1a",
-  textSecondary:       "#4a4a6a",
-  textTertiary:        "#6b6b8a",
-  radius:              12,
+  border:              "#E2E6EC",
+  borderStrong:        "#CCD1DA",
+  input:               "#EAEDF1",
+  success:             "#1DB954",
+  warning:             "#FF6B35",
+  energy:              "#FF6B35",
+  textPrimary:         "#0A0C0E",
+  textSecondary:       "#4B5563",
+  textTertiary:        "#6B7280",
+  radius:              14,
 };
 
-function applyAccent<T extends typeof BASE_DARK | typeof BASE_LIGHT>(
-  base: T,
-  accentKey: AccentKey,
-): T & { tint: string; primary: string; accent: string } {
-  const color = ACCENT_PALETTES[accentKey].color;
-  return { ...base, tint: color, primary: color, accent: color };
+export function buildDarkTheme() {
+  return { ...BASE_DARK, tint: ACCENT_COLOR, primary: ACCENT_COLOR, accent: ACCENT_COLOR };
 }
 
-export function buildDarkTheme(accent: AccentKey = DEFAULT_ACCENT) {
-  return applyAccent(BASE_DARK, accent);
+export function buildLightTheme() {
+  return { ...BASE_LIGHT, tint: ACCENT_COLOR, primary: ACCENT_COLOR, accent: ACCENT_COLOR };
 }
 
-export function buildLightTheme(accent: AccentKey = DEFAULT_ACCENT) {
-  return applyAccent(BASE_LIGHT, accent);
-}
-
-export const darkTheme  = buildDarkTheme(DEFAULT_ACCENT);
-export const lightTheme = buildLightTheme(DEFAULT_ACCENT);
+export const darkTheme  = buildDarkTheme();
+export const lightTheme = buildLightTheme();
 
 const colors = {
   light:  darkTheme,
-  radius: 12,
+  radius: 14,
 };
 
 export default colors;

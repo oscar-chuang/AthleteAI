@@ -277,7 +277,7 @@ ${videoUri ? `<video id="v" playsinline webkit-playsinline muted preload="auto">
     KEYS.forEach(function(i){
       const p=toFull(lm[i]); if(!p)return;
       liveCtx.beginPath();liveCtx.arc(p.x,p.y,4,0,Math.PI*2);
-      liveCtx.fillStyle='#a78bfa';liveCtx.fill();
+      liveCtx.fillStyle='#00C2FF';liveCtx.fill();
     });
   }
 
@@ -1123,10 +1123,10 @@ export default function SkeletonScreen() {
     if (typeof pDeg !== "number") return null;
     const delta = Math.round(currentDeg - pDeg);
     if (delta === 0) return null;
-    let badgeColor = "#f59e0b";
+    let badgeColor = "#FF6B35";
     if (typeof pRisk === "number") {
-      if (currentRisk < pRisk)      badgeColor = "#22c55e";
-      else if (currentRisk > pRisk) badgeColor = "#ef4444";
+      if (currentRisk < pRisk)      badgeColor = "#1DB954";
+      else if (currentRisk > pRisk) badgeColor = "#FF4444";
     }
     const sign = delta > 0 ? "+" : "";
     const hasHistory = !!(jointTrendsData?.joints[joint]?.length);
@@ -1159,7 +1159,7 @@ export default function SkeletonScreen() {
         {arr.map((j) => {
           const lvl = scanResult?.risks?.[j];
           const deg = scanResult?.angles?.[j];
-          const color = typeof lvl === "number" ? RISK_COLORS[lvl] : "#6c63ff";
+          const color = typeof lvl === "number" ? RISK_COLORS[lvl] : "#00C2FF";
           const hasHistory = !!(jointTrendsData?.joints[j]?.length);
           return (
             <TouchableOpacity
@@ -1242,8 +1242,8 @@ export default function SkeletonScreen() {
     const tjoints = (tip.joints ?? []).filter((j) => j in JOINT_LABEL) as JointKey[];
     const lvls = tjoints.map((j) => scanResult?.risks?.[j]).filter((v): v is number => typeof v === "number");
     const color = kind === "performance"
-      ? "#6c63ff"
-      : (lvls.length ? RISK_COLORS[Math.max(...lvls)] : (tip.severity === "critical" ? RISK_COLORS[2] : tip.severity === "warning" ? RISK_COLORS[1] : "#f59e0b"));
+      ? "#00C2FF"
+      : (lvls.length ? RISK_COLORS[Math.max(...lvls)] : (tip.severity === "critical" ? RISK_COLORS[2] : tip.severity === "warning" ? RISK_COLORS[1] : "#FF6B35"));
     const expanded = expandedTipId === tip.id;
     const matchedRisk = injuryRisks.find((r) => riskMatchesJoints(r.joint, tjoints));
     const mini = expanded ? captureForJoints(captures, tjoints) : null;
@@ -1256,7 +1256,7 @@ export default function SkeletonScreen() {
         {/* Conflict priority banner */}
         {hasConflict && kind === "injury" && (
           <View style={ss.conflictBannerInjury}>
-            <Feather name="alert-triangle" size={11} color="#f59e0b" />
+            <Feather name="alert-triangle" size={11} color="#FF6B35" />
             <Text style={ss.conflictBannerInjuryText}>{INJURY_CONFLICT_LABEL}</Text>
           </View>
         )}
@@ -1277,7 +1277,7 @@ export default function SkeletonScreen() {
             </View>
             {tip.drill && completedDrills.has(tip.id) && (
               <View style={ss.drillDoneBadge}>
-                <Feather name="check" size={10} color="#22c55e" />
+                <Feather name="check" size={10} color="#1DB954" />
                 <Text style={ss.drillDoneBadgeText}>Done</Text>
               </View>
             )}
@@ -1329,7 +1329,7 @@ export default function SkeletonScreen() {
             {matchedRisk && (
               <View style={ss.riskBox}>
                 <View style={ss.riskHead}>
-                  <Feather name="activity" size={12} color="#ef4444" />
+                  <Feather name="activity" size={12} color="#FF4444" />
                   <Text style={ss.riskTitle}>{matchedRisk.joint} · {Math.round(matchedRisk.riskPercent)}% injury risk</Text>
                 </View>
                 <View style={ss.riskBarTrack}>
@@ -1348,7 +1348,7 @@ export default function SkeletonScreen() {
             {tip.drill ? (() => {
               const drill = tip.drill as DrillRecord | string;
               const isStructured = typeof drill === "object" && drill !== null;
-              const accentColor = kind === "performance" ? "#6c63ff" : "#f59e0b";
+              const accentColor = kind === "performance" ? "#00C2FF" : "#FF6B35";
               return (
                 <View style={[ss.drillBox, { borderColor: accentColor + "40", backgroundColor: kind === "performance" ? "#0e0e28" : "#16140e" }]}>
                   <Text style={[ss.drillLabel, { color: accentColor }]}>
@@ -1391,7 +1391,7 @@ export default function SkeletonScreen() {
                     <Feather
                       name={completedDrills.has(tip.id) ? "check-circle" : "circle"}
                       size={14}
-                      color={completedDrills.has(tip.id) ? "#22c55e" : accentColor + "99"}
+                      color={completedDrills.has(tip.id) ? "#1DB954" : accentColor + "99"}
                     />
                     <Text style={[ss.markDoneBtnText, completedDrills.has(tip.id) && ss.markDoneBtnTextDone]}>
                       {completedDrills.has(tip.id) ? "Completed" : "Mark done"}
@@ -1400,7 +1400,7 @@ export default function SkeletonScreen() {
                   {completedDrills.has(tip.id) && (
                     <View style={ss.nextStepCard}>
                       <View style={ss.nextStepHeader}>
-                        <Feather name="arrow-right-circle" size={13} color="#22c55e" />
+                        <Feather name="arrow-right-circle" size={13} color="#1DB954" />
                         <Text style={ss.nextStepLabel}>WHAT'S NEXT?</Text>
                         {(() => {
                           const best = computeBestImprovement(tjoints);
@@ -1412,7 +1412,7 @@ export default function SkeletonScreen() {
                               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                               style={ss.improvementBadge}
                             >
-                              <Feather name="trending-up" size={9} color="#22c55e" />
+                              <Feather name="trending-up" size={9} color="#1DB954" />
                               <Text style={ss.improvementBadgeText}>↑ {best.delta}° over {best.sessionCount} scans</Text>
                             </TouchableOpacity>
                           );
@@ -1426,7 +1426,7 @@ export default function SkeletonScreen() {
                         activeOpacity={0.8}
                         onPress={() => askCoach(tip)}
                       >
-                        <Feather name="message-circle" size={12} color="#22c55e" />
+                        <Feather name="message-circle" size={12} color="#1DB954" />
                         <Text style={ss.nextStepAskBtnText}>Ask Coach to plan my progression</Text>
                       </TouchableOpacity>
                     </View>
@@ -1534,14 +1534,14 @@ export default function SkeletonScreen() {
             const pb = proj(b);
             if (!pa || !pb) return null;
             const risk = Math.max(lmRisk[a] ?? 0, lmRisk[b] ?? 0);
-            const color = risk >= 2 ? "#ef4444aa" : risk >= 1 ? "#f59e0baa" : "#6c63ffaa";
+            const color = risk >= 2 ? "#FF4444aa" : risk >= 1 ? "#FF6B35aa" : "#00C2FFaa";
             return <Line key={`sb${i}`} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke={color} strokeWidth={3} strokeLinecap="round" />;
           }).filter(Boolean);
           const dots = SCRUB_KEY_LM.map((idx) => {
             const p = proj(idx);
             if (!p) return null;
             const risk = lmRisk[idx] ?? 0;
-            const color = risk >= 2 ? "#ef4444" : risk >= 1 ? "#f59e0b" : "#f8fafc";
+            const color = risk >= 2 ? "#FF4444" : risk >= 1 ? "#FF6B35" : "#f8fafc";
             const r = risk >= 1 ? 6 : 4;
             return (
               <G key={`sd${idx}`}>
@@ -1591,7 +1591,7 @@ export default function SkeletonScreen() {
           </Text>
         </View>
         {(() => {
-          const qColor = heroScanQuality === "high" ? "#22c55e" : heroScanQuality === "medium" ? "#f59e0b" : "#6b7280";
+          const qColor = heroScanQuality === "high" ? "#1DB954" : heroScanQuality === "medium" ? "#FF6B35" : "#6b7280";
           return (
             <View style={[ss.scanQualityBadge, { borderColor: qColor + "60" }]}>
               <Feather
@@ -1611,7 +1611,7 @@ export default function SkeletonScreen() {
       {/* Low-confidence dismissible banner */}
       {heroScanQuality === "low" && !qualityBannerDismissed && (
         <View style={ss.scanQualityLowBanner}>
-          <Feather name="alert-circle" size={15} color="#ef4444" style={{ marginTop: 1 }} />
+          <Feather name="alert-circle" size={15} color="#FF4444" style={{ marginTop: 1 }} />
           <View style={{ flex: 1, gap: 3 }}>
             <Text style={ss.scanQualityLowBannerTitle}>Athlete not clearly visible</Text>
             <Text style={ss.scanQualityLowBannerBody}>
@@ -1641,7 +1641,7 @@ export default function SkeletonScreen() {
       {/* Medium-confidence inline note */}
       {heroScanQuality === "medium" && (
         <View style={ss.scanQualityMedNote}>
-          <Feather name="info" size={11} color="#f59e0b" style={{ opacity: 0.75 }} />
+          <Feather name="info" size={11} color="#FF6B35" style={{ opacity: 0.75 }} />
           <Text style={ss.scanQualityMedNoteText}>
             Some joints weren't fully visible — a few readings may be estimated.
           </Text>
@@ -1652,7 +1652,7 @@ export default function SkeletonScreen() {
       {frameTicks.length > 0 && (
         <View style={ss.scrubberWrap}>
           <View style={ss.scrubberHeader}>
-            <Feather name="film" size={10} color="#6c63ff" />
+            <Feather name="film" size={10} color="#00C2FF" />
             <Text style={ss.scrubberLabel}>FRAME SCRUBBER</Text>
             <Text style={ss.scrubberTime}>
               {scrubTick ? formatScrubTime(scrubTick.t) : "—"}
@@ -1676,7 +1676,7 @@ export default function SkeletonScreen() {
               const t0 = frameTicks[0]?.t ?? 0;
               const td = scrubDuration > 0 ? scrubDuration : 1;
               const pos = (tick.t - t0) / td;
-              const color = Object.values(tick.jr).some((jr) => (jr?.lvl ?? 0) >= 2) ? "#ef4444" : "#f59e0b";
+              const color = Object.values(tick.jr).some((jr) => (jr?.lvl ?? 0) >= 2) ? "#FF4444" : "#FF6B35";
               return (
                 <TouchableOpacity
                   key={idx}
@@ -1750,19 +1750,19 @@ export default function SkeletonScreen() {
             {sport || "Form"} · Coach Report
           </Text>
           {videoUri && (
-            <Text style={{ fontSize: 10, color: scanDone ? "#22c55e" : "#8888aa", fontFamily: "Inter_400Regular" }}>
+            <Text style={{ fontSize: 10, color: scanDone ? "#1DB954" : "#8888aa", fontFamily: "Inter_400Regular" }}>
               {scanDone ? "● Analysis complete" : "Scanning video…"}
             </Text>
           )}
         </View>
         {videoUri && scanDone && hasFrameTicks && (
           <TouchableOpacity
-            style={[ss.headerBtn, { backgroundColor: "#6c63ff22", borderColor: "#6c63ff55" }]}
+            style={[ss.headerBtn, { backgroundColor: "#00C2FF22", borderColor: "#00C2FF55" }]}
             onPress={() => router.push(`/analysis/live/${id}` as any)}
             activeOpacity={0.8}
           >
-            <Feather name="play-circle" size={13} color="#a78bfa" />
-            <Text style={[ss.headerBtnText, { color: "#a78bfa" }]}>Breakdown</Text>
+            <Feather name="play-circle" size={13} color="#00C2FF" />
+            <Text style={[ss.headerBtnText, { color: "#00C2FF" }]}>Breakdown</Text>
           </TouchableOpacity>
         )}
         {videoUri && scanDone && (
@@ -1786,7 +1786,7 @@ export default function SkeletonScreen() {
           <View style={ss.heroChips}>
             {renderJointChips(flaggedJoints)}
             <View style={ss.tapHintRow}>
-              <Feather name={Object.keys(jointTrendsData?.joints ?? {}).length > 0 ? "bar-chart-2" : "crosshair"} size={10} color="#6c63ff" />
+              <Feather name={Object.keys(jointTrendsData?.joints ?? {}).length > 0 ? "bar-chart-2" : "crosshair"} size={10} color="#00C2FF" />
               <Text style={ss.tapHint}>
                 {Object.keys(jointTrendsData?.joints ?? {}).length > 0
                   ? "Tap a joint to see its full angle history"
@@ -1804,7 +1804,7 @@ export default function SkeletonScreen() {
         {videoUri && (groundedReady || (scanDone && !!scanResult)) && (
           <View style={ss.tipSection}>
             <View style={ss.tipLabelRow}>
-              <Feather name="shield" size={10} color="#ef4444" />
+              <Feather name="shield" size={10} color="#FF4444" />
               <Text style={[ss.sectionLabel, { color: "#ef444488" }]}>INJURY PREVENTION</Text>
             </View>
 
@@ -1840,7 +1840,7 @@ export default function SkeletonScreen() {
               </View>
             ) : scanResult && flaggedJoints.length === 0 ? (
               <View style={ss.okCard}>
-                <Feather name="shield" size={18} color="#22c55e" />
+                <Feather name="shield" size={18} color="#1DB954" />
                 <View style={{ flex: 1 }}>
                   <Text style={ss.okTitle}>No injury risks detected across the scan</Text>
                   <Text style={ss.okBody}>
@@ -1872,8 +1872,8 @@ export default function SkeletonScreen() {
         {videoUri && groundedReady && !refining && performanceTips.length > 0 && (
           <View style={ss.tipSection}>
             <View style={ss.tipLabelRow}>
-              <Feather name="zap" size={10} color="#6c63ff" />
-              <Text style={[ss.sectionLabel, { color: "#6c63ffaa" }]}>PERFORMANCE COACHING</Text>
+              <Feather name="zap" size={10} color="#00C2FF" />
+              <Text style={[ss.sectionLabel, { color: "#00C2FFaa" }]}>PERFORMANCE COACHING</Text>
             </View>
             {(() => {
               const hasConflicted    = sortedPerformanceTips.some((t) => (t.joints ?? []).some((j) => conflictedJoints.has(j)));
@@ -1940,7 +1940,7 @@ export default function SkeletonScreen() {
                 ))}
 
                 {/* ── Running / Cycling / Triathlon ── */}
-                <Text style={[ss.sourcesGroupLabel, { color: "#6c63ffaa", marginTop: 14 }]}>⚡ Running · Cycling · Triathlon</Text>
+                <Text style={[ss.sourcesGroupLabel, { color: "#00C2FFaa", marginTop: 14 }]}>⚡ Running · Cycling · Triathlon</Text>
                 {([
                   { ref: "Moore IS.", year: "2016", title: "Is there an economical running technique? A review of modifiable biomechanical factors affecting running economy.", journal: "Sports Med", detail: "46(6):793–807" },
                   { ref: "Saunders PU et al.", year: "2004", title: "Factors affecting running economy in trained distance runners.", journal: "Sports Med", detail: "34(7):465–485" },
@@ -1953,7 +1953,7 @@ export default function SkeletonScreen() {
                   { ref: "Lucia A et al.", year: "2001", title: "Preferred pedalling cadence in professional cycling.", journal: "Med Sci Sports Exerc", detail: "33(8):1361–1366" },
                 ] as const).map((s, i) => (
                   <View key={i} style={ss.sourceRow}>
-                    <Text style={[ss.sourceNum, { color: "#6c63ff" }]}>{i + 1}</Text>
+                    <Text style={[ss.sourceNum, { color: "#00C2FF" }]}>{i + 1}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={ss.sourceRef}>{s.ref} <Text style={ss.sourceYear}>({s.year})</Text></Text>
                       <Text style={ss.sourceTitle}>{s.title}</Text>
@@ -1963,7 +1963,7 @@ export default function SkeletonScreen() {
                 ))}
 
                 {/* ── Weightlifting / Powerlifting / CrossFit ── */}
-                <Text style={[ss.sourcesGroupLabel, { color: "#6c63ffaa", marginTop: 14 }]}>⚡ Weightlifting · Powerlifting · CrossFit</Text>
+                <Text style={[ss.sourcesGroupLabel, { color: "#00C2FFaa", marginTop: 14 }]}>⚡ Weightlifting · Powerlifting · CrossFit</Text>
                 {([
                   { ref: "Escamilla RF et al.", year: "2001", title: "Knee biomechanics of the dynamic squat exercise.", journal: "Med Sci Sports Exerc", detail: "33(1):127–141" },
                   { ref: "Schoenfeld BJ.", year: "2010", title: "Squatting kinematics and kinetics and their application to exercise performance.", journal: "J Strength Cond Res", detail: "24(12):3497–3506" },
@@ -1975,7 +1975,7 @@ export default function SkeletonScreen() {
                   { ref: "Weisenthal BM et al.", year: "2014", title: "Injury rate and patterns among CrossFit athletes.", journal: "Orthop J Sports Med", detail: "2(4)" },
                 ] as const).map((s, i) => (
                   <View key={i} style={ss.sourceRow}>
-                    <Text style={[ss.sourceNum, { color: "#6c63ff" }]}>{i + 1}</Text>
+                    <Text style={[ss.sourceNum, { color: "#00C2FF" }]}>{i + 1}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={ss.sourceRef}>{s.ref} <Text style={ss.sourceYear}>({s.year})</Text></Text>
                       <Text style={ss.sourceTitle}>{s.title}</Text>
@@ -1985,7 +1985,7 @@ export default function SkeletonScreen() {
                 ))}
 
                 {/* ── Basketball / Volleyball ── */}
-                <Text style={[ss.sourcesGroupLabel, { color: "#6c63ffaa", marginTop: 14 }]}>⚡ Basketball · Volleyball</Text>
+                <Text style={[ss.sourcesGroupLabel, { color: "#00C2FFaa", marginTop: 14 }]}>⚡ Basketball · Volleyball</Text>
                 {([
                   { ref: "Struzik A et al.", year: "2014", title: "Biomechanical analysis of the jump shot in basketball.", journal: "J Hum Kinet", detail: "42:73–79" },
                   { ref: "Pojskic H et al.", year: "2014", title: "Relationship between basketball performance indicators and shooting accuracy.", journal: "J Hum Kinet", detail: "41:55–64" },
@@ -1996,7 +1996,7 @@ export default function SkeletonScreen() {
                   { ref: "Wagner H et al.", year: "2009", title: "Individual and team performance in team-handball.", journal: "J Sports Sci Med", detail: "8(2):235–244" },
                 ] as const).map((s, i) => (
                   <View key={i} style={ss.sourceRow}>
-                    <Text style={[ss.sourceNum, { color: "#6c63ff" }]}>{i + 1}</Text>
+                    <Text style={[ss.sourceNum, { color: "#00C2FF" }]}>{i + 1}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={ss.sourceRef}>{s.ref} <Text style={ss.sourceYear}>({s.year})</Text></Text>
                       <Text style={ss.sourceTitle}>{s.title}</Text>
@@ -2006,7 +2006,7 @@ export default function SkeletonScreen() {
                 ))}
 
                 {/* ── Soccer / Football / Rugby / Lacrosse ── */}
-                <Text style={[ss.sourcesGroupLabel, { color: "#6c63ffaa", marginTop: 14 }]}>⚡ Soccer · Football · Rugby · Lacrosse</Text>
+                <Text style={[ss.sourcesGroupLabel, { color: "#00C2FFaa", marginTop: 14 }]}>⚡ Soccer · Football · Rugby · Lacrosse</Text>
                 {([
                   { ref: "Kellis E, Katis A.", year: "2007", title: "Biomechanical characteristics and determinants of instep soccer kick.", journal: "J Sports Sci Med", detail: "6(2):154–165" },
                   { ref: "Stølen T et al.", year: "2005", title: "Physiology of soccer: an update.", journal: "Sports Med", detail: "35(6):501–536" },
@@ -2018,7 +2018,7 @@ export default function SkeletonScreen() {
                   { ref: "Kerr ZY et al.", year: "2015", title: "Epidemiology of National Collegiate Athletic Association men's and women's lacrosse injuries.", journal: "Orthop J Sports Med", detail: "3(6)" },
                 ] as const).map((s, i) => (
                   <View key={i} style={ss.sourceRow}>
-                    <Text style={[ss.sourceNum, { color: "#6c63ff" }]}>{i + 1}</Text>
+                    <Text style={[ss.sourceNum, { color: "#00C2FF" }]}>{i + 1}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={ss.sourceRef}>{s.ref} <Text style={ss.sourceYear}>({s.year})</Text></Text>
                       <Text style={ss.sourceTitle}>{s.title}</Text>
@@ -2028,7 +2028,7 @@ export default function SkeletonScreen() {
                 ))}
 
                 {/* ── Tennis / Baseball / Softball ── */}
-                <Text style={[ss.sourcesGroupLabel, { color: "#6c63ffaa", marginTop: 14 }]}>⚡ Tennis · Baseball · Softball</Text>
+                <Text style={[ss.sourcesGroupLabel, { color: "#00C2FFaa", marginTop: 14 }]}>⚡ Tennis · Baseball · Softball</Text>
                 {([
                   { ref: "Elliott B.", year: "2006", title: "Biomechanics and tennis.", journal: "Br J Sports Med", detail: "40(5):392–396" },
                   { ref: "Reid M, Elliott B, Alderson J.", year: "2008", title: "Lower-limb coordination and shoulder joint mechanics in the tennis serve.", journal: "Med Sci Sports Exerc", detail: "40(2):308–315" },
@@ -2039,7 +2039,7 @@ export default function SkeletonScreen() {
                   { ref: "Escamilla RF, Andrews JR.", year: "2009", title: "Shoulder muscle recruitment patterns and related biomechanics during upper extremity sports.", journal: "Sports Med", detail: "39(7):569–590" },
                 ] as const).map((s, i) => (
                   <View key={i} style={ss.sourceRow}>
-                    <Text style={[ss.sourceNum, { color: "#6c63ff" }]}>{i + 1}</Text>
+                    <Text style={[ss.sourceNum, { color: "#00C2FF" }]}>{i + 1}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={ss.sourceRef}>{s.ref} <Text style={ss.sourceYear}>({s.year})</Text></Text>
                       <Text style={ss.sourceTitle}>{s.title}</Text>
@@ -2049,7 +2049,7 @@ export default function SkeletonScreen() {
                 ))}
 
                 {/* ── Swimming / Gymnastics / Diving ── */}
-                <Text style={[ss.sourcesGroupLabel, { color: "#6c63ffaa", marginTop: 14 }]}>⚡ Swimming · Gymnastics · Diving</Text>
+                <Text style={[ss.sourcesGroupLabel, { color: "#00C2FFaa", marginTop: 14 }]}>⚡ Swimming · Gymnastics · Diving</Text>
                 {([
                   { ref: "Toussaint HM, Beek PJ.", year: "1992", title: "Biomechanics of competitive front crawl swimming.", journal: "Sports Med", detail: "13(1):8–24" },
                   { ref: "Zamparo P et al.", year: "2005", title: "An energy balance of front crawl.", journal: "Eur J Appl Physiol", detail: "94(1–2):134–144" },
@@ -2060,7 +2060,7 @@ export default function SkeletonScreen() {
                   { ref: "DiFiori JP et al.", year: "2012", title: "Overuse injuries and burnout in youth sports: a position statement from the American Medical Society for Sports Medicine.", journal: "Br J Sports Med", detail: "48(4):287–288" },
                 ] as const).map((s, i) => (
                   <View key={i} style={ss.sourceRow}>
-                    <Text style={[ss.sourceNum, { color: "#6c63ff" }]}>{i + 1}</Text>
+                    <Text style={[ss.sourceNum, { color: "#00C2FF" }]}>{i + 1}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={ss.sourceRef}>{s.ref} <Text style={ss.sourceYear}>({s.year})</Text></Text>
                       <Text style={ss.sourceTitle}>{s.title}</Text>
@@ -2070,7 +2070,7 @@ export default function SkeletonScreen() {
                 ))}
 
                 {/* ── Fencing / Boxing / Wrestling / Martial Arts ── */}
-                <Text style={[ss.sourcesGroupLabel, { color: "#6c63ffaa", marginTop: 14 }]}>⚡ Fencing · Boxing · Wrestling · Martial Arts</Text>
+                <Text style={[ss.sourcesGroupLabel, { color: "#00C2FFaa", marginTop: 14 }]}>⚡ Fencing · Boxing · Wrestling · Martial Arts</Text>
                 {([
                   { ref: "Roi GS, Bianchedi D.", year: "2008", title: "The science of fencing: implications for performance and injury prevention.", journal: "Sports Med", detail: "38(6):465–481" },
                   { ref: "Harmer PA.", year: "2008", title: "Getting to the point: injury patterns and medical care in competitive fencing.", journal: "Curr Sports Med Rep", detail: "7(5):303–307" },
@@ -2082,7 +2082,7 @@ export default function SkeletonScreen() {
                   { ref: "Horswill CA.", year: "1992", title: "Applied physiology of amateur wrestling.", journal: "Sports Med", detail: "14(2):114–143" },
                 ] as const).map((s, i) => (
                   <View key={i} style={ss.sourceRow}>
-                    <Text style={[ss.sourceNum, { color: "#6c63ff" }]}>{i + 1}</Text>
+                    <Text style={[ss.sourceNum, { color: "#00C2FF" }]}>{i + 1}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={ss.sourceRef}>{s.ref} <Text style={ss.sourceYear}>({s.year})</Text></Text>
                       <Text style={ss.sourceTitle}>{s.title}</Text>
@@ -2092,7 +2092,7 @@ export default function SkeletonScreen() {
                 ))}
 
                 {/* ── Rowing / Hockey / Badminton / Golf ── */}
-                <Text style={[ss.sourcesGroupLabel, { color: "#6c63ffaa", marginTop: 14 }]}>⚡ Rowing · Hockey · Badminton · Golf</Text>
+                <Text style={[ss.sourcesGroupLabel, { color: "#00C2FFaa", marginTop: 14 }]}>⚡ Rowing · Hockey · Badminton · Golf</Text>
                 {([
                   { ref: "Soper C, Hume PA.", year: "2004", title: "Towards an ideal rowing technique for performance: the contributions from biomechanics.", journal: "Sports Med", detail: "34(12):825–848" },
                   { ref: "Rumball JS et al.", year: "2005", title: "Rowing injuries.", journal: "Sports Med", detail: "35(6):537–555" },
@@ -2104,7 +2104,7 @@ export default function SkeletonScreen() {
                   { ref: "McHardy A et al.", year: "2006", title: "Golf-related lower back injuries: a review of the literature.", journal: "J Chiropr Med", detail: "5(1):26–35" },
                 ] as const).map((s, i) => (
                   <View key={i} style={ss.sourceRow}>
-                    <Text style={[ss.sourceNum, { color: "#6c63ff" }]}>{i + 1}</Text>
+                    <Text style={[ss.sourceNum, { color: "#00C2FF" }]}>{i + 1}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={ss.sourceRef}>{s.ref} <Text style={ss.sourceYear}>({s.year})</Text></Text>
                       <Text style={ss.sourceTitle}>{s.title}</Text>
@@ -2114,7 +2114,7 @@ export default function SkeletonScreen() {
                 ))}
 
                 {/* ── Track & Field / Skiing / Snowboarding ── */}
-                <Text style={[ss.sourcesGroupLabel, { color: "#6c63ffaa", marginTop: 14 }]}>⚡ Track & Field · Skiing · Snow Sports</Text>
+                <Text style={[ss.sourcesGroupLabel, { color: "#00C2FFaa", marginTop: 14 }]}>⚡ Track & Field · Skiing · Snow Sports</Text>
                 {([
                   { ref: "Mann RA, Herman J.", year: "1985", title: "Kinematic analysis of Olympic sprint performance: men's 200 metres.", journal: "Int J Sport Biomech", detail: "1(2):151–162" },
                   { ref: "Hunter JP et al.", year: "2004", title: "Interaction of step length and step rate during sprint running.", journal: "Med Sci Sports Exerc", detail: "36(2):261–271" },
@@ -2124,7 +2124,7 @@ export default function SkeletonScreen() {
                   { ref: "Müller E, Schwameder H.", year: "2003", title: "Biomechanical aspects of new techniques in alpine skiing and ski jumping.", journal: "J Sports Sci", detail: "21(9):679–692" },
                 ] as const).map((s, i) => (
                   <View key={i} style={ss.sourceRow}>
-                    <Text style={[ss.sourceNum, { color: "#6c63ff" }]}>{i + 1}</Text>
+                    <Text style={[ss.sourceNum, { color: "#00C2FF" }]}>{i + 1}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={ss.sourceRef}>{s.ref} <Text style={ss.sourceYear}>({s.year})</Text></Text>
                       <Text style={ss.sourceTitle}>{s.title}</Text>
@@ -2134,7 +2134,7 @@ export default function SkeletonScreen() {
                 ))}
 
                 <View style={ss.aiDisclaimer}>
-                  <Feather name="cpu" size={11} color="#6c63ff" />
+                  <Feather name="cpu" size={11} color="#00C2FF" />
                   <Text style={ss.aiDisclaimerText}>
                     Coaching tips are AI-generated based on sport and movement context. They are educational only and do not constitute medical or professional coaching advice.
                   </Text>
@@ -2207,22 +2207,22 @@ function makeStyles(c: ReturnType<typeof useColors>) {
     drillFeelRow:    { flexDirection: "row", alignItems: "flex-start", gap: 7, paddingTop: 4, borderTopWidth: 1, borderTopColor: c.border, marginTop: 4 },
     drillFeelText:   { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17, fontStyle: "italic" },
     markDoneBtn:     { flexDirection: "row", alignItems: "center", gap: 7, borderTopWidth: 1, borderTopColor: c.border, marginTop: 6, paddingTop: 9, paddingBottom: 1 },
-    markDoneBtnDone: { borderTopColor: "#22c55e18" },
+    markDoneBtnDone: { borderTopColor: "#1DB95418" },
     markDoneBtnText: { fontSize: 12, color: c.textTertiary, fontFamily: "Inter_600SemiBold" },
-    markDoneBtnTextDone: { color: "#22c55e" },
-    drillDoneBadge:  { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#0d2010", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: "#22c55e33" },
-    drillDoneBadgeText: { fontSize: 10, color: "#22c55e", fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
-    nextStepCard:       { marginTop: 8, backgroundColor: "#0a1e0f", borderRadius: 10, borderWidth: 1, borderColor: "#22c55e33", padding: 10, gap: 6 },
+    markDoneBtnTextDone: { color: "#1DB954" },
+    drillDoneBadge:  { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#0D1610", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: "#1DB95433" },
+    drillDoneBadgeText: { fontSize: 10, color: "#1DB954", fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
+    nextStepCard:       { marginTop: 8, backgroundColor: "#0A160D", borderRadius: 10, borderWidth: 1, borderColor: "#1DB95433", padding: 10, gap: 6 },
     nextStepHeader:     { flexDirection: "row", alignItems: "center", gap: 6 },
-    nextStepLabel:      { fontSize: 9, color: "#22c55e", fontFamily: "Inter_700Bold", letterSpacing: 1 },
-    improvementBadge:     { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#22c55e18", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: "#22c55e55" },
-    improvementBadgeText: { fontSize: 9, color: "#22c55e", fontFamily: "Inter_600SemiBold", letterSpacing: 0.3 },
+    nextStepLabel:      { fontSize: 9, color: "#1DB954", fontFamily: "Inter_700Bold", letterSpacing: 1 },
+    improvementBadge:     { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#1DB95418", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: "#1DB95455" },
+    improvementBadgeText: { fontSize: 9, color: "#1DB954", fontFamily: "Inter_600SemiBold", letterSpacing: 0.3 },
     nextStepCue:        { fontSize: 12, color: "#9adba8", fontFamily: "Inter_400Regular", lineHeight: 17 },
-    nextStepAskBtn:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#0d2010", borderRadius: 8, paddingVertical: 7, paddingHorizontal: 10, borderWidth: 1, borderColor: "#22c55e55", alignSelf: "flex-start", marginTop: 2 },
-    nextStepAskBtnText: { fontSize: 11, color: "#22c55e", fontFamily: "Inter_600SemiBold" },
+    nextStepAskBtn:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#0D1610", borderRadius: 8, paddingVertical: 7, paddingHorizontal: 10, borderWidth: 1, borderColor: "#1DB95455", alignSelf: "flex-start", marginTop: 2 },
+    nextStepAskBtnText: { fontSize: 11, color: "#1DB954", fontFamily: "Inter_600SemiBold" },
     qualityBadge:    { marginTop: 6, borderWidth: 1, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 4 },
     qualityText:     { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-    okCard:        { flexDirection: "row", gap: 12, alignItems: "center", backgroundColor: "#0f1c12", borderWidth: 1, borderColor: "#22c55e33", borderRadius: 14, padding: 14 },
+    okCard:        { flexDirection: "row", gap: 12, alignItems: "center", backgroundColor: "#0D1610", borderWidth: 1, borderColor: "#1DB95433", borderRadius: 14, padding: 14 },
     okTitle:       { fontSize: 13, color: "#d8f5e0", fontFamily: "Inter_600SemiBold" },
     okBody:        { fontSize: 12, color: "#7a9a82", fontFamily: "Inter_400Regular", marginTop: 3, lineHeight: 17 },
     tipObs:        { fontSize: 12, color: c.textSecondary, fontFamily: "Inter_400Regular", fontStyle: "italic", lineHeight: 17 },
@@ -2234,8 +2234,8 @@ function makeStyles(c: ReturnType<typeof useColors>) {
     scanQualityLowBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#1a0a0a", borderWidth: 1, borderColor: "#ef444440", paddingHorizontal: 14, paddingVertical: 12, marginHorizontal: 18, marginTop: 10, borderRadius: 12 },
     scanQualityLowBannerTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#f5b8b8" },
     scanQualityLowBannerBody: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#c09090", lineHeight: 17 },
-    scanQualityLowBannerLink: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#ef4444", marginTop: 2 },
-    scanQualityMedNote: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 8, marginHorizontal: 18, marginTop: 8, backgroundColor: "#181208", borderRadius: 10, borderWidth: 1, borderColor: "#f59e0b28" },
+    scanQualityLowBannerLink: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FF4444", marginTop: 2 },
+    scanQualityMedNote: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 8, marginHorizontal: 18, marginTop: 8, backgroundColor: "#181208", borderRadius: 10, borderWidth: 1, borderColor: "#FF6B3528" },
     scanQualityMedNoteText: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#a08060", lineHeight: 15 },
     chipRow:       { flexDirection: "row", flexWrap: "wrap", gap: 6 },
     chip:          { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4 },
@@ -2257,7 +2257,7 @@ function makeStyles(c: ReturnType<typeof useColors>) {
     riskHead:      { flexDirection: "row", alignItems: "center", gap: 7 },
     riskTitle:     { fontSize: 12, color: "#f5b8c0", fontFamily: "Inter_700Bold", textTransform: "capitalize" },
     riskBarTrack:  { height: 6, borderRadius: 4, backgroundColor: "#2a1418", overflow: "hidden" },
-    riskBarFill:   { height: "100%", borderRadius: 4, backgroundColor: "#ef4444" },
+    riskBarFill:   { height: "100%", borderRadius: 4, backgroundColor: "#FF4444" },
     riskDesc:      { fontSize: 12, color: "#c8a0a8", fontFamily: "Inter_400Regular", lineHeight: 17 },
     riskPrevLabel: { fontSize: 9, color: "#ef444499", fontFamily: "Inter_700Bold", letterSpacing: 1, marginTop: 2 },
     riskPrev:      { fontSize: 12, color: "#d8c0c4", fontFamily: "Inter_400Regular", lineHeight: 17 },
@@ -2278,7 +2278,7 @@ function makeStyles(c: ReturnType<typeof useColors>) {
     sourcesGroupLabel:   { fontSize: 10, color: "#ef444488", fontFamily: "Inter_700Bold", letterSpacing: 1, marginBottom: 4 },
     perfCard:            { borderColor: c.primary + "33" },
     conflictBannerInjury:     { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#2a1a00", borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, marginBottom: 2, alignSelf: "flex-start" },
-    conflictBannerInjuryText: { fontSize: 11, color: "#f59e0b", fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
+    conflictBannerInjuryText: { fontSize: 11, color: "#FF6B35", fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
     conflictBannerPerf:       { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: c.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, marginBottom: 2, alignSelf: "flex-start", borderWidth: 1, borderColor: c.borderStrong },
     conflictBannerPerfText:   { fontSize: 11, color: c.textTertiary, fontFamily: "Inter_600SemiBold", letterSpacing: 0.2 },
     groupDivider:     { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 4 },

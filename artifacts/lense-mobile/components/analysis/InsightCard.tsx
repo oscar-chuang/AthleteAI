@@ -9,18 +9,19 @@ interface Props {
   reinforcement?: string;
 }
 
-const CONFIG = {
-  strength:  { icon: "check-circle" as const, color: "#22c55e" },
-  weakness:  { icon: "alert-circle"  as const, color: "#f59e0b" },
-  highlight: { icon: "zap"           as const, color: "#6c63ff" },
-};
-
 export function InsightCard({ text, variant, reinforcement }: Props) {
   const colors = useColors();
-  const cfg = CONFIG[variant];
+
+  const CFG = {
+    strength:  { icon: "check-circle" as const, color: colors.success },
+    weakness:  { icon: "alert-circle"  as const, color: colors.energy },
+    highlight: { icon: "zap"           as const, color: colors.primary },
+  };
+
+  const cfg = CFG[variant];
 
   return (
-    <View style={[styles.card, { backgroundColor: cfg.color + "0e", borderColor: cfg.color + "33" }]}>
+    <View style={[styles.card, { backgroundColor: cfg.color + "12", borderColor: cfg.color + "30" }]}>
       <View style={styles.row}>
         <Feather name={cfg.icon} size={15} color={cfg.color} style={styles.icon} />
         <Text style={[styles.text, { color: colors.foreground }]}>{text}</Text>

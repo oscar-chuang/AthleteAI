@@ -26,6 +26,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 
 import { useColors } from "@/hooks/useColors";
+import { TYPE } from "@/constants/typography";
 import { SkeletonBox, SkeletonStatRow } from "@/components/ui/SkeletonLoader";
 import { useAuth, useTier } from "@/lib/authContext";
 import { DeltaBadge } from "@/components/DeltaBadge";
@@ -485,18 +486,18 @@ export default function HomeScreen() {
     scroll:         { flex: 1 },
     header:         { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 16 },
     headerRow:      { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-    greeting:       { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", letterSpacing: 0.6, textTransform: "uppercase" },
-    name:           { fontSize: 26, color: colors.foreground, fontFamily: "Inter_700Bold", marginTop: 2 },
-    badgeRow:       { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" },
-    badge:          { backgroundColor: colors.primary + "22", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-    badgeText:      { color: colors.primary, fontSize: 10, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.8 },
-    streakBadge:    { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#ff6b3522", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-    streakText:     { fontSize: 12, fontFamily: "Inter_700Bold", color: "#ff6b35" },
+    greeting:       { fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_500Medium", letterSpacing: 0.8, textTransform: "uppercase" },
+    name:           { fontSize: 34, color: colors.foreground, fontFamily: "Inter_700Bold", marginTop: 3, letterSpacing: -0.5 },
+    badgeRow:       { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12, flexWrap: "wrap" },
+    badge:          { backgroundColor: colors.primary + "20", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+    badgeText:      { color: colors.primary, fontSize: 11, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6 },
+    streakBadge:    { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#FF6B3520", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+    streakText:     { fontSize: 12, fontFamily: "Inter_700Bold", color: "#FF6B35" },
 
     statsRow:       { flexDirection: "row", gap: 10, paddingHorizontal: 20, marginBottom: 20 },
     statCard:       { flex: 1, backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, alignItems: "center", borderWidth: 1, borderColor: colors.border },
-    statValue:      { fontSize: 24, fontFamily: "Inter_700Bold", color: colors.foreground },
-    statLabel:      { fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.4 },
+    statValue:      { fontSize: 28, fontFamily: "Inter_700Bold", color: colors.foreground, letterSpacing: -0.5 },
+    statLabel:      { fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.5 },
     overallCircle:  { width: 56, height: 56, borderRadius: 28, borderWidth: 3, alignItems: "center", justifyContent: "center", marginBottom: 4 },
     overallNum:     { fontSize: 20, fontFamily: "Inter_700Bold" },
     deltaRow:       { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
@@ -512,24 +513,24 @@ export default function HomeScreen() {
 
     section:        { paddingHorizontal: 20, marginBottom: 24 },
     sectionHeader:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-    sectionTitle:   { fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground },
+    sectionTitle:   { fontSize: 17, fontFamily: "Inter_700Bold", color: colors.foreground, letterSpacing: -0.2 },
     seeAll:         { fontSize: 13, color: colors.primary, fontFamily: "Inter_500Medium" },
 
     weeklyCard:         { backgroundColor: colors.card, borderRadius: colors.radius, padding: 16, borderWidth: 1, borderColor: colors.border },
-    weeklyCardGoal:     { backgroundColor: colors.card, borderRadius: colors.radius, padding: 16, borderWidth: 2, borderColor: "#f59e0b" },
+    weeklyCardGoal:     { backgroundColor: colors.card, borderRadius: colors.radius, padding: 16, borderWidth: 2, borderColor: "#FF6B35" },
     weeklyRow:          { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
     weeklyLabel:        { color: colors.mutedForeground, fontSize: 13, fontFamily: "Inter_400Regular" },
     weeklyCount:        { color: colors.foreground, fontSize: 14, fontFamily: "Inter_600SemiBold" },
     weeklyDelta:        { fontSize: 11, fontFamily: "Inter_500Medium", marginLeft: 4 },
     progressBarBg:      { height: 6, backgroundColor: colors.border, borderRadius: 3 },
     progressBarFill:    { height: 6, borderRadius: 3, backgroundColor: colors.primary },
-    goalBanner:         { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#f59e0b18", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginBottom: 12, borderWidth: 1, borderColor: "#f59e0b44" },
-    goalBannerText:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#b45309", flex: 1 },
-    goalBannerSub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#92400e", marginTop: 1 },
-    goalShareBtn:       { padding: 4, borderRadius: 6, backgroundColor: "#f59e0b22" },
-    shareHintBubble:    { backgroundColor: "#d97706", borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, marginBottom: 6, alignItems: "center" },
+    goalBanner:         { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.energy + "18", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginBottom: 12, borderWidth: 1, borderColor: colors.energy + "44" },
+    goalBannerText:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.energy, flex: 1 },
+    goalBannerSub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 1 },
+    goalShareBtn:       { padding: 4, borderRadius: 6, backgroundColor: colors.energy + "22" },
+    shareHintBubble:    { backgroundColor: colors.energy, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, marginBottom: 6, alignItems: "center" },
     shareHintText:      { color: "#fff", fontSize: 11, fontFamily: "Inter_600SemiBold", whiteSpace: "nowrap" } as any,
-    shareHintArrow:     { position: "absolute", bottom: -5, right: 10, width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 5, borderLeftColor: "transparent", borderRightColor: "transparent", borderTopColor: "#d97706" },
+    shareHintArrow:     { position: "absolute", bottom: -5, right: 10, width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 5, borderLeftColor: "transparent", borderRightColor: "transparent", borderTopColor: colors.energy },
 
     scoreGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 10 },
     scoreItem:      { width: "30%", backgroundColor: colors.card, borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
@@ -699,38 +700,90 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* ── Stats row (only when the user has data) ── */}
+        {/* ── Hero metric + secondary stats (only when the user has data) ── */}
         {allAnalyses.length > 0 && (
-          <View style={s.statsRow}>
-            <View style={[s.statCard, { borderTopWidth: 3, borderTopColor: overallColor }]}>
-              <View style={[s.overallCircle, { borderColor: overallColor, backgroundColor: overallColor + "1a" }]}>
-                <Text style={[s.overallNum, { color: overallColor }]}>
+          <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
+            {/* Dominant hero card — overall score */}
+            <View style={{
+              backgroundColor: colors.card,
+              borderRadius: colors.radius,
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderTopWidth: 3,
+              borderTopColor: overallColor,
+              padding: 20,
+              marginBottom: 10,
+              flexDirection: "row",
+              alignItems: "center",
+            }}>
+              {/* Big score number */}
+              <View style={{ flex: 1 }}>
+                <Text style={[TYPE.captionMed, { color: colors.mutedForeground, marginBottom: 4 }]}>
+                  Overall Score
+                </Text>
+                <Text style={[TYPE.display, { color: overallColor, lineHeight: 46 }]}>
+                  {overallScore != null ? Math.round(overallScore) : "--"}
+                </Text>
+                {scoreDelta != null && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+                    <Feather
+                      name={scoreDelta >= 0 ? "trending-up" : "trending-down"}
+                      size={12}
+                      color={scoreDelta >= 0 ? colors.success : colors.destructive}
+                    />
+                    <Text style={[TYPE.label, { color: scoreDelta >= 0 ? colors.success : colors.destructive }]}>
+                      {scoreDelta >= 0 ? "+" : ""}{scoreDelta} from last session
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {/* Score ring accent */}
+              <View style={{
+                width: 72, height: 72, borderRadius: 36,
+                borderWidth: 3, borderColor: overallColor,
+                backgroundColor: overallColor + "14",
+                alignItems: "center", justifyContent: "center",
+              }}>
+                <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: overallColor }}>
                   {overallScore != null ? Math.round(overallScore) : "--"}
                 </Text>
               </View>
-              {scoreDelta != null && (
-                <View style={s.deltaRow}>
-                  <Feather
-                    name={scoreDelta >= 0 ? "trending-up" : "trending-down"}
-                    size={11}
-                    color={scoreDelta >= 0 ? colors.success : colors.destructive}
-                  />
-                  <Text style={[s.deltaText, { color: scoreDelta >= 0 ? colors.success : colors.destructive }]}>
-                    {scoreDelta >= 0 ? "+" : ""}{scoreDelta}
-                  </Text>
-                </View>
-              )}
-              <Text style={s.statLabel}>Score</Text>
             </View>
-            <View style={[s.statCard, { borderTopWidth: 3, borderTopColor: colors.primary }]}>
-              <Text style={s.statValue}>{totalSessions}</Text>
-              <Text style={s.statLabel}>Sessions</Text>
-            </View>
-            <View style={[s.statCard, { borderTopWidth: 3, borderTopColor: streakDays > 0 ? "#ff6b35" : colors.success }]}>
-              <Text style={[s.statValue, { color: streakDays > 0 ? "#ff6b35" : colors.foreground }]}>
-                {streakDays > 0 ? `${streakDays}` : unlockedCount}
-              </Text>
-              <Text style={s.statLabel}>{streakDays > 0 ? "Streak" : "Awards"}</Text>
+
+            {/* Secondary metrics row */}
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{
+                flex: 1,
+                backgroundColor: colors.card,
+                borderRadius: colors.radius,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderTopWidth: 3,
+                borderTopColor: colors.primary,
+                paddingVertical: 14,
+                alignItems: "center",
+              }}>
+                <Text style={[TYPE.headline, { color: colors.foreground }]}>{totalSessions}</Text>
+                <Text style={[TYPE.captionMed, { color: colors.mutedForeground, marginTop: 2 }]}>Sessions</Text>
+              </View>
+              <View style={{
+                flex: 1,
+                backgroundColor: colors.card,
+                borderRadius: colors.radius,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderTopWidth: 3,
+                borderTopColor: streakDays > 0 ? "#ff6b35" : colors.success,
+                paddingVertical: 14,
+                alignItems: "center",
+              }}>
+                <Text style={[TYPE.headline, { color: streakDays > 0 ? "#ff6b35" : colors.foreground }]}>
+                  {streakDays > 0 ? `${streakDays}` : unlockedCount}
+                </Text>
+                <Text style={[TYPE.captionMed, { color: colors.mutedForeground, marginTop: 2 }]}>
+                  {streakDays > 0 ? "Streak" : "Awards"}
+                </Text>
+              </View>
             </View>
           </View>
         )}
@@ -825,7 +878,7 @@ export default function HomeScreen() {
                   style={s.goalBanner}
                 >
                   <Animated.View style={{ transform: [{ scale: trophyScale }] }}>
-                    <Feather name="award" size={20} color="#d97706" />
+                    <Feather name="award" size={20} color={colors.energy} />
                   </Animated.View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.goalBannerText}>Weekly goal reached!</Text>
@@ -845,7 +898,7 @@ export default function HomeScreen() {
                       activeOpacity={0.7}
                       style={s.goalShareBtn}
                     >
-                      <Feather name="share-2" size={16} color="#d97706" />
+                      <Feather name="share-2" size={16} color={colors.energy} />
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
@@ -853,7 +906,7 @@ export default function HomeScreen() {
               <View style={s.weeklyRow}>
                 <Text style={s.weeklyLabel}>Sessions completed</Text>
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Text style={[s.weeklyCount, goalReached && { color: "#d97706" }]}>{thisWeek} / {weeklyGoal}</Text>
+                  <Text style={[s.weeklyCount, goalReached && { color: colors.energy }]}>{thisWeek} / {weeklyGoal}</Text>
                   {stats != null && stats.lastWeekCount > 0 && (
                     <Text style={[s.weeklyDelta, { color: thisWeek >= stats.lastWeekCount ? colors.success : colors.warning }]}>
                       {thisWeek >= stats.lastWeekCount ? " ↑" : " ↓"} vs last week
@@ -875,7 +928,7 @@ export default function HomeScreen() {
                       top: 0,
                       bottom: 0,
                       width: barContainerWidth || "100%",
-                      backgroundColor: barAnimDone && goalReached ? "#f59e0b" : colors.primary,
+                      backgroundColor: barAnimDone && goalReached ? colors.energy : colors.primary,
                       transform: [
                         { translateX: barFillTranslateX },
                         { scaleX: barScaleAnim },
@@ -893,8 +946,8 @@ export default function HomeScreen() {
                 >
                   {showGoalSaved ? (
                     <Animated.View style={{ opacity: goalSavedAnim, flexDirection: "row", alignItems: "center", gap: 4 }}>
-                      <Feather name="check-circle" size={11} color="#22c55e" />
-                      <Text style={{ fontSize: 11, color: "#22c55e", fontFamily: "Inter_500Medium" }}>
+                      <Feather name="check-circle" size={11} color={colors.success} />
+                      <Text style={{ fontSize: 11, color: colors.success, fontFamily: "Inter_500Medium" }}>
                         Goal saved!
                       </Text>
                     </Animated.View>

@@ -47,7 +47,7 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
 </div>
 <script>
 (function(){
-  const COLORS=['#a78bfa','#22d3ee','#f59e0b','#22c55e','#f43f5e'];
+  const COLORS=['#00C2FF','#22d3ee','#FF6B35','#1DB954','#f43f5e'];
   const v=document.getElementById('v');
   const cv=document.getElementById('cv');
   const ctx=cv.getContext('2d');
@@ -368,8 +368,8 @@ export default function PersonSelectScreen() {
 
   const statusDotColor =
     personCount === null ? "#55556e" :
-    personCount === 0    ? "#f59e0b" :
-    "#22c55e";
+    personCount === 0    ? "#FF6B35" :
+    "#1DB954";
 
   const statusLabel =
     personCount === null ? "Scanning frame…" :
@@ -407,7 +407,7 @@ export default function PersonSelectScreen() {
       paddingHorizontal: 10, paddingVertical: 4,
       borderWidth: 1, borderColor: "rgba(108,99,255,.3)",
     },
-    sportText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#a78bfa", textTransform: "capitalize" },
+    sportText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#00C2FF", textTransform: "capitalize" },
     videoSlot: {
       width: SCREEN_W, height: videoH, backgroundColor: "#000",
       alignItems: "center", justifyContent: "center",
@@ -432,21 +432,21 @@ export default function PersonSelectScreen() {
     mismatchCard: {
       flexDirection: "row", alignItems: "flex-start", gap: 8,
       marginHorizontal: 20, marginTop: 10, padding: 12,
-      backgroundColor: "#f59e0b18", borderRadius: 10,
-      borderWidth: 1, borderColor: "#f59e0b44",
+      backgroundColor: "#FF6B3518", borderRadius: 10,
+      borderWidth: 1, borderColor: "#FF6B3544",
     },
-    mismatchText: { fontSize: 12, color: "#f59e0b", fontFamily: "Inter_400Regular", lineHeight: 17 },
+    mismatchText: { fontSize: 12, color: "#FF6B35", fontFamily: "Inter_400Regular", lineHeight: 17 },
     mismatchActions: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
     switchBtn: {
       flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5,
-      backgroundColor: "#f59e0b", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, minHeight: 30,
+      backgroundColor: "#FF6B35", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, minHeight: 30,
     },
     switchBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#07070f", textTransform: "capitalize" },
     keepBtn: {
       borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7,
-      borderWidth: 1, borderColor: "#f59e0b66", justifyContent: "center", minHeight: 30,
+      borderWidth: 1, borderColor: "#FF6B3566", justifyContent: "center", minHeight: 30,
     },
-    keepBtnText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#f59e0b", textTransform: "capitalize" },
+    keepBtnText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#FF6B35", textTransform: "capitalize" },
     noVideoCard: {
       margin: 20, padding: 20,
       backgroundColor: "rgba(255,255,255,.04)", borderRadius: 14,
@@ -457,7 +457,7 @@ export default function PersonSelectScreen() {
     noVideoBody: { fontSize: 13, color: "#55556e", fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18 },
     buttons: { padding: 20, paddingTop: 14, gap: 10 },
     primaryBtn: {
-      backgroundColor: "#6c63ff", borderRadius: 14,
+      backgroundColor: "#00C2FF", borderRadius: 14,
       paddingVertical: 14, alignItems: "center",
       flexDirection: "row", justifyContent: "center", gap: 8,
     },
@@ -476,7 +476,7 @@ export default function PersonSelectScreen() {
         <Text style={s.title}>Who are we scoring?</Text>
         {sport ? (
           <View style={s.sportPill}>
-            <Feather name="tag" size={11} color="#a78bfa" />
+            <Feather name="tag" size={11} color="#00C2FF" />
             <Text style={s.sportText} numberOfLines={1} ellipsizeMode="tail">{sport}</Text>
           </View>
         ) : null}
@@ -556,7 +556,7 @@ export default function PersonSelectScreen() {
         {/* Sport mismatch warning from Claude */}
         {mismatch && !mismatchDismissed && (
           <View style={s.mismatchCard}>
-            <Feather name="alert-triangle" size={14} color="#f59e0b" style={{ marginTop: 2 }} />
+            <Feather name="alert-triangle" size={14} color="#FF6B35" style={{ marginTop: 2 }} />
             <View style={{ flex: 1 }}>
               <Text style={s.mismatchText}>{mismatch}</Text>
               {detectedSport && (

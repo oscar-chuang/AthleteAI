@@ -2,8 +2,7 @@ import React from "react";
 import { act, renderHook } from "@testing-library/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ThemeProvider, useTheme } from "@/lib/themeContext";
-import { ACCENT_PALETTES, buildDarkTheme } from "@/constants/colors";
-import type { AccentKey } from "@/constants/colors";
+import { buildDarkTheme, buildLightTheme } from "@/constants/colors";
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
   __esModule: true,
@@ -24,73 +23,66 @@ beforeEach(() => {
   (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
 });
 
-describe("ThemeProvider — setAccentColor persists to AsyncStorage", () => {
-  it.each(Object.keys(ACCENT_PALETTES) as AccentKey[])(
-    'stores "%s" under "theme_accent"',
-    async (key) => {
-      const { result } = renderHook(() => useTheme(), { wrapper });
-
-      await act(async () => {
-        result.current.setAccentColor(key);
-      });
-
-      expect(AsyncStorage.setItem).toHaveBeenCalledWith("theme_accent", key);
-    },
-  );
-});
-
-describe("ThemeProvider — setAccentColor rebuilds colors immediately", () => {
-  it.each(Object.keys(ACCENT_PALETTES) as AccentKey[])(
-    'colors.primary/accent/tint all equal the "%s" palette color',
-    async (key) => {
-      const { result } = renderHook(() => useTheme(), { wrapper });
-
-      await act(async () => {
-        result.current.setAccentColor(key);
-      });
-
-      const expected = ACCENT_PALETTES[key].color;
-      expect(result.current.colors.primary).toBe(expected);
-      expect(result.current.colors.accent).toBe(expected);
-      expect(result.current.colors.tint).toBe(expected);
-    },
-  );
-});
-
-describe("ThemeProvider — setAccentColor updates accentColor state", () => {
-  it("exposes the updated accentColor key after calling setAccentColor", async () => {
+describe("ThemeProvider — default colors", () => {
+  it("provides dark theme colors by default", async () => {
     const { result } = renderHook(() => useTheme(), { wrapper });
 
-    await act(async () => {
-      result.current.setAccentColor("ocean");
-    });
-
-    expect(result.current.accentColor).toBe("ocean");
+    const expected = buildDarkTheme();
+    expect(result.current.colors.primary).toBe(expected.primary);
+    expect(result.current.colors.accent).toBe(expected.accent);
+    expect(result.current.colors.tint).toBe(expected.tint);
   });
 
-  it("reflects successive accent changes correctly", async () => {
+  it("isDark is true by default", async () => {
     const { result } = renderHook(() => useTheme(), { wrapper });
+    expect(result.current.isDark).toBe(true);
+  });
 
-    await act(async () => { result.current.setAccentColor("sunset"); });
-    expect(result.current.accentColor).toBe("sunset");
-    expect(result.current.colors.primary).toBe(ACCENT_PALETTES.sunset.color);
-
-    await act(async () => { result.current.setAccentColor("forest"); });
-    expect(result.current.accentColor).toBe("forest");
-    expect(result.current.colors.primary).toBe(ACCENT_PALETTES.forest.color);
+  it("mode is 'dark' by default", async () => {
+    const { result } = renderHook(() => useTheme(), { wrapper });
+    expect(result.current.mode).toBe("dark");
   });
 });
 
-describe("ThemeProvider — setAccentColor in light mode", () => {
-  it("rebuilds light-mode colors with the chosen accent", async () => {
+describe("ThemeProvider — setMode", () => {
+  it("switches to light mode and persists", async () => {
     const { result } = renderHook(() => useTheme(), { wrapper });
 
     await act(async () => { result.current.setMode("light"); });
-    await act(async () => { result.current.setAccentColor("ocean"); });
 
-    const expected = ACCENT_PALETTES.ocean.color;
-    expect(result.current.colors.primary).toBe(expected);
-    expect(result.current.colors.accent).toBe(expected);
-    expect(result.current.colors.tint).toBe(expected);
+    expect(result.current.isDark).toBe(false);
+    expect(result.current.mode).toBe("light");
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith("theme_mode", "light");
+  });
+
+  it("light mode uses light theme colors", async () => {
+    const { result } = renderHook(() => useTheme(), { wrapper });
+
+    await act(async () => { result.current.setMode("light"); });
+
+    const expected = buildLightTheme();
+    expect(result.current.colors.primary).toBe(expected.primary);
+    expect(result.current.colors.background).toBe(expected.background);
+  });
+});
+
+describe("ThemeProvider — toggleTheme", () => {
+  it("toggles from dark to light", async () => {
+    const { result } = renderHook(() => useTheme(), { wrapper });
+
+    await act(async () => { result.current.toggleTheme(); });
+
+    expect(result.current.isDark).toBe(false);
+    expect(result.current.mode).toBe("light");
+  });
+
+  it("toggles from light back to dark", async () => {
+    const { result } = renderHook(() => useTheme(), { wrapper });
+
+    await act(async () => { result.current.setMode("light"); });
+    await act(async () => { result.current.toggleTheme(); });
+
+    expect(result.current.isDark).toBe(true);
+    expect(result.current.mode).toBe("dark");
   });
 });

@@ -41,16 +41,16 @@ import { computeMostImproved } from "@/lib/jointImprovement";
 import JointHistorySheet from "@/components/JointHistorySheet";
 import MovementDimensionHistorySheet from "@/components/MovementDimensionHistorySheet";
 
-const RISK_COLOR_MAP = ["#22c55e", "#f59e0b", "#ef4444"] as const;
+const RISK_COLOR_MAP = ["#1DB954", "#FF6B35", "#FF4444"] as const;
 const RISK_LABEL_MAP = ["Safe", "Caution", "High Risk"] as const;
 
 // Movement quality dimension config — colors match the live skeleton screen
 const MOVEMENT_DIMENSIONS: { key: keyof MovementSummaryDataPoint; label: string; color: string }[] = [
-  { key: "flowScore",         label: "Flow",        color: "#6c63ff" },
-  { key: "efficiencyScore",   label: "Efficiency",  color: "#22c55e" },
-  { key: "bodyControlScore",  label: "Control",     color: "#f59e0b" },
+  { key: "flowScore",         label: "Flow",        color: "#00C2FF" },
+  { key: "efficiencyScore",   label: "Efficiency",  color: "#1DB954" },
+  { key: "bodyControlScore",  label: "Control",     color: "#FF6B35" },
   { key: "consistencyScore",  label: "Consistency", color: "#06b6d4" },
-  { key: "rhythmScore",       label: "Rhythm",      color: "#a78bfa" },
+  { key: "rhythmScore",       label: "Rhythm",      color: "#00C2FF" },
 ];
 
 const JOINT_SPARKLINE_W = 64;
@@ -127,7 +127,7 @@ const METRIC_KEY_MAP: Record<MetricKey, keyof ProgressRecord> = {
 
 const CHART_H = 160;
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const COMPARE_COLOR_B = "#f59e0b";
+const COMPARE_COLOR_B = "#FF6B35";
 
 function getScoreColor(score: number, colors: ReturnType<typeof useColors>) {
   if (score >= 80) return colors.success;
@@ -533,16 +533,16 @@ export default function ProgressScreen() {
   const s = useMemo(() => StyleSheet.create({
     container:        { flex: 1, backgroundColor: colors.background },
     header:           { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 12 },
-    title:            { fontSize: 28, fontFamily: "Inter_700Bold", color: colors.foreground },
-    subtitle:         { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 4 },
+    title:            { fontSize: 34, fontFamily: "Inter_700Bold", color: colors.foreground, letterSpacing: -0.5 },
+    subtitle:         { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginTop: 5 },
     section:          { paddingHorizontal: 20, marginBottom: 24 },
     sectionRow:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-    sectionTitle:     { fontSize: 16, fontFamily: "Inter_600SemiBold", color: colors.foreground },
+    sectionTitle:     { fontSize: 17, fontFamily: "Inter_700Bold", color: colors.foreground, letterSpacing: -0.2 },
     sectionCount:     { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
     summaryRow:       { flexDirection: "row", gap: 10, marginBottom: 24, paddingHorizontal: 20 },
     summaryCard:      { flex: 1, backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
-    summaryValue:     { fontSize: 22, fontFamily: "Inter_700Bold", color: colors.foreground },
-    summaryLabel:     { fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.5 },
+    summaryValue:     { fontSize: 26, fontFamily: "Inter_700Bold", color: colors.foreground, letterSpacing: -0.5 },
+    summaryLabel:     { fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.5 },
     periodRow:        { flexDirection: "row", gap: 6, marginBottom: 14 },
     periodBtn:        { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
     periodBtnText:    { fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground },
@@ -722,12 +722,12 @@ export default function ProgressScreen() {
                 style={{
                   flexDirection: "row", alignItems: "center", gap: 5,
                   paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16,
-                  backgroundColor: compareMode ? "#6c63ff20" : colors.card,
-                  borderWidth: 1.5, borderColor: compareMode ? "#6c63ff" : colors.border,
+                  backgroundColor: compareMode ? colors.primary + "20" : colors.card,
+                  borderWidth: 1.5, borderColor: compareMode ? colors.primary : colors.border,
                 }}
               >
-                <Feather name="columns" size={11} color={compareMode ? "#6c63ff" : colors.mutedForeground} />
-                <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: compareMode ? "#6c63ff" : colors.mutedForeground }}>
+                <Feather name="columns" size={11} color={compareMode ? colors.primary : colors.mutedForeground} />
+                <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: compareMode ? colors.primary : colors.mutedForeground }}>
                   Compare
                 </Text>
               </TouchableOpacity>

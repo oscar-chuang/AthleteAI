@@ -96,12 +96,13 @@ jest.mock("@/hooks/useColors", () => ({
     foreground:      "#f5f5f5",
     card:            "#1a1a1a",
     border:          "#2a2a2a",
-    primary:         "#6c63ff",
-    mutedForeground: "#888888",
+    primary:         "#00C2FF",
+    mutedForeground: "#6B7280",
     muted:           "#333333",
-    success:         "#22c55e",
-    warning:         "#f59e0b",
-    destructive:     "#ff4d6d",
+    success:         "#1DB954",
+    warning:         "#FF6B35",
+    energy:          "#FF6B35",
+    destructive:     "#FF4444",
     radius:          12,
   }),
 }));
@@ -211,8 +212,8 @@ const MOCK_STATS_PARTIAL = {
   personalBests: {},
 };
 
-const GOLD    = "#f59e0b";
-const PRIMARY = "#6c63ff";
+const GOLD    = "#FF6B35";
+const PRIMARY = "#00C2FF";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -377,7 +378,7 @@ describe("HomeScreen — progress bar animation", () => {
   // targetRatio=0, no early path) while profile.weeklyProgress=weeklyGoal
   // (so thisWeek falls back to profile.weeklyProgress and goalReached=true).
 
-  it("bar fill is NOT gold before callback fires, then turns gold (#f59e0b) after", async () => {
+  it("bar fill is NOT gold before callback fires, then turns gold (#FF6B35) after", async () => {
     // Profile shows goal met (weeklyProgress = weeklyGoal = 4).
     mockProfile = { ...DEFAULT_PROFILE, weeklyProgress: 4 };
     // Stats API returns null → targetRatio = 0 (currentCount falls back to 0).
@@ -435,7 +436,7 @@ describe("HomeScreen — progress bar animation", () => {
   // Assertions:
   //   a. setValue(0) is called first (stale-gold guard resets bar to 0).
   //   b. Animated.timing is called with toValue=1, duration=600 (full bar).
-  //   c. The bar fill IS gold (#f59e0b) without firing the callback —
+  //   c. The bar fill IS gold (#FF6B35) without firing the callback —
   //      because barAnimDone was set true by the fast-path, not the callback.
 
   it("cold launch with goal already met: resets to 0 then turns gold via fast-path (no callback needed)", async () => {

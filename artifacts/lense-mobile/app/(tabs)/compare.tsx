@@ -47,14 +47,14 @@ const METRIC_LABELS: Record<keyof ProAthleteBenchmarks, string> = {
 const SPORT_COLORS: Record<string, string> = {
   golf:          "#4ade80",
   basketball:    "#f97316",
-  fencing:       "#a78bfa",
+  fencing:       "#FF6B35",
   tennis:        "#facc15",
   gymnastics:    "#f472b6",
   running:       "#38bdf8",
   swimming:      "#22d3ee",
   cycling:       "#fb923c",
-  boxing:        "#ef4444",
-  rowing:        "#818cf8",
+  boxing:        "#FF4444",
+  rowing:        "#00C2FF",
   crossfit:      "#84cc16",
   soccer:        "#34d399",
   weightlifting: "#e879f9",
@@ -110,10 +110,10 @@ function computeSimilarity(user: ProAthleteBenchmarks, pro: ProAthleteBenchmarks
 
 function getGrade(pct: number): { letter: string; color: string } {
   if (pct >= 95) return { letter: "S", color: "#facc15" };
-  if (pct >= 85) return { letter: "A", color: "#22c55e" };
+  if (pct >= 85) return { letter: "A", color: "#1DB954" };
   if (pct >= 75) return { letter: "B", color: "#38bdf8" };
   if (pct >= 65) return { letter: "C", color: "#f97316" };
-  if (pct >= 55) return { letter: "D", color: "#ef4444" };
+  if (pct >= 55) return { letter: "D", color: "#FF4444" };
   return { letter: "F", color: "#94a3b8" };
 }
 
@@ -124,7 +124,7 @@ function RadarChart({
   proScores,
   size = 260,
   primaryColor,
-  userColor = "#22c55e",
+  userColor = "#1DB954",
 }: {
   userScores: ProAthleteBenchmarks;
   proScores: ProAthleteBenchmarks;
@@ -202,7 +202,7 @@ function MetricRow({
   color: string;
 }) {
   const diff = userScore - proScore;
-  const chipColor = diff >= -5 ? "#22c55e" : diff >= -20 ? "#f59e0b" : "#ef4444";
+  const chipColor = diff >= -5 ? "#1DB954" : diff >= -20 ? "#FF6B35" : "#FF4444";
   return (
     <View style={{ marginBottom: 11 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
@@ -373,8 +373,8 @@ export default function CompareScreen() {
     gapDot:       { width: 6, height: 6, borderRadius: 3, marginTop: 5 },
     gapText:      { fontSize: 12, color: "#ffffff88", fontFamily: "Inter_400Regular", flex: 1, lineHeight: 18 },
     leadRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-    leadPill:     { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20, backgroundColor: "#22c55e18", borderWidth: 1, borderColor: "#22c55e33" },
-    leadPillTxt:  { fontSize: 10, color: "#22c55e", fontFamily: "Inter_500Medium", textTransform: "capitalize" },
+    leadPill:     { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20, backgroundColor: "#1DB95418", borderWidth: 1, borderColor: "#1DB95433" },
+    leadPillTxt:  { fontSize: 10, color: "#1DB954", fontFamily: "Inter_500Medium", textTransform: "capitalize" },
     highlightRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 },
     highlightDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "#ffffff44", marginTop: 7 },
     highlightTxt: { fontSize: 12, color: "#ffffffaa", fontFamily: "Inter_400Regular", flex: 1, lineHeight: 18 },
@@ -385,7 +385,7 @@ export default function CompareScreen() {
     tipNumTxt:    { fontSize: 11, color: "#fff", fontFamily: "Inter_700Bold" },
     tipTxt:       { fontSize: 12, color: "#ffffffaa", fontFamily: "Inter_400Regular", flex: 1, lineHeight: 18 },
     srcRow:       { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 7 },
-    srcTxt:       { fontSize: 11, color: "#6366f1", fontFamily: "Inter_400Regular", flex: 1, textDecorationLine: "underline" },
+    srcTxt:       { fontSize: 11, color: "#00C2FF", fontFamily: "Inter_400Regular", flex: 1, textDecorationLine: "underline" },
     noMatchBox:   { backgroundColor: "#ffffff08", borderRadius: 10, padding: 14, marginBottom: 12 },
     noMatchTxt:   { color: "#ffffff66", fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18 },
     closeBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: "#ffffff1a", marginTop: 4 },
@@ -539,7 +539,7 @@ export default function CompareScreen() {
                         <Text style={s.legendTxt}>{selected.name.split(" ").slice(-1)[0]}</Text>
                       </View>
                       <View style={s.legendItem}>
-                        <View style={[s.legendDot, { backgroundColor: "#22c55e" }]} />
+                        <View style={[s.legendDot, { backgroundColor: "#1DB954" }]} />
                         <Text style={s.legendTxt}>You (avg top 3)</Text>
                       </View>
                     </View>
@@ -566,7 +566,7 @@ export default function CompareScreen() {
                         <Text style={s.sectionLabel}>KEY GAPS TO CLOSE</Text>
                         {gaps.map(({ m, gap }) => (
                           <View key={m} style={s.gapRow}>
-                            <View style={[s.gapDot, { backgroundColor: "#ef4444" }]} />
+                            <View style={[s.gapDot, { backgroundColor: "#FF4444" }]} />
                             <Text style={s.gapText}>
                               <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", textTransform: "capitalize" }}>{m}</Text>
                               {" "}— close {Math.abs(gap)} pts to reach {selected.name.split(" ")[0]}'s level
@@ -670,7 +670,7 @@ export default function CompareScreen() {
                     activeOpacity={0.7}
                     onPress={() => Linking.openURL(src.url).catch(() => {})}
                   >
-                    <Feather name="external-link" size={11} color="#6366f1" />
+                    <Feather name="external-link" size={11} color="#00C2FF" />
                     <Text style={s.srcTxt}>{src.label}</Text>
                   </TouchableOpacity>
                 ))}

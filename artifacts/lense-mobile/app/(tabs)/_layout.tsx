@@ -9,6 +9,28 @@ import { useTheme } from "@/lib/themeContext";
 import { useAuth } from "@/lib/authContext";
 import { useRouter } from "expo-router";
 
+const TAB_HEIGHT = Platform.OS === "web" ? 72 : 58;
+
+function TabIcon({
+  name,
+  color,
+  focused,
+}: {
+  name: React.ComponentProps<typeof Feather>["name"];
+  color: string;
+  focused: boolean;
+}) {
+  const colors = useColors();
+  return (
+    <View style={styles.iconWrap}>
+      {focused && (
+        <View style={[styles.activeBar, { backgroundColor: colors.primary }]} />
+      )}
+      <Feather name={name} size={23} color={color} />
+    </View>
+  );
+}
+
 export default function TabLayout() {
   const colors = useColors();
   const { isDark } = useTheme();
@@ -30,38 +52,47 @@ export default function TabLayout() {
         headerShown:             false,
         tabBarActiveTintColor:   colors.primary,
         tabBarInactiveTintColor: colors.textTertiary,
+        tabBarShowLabel:         false,
         tabBarStyle: {
           position:        "absolute",
-          backgroundColor: isIOS ? "transparent" : colors.surface1,
+          backgroundColor: isIOS ? "transparent" : colors.surface2,
           borderTopWidth:  0,
           borderTopColor:  "transparent",
           elevation:       0,
           zIndex:          100,
-          height:          isWeb ? 84 : 60,
+          height:          TAB_HEIGHT,
         },
         tabBarBackground: () =>
           isIOS ? (
             <BlurView
-              intensity={80}
+              intensity={90}
               tint={isDark ? "dark" : "light"}
-              style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? "rgba(10,10,15,0.90)" : "rgba(245,245,250,0.90)", borderTopWidth: 1, borderTopColor: colors.border }]}
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  backgroundColor: isDark ? "rgba(13,15,17,0.92)" : "rgba(245,247,250,0.92)",
+                  borderTopWidth: StyleSheet.hairlineWidth,
+                  borderTopColor: colors.borderStrong,
+                },
+              ]}
             />
           ) : (
             <View
               style={[
                 StyleSheet.absoluteFill,
-                { backgroundColor: colors.surface1, borderTopWidth: 1, borderTopColor: colors.border },
+                {
+                  backgroundColor: colors.surface2,
+                  borderTopWidth: StyleSheet.hairlineWidth,
+                  borderTopColor: colors.borderStrong,
+                },
               ]}
             />
           ),
-        tabBarLabelStyle: {
-          fontSize:    10,
-          fontFamily:  "Inter_600SemiBold",
-          marginBottom: isWeb ? 16 : 2,
-          letterSpacing: 0.3,
-        },
         tabBarItemStyle: {
-          paddingTop: 6,
+          paddingVertical: 0,
+          height: TAB_HEIGHT,
+          justifyContent: "center",
+          alignItems: "center",
         },
       }}
     >
@@ -70,7 +101,7 @@ export default function TabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color, focused }) => (
-            <Feather name={focused ? "home" : "home"} size={22} color={color} />
+            <TabIcon name="home" color={color} focused={focused} />
           ),
         }}
       />
@@ -78,8 +109,8 @@ export default function TabLayout() {
         name="analyze"
         options={{
           title: "Analyze",
-          tabBarIcon: ({ color }) => (
-            <Feather name="activity" size={22} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="activity" color={color} focused={focused} />
           ),
         }}
       />
@@ -87,8 +118,8 @@ export default function TabLayout() {
         name="progress"
         options={{
           title: "Progress",
-          tabBarIcon: ({ color }) => (
-            <Feather name="trending-up" size={22} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="trending-up" color={color} focused={focused} />
           ),
         }}
       />
@@ -96,8 +127,8 @@ export default function TabLayout() {
         name="compare"
         options={{
           title: "Compare",
-          tabBarIcon: ({ color }) => (
-            <Feather name="users" size={22} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="users" color={color} focused={focused} />
           ),
         }}
       />
@@ -105,11 +136,28 @@ export default function TabLayout() {
         name="chat"
         options={{
           title: "Coach",
-          tabBarIcon: ({ color }) => (
-            <Feather name="message-circle" size={22} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="message-circle" color={color} focused={focused} />
           ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 48,
+    height: "100%",
+    paddingTop: 6,
+  },
+  activeBar: {
+    position: "absolute",
+    top: 0,
+    width: 28,
+    height: 2,
+    borderRadius: 2,
+  },
+});

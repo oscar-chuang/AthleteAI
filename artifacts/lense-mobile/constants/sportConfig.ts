@@ -100,7 +100,7 @@ const SPORT_CONFIGS: Record<string, SportConfig> = {
   fencing: {
     joints: ["leftKnee", "rightKnee", "leftElbow", "rightElbow"],
     metrics: ["overall", "technique", "speed", "balance", "consistency"],
-    accentColor: "#6366f1",
+    accentColor: "#00C2FF",
     icon: "zap",
   },
   rowing: {
@@ -130,7 +130,7 @@ const SPORT_CONFIGS: Record<string, SportConfig> = {
   yoga: {
     joints: ["leftKnee", "rightKnee", "leftHip", "rightHip"],
     metrics: ["overall", "balance", "mobility", "technique", "consistency"],
-    accentColor: "#8b5cf6",
+    accentColor: "#FF6B35",
     icon: "heart",
   },
   crossfit: {
@@ -146,7 +146,7 @@ export function getSportConfig(sport: string): SportConfig {
   return SPORT_CONFIGS[normalized] ?? {
     joints: DEFAULT_JOINTS,
     metrics: DEFAULT_METRICS,
-    accentColor: "#6c63ff",
+    accentColor: "#00C2FF",
     icon: "video",
   };
 }

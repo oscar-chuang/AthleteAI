@@ -5,9 +5,9 @@ import { useColors } from "@/hooks/useColors";
 import { ScoreRing } from "@/components/ScoreRing";
 
 const SCORE_BANDS = [
-  { min: 80, label: "Strong",     color: "#22c55e", note: "You're doing this well" },
-  { min: 65, label: "On Track",   color: "#6c63ff", note: "Solid foundation, room to grow" },
-  { min: 0,  label: "Focus Here", color: "#f59e0b", note: "Prioritise improving this area" },
+  { min: 80, label: "Strong",     color: "#1DB954", note: "You're doing this well" },
+  { min: 65, label: "On Track",   color: "#00C2FF", note: "Solid foundation, room to grow" },
+  { min: 0,  label: "Focus Here", color: "#FF6B35", note: "Prioritise improving this area" },
 ];
 
 export function getScoreBand(score: number) {

@@ -16,8 +16,8 @@ export function NextFocusCard({ focusCue, drill, goal }: Props) {
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.header}>
-        <View style={[styles.iconWrap, { backgroundColor: "#f59e0b18" }]}>
-          <Feather name="target" size={15} color="#f59e0b" />
+        <View style={[styles.iconWrap, { backgroundColor: "#FF6B3520" }]}>
+          <Feather name="target" size={15} color="#FF6B35" />
         </View>
         <Text style={[styles.title, { color: colors.foreground }]}>Next Workout Focus</Text>
       </View>
@@ -46,7 +46,7 @@ export function NextFocusCard({ focusCue, drill, goal }: Props) {
       )}
 
       <View style={[styles.row, { borderColor: colors.border, borderBottomWidth: 0 }]}>
-        <Feather name="check-circle" size={13} color="#22c55e" />
+        <Feather name="check-circle" size={13} color="#1DB954" />
         <View style={styles.rowContent}>
           <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>Measurable goal</Text>
           <Text style={[styles.rowValue, { color: colors.foreground }]}>{goal}</Text>
