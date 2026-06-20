@@ -760,6 +760,7 @@ export default function AnalysisDetailScreen() {
             setDeleting(true);
             try {
               await analysesApi.delete(id!);
+              await AsyncStorage.removeItem(`frameTicks_${id!}`).catch(() => {});
               router.back();
             } catch {
               setDeleting(false);
