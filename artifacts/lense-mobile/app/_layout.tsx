@@ -19,6 +19,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SkeletonBox } from "@/components/ui/SkeletonLoader";
 import { AuthProvider, useAuth } from "@/lib/authContext";
 import { ThemeProvider, useTheme } from "@/lib/themeContext";
+import { handleNotificationResponse } from "@/utils/notificationHandler";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -54,21 +55,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function handleNotificationResponse(
-  response: Notifications.NotificationResponse | null | undefined,
-  router: ReturnType<typeof useRouter>
-) {
-  if (!response) return;
-  const data = response.notification.request.content.data as Record<string, unknown>;
-  if (data?.screen === "progress") {
-    router.navigate({
-      pathname: "/(tabs)/progress",
-      params: { scrollTo: data.scrollTo as string | undefined },
-    } as never);
-  }
-}
 
-function NotificationListener() {
+export function NotificationListener() {
   const router = useRouter();
 
   useEffect(() => {

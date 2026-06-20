@@ -9,6 +9,7 @@ module.exports = {
     "^expo-media-library$": "<rootDir>/__mocks__/expo-media-library.js",
     "^expo-image-manipulator$": "<rootDir>/__mocks__/expo-image-manipulator.js",
     "^expo-notifications$": "<rootDir>/__mocks__/expo-notifications.js",
+    "^react-native-keyboard-controller$": "<rootDir>/__mocks__/react-native-keyboard-controller.js",
   },
   testMatch: [
     "**/app/**/__tests__/**/*.test.{ts,tsx}",
