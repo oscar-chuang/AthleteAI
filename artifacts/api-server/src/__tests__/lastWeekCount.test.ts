@@ -119,3 +119,55 @@ describe("lastWeekCount excludes rest days", () => {
     expect(lastWeekCount).toBe(2);
   });
 });
+
+// ─── Week-boundary edge cases ──────────────────────────────────────────────────
+//
+// The boundary condition is: weekStart is Sunday local midnight (inclusive).
+//   thisWeekCount  includes sessions where d >= weekStart  (closed lower bound)
+//   lastWeekCount  includes sessions where d <  weekStart  (open  upper bound)
+//
+// These tests construct timestamps relative to the computed weekStart so the
+// assertion holds regardless of the test-runner's local timezone.
+
+describe("week-boundary edge cases for lastWeekCount / thisWeekCount", () => {
+  it("a session at exactly Sunday 00:00:00 (weekStart) counts in thisWeekCount, not lastWeekCount", async () => {
+    // Replicate how stats.ts derives weekStart: local midnight on the current Sunday.
+    // FIXED_TODAY = Monday 2024-01-08 → weekStart = Sunday 2024-01-07 local midnight.
+    const todayLocal = new Date(FIXED_TODAY);
+    todayLocal.setHours(0, 0, 0, 0);
+    const weekStart = new Date(todayLocal);
+    weekStart.setDate(todayLocal.getDate() - todayLocal.getDay());
+
+    mockRows = [{ uploadedAt: weekStart }];
+
+    const { weeklyProgress, lastWeekCount } = await computeProfileStats(
+      1,
+      undefined,
+    );
+
+    // d >= weekStart → included in this week
+    expect(weeklyProgress).toBe(1);
+    // d < weekStart is false (they are equal) → excluded from last week
+    expect(lastWeekCount).toBe(0);
+  });
+
+  it("a session at Saturday 23:59:59 (one second before weekStart) counts in lastWeekCount, not thisWeekCount", async () => {
+    const todayLocal = new Date(FIXED_TODAY);
+    todayLocal.setHours(0, 0, 0, 0);
+    const weekStart = new Date(todayLocal);
+    weekStart.setDate(todayLocal.getDate() - todayLocal.getDay());
+    const oneSecondBeforeWeekStart = new Date(weekStart.getTime() - 1_000);
+
+    mockRows = [{ uploadedAt: oneSecondBeforeWeekStart }];
+
+    const { weeklyProgress, lastWeekCount } = await computeProfileStats(
+      1,
+      undefined,
+    );
+
+    // d < weekStart → excluded from this week
+    expect(weeklyProgress).toBe(0);
+    // lastWeekStart <= d < weekStart → included in last week
+    expect(lastWeekCount).toBe(1);
+  });
+});
