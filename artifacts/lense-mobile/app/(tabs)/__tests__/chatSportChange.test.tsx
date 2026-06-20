@@ -334,6 +334,40 @@ describe("ChatScreen — Coach header subtitle reflects current profile", () => 
 
     expect(getByText("Online · Ready to help")).toBeTruthy();
   });
+
+  // ── Test 4 ─────────────────────────────────────────────────────────────────
+
+  it("falls back to 'Online · Ready to help' when only sport is set (no level)", async () => {
+    mockProfile = {
+      sport: "cycling",
+      level: "",
+      name: "Test Athlete",
+      avatarUrl: null,
+    };
+
+    const { getByText } = render(<ChatScreen />);
+    await simulateFocus();
+
+    // level is missing — the `sport && level` guard falls through to the fallback.
+    expect(getByText("Online · Ready to help")).toBeTruthy();
+  });
+
+  // ── Test 5 ─────────────────────────────────────────────────────────────────
+
+  it("falls back to 'Online · Ready to help' when only level is set (no sport)", async () => {
+    mockProfile = {
+      sport: "",
+      level: "advanced",
+      name: "Test Athlete",
+      avatarUrl: null,
+    };
+
+    const { getByText } = render(<ChatScreen />);
+    await simulateFocus();
+
+    // sport is missing — the `sport && level` guard falls through to the fallback.
+    expect(getByText("Online · Ready to help")).toBeTruthy();
+  });
 });
 
 // ─── Paywall header subtitle reflects current profile ─────────────────────────
