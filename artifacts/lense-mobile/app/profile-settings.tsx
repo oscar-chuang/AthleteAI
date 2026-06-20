@@ -74,6 +74,21 @@ async function resetGoalToastForWeek(): Promise<void> {
   await AsyncStorage.removeItem(`confetti_celebrated_${weekKey}`);
 }
 
+/**
+ * AsyncStorage key used to remember which goal/days combo the user last
+ * dismissed the mismatch nudge for.  Versioned so a schema change can force
+ * the nudge to reappear for everyone.
+ */
+const MISMATCH_DISMISSED_KEY = "goal_mismatch_dismissed_v1";
+
+/**
+ * Stable string that uniquely identifies a (goal, trainingDays) pair.
+ * Sorting days makes the signature order-independent.
+ */
+function mismatchSignature(goal: number, days: number[]): string {
+  return `${goal}_${[...days].sort((a, b) => a - b).join(",")}`;
+}
+
 // ─── Discard-prompt dirty-state contract ──────────────────────────────────────
 // See utils/profileDirty.ts for the canonical field list and instructions on
 // how to add new fields to the unsaved-changes detection.
@@ -260,13 +275,24 @@ export default function ProfileSettingsScreen() {
   const [goalSavedFor, setGoalSavedFor] = useState<number | null>(null);
   const [goalAutoSuggestedFor, setGoalAutoSuggestedFor] = useState<number | null>(null);
   const goalAutoSuggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // True when the stored weeklyGoal doesn't match the number of training days on
-  // first load. The nudge is dismissed once the user fixes or ignores it.
-  const [showMismatchNudge, setShowMismatchNudge] = useState(() => {
+  // True when there is an unacknowledged goal/training-days mismatch.
+  // Initialised to false and set to true by a mount effect only when
+  // (a) a mismatch exists and (b) the user has not already dismissed this
+  // exact goal/days combination.
+  const [showMismatchNudge, setShowMismatchNudge] = useState(false);
+
+  useEffect(() => {
     const days = profile?.trainingDays ?? [0, 1, 2, 3, 4, 5, 6];
     const goal = profile?.weeklyGoal ?? 3;
-    return days.length !== goal;
-  });
+    if (days.length === goal) return;
+    const sig = mismatchSignature(goal, days);
+    AsyncStorage.getItem(MISMATCH_DISMISSED_KEY)
+      .then((stored) => {
+        if (stored !== sig) setShowMismatchNudge(true);
+      })
+      .catch(() => setShowMismatchNudge(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [daysSaving, setDaysSaving] = useState(false);
   const [checkInSaving, setCheckInSaving] = useState(false);
   const [checkInSavedFor, setCheckInSavedFor] = useState<number | null>(null);
@@ -282,6 +308,12 @@ export default function ProfileSettingsScreen() {
     await handleWeeklyGoalTap(correctedGoal);
   }
 
+  function handleMismatchDismiss() {
+    const sig = mismatchSignature(weeklyGoal, trainingDays);
+    setShowMismatchNudge(false);
+    AsyncStorage.setItem(MISMATCH_DISMISSED_KEY, sig).catch(() => {});
+  }
+
   async function handleTrainingDayToggle(dayIdx: number) {
     if (daysSaving) return;
     const next = trainingDays.includes(dayIdx)
@@ -294,6 +326,9 @@ export default function ProfileSettingsScreen() {
     const shouldSuggestGoal = suggestedGoal !== weeklyGoal;
     setTrainingDays(next);
     setShowMismatchNudge(false);
+    // Training days changed — clear the dismissed key so the nudge can
+    // reappear on the next visit if a new mismatch is introduced.
+    AsyncStorage.removeItem(MISMATCH_DISMISSED_KEY).catch(() => {});
     if (shouldSuggestGoal) {
       setWeeklyGoal(suggestedGoal);
     }
@@ -331,6 +366,9 @@ export default function ProfileSettingsScreen() {
     const prev = weeklyGoal;
     setWeeklyGoal(n);
     setShowMismatchNudge(false);
+    // Goal changed — clear the dismissed key so the nudge can reappear on the
+    // next visit if a new mismatch is introduced.
+    AsyncStorage.removeItem(MISMATCH_DISMISSED_KEY).catch(() => {});
     if (goalAutoSuggestTimerRef.current) {
       clearTimeout(goalAutoSuggestTimerRef.current);
       goalAutoSuggestTimerRef.current = null;
@@ -1054,7 +1092,7 @@ export default function ProfileSettingsScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   testID="mismatch-dismiss-btn"
-                  onPress={() => setShowMismatchNudge(false)}
+                  onPress={handleMismatchDismiss}
                   activeOpacity={0.7}
                   style={{
                     paddingHorizontal: 14,

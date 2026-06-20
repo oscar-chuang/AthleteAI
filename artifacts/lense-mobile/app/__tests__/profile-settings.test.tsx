@@ -135,6 +135,12 @@ async function flush(rounds = 3) {
 
 // ─── Setup / teardown ─────────────────────────────────────────────────────────
 
+const AsyncStorage = require("@react-native-async-storage/async-storage").default as {
+  getItem: jest.Mock;
+  setItem: jest.Mock;
+  removeItem: jest.Mock;
+};
+
 beforeEach(() => {
   capturedBeforeRemove = undefined;
   capturedCropConfirm = null;
@@ -147,6 +153,10 @@ beforeEach(() => {
   mockProfile.avatarUrl = null;
   mockProfile.weeklyGoal = 3;
   mockProfile.trainingDays = [0, 1, 2, 3, 4, 5, 6];
+  // Reset AsyncStorage mocks so each test starts with no stored dismissal.
+  AsyncStorage.getItem.mockReset().mockResolvedValue(null);
+  AsyncStorage.setItem.mockReset().mockResolvedValue(undefined);
+  AsyncStorage.removeItem.mockReset().mockResolvedValue(undefined);
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
 });
 
@@ -578,6 +588,76 @@ describe("ProfileSettingsScreen — goal/training-days mismatch nudge", () => {
 
     expect(queryByTestId("mismatch-nudge")).toBeNull();
     expect(mockUpdateProfile).not.toHaveBeenCalled();
+  });
+
+  it("tapping 'Dismiss' persists the mismatch signature to AsyncStorage", async () => {
+    mockProfile.weeklyGoal = 5;
+    mockProfile.trainingDays = [1, 2, 3];
+
+    const { getByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    fireEvent.press(getByTestId("mismatch-dismiss-btn"));
+    await flush();
+
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
+      "goal_mismatch_dismissed_v1",
+      "5_1,2,3"
+    );
+  });
+
+  it("does NOT show the nudge on mount when the signature matches the stored dismissed key", async () => {
+    mockProfile.weeklyGoal = 5;
+    mockProfile.trainingDays = [1, 2, 3];
+    // Simulate a previously dismissed dismissal for this exact combo.
+    AsyncStorage.getItem.mockResolvedValue("5_1,2,3");
+
+    const { queryByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    expect(queryByTestId("mismatch-nudge")).toBeNull();
+  });
+
+  it("DOES show the nudge on mount when the stored key is for a different combo", async () => {
+    mockProfile.weeklyGoal = 5;
+    mockProfile.trainingDays = [1, 2, 3];
+    // Dismissed for a different combo — nudge must still appear.
+    AsyncStorage.getItem.mockResolvedValue("4_0,1,2,3");
+
+    const { getByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    expect(getByTestId("mismatch-nudge")).toBeTruthy();
+  });
+
+  it("clears the stored key when the weekly goal changes", async () => {
+    mockProfile.weeklyGoal = 5;
+    mockProfile.trainingDays = [1, 2, 3];
+
+    const { getByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.press(getByTestId("mismatch-fix-btn"));
+    });
+    await flush();
+
+    expect(AsyncStorage.removeItem).toHaveBeenCalledWith("goal_mismatch_dismissed_v1");
+  });
+
+  it("clears the stored key when a training day is toggled", async () => {
+    mockProfile.weeklyGoal = 7;
+    mockProfile.trainingDays = [0, 1, 2, 3, 4, 5, 6];
+
+    const { getByText } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.press(getByText("F"));
+    });
+    await flush();
+
+    expect(AsyncStorage.removeItem).toHaveBeenCalledWith("goal_mismatch_dismissed_v1");
   });
 });
 
