@@ -1273,12 +1273,16 @@ export default function ProfileSettingsScreen() {
               Accent Colour
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View style={{
-                width: 40, height: 40, borderRadius: 20,
-                backgroundColor: colors.primary,
-                alignItems: "center", justifyContent: "center",
-                borderWidth: 3, borderColor: colors.primary,
-              }}>
+              <View
+                testID="accent-swatch-electric-blue"
+                accessibilityState={{ selected: true }}
+                style={{
+                  width: 40, height: 40, borderRadius: 20,
+                  backgroundColor: colors.primary,
+                  alignItems: "center", justifyContent: "center",
+                  borderWidth: 3, borderColor: colors.primary,
+                }}
+              >
                 <Feather name="check" size={16} color="#fff" />
               </View>
               <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.primary }}>

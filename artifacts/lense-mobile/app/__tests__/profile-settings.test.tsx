@@ -585,6 +585,14 @@ describe("ProfileSettingsScreen — accent colour", () => {
 
     expect(getByText("Electric Blue")).toBeTruthy();
   });
+
+  it("the active accent swatch has accessibilityState.selected === true", async () => {
+    const { getByTestId } = render(<ProfileSettingsScreen />);
+    await flush();
+
+    const swatch = getByTestId("accent-swatch-electric-blue");
+    expect(swatch.props.accessibilityState?.selected).toBe(true);
+  });
 });
 
 // ─── Mismatch nudge ────────────────────────────────────────────────────────────
