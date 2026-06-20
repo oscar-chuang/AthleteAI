@@ -234,6 +234,91 @@ describe("HIDDEN_SHARE_CARD_STYLE — Android-safe invariants", () => {
   });
 });
 
+// ─── 5. Accent colour override ────────────────────────────────────────────────
+// Verifies that when `accent` is passed the palette uses the overridden colour
+// in every element that derives from it: tip-strip background, sport badge,
+// footer logo-mark, and icon circle.  The default dark-scheme accent (#00C2FF)
+// must not appear in any of those slots.
+
+describe("ShareCard — accent colour override", () => {
+  const OCEAN_ACCENT = "#0ea5e9"; // Ocean theme — differs from both default accents
+
+  it("forwards the custom accent to the tip-strip background", () => {
+    const { toJSON } = render(
+      <ShareCard analysis={ANALYSIS} topTip={TOP_TIP} accent={OCEAN_ACCENT} />,
+    );
+    const json = JSON.stringify(toJSON());
+    // tipStrip backgroundColor = accent + "18"
+    expect(json).toContain(`${OCEAN_ACCENT}18`);
+  });
+
+  it("forwards the custom accent to the sport-badge background", () => {
+    const { toJSON } = render(
+      <ShareCard analysis={ANALYSIS} accent={OCEAN_ACCENT} />,
+    );
+    const json = JSON.stringify(toJSON());
+    // sportBadge backgroundColor = accent + "cc"
+    expect(json).toContain(`${OCEAN_ACCENT}cc`);
+  });
+
+  it("forwards the custom accent to the footer logo-mark background", () => {
+    const { toJSON } = render(
+      <ShareCard analysis={ANALYSIS} accent={OCEAN_ACCENT} />,
+    );
+    const json = JSON.stringify(toJSON());
+    // logoMark backgroundColor = accent + "22"
+    expect(json).toContain(`${OCEAN_ACCENT}22`);
+  });
+
+  it("forwards the custom accent to the thumbnail-fallback icon-circle background", () => {
+    // No thumbnailUrl → fallback view with iconCircle is rendered
+    const { toJSON } = render(
+      <ShareCard analysis={ANALYSIS} accent={OCEAN_ACCENT} />,
+    );
+    const json = JSON.stringify(toJSON());
+    // iconCircle backgroundColor = accent + "22" (same suffix as logoMark)
+    expect(json).toContain(`${OCEAN_ACCENT}22`);
+  });
+
+  it("replaces the default dark-scheme accent in all accent-derived slots", () => {
+    const { toJSON } = render(
+      <ShareCard analysis={ANALYSIS} topTip={TOP_TIP} accent={OCEAN_ACCENT} />,
+    );
+    const json = JSON.stringify(toJSON());
+    // SHARE_CARD_DARK.accent is "#00C2FF" — none of its derived values should appear
+    expect(json).not.toContain("#00C2FF18"); // would be tipStrip bg without override
+    expect(json).not.toContain("#00C2FFcc"); // would be sportBadge bg without override
+    expect(json).not.toContain("#00C2FF22"); // would be logoMark / iconCircle bg without override
+  });
+
+  it("replaces the default light-scheme accent when colorScheme=light", () => {
+    const { toJSON } = render(
+      <ShareCard
+        analysis={ANALYSIS}
+        topTip={TOP_TIP}
+        colorScheme="light"
+        accent={OCEAN_ACCENT}
+      />,
+    );
+    const json = JSON.stringify(toJSON());
+    // Override must work on top of the light palette too
+    expect(json).toContain(`${OCEAN_ACCENT}18`);  // tipStrip bg
+    expect(json).toContain(`${OCEAN_ACCENT}cc`);  // sportBadge bg
+    expect(json).toContain(`${OCEAN_ACCENT}22`);  // logoMark / iconCircle bg
+    // SHARE_CARD_LIGHT.accent is also "#00C2FF"
+    expect(json).not.toContain("#00C2FF18");
+    expect(json).not.toContain("#00C2FFcc");
+    expect(json).not.toContain("#00C2FF22");
+  });
+
+  it("snapshot: dark scheme + Ocean accent + tip", () => {
+    const { toJSON } = render(
+      <ShareCard analysis={ANALYSIS} topTip={TOP_TIP} accent={OCEAN_ACCENT} />,
+    );
+    expect(toJSON()).toMatchSnapshot();
+  });
+});
+
 // ─── 3. Snapshot tests ────────────────────────────────────────────────────────
 
 describe("ShareCard — snapshots", () => {

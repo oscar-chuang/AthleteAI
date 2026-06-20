@@ -1,5 +1,534 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`ShareCard — accent colour override snapshot: dark scheme + Ocean accent + tip 1`] = `
+<View
+  style={
+    {
+      "backgroundColor": "#0e0e18",
+      "borderColor": "#22223a",
+      "borderRadius": 20,
+      "borderWidth": 1,
+      "overflow": "hidden",
+      "width": 340,
+    }
+  }
+  testID="share-card-dark"
+>
+  <View
+    style={
+      {
+        "backgroundColor": "#16161f",
+        "height": 170,
+      }
+    }
+  >
+    <View
+      style={
+        {
+          "alignItems": "center",
+          "backgroundColor": "#16161f",
+          "gap": 10,
+          "height": "100%",
+          "justifyContent": "center",
+          "width": "100%",
+        }
+      }
+    >
+      <View
+        style={
+          {
+            "alignItems": "center",
+            "backgroundColor": "#0ea5e922",
+            "borderRadius": 36,
+            "height": 72,
+            "justifyContent": "center",
+            "width": 72,
+          }
+        }
+      >
+        <View
+          testID="feather-wind-36"
+        />
+      </View>
+      <Text
+        style={
+          {
+            "color": "#7878aa",
+            "fontFamily": "Inter_600SemiBold",
+            "fontSize": 14,
+            "letterSpacing": 0.5,
+          }
+        }
+      >
+        Running
+      </Text>
+    </View>
+    <View
+      style={
+        {
+          "backgroundColor": "#00000044",
+          "bottom": 0,
+          "left": 0,
+          "position": "absolute",
+          "right": 0,
+          "top": 0,
+        }
+      }
+    />
+    <View
+      style={
+        {
+          "alignItems": "center",
+          "backgroundColor": "#0ea5e9cc",
+          "borderRadius": 20,
+          "flexDirection": "row",
+          "gap": 5,
+          "left": 12,
+          "paddingHorizontal": 10,
+          "paddingVertical": 4,
+          "position": "absolute",
+          "top": 12,
+        }
+      }
+    >
+      <View
+        testID="feather-wind-10"
+      />
+      <Text
+        style={
+          {
+            "color": "#fff",
+            "fontFamily": "Inter_700Bold",
+            "fontSize": 11,
+          }
+        }
+      >
+        Running
+      </Text>
+    </View>
+  </View>
+  <View
+    style={
+      {
+        "padding": 16,
+      }
+    }
+  >
+    <Text
+      numberOfLines={1}
+      style={
+        {
+          "color": "#f0f0f8",
+          "fontFamily": "Inter_700Bold",
+          "fontSize": 17,
+          "marginBottom": 2,
+        }
+      }
+    >
+      Morning Run
+    </Text>
+    <Text
+      style={
+        {
+          "color": "#7878aa",
+          "fontFamily": "Inter_400Regular",
+          "fontSize": 12,
+          "marginBottom": 14,
+        }
+      }
+    >
+      Jun 19, 2026
+    </Text>
+    <View
+      style={
+        {
+          "alignItems": "center",
+          "flexDirection": "row",
+          "gap": 16,
+          "marginBottom": 14,
+        }
+      }
+    >
+      <View
+        style={
+          {
+            "alignItems": "center",
+            "height": 88,
+            "justifyContent": "center",
+            "width": 88,
+          }
+        }
+      >
+        <View>
+          <View />
+          <View />
+        </View>
+        <View
+          style={
+            {
+              "alignItems": "center",
+            }
+          }
+        >
+          <Text
+            style={
+              {
+                "color": "#00C2FF",
+                "fontFamily": "Inter_700Bold",
+                "fontSize": 22,
+                "lineHeight": 26,
+              }
+            }
+          >
+            78
+          </Text>
+          <Text
+            style={
+              {
+                "color": "#00C2FFaa",
+                "fontFamily": "Inter_400Regular",
+                "fontSize": 9,
+                "marginTop": 1,
+              }
+            }
+          >
+            OVERALL
+          </Text>
+        </View>
+      </View>
+      <View
+        style={
+          {
+            "flex": 1,
+            "flexDirection": "row",
+            "flexWrap": "wrap",
+            "gap": 8,
+          }
+        }
+      >
+        <View
+          style={
+            {
+              "alignItems": "flex-start",
+              "flexShrink": 1,
+              "width": "30%",
+            }
+          }
+        >
+          <Text
+            style={
+              [
+                {
+                  "fontFamily": "Inter_700Bold",
+                  "fontSize": 16,
+                  "lineHeight": 19,
+                },
+                {
+                  "color": "#1DB954",
+                },
+              ]
+            }
+          >
+            80
+          </Text>
+          <Text
+            style={
+              {
+                "color": "#7878aa",
+                "fontFamily": "Inter_400Regular",
+                "fontSize": 9,
+                "marginTop": 1,
+              }
+            }
+          >
+            Technique
+          </Text>
+        </View>
+        <View
+          style={
+            {
+              "alignItems": "flex-start",
+              "flexShrink": 1,
+              "width": "30%",
+            }
+          }
+        >
+          <Text
+            style={
+              [
+                {
+                  "fontFamily": "Inter_700Bold",
+                  "fontSize": 16,
+                  "lineHeight": 19,
+                },
+                {
+                  "color": "#00C2FF",
+                },
+              ]
+            }
+          >
+            75
+          </Text>
+          <Text
+            style={
+              {
+                "color": "#7878aa",
+                "fontFamily": "Inter_400Regular",
+                "fontSize": 9,
+                "marginTop": 1,
+              }
+            }
+          >
+            Power
+          </Text>
+        </View>
+        <View
+          style={
+            {
+              "alignItems": "flex-start",
+              "flexShrink": 1,
+              "width": "30%",
+            }
+          }
+        >
+          <Text
+            style={
+              [
+                {
+                  "fontFamily": "Inter_700Bold",
+                  "fontSize": 16,
+                  "lineHeight": 19,
+                },
+                {
+                  "color": "#00C2FF",
+                },
+              ]
+            }
+          >
+            72
+          </Text>
+          <Text
+            style={
+              {
+                "color": "#7878aa",
+                "fontFamily": "Inter_400Regular",
+                "fontSize": 9,
+                "marginTop": 1,
+              }
+            }
+          >
+            Balance
+          </Text>
+        </View>
+        <View
+          style={
+            {
+              "alignItems": "flex-start",
+              "flexShrink": 1,
+              "width": "30%",
+            }
+          }
+        >
+          <Text
+            style={
+              [
+                {
+                  "fontFamily": "Inter_700Bold",
+                  "fontSize": 16,
+                  "lineHeight": 19,
+                },
+                {
+                  "color": "#1DB954",
+                },
+              ]
+            }
+          >
+            81
+          </Text>
+          <Text
+            style={
+              {
+                "color": "#7878aa",
+                "fontFamily": "Inter_400Regular",
+                "fontSize": 9,
+                "marginTop": 1,
+              }
+            }
+          >
+            Consistency
+          </Text>
+        </View>
+        <View
+          style={
+            {
+              "alignItems": "flex-start",
+              "flexShrink": 1,
+              "width": "30%",
+            }
+          }
+        >
+          <Text
+            style={
+              [
+                {
+                  "fontFamily": "Inter_700Bold",
+                  "fontSize": 16,
+                  "lineHeight": 19,
+                },
+                {
+                  "color": "#00C2FF",
+                },
+              ]
+            }
+          >
+            70
+          </Text>
+          <Text
+            style={
+              {
+                "color": "#7878aa",
+                "fontFamily": "Inter_400Regular",
+                "fontSize": 9,
+                "marginTop": 1,
+              }
+            }
+          >
+            Mobility
+          </Text>
+        </View>
+        <View
+          style={
+            {
+              "alignItems": "flex-start",
+              "flexShrink": 1,
+              "width": "30%",
+            }
+          }
+        >
+          <Text
+            style={
+              [
+                {
+                  "fontFamily": "Inter_700Bold",
+                  "fontSize": 16,
+                  "lineHeight": 19,
+                },
+                {
+                  "color": "#1DB954",
+                },
+              ]
+            }
+          >
+            84
+          </Text>
+          <Text
+            style={
+              {
+                "color": "#7878aa",
+                "fontFamily": "Inter_400Regular",
+                "fontSize": 9,
+                "marginTop": 1,
+              }
+            }
+          >
+            Speed
+          </Text>
+        </View>
+      </View>
+    </View>
+    <View
+      style={
+        {
+          "alignItems": "flex-start",
+          "backgroundColor": "#0ea5e918",
+          "borderRadius": 8,
+          "flexDirection": "row",
+          "gap": 7,
+          "marginBottom": 12,
+          "paddingHorizontal": 10,
+          "paddingVertical": 8,
+        }
+      }
+    >
+      <View
+        testID="feather-message-circle-11"
+      />
+      <Text
+        numberOfLines={2}
+        style={
+          {
+            "color": "#f0f0f8",
+            "flex": 1,
+            "fontFamily": "Inter_400Regular",
+            "fontSize": 11,
+            "lineHeight": 16,
+          }
+        }
+      >
+        Keep your cadence above 170 spm and land mid-foot.
+      </Text>
+    </View>
+    <View
+      style={
+        {
+          "backgroundColor": "#22223a",
+          "height": 1,
+          "marginBottom": 12,
+        }
+      }
+    />
+    <View
+      style={
+        {
+          "alignItems": "center",
+          "flexDirection": "row",
+          "gap": 6,
+        }
+      }
+    >
+      <View
+        style={
+          {
+            "alignItems": "center",
+            "backgroundColor": "#0ea5e922",
+            "borderRadius": 6,
+            "height": 20,
+            "justifyContent": "center",
+            "width": 20,
+          }
+        }
+      >
+        <View
+          testID="feather-activity-11"
+        />
+      </View>
+      <Text
+        style={
+          {
+            "color": "#f0f0f8",
+            "fontFamily": "Inter_700Bold",
+            "fontSize": 12,
+          }
+        }
+      >
+        AthleteAI
+      </Text>
+      <Text
+        style={
+          {
+            "color": "#7878aa",
+            "fontFamily": "Inter_400Regular",
+            "fontSize": 11,
+          }
+        }
+      >
+        · AI-powered coaching
+      </Text>
+    </View>
+  </View>
+</View>
+`;
+
 exports[`ShareCard — snapshots matches snapshot: dark scheme, no tip, no thumbnail 1`] = `
 <View
   style={
