@@ -31,6 +31,9 @@
  *   1. Sport + streak > 1  →  full message with sport suffix and streak suffix.
  *   2. No sport, streak = 1 →  base message, no sport or streak suffix.
  *   3. No sport, streak = 0 →  base message only.
+ *   4. ShareCard receives correct analysis prop from the latest complete analysis.
+ *   5. topTip is wired through to ShareCard when latestTips contains a tip.
+ *   6. captureRef is called once when Share CTA is pressed (image-sharing branch).
  */
 
 import React from "react";
@@ -52,6 +55,7 @@ let mockProfile: {
 let mockFocusCallback: (() => (() => void) | void) | null = null;
 
 const mockAnalysesList     = jest.fn();
+const mockAnalysesGet      = jest.fn();
 const mockAchievementsList = jest.fn();
 const mockProfileStats     = jest.fn();
 const mockJointTrendsGet   = jest.fn();
@@ -118,10 +122,13 @@ jest.mock("@/lib/authContext", () => ({
 }));
 
 jest.mock("@/lib/api", () => ({
-  analyses:    { list: (...a: any[]) => mockAnalysesList(...a) },
+  analyses:     {
+    list: (...a: any[]) => mockAnalysesList(...a),
+    get:  (...a: any[]) => mockAnalysesGet(...a),
+  },
   achievements: { list: (...a: any[]) => mockAchievementsList(...a) },
-  profile:     { stats: (...a: any[]) => mockProfileStats(...a) },
-  jointTrends: { get:  (...a: any[]) => mockJointTrendsGet(...a) },
+  profile:      { stats: (...a: any[]) => mockProfileStats(...a) },
+  jointTrends:  { get:  (...a: any[]) => mockJointTrendsGet(...a) },
 }));
 
 jest.mock("@/app/profile-settings", () => ({
@@ -149,10 +156,18 @@ jest.mock("@/components/WeekDotRow", () => ({
   WeekDotRow: () => null,
 }));
 
+jest.mock("expo-image", () => ({
+  Image: () => null,
+}));
+
 jest.mock("@/components/analysis/ShareCard", () => ({
-  ShareCard:       () => null,
+  ShareCard:        jest.fn(() => null),
   SHARE_CARD_DARK:  {},
   SHARE_CARD_LIGHT: {},
+}));
+
+jest.mock("react-native-view-shot", () => ({
+  captureRef: jest.fn(async () => "file:///tmp/share-card.png"),
 }));
 
 jest.mock("expo-sharing", () => ({
@@ -179,7 +194,9 @@ const ANALYSIS_ROW = {
   id:               "a1",
   status:           "complete",
   sport:            "running",
+  title:            "Morning Run",
   uploadedAt:       new Date().toISOString(),
+  thumbnailUrl:     null,
   overallScore:     85,
   techniqueScore:   80,
   powerScore:       75,
@@ -210,6 +227,7 @@ let shareSpy: jest.SpyInstance;
 beforeEach(() => {
   mockFocusCallback = null;
   mockAnalysesList.mockResolvedValue({ analyses: [ANALYSIS_ROW] });
+  mockAnalysesGet.mockResolvedValue({ tips: [] });
   mockAchievementsList.mockResolvedValue({ achievements: [] });
   mockJointTrendsGet.mockRejectedValue(new Error("not needed"));
 
@@ -353,5 +371,114 @@ describe("HomeScreen — handleShareConfirm passes the correct message to Share.
     expect(expected).toBe(
       "I hit my weekly training goal on AthleteAI! 🏆 5 sessions this week.",
     );
+  });
+});
+
+// ─── Share card prop-wiring tests ─────────────────────────────────────────────
+
+describe("HomeScreen — share card receives correct props from analysis record", () => {
+  let MockShareCard: jest.Mock;
+
+  beforeEach(() => {
+    const mod = jest.requireMock("@/components/analysis/ShareCard") as {
+      ShareCard: jest.Mock;
+    };
+    MockShareCard = mod.ShareCard;
+    MockShareCard.mockClear();
+
+    mockProfile = {
+      name: "Dave",
+      avatarUrl: null,
+      level: "intermediate",
+      sport: "running",
+      weeklyGoal: 3,
+      weeklyProgress: 3,
+      trainingDays: [1, 2, 3, 4, 5],
+    };
+    mockProfileStats.mockResolvedValue({
+      thisWeekCount: 3,
+      streak:        5,
+      totalAnalyses: 8,
+      scoreDelta:    null,
+      lastWeekCount: 2,
+      personalBests: { technique: 0, power: 0, balance: 0, consistency: 0, mobility: 0, speed: 0 },
+    });
+  });
+
+  // ── Scenario 4: correct analysis prop ──────────────────────────────────────
+
+  it("passes the latest complete analysis record to ShareCard when the share preview opens", async () => {
+    mockAnalysesGet.mockResolvedValue({ tips: [] });
+
+    const { getByTestId } = render(<HomeScreen />);
+    await simulateFocus();
+
+    // Open share preview modal
+    await act(async () => { fireEvent.press(getByTestId("goal-share-btn")); });
+    await flush();
+
+    // ShareCard is rendered in both the off-screen capture view and the modal
+    // preview — at least one call must carry the correct analysis record.
+    const calls = MockShareCard.mock.calls as Array<[{ analysis: typeof ANALYSIS_ROW; topTip?: string }]>;
+    const analysisProps = calls.map(([props]) => props.analysis);
+    expect(analysisProps.some(a => a?.id === ANALYSIS_ROW.id)).toBe(true);
+  });
+
+  // ── Scenario 5: topTip wired through ───────────────────────────────────────
+
+  it("passes topTip to ShareCard when latestTips contains a coaching tip", async () => {
+    const TIP_TITLE = "Drive through your hips to increase power transfer";
+    mockAnalysesGet.mockResolvedValue({
+      tips: [
+        {
+          id:       "tip-1",
+          tipType:  "technique",
+          severity: "high",
+          title:    TIP_TITLE,
+          body:     "Focus on hip extension during the drive phase.",
+          joint:    "hip",
+          drills:   [],
+          sources:  [],
+        },
+      ],
+    });
+
+    const { getByTestId } = render(<HomeScreen />);
+    await simulateFocus();
+
+    // Open share preview modal
+    await act(async () => { fireEvent.press(getByTestId("goal-share-btn")); });
+    await flush();
+
+    const calls = MockShareCard.mock.calls as Array<[{ analysis: typeof ANALYSIS_ROW; topTip?: string }]>;
+    const topTipValues = calls.map(([props]) => props.topTip);
+    expect(topTipValues.some(t => t === TIP_TITLE)).toBe(true);
+  });
+
+  // ── Scenario 6: captureRef called on Share CTA ─────────────────────────────
+
+  it("calls captureRef once when the Share CTA is pressed and image sharing is available", async () => {
+    const { isAvailableAsync, shareAsync } = jest.requireMock("expo-sharing") as {
+      isAvailableAsync: jest.Mock;
+      shareAsync:       jest.Mock;
+    };
+    const { captureRef } = jest.requireMock("react-native-view-shot") as {
+      captureRef: jest.Mock;
+    };
+
+    // Enable image-sharing branch
+    isAvailableAsync.mockResolvedValue(true);
+    shareAsync.mockResolvedValue(undefined);
+    captureRef.mockResolvedValue("file:///tmp/share-card.png");
+
+    const { getByTestId } = render(<HomeScreen />);
+    await simulateFocus();
+
+    await act(async () => { fireEvent.press(getByTestId("goal-share-btn")); });
+    await flush();
+    await act(async () => { fireEvent.press(getByTestId("goal-share-confirm-btn")); });
+    await flush();
+
+    expect(captureRef).toHaveBeenCalledTimes(1);
   });
 });
