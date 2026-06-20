@@ -1454,4 +1454,32 @@ describe("scan-overlay — 'Preparing scan…' placeholder lifecycle", () => {
 
     expect(screen.queryByText("Tracking your movement")).toBeNull();
   });
+
+  it("updates the percentage sub-text live as progress messages arrive", async () => {
+    mockApiGet.mockResolvedValue(ungroundedResp());
+
+    render(<SkeletonScreen />);
+    await flush();
+
+    // Switch the overlay to progress mode via layoutReady.
+    emit({ type: "layoutReady" });
+    await flush();
+
+    expect(screen.getByText(/measuring joints/)).toBeTruthy();
+
+    // 25%
+    emit({ type: "progress", value: 0.25 });
+    await flush();
+    expect(screen.getByText("25% — measuring joints")).toBeTruthy();
+
+    // 50%
+    emit({ type: "progress", value: 0.5 });
+    await flush();
+    expect(screen.getByText("50% — measuring joints")).toBeTruthy();
+
+    // 75%
+    emit({ type: "progress", value: 0.75 });
+    await flush();
+    expect(screen.getByText("75% — measuring joints")).toBeTruthy();
+  });
 });
