@@ -43,6 +43,7 @@ import {
 import JointHistorySheet from "@/components/JointHistorySheet";
 import { ConfettiBurst } from "@/components/ConfettiBurst";
 import { checkConfettiGate, persistCelebrationToServer, retryCelebrationSync } from "@/utils/confettiGate";
+import { toTitleCase } from "@/utils/formatDisplay";
 import { buildDeltaMap } from "@/lib/sessionDelta";
 import { WeekDotRow } from "@/components/WeekDotRow";
 import { captureRef } from "react-native-view-shot";
@@ -619,7 +620,7 @@ export default function HomeScreen() {
           </View>
           <View style={s.badgeRow}>
             <View style={s.badge}>
-              <Text style={s.badgeText}>{tier} · {profile?.level ?? "beginner"}</Text>
+              <Text style={s.badgeText}>{tier} · {toTitleCase(profile?.level ?? "beginner")}</Text>
             </View>
             {streakDays > 0 && (
               <View style={s.streakBadge}>
@@ -1006,7 +1007,7 @@ export default function HomeScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={s.analysisTitle} numberOfLines={1}>{a.title}</Text>
                     <Text style={s.analysisMeta}>
-                      {[a.sport, STATUS_LABEL[a.status] ?? a.status].filter(Boolean).join(" · ")}
+                      {[toTitleCase(a.sport), STATUS_LABEL[a.status] ?? a.status].filter(Boolean).join(" · ")}
                     </Text>
                     {deltaBadge && (
                       <DeltaBadge

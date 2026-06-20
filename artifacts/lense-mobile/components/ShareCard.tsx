@@ -1,6 +1,7 @@
 import React, { forwardRef } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { toTitleCase } from "@/utils/formatDisplay";
 
 const ACCENT  = "#6c63ff";
 const BG      = "#0e0e18";
@@ -57,7 +58,7 @@ const ShareCard = forwardRef<View, ShareCardProps>(function ShareCard(
         <Text style={styles.brand}>AthleteAI</Text>
         <View style={styles.sportBadge}>
           <Feather name={sportIcon(sport)} size={12} color={ACCENT} />
-          <Text style={styles.sport}>{sport}</Text>
+          <Text style={styles.sport}>{toTitleCase(sport)}</Text>
         </View>
       </View>
 

@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import Svg, { Circle } from "react-native-svg";
 import type { AnalysisRecord } from "@/lib/api";
+import { toTitleCase } from "@/utils/formatDisplay";
 
 // ─── Brand palette ────────────────────────────────────────────────────────────
 // One place to update colors for the share card.  Two schemes are provided so
@@ -163,7 +164,7 @@ export function ShareCard({ analysis, topTip, colorScheme = "dark", accent }: Sh
   const palette      = accent ? { ...base, accent } : base;
   const overallScore = analysis.overallScore ?? 0;
   const overallColor = scoreBandColor(overallScore);
-  const sportLabel   = analysis.sport.charAt(0).toUpperCase() + analysis.sport.slice(1);
+  const sportLabel   = toTitleCase(analysis.sport);
   const icon         = sportIcon(analysis.sport);
   const hasThumbnail = !!analysis.thumbnailUrl;
 

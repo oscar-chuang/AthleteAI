@@ -9,6 +9,7 @@ import {
   Animated,
   StyleSheet,
 } from "react-native";
+import { toTitleCase } from "@/utils/formatDisplay";
 import Svg, {
   Line,
   Path,
@@ -492,7 +493,7 @@ export default function MovementDimensionHistorySheet({
                         </Text>
                         <Text style={[tooltipStyles.band, { color }]}>{band}</Text>
                         <Text style={tooltipStyles.meta}>
-                          {formatDate(sel.date)} · {sel.sport}
+                          {formatDate(sel.date)} · {toTitleCase(sel.sport)}
                         </Text>
                         {canNavigate && (
                           <Text style={tooltipStyles.navHint}>tap to open →</Text>

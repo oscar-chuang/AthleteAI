@@ -15,6 +15,7 @@ import {
   Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { toTitleCase } from "@/utils/formatDisplay";
 import { Feather } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -748,7 +749,7 @@ export default function AnalyzeScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={s.cardTitle} numberOfLines={1}>{item.title}</Text>
                   <Text style={s.cardMeta}>
-                    {item.sport} · {formatDate(item.uploadedAt)}
+                    {toTitleCase(item.sport)} · {formatDate(item.uploadedAt)}
                     {item.duration ? ` · ${Math.round(item.duration)}s` : ""}
                   </Text>
                   {deltaBadge && (() => {

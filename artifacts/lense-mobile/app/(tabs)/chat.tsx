@@ -26,15 +26,9 @@ import { useAuth, useCanAccessFeature } from "@/lib/authContext";
 import { MarkdownText } from "@/components/MarkdownText";
 import { AvatarDisplay } from "@/app/profile-settings";
 import { formatBiomechanicsTextSafe } from "@/utils/formatBiomechanics";
+import { toTitleCase } from "@/utils/formatDisplay";
 
 const PENDING_KEY = "pendingChatMessage";
-
-function toTitleCase(value: string): string {
-  return value
-    .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
 
 function TypingIndicator({ color }: { color: string }) {
   const dots = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];

@@ -58,6 +58,7 @@ import {
   HIDDEN_SHARE_CARD_STYLE,
 } from "@/utils/shareCardCapture";
 import { buildSessionSharePayload } from "@/utils/shareUtils";
+import { toTitleCase } from "@/utils/formatDisplay";
 import { SCORE_KEYS, SCORE_META, scoreForKey } from "./scoreGrid";
 
 const PENDING_CHAT_KEY = "pendingChatMessage";
@@ -957,8 +958,7 @@ export default function AnalysisDetailScreen() {
     return sentences.slice(0, 2).join(" ");
   })();
 
-  const sportLabel =
-    analysis.sport.charAt(0).toUpperCase() + analysis.sport.slice(1);
+  const sportLabel = toTitleCase(analysis.sport);
 
   const overallBand = getScoreBand(overallScore);
 

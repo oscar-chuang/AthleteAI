@@ -18,6 +18,7 @@ import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { SkeletonBox, SkeletonCard } from "@/components/ui/SkeletonLoader";
+import { toTitleCase } from "@/utils/formatDisplay";
 import {
   progress as progressApi,
   achievements as achievementsApi,
@@ -160,9 +161,6 @@ function periodCutoff(period: Period): Date | null {
   return d;
 }
 
-function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
 
 export default function ProgressScreen() {
   const colors = useColors();
@@ -501,12 +499,12 @@ export default function ProgressScreen() {
     if (selectedSport) {
       const sportItems = sportMap.get(selectedSport) ?? [];
       if (sportItems.length > 0) {
-        groups.push({ label: capitalize(selectedSport), sport: selectedSport, items: sportItems });
+        groups.push({ label: toTitleCase(selectedSport), sport: selectedSport, items: sportItems });
       }
       groups.push({ label: "All Sports", sport: null, items: globalItems });
     } else {
       for (const [sport, items] of sportMap.entries()) {
-        groups.push({ label: capitalize(sport), sport, items });
+        groups.push({ label: toTitleCase(sport), sport, items });
       }
       groups.push({ label: "All Sports", sport: null, items: globalItems });
     }
@@ -577,7 +575,7 @@ export default function ProgressScreen() {
   }
 
   const sportSubtitle = selectedSport
-    ? `${sportEntries.length} ${capitalize(selectedSport)} session${sportEntries.length === 1 ? "" : "s"}`
+    ? `${sportEntries.length} ${toTitleCase(selectedSport)} session${sportEntries.length === 1 ? "" : "s"}`
     : allEntries.length > 0
       ? `${allEntries.length} session${allEntries.length === 1 ? "" : "s"} logged`
       : "Track your improvement over time";
@@ -898,7 +896,7 @@ export default function ProgressScreen() {
               <Text style={s.sectionCount}>
                 {compareMode && selectedMovementType && compareMovementType
                   ? `${selectedMovementType} vs ${compareMovementType}`
-                  : capitalize(selectedSport)}
+                  : toTitleCase(selectedSport)}
               </Text>
             </View>
 
@@ -1070,7 +1068,7 @@ export default function ProgressScreen() {
               <View style={{ marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <Feather name={SPORT_ICONS[selectedSport] as any ?? "video"} size={12} color={accentColor} />
                 <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: accentColor, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  {capitalize(selectedSport)} metrics
+                  {toTitleCase(selectedSport)} metrics
                 </Text>
               </View>
             )}
@@ -1098,7 +1096,7 @@ export default function ProgressScreen() {
                 <View style={{ paddingVertical: 32, alignItems: "center", gap: 8 }}>
                   <Feather name="calendar" size={28} color={colors.mutedForeground} />
                   <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
-                    No {selectedSport ? capitalize(selectedSport) + " " : ""}sessions in this period
+                    No {selectedSport ? toTitleCase(selectedSport) + " " : ""}sessions in this period
                   </Text>
                   <TouchableOpacity onPress={() => setPeriod("All")} activeOpacity={0.8}>
                     <Text style={{ fontSize: 12, color: colors.primary, fontFamily: "Inter_500Medium" }}>Show all sessions</Text>
@@ -1327,7 +1325,7 @@ export default function ProgressScreen() {
               <Text style={s.sectionTitle}>Joint Angle Trends</Text>
               <Text style={s.sectionCount}>
                 {Object.keys(filteredTrends.joints).length} joint{Object.keys(filteredTrends.joints).length === 1 ? "" : "s"}
-                {selectedSport ? ` · ${capitalize(selectedSport)}` : ""}
+                {selectedSport ? ` · ${toTitleCase(selectedSport)}` : ""}
               </Text>
             </View>
 
@@ -1339,7 +1337,7 @@ export default function ProgressScreen() {
                   <Feather name="trending-up" size={16} color={colors.success} />
                   <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: colors.success, flex: 1 }} numberOfLines={2}>
                     Your {label.toLowerCase()} angle improved by {absD}° over {imp.sessions} session{imp.sessions === 1 ? "" : "s"}
-                    {selectedSport ? ` of ${capitalize(selectedSport)}` : ""}
+                    {selectedSport ? ` of ${toTitleCase(selectedSport)}` : ""}
                   </Text>
                 </View>
               );
@@ -1402,7 +1400,7 @@ export default function ProgressScreen() {
               <Text style={s.sectionTitle}>Movement Quality</Text>
               <Text style={s.sectionCount}>
                 {filteredMovementHistory.length} session{filteredMovementHistory.length === 1 ? "" : "s"}
-                {selectedSport ? ` · ${capitalize(selectedSport)}` : ""}
+                {selectedSport ? ` · ${toTitleCase(selectedSport)}` : ""}
               </Text>
             </View>
             {MOVEMENT_DIMENSIONS.map((dim) => {
@@ -1485,7 +1483,7 @@ export default function ProgressScreen() {
             <View style={s.emptyCard}>
               <Feather name="calendar" size={32} color={colors.mutedForeground} />
               <Text style={s.emptyText}>
-                No {selectedSport ? capitalize(selectedSport) + " " : ""}sessions
+                No {selectedSport ? toTitleCase(selectedSport) + " " : ""}sessions
                 {selectedMovementType ? ` for ${selectedMovementType}` : ""}
                 {period !== "All" ? ` in this period` : ""}.
               </Text>

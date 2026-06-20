@@ -10,6 +10,7 @@ import {
   PanResponder,
   StyleSheet,
 } from "react-native";
+import { toTitleCase } from "@/utils/formatDisplay";
 import Svg, {
   Line,
   Path,
@@ -576,7 +577,7 @@ export default function JointHistorySheet({
                         {rLabel}
                       </Text>
                       <Text style={tooltipStyles.meta}>
-                        {formatDate(sel.date)} · {sel.sport}
+                        {formatDate(sel.date)} · {toTitleCase(sel.sport)}
                       </Text>
                       {/* "Tap to open →" hint — only shown when navigation is available */}
                       {canNavigate && (
