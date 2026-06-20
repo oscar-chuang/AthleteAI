@@ -65,7 +65,7 @@ import {
 } from "@/utils/shareCardCapture";
 import { buildSessionSharePayload } from "@/utils/shareUtils";
 import { toTitleCase } from "@/utils/formatDisplay";
-import { SCORE_KEYS, SCORE_META, scoreForKey } from "./scoreGrid";
+import { SCORE_KEYS, SCORE_META, scoreForKey } from "@/utils/scoreGrid";
 
 const PENDING_CHAT_KEY = "pendingChatMessage";
 const SWIPE_HINT_SEEN_KEY = "swipe_hint_seen";

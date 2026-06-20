@@ -1,0 +1,135 @@
+Run a full stability, routing, and bug audit across the entire AthleteAI app.
+
+Primary goal:
+Find and fix every visible bug, crash, broken screen, routing issue, loading issue, and UI glitch so the app works smoothly from start to finish.
+
+Known bug to fix first:
+Sometimes the app shows:
+
+“This screen does not exist.”
+
+Find every route, screen, navigation link, deep link, tab route, redirect, and button that could trigger this error. Fix the root cause, not only the visible message.
+
+Audit these areas:
+
+1. Navigation and Routing
+
+* Check every tab.
+* Check every button.
+* Check every back button.
+* Check every redirect after login, upload, analysis, profile, settings, and progress.
+* Check dynamic routes.
+* Check missing route files.
+* Check incorrectly named folders or files.
+* Check Expo Router configuration.
+* Check fallback screens.
+* Make sure no user action leads to “This screen does not exist.”
+
+2. Full User Flow Testing
+    Test the complete app flow:
+
+* Open app.
+* Sign up.
+* Log in.
+* Go through onboarding.
+* Upload video.
+* View recording tips.
+* Start analysis.
+* Wait through scanning.
+* View analysis results.
+* Open movement breakdown.
+* Open progress.
+* Filter progress by sport.
+* Open drills.
+* Open profile.
+* Toggle dark and light mode.
+* Log out.
+* Log back in.
+
+Fix anything broken during this flow.
+
+3. Loading and Async State Bugs
+    Check for:
+
+* Infinite loading.
+* Frozen screens.
+* Blank screens.
+* Buttons that do nothing.
+* Double-tap issues.
+* Race conditions.
+* Data loading before user/session exists.
+* Analysis screen opening before analysis data is ready.
+
+Add proper loading, error, and empty states where missing.
+
+4. Data and API Bugs
+    Check:
+
+* API calls.
+* Request payloads.
+* Response handling.
+* Failed requests.
+* Missing fields.
+* Null values.
+* Undefined values.
+* Bad analysis IDs.
+* Bad user IDs.
+* Failed uploads.
+* Broken progress data.
+
+The app should not crash if data is missing. It should show a clean user-friendly message.
+
+5. UI Glitches
+    Check all screens for:
+
+* Overlapping text.
+* Cut-off buttons.
+* Broken spacing.
+* Scroll issues.
+* Keyboard covering inputs.
+* Cards overflowing.
+* Text unreadable in dark mode or light mode.
+* Icons missing.
+* Layout breaking on smaller screens.
+
+6. Error Handling
+    Replace technical errors with user-friendly messages.
+
+Bad:
+“undefined is not an object”
+“route not found”
+“network request failed”
+
+Good:
+“We couldn’t load this screen.”
+“Try again.”
+“Your video did not upload. Please choose another video.”
+
+7. Console and TypeScript Audit
+    Run:
+
+* TypeScript check
+* Lint check
+* Build check
+* Expo start check
+
+Fix all errors and warnings that affect stability.
+
+8. Regression Testing
+    After fixes, manually retest every major screen and flow.
+
+Create a short bug report at the end with:
+
+* Bugs found
+* Root cause
+* Files changed
+* Fix applied
+* Remaining risks
+* What still needs manual testing
+
+Important:
+Do not only patch the one bug I mentioned.
+Search for bugs of the same type across the full app.
+Do not remove features to make errors disappear.
+Do not hide errors without fixing root causes.
+The app should feel stable, smooth, and production-ready.

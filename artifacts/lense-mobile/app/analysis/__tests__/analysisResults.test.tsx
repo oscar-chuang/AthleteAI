@@ -21,7 +21,7 @@ import { View, Text } from "react-native";
 import { render } from "@testing-library/react-native";
 import type { AnalysisRecord, TipRecord, RiskRecord, DrillRecord } from "@/lib/api";
 import { formatBiomechanicsText } from "@/utils/formatBiomechanics";
-import { SCORE_KEYS, SCORE_META, scoreForKey } from "../scoreGrid";
+import { SCORE_KEYS, SCORE_META, scoreForKey } from "@/utils/scoreGrid";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
