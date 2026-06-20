@@ -173,7 +173,7 @@ export function ShareCard({ analysis, topTip, colorScheme = "dark", accent }: Sh
   return (
     <View style={s.card} testID={`share-card-${colorScheme}`}>
       {/* ── Thumbnail / sport-icon placeholder ── */}
-      <View style={s.imageWrap}>
+      <View style={s.imageWrap} testID="share-card-surface">
         {hasThumbnail ? (
           <Image
             source={{ uri: analysis.thumbnailUrl }}

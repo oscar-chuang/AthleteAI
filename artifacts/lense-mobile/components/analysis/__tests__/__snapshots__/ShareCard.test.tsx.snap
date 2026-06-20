@@ -21,6 +21,7 @@ exports[`ShareCard — snapshots matches snapshot: dark scheme, no tip, no thumb
         "height": 170,
       }
     }
+    testID="share-card-surface"
   >
     <View
       style={
@@ -518,6 +519,7 @@ exports[`ShareCard — snapshots matches snapshot: dark scheme, with thumbnail 1
         "height": 170,
       }
     }
+    testID="share-card-surface"
   >
     <View
       testID="share-thumbnail-image"
@@ -1009,6 +1011,7 @@ exports[`ShareCard — snapshots matches snapshot: dark scheme, with tip, no thu
         "height": 170,
       }
     }
+    testID="share-card-surface"
   >
     <View
       style={
@@ -1538,6 +1541,7 @@ exports[`ShareCard — snapshots matches snapshot: light scheme, with tip, no th
         "height": 170,
       }
     }
+    testID="share-card-surface"
   >
     <View
       style={

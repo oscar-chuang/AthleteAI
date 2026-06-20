@@ -172,7 +172,7 @@ describe("ShareCard — sport-icon fallback (all supported sports)", () => {
 // same palette.  Each test locates the card root by testID, flattens its style,
 // and asserts the scheme-specific background color.
 
-type FlatStyle = { backgroundColor?: string };
+type FlatStyle = { backgroundColor?: string; borderColor?: string };
 
 describe("ShareCard — color scheme palette", () => {
   it('applies the dark-palette background when colorScheme="dark"', () => {
@@ -210,5 +210,41 @@ describe("ShareCard — color scheme palette", () => {
 
   it("dark and light cardSurface values are distinct", () => {
     expect(SHARE_CARD_DARK.cardSurface).not.toBe(SHARE_CARD_LIGHT.cardSurface);
+  });
+
+  it('applies the dark-palette borderColor when colorScheme="dark"', () => {
+    const { getByTestId } = render(
+      <ShareCard analysis={BASE_ANALYSIS} colorScheme="dark" />,
+    );
+    const card = getByTestId("share-card-dark");
+    const flat = StyleSheet.flatten(card.props.style) as FlatStyle;
+    expect(flat.borderColor).toBe(SHARE_CARD_DARK.cardBorder);
+  });
+
+  it('applies the light-palette borderColor when colorScheme="light"', () => {
+    const { getByTestId } = render(
+      <ShareCard analysis={BASE_ANALYSIS} colorScheme="light" />,
+    );
+    const card = getByTestId("share-card-light");
+    const flat = StyleSheet.flatten(card.props.style) as FlatStyle;
+    expect(flat.borderColor).toBe(SHARE_CARD_LIGHT.cardBorder);
+  });
+
+  it('applies the dark-palette cardSurface to the image-wrap when colorScheme="dark"', () => {
+    const { getByTestId } = render(
+      <ShareCard analysis={BASE_ANALYSIS} colorScheme="dark" />,
+    );
+    const surface = getByTestId("share-card-surface");
+    const flat = StyleSheet.flatten(surface.props.style) as FlatStyle;
+    expect(flat.backgroundColor).toBe(SHARE_CARD_DARK.cardSurface);
+  });
+
+  it('applies the light-palette cardSurface to the image-wrap when colorScheme="light"', () => {
+    const { getByTestId } = render(
+      <ShareCard analysis={BASE_ANALYSIS} colorScheme="light" />,
+    );
+    const surface = getByTestId("share-card-surface");
+    const flat = StyleSheet.flatten(surface.props.style) as FlatStyle;
+    expect(flat.backgroundColor).toBe(SHARE_CARD_LIGHT.cardSurface);
   });
 });
