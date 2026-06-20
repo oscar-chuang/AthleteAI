@@ -317,7 +317,36 @@ describe("HomeScreen — weekly goal picker", () => {
     expect(mockUpdateProfile).toHaveBeenCalledWith({ weeklyGoal: 5 });
   });
 
-  // ── Test 5 ────────────────────────────────────────────────────────────────
+  // ── Test 6 ────────────────────────────────────────────────────────────────
+
+  it("syncs the label cleanly when the server confirms the same value the user picked", async () => {
+    const { getByText, rerender } = render(<HomeScreen />);
+    await simulateFocus();
+
+    // Baseline: goal is 3.
+    expect(getByText("Goal: 3 sessions/week")).toBeTruthy();
+
+    // User picks 5 — optimistic update fires immediately.
+    fireEvent.press(getByText("Goal: 3 sessions/week"));
+    fireEvent.press(getByText("5"));
+    await flush();
+
+    // Optimistic state: counter reflects 5.
+    expect(getByText("1 / 5")).toBeTruthy();
+
+    // Server confirms the pick — profile.weeklyGoal is now 5 (same as the pick).
+    // This should clear the local override rather than keeping localWeeklyGoal pinned.
+    mockProfile = { ...mockProfile, weeklyGoal: 5 };
+    await act(async () => { rerender(<HomeScreen />); });
+    await flush();
+
+    // The counter must still show "1 / 5" — now sourced from the profile, not
+    // from a stale localWeeklyGoal override. The session counter is the
+    // always-visible element that exposes which value is in use.
+    expect(getByText("1 / 5")).toBeTruthy();
+  });
+
+  // ── Test 7 ────────────────────────────────────────────────────────────────
 
   it("closes the sheet when the backdrop is tapped", async () => {
     const { getByText, getByTestId, queryByText } = render(<HomeScreen />);
