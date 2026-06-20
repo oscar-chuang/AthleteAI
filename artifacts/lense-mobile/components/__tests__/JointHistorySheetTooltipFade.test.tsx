@@ -162,6 +162,29 @@ describe("JointHistorySheet — tooltip fade animation", () => {
     expect(queryByTestId("joint-tooltip")).toBeNull();
   });
 
+  it("tapping the chart background dismisses the tooltip after fade-out completes", async () => {
+    const { getAllByTestId, getByTestId, queryByTestId } = render(
+      <JointHistorySheet joint="leftKnee" data={SAMPLE_DATA} onClose={noop} />,
+    );
+
+    const dots = getAllByTestId("dot-hit-target");
+
+    await act(async () => {
+      fireEvent.press(dots[0]!);
+    });
+
+    expect(getByTestId("joint-tooltip")).toBeTruthy();
+
+    const chartBackground = getByTestId("joint-history-chart");
+
+    await act(async () => {
+      fireEvent.press(chartBackground);
+      jest.runAllTimers();
+    });
+
+    expect(queryByTestId("joint-tooltip")).toBeNull();
+  });
+
   it("replaces tooltip content immediately when a different dot is tapped", async () => {
     const { getAllByTestId, getByTestId } = render(
       <JointHistorySheet joint="leftKnee" data={SAMPLE_DATA} onClose={noop} />,
