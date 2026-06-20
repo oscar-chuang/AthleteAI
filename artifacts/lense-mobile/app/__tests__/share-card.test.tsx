@@ -141,9 +141,15 @@ describe("ShareCard — sport-icon fallback (all supported sports)", () => {
   );
 
   it('unknown sport renders the "activity" fallback icon at size 36', () => {
+    const slug = "underwater-polo";
+    // Guard: confirm this slug is genuinely absent from the map so that if
+    // someone later adds it, this test will fail loudly instead of silently
+    // rendering the wrong icon.
+    expect(SPORT_ICON[slug]).toBeUndefined();
+
     const analysis: AnalysisRecord = {
       ...BASE_ANALYSIS,
-      sport: "underwater-polo",
+      sport: slug,
       thumbnailUrl: undefined,
     };
     const { queryByTestId } = render(<ShareCard analysis={analysis} />);
