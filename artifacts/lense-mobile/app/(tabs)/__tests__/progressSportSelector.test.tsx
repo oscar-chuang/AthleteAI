@@ -448,7 +448,9 @@ describe("ProgressScreen — personal records grid", () => {
   });
 
   it("renders the best score value for each returned metric", async () => {
-    // Running's available metrics are: technique, speed, consistency, mobility.
+    // Running's valid metric keys come from constants/sportConfig.ts → SPORT_CONFIGS.running.metrics:
+    //   ["overall", "technique", "speed", "consistency", "mobility"]
+    // If that list changes, update the keys used below to match.
     // "power" is NOT in the running config — use "consistency" instead.
     mockProgressPersonalRecords.mockResolvedValue({
       records: {
