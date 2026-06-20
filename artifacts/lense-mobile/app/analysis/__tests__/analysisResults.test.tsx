@@ -964,13 +964,13 @@ describe("AnimatedRiskBar — re-animation guard", () => {
 
   it("initial Animated.Value is 0 when key is absent from done set", () => {
     const value = new Animated.Value(mirrorDoneSet.has("a1:leftKnee") ? 55 : 0);
-    expect((value as any).__getValue()).toBe(0);
+    expect((value as unknown as { __getValue(): number }).__getValue()).toBe(0);
   });
 
   it("initial Animated.Value equals pct when key is already in done set", () => {
     mirrorDoneSet.add("a1:leftKnee");
     const value = new Animated.Value(mirrorDoneSet.has("a1:leftKnee") ? 55 : 0);
-    expect((value as any).__getValue()).toBe(55);
+    expect((value as unknown as { __getValue(): number }).__getValue()).toBe(55);
   });
 
   it("a new analysis ID with the same joint gets its own animation gate", () => {

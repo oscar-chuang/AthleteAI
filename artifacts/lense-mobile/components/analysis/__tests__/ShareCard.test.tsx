@@ -155,6 +155,51 @@ describe("ShareCard — tip text truncation", () => {
   });
 });
 
+// ─── 4. Title truncation ──────────────────────────────────────────────────────
+
+const LONG_TITLE =
+  "Championship 800m Final — National Indoor Athletics Track and Field Qualifier";
+
+describe("ShareCard — title text truncation", () => {
+  it("renders the title Text node with numberOfLines={1} when the title is longer than 60 characters", () => {
+    expect(LONG_TITLE.length).toBeGreaterThan(60);
+
+    const { UNSAFE_getAllByType } = render(
+      <ShareCard analysis={{ ...ANALYSIS, title: LONG_TITLE }} />,
+    );
+
+    const { Text } = require("react-native");
+    const textNodes = UNSAFE_getAllByType(Text);
+
+    const titleNode = textNodes.find(
+      (node: { props: { numberOfLines?: number; children?: unknown } }) =>
+        node.props.numberOfLines === 1 &&
+        node.props.children === LONG_TITLE,
+    );
+
+    expect(titleNode).toBeDefined();
+    expect(titleNode!.props.numberOfLines).toBe(1);
+  });
+
+  it("clamps short titles to the same numberOfLines={1} cap", () => {
+    const { UNSAFE_getAllByType } = render(
+      <ShareCard analysis={ANALYSIS} />,
+    );
+
+    const { Text } = require("react-native");
+    const textNodes = UNSAFE_getAllByType(Text);
+
+    const titleNode = textNodes.find(
+      (node: { props: { numberOfLines?: number; children?: unknown } }) =>
+        node.props.numberOfLines === 1 &&
+        node.props.children === ANALYSIS.title,
+    );
+
+    expect(titleNode).toBeDefined();
+    expect(titleNode!.props.numberOfLines).toBe(1);
+  });
+});
+
 // ─── 3. Capture-options contract ──────────────────────────────────────────────
 
 describe("SHARE_CARD_CAPTURE_OPTIONS — source-linked contract", () => {
