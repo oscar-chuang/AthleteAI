@@ -1,8 +1,8 @@
-import type { PermissionResponse } from "expo-media-library";
+import type { PermissionResponse, PermissionStatus } from "expo-media-library";
 
 export async function requestPermissionsAsync(): Promise<PermissionResponse> {
   return {
-    status: "denied",
+    status: "denied" as PermissionStatus,
     granted: false,
     expires: "never",
     canAskAgain: false,
