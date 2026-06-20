@@ -33,16 +33,20 @@ export function useCardStagger(
       return;
     }
     if (!cardsVisible) return;
+    const handles: ReturnType<typeof setTimeout>[] = [];
     for (let i = 0; i < count; i++) {
       const idx = i; // capture for closure
-      setTimeout(() => {
-        setCardAnimated((prev) => {
-          const next = [...prev];
-          next[idx] = true;
-          return next;
-        });
-      }, idx * 100);
+      handles.push(
+        setTimeout(() => {
+          setCardAnimated((prev) => {
+            const next = [...prev];
+            next[idx] = true;
+            return next;
+          });
+        }, idx * 100),
+      );
     }
+    return () => handles.forEach(clearTimeout);
   }, [cardsVisible, count, instant]);
 
   return cardAnimated;

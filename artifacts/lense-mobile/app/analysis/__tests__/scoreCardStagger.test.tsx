@@ -46,6 +46,7 @@ describe("useCardStagger — sub-score ring stagger animation", () => {
   });
 
   afterEach(() => {
+    jest.runOnlyPendingTimers();
     jest.useRealTimers();
   });
 
