@@ -100,6 +100,9 @@ const h = vi.hoisted(() => {
               },
             };
           },
+          then: (res: any, rej: any) => {
+            return Promise.resolve(rowsForCurrentCall()).then(res, rej);
+          },
         }),
       }),
     })),
@@ -121,13 +124,17 @@ vi.mock("@workspace/db", () => ({
     trainingDays: { __col: "trainingDays" },
     userId: { __col: "userId" },
   },
+  completedDrillsTable: {
+    userId: { __col: "userId" },
+  },
   pool: { end: vi.fn() },
 }));
 
 vi.mock("drizzle-orm", () => ({
-  eq:   (col: any, val: any) => ({ op: "eq",  key: col.__col, val }),
-  and:  (...conds: any[])    => ({ op: "and", conds }),
-  desc: (col: any)           => ({ op: "desc", key: col.__col }),
+  eq:    (col: any, val: any) => ({ op: "eq",  key: col.__col, val }),
+  and:   (...conds: any[])    => ({ op: "and", conds }),
+  desc:  (col: any)           => ({ op: "desc", key: col.__col }),
+  count: ()                   => ({ __fn: "count" }),
 }));
 
 vi.mock("../routes/auth", () => ({
@@ -194,12 +201,14 @@ function makeApp() {
 
 describe("GET /profile/stats — rest-day filtering", () => {
   it("thisWeekCount excludes Sat/Sun sessions when trainingDays = [Mon, Wed, Fri]", async () => {
-    // The route makes two db.select() calls via Promise.all:
+    // The route makes three db.select() calls via Promise.all:
     //   1st — profile row (gives the training-day config)
     //   2nd — analysis rows (all completed analyses ordered by date)
+    //   3rd — drills mastered count
     h.state.queue = [
       [{ trainingDays: TRAINING_DAYS }], // profile query result
       SESSION_ROWS,                       // analyses query result
+      [{ count: 0 }],                     // drills mastered count
     ];
 
     const app = makeApp();
@@ -215,6 +224,7 @@ describe("GET /profile/stats — rest-day filtering", () => {
     h.state.queue = [
       [],            // profile query returns empty (no profile)
       SESSION_ROWS,  // five sessions this week
+      [{ count: 0 }],
     ];
 
     const app = makeApp();
@@ -232,6 +242,7 @@ describe("GET /profile/stats — rest-day filtering", () => {
     h.state.queue = [
       [{ trainingDays: TRAINING_DAYS }],
       restOnlySessions,
+      [{ count: 0 }],
     ];
 
     const app = makeApp();
@@ -246,11 +257,12 @@ describe("GET /profile/stats — rest-day filtering", () => {
 
 describe("GET /profile/stats — lastWeekCount rest-day filtering", () => {
   it("lastWeekCount excludes Sat/Sun sessions from last week when trainingDays = [Mon, Wed, Fri]", async () => {
-    // Route makes two DB calls: profile row (queue[0]) + analyses (queue[1]).
+    // Route makes three DB calls: profile row (queue[0]) + analyses (queue[1]) + drills count (queue[2]).
     // Analyses contain 5 last-week rows: Mon+Wed+Fri (training) + Sat+Sun (rest).
     h.state.queue = [
       [{ trainingDays: TRAINING_DAYS }],
       LAST_WEEK_SESSION_ROWS,
+      [{ count: 0 }],
     ];
 
     const app = makeApp();
@@ -270,6 +282,7 @@ describe("GET /profile/stats — lastWeekCount rest-day filtering", () => {
     h.state.queue = [
       [{ trainingDays: TRAINING_DAYS }],
       lastWeekRestOnly,
+      [{ count: 0 }],
     ];
 
     const app = makeApp();
@@ -284,6 +297,7 @@ describe("GET /profile/stats — lastWeekCount rest-day filtering", () => {
     h.state.queue = [
       [],                      // no profile row
       LAST_WEEK_SESSION_ROWS,  // 5 last-week sessions
+      [{ count: 0 }],
     ];
 
     const app = makeApp();
@@ -303,6 +317,7 @@ describe("GET /profile/stats — lastWeekCount rest-day filtering", () => {
     h.state.queue = [
       [{ trainingDays: TRAINING_DAYS }],
       mixed,
+      [{ count: 0 }],
     ];
 
     const app = makeApp();

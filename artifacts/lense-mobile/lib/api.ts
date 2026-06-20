@@ -127,6 +127,7 @@ export interface ProfileStats {
   personalBests: Record<string, number>;
   latestScore: number | null;
   scoreDelta: number | null;
+  drillsMastered: number;
 }
 
 export interface SubscriptionRecord {

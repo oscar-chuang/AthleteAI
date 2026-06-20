@@ -206,7 +206,7 @@ describe("ProgressScreen — drill breakdown (Corrective / Performance)", () => 
 
     // Total drills section must be visible.
     expect(getByText("6")).toBeTruthy();
-    expect(getByText("Drills completed · all sessions")).toBeTruthy();
+    expect(getByText("Drills mastered · all time")).toBeTruthy();
 
     // Sub-labels must be present.
     expect(getByText("Corrective")).toBeTruthy();
@@ -239,7 +239,7 @@ describe("ProgressScreen — drill breakdown (Corrective / Performance)", () => 
 
     // Total count must still appear.
     expect(getByText("3")).toBeTruthy();
-    expect(getByText("Drills completed · all sessions")).toBeTruthy();
+    expect(getByText("Drills mastered · all time")).toBeTruthy();
 
     // Sub-labels must be absent.
     expect(queryByText("Corrective")).toBeNull();
@@ -276,7 +276,7 @@ describe("ProgressScreen — drill breakdown (Corrective / Performance)", () => 
 
     // Total count reflects both analyses' completed tips.
     expect(getByText("2")).toBeTruthy();
-    expect(getByText("Drills completed · all sessions")).toBeTruthy();
+    expect(getByText("Drills mastered · all time")).toBeTruthy();
 
     // Breakdown is still shown (at least one succeeded).
     expect(getByText("Corrective")).toBeTruthy();
@@ -301,6 +301,6 @@ describe("ProgressScreen — drill breakdown (Corrective / Performance)", () => 
 
     expect(queryByText("Corrective")).toBeNull();
     expect(queryByText("Performance")).toBeNull();
-    expect(queryByText("Drills completed · all sessions")).toBeNull();
+    expect(queryByText("Drills mastered · all time")).toBeNull();
   });
 });

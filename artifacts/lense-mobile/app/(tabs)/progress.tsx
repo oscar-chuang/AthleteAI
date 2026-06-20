@@ -878,17 +878,19 @@ export default function ProgressScreen() {
           </View>
         )}
 
-        {/* ── Drills Completed ── */}
-        {drillsDoneCount > 0 && (
+        {/* ── Drills Mastered ── */}
+        {((stats?.drillsMastered ?? 0) > 0 || drillsDoneCount > 0) && (
           <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, borderWidth: 1, borderColor: colors.success + "44" }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
               <View style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: colors.success + "20", alignItems: "center", justifyContent: "center" }}>
-                <Feather name="check-circle" size={20} color={colors.success} />
+                <Feather name="award" size={20} color={colors.success} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: colors.foreground }}>{drillsDoneCount}</Text>
+                <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: colors.foreground }}>
+                  {stats?.drillsMastered ?? drillsDoneCount}
+                </Text>
                 <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  Drill{drillsDoneCount === 1 ? "" : "s"} completed · all sessions
+                  Drill{(stats?.drillsMastered ?? drillsDoneCount) === 1 ? "" : "s"} mastered · all time
                 </Text>
               </View>
             </View>

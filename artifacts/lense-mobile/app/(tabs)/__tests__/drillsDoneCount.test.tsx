@@ -109,8 +109,8 @@ import ProgressScreen from "../progress";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const DRILLS_LABEL_PLURAL   = "Drills completed · all sessions";
-const DRILLS_LABEL_SINGULAR = "Drill completed · all sessions";
+const DRILLS_LABEL_PLURAL   = "Drills mastered · all time";
+const DRILLS_LABEL_SINGULAR = "Drill mastered · all time";
 
 const EMPTY_PROGRESS     = { entries: [] };
 const EMPTY_ACHIEVEMENTS = { achievements: [] };
@@ -278,18 +278,19 @@ describe("Progress — loadDrillsDone", () => {
 
   // ── Test 7 ────────────────────────────────────────────────────────────────
 
-  it("shows 'Some sessions couldn't be classified' when at least one analysis fetch fails", async () => {
+  it("shows an unclassified footnote when a completed drill ID is not present in the fetched tips", async () => {
     (AsyncStorage.getAllKeys as jest.Mock).mockResolvedValue([
       "drill_done_analysis-ok",
-      "drill_done_analysis-fail",
+      "drill_done_analysis-other",
     ]);
     (AsyncStorage.multiGet as jest.Mock).mockResolvedValue([
-      ["drill_done_analysis-ok",   JSON.stringify(["drill-c1", "drill-p1"])],
-      ["drill_done_analysis-fail", JSON.stringify(["drill-unknown"])],
+      ["drill_done_analysis-ok",    JSON.stringify(["drill-c1", "drill-p1"])],
+      ["drill_done_analysis-other", JSON.stringify(["drill-unknown"])],
     ]);
 
-    // Only the first analysis fetch succeeds — the second drill can't be classified
-    // because the fetch failed (drillsPartialFailure = true).
+    // Both fetches succeed, but drill-unknown isn't in analysis-other's tip list.
+    // No fetch failure → drillsPartialFailure stays false.
+    // unclassified = total (3) − corrective (1) − performance (1) = 1.
     mockAnalysesGet
       .mockResolvedValueOnce({
         analysis: { id: "analysis-ok" },
@@ -299,17 +300,21 @@ describe("Progress — loadDrillsDone", () => {
         ],
         injuryRisks: [],
       })
-      .mockRejectedValueOnce(new Error("not found"));
+      .mockResolvedValueOnce({
+        analysis: { id: "analysis-other" },
+        tips: [], // drill-unknown not present → can't be classified
+        injuryRisks: [],
+      });
 
     const { getByText } = render(<ProgressScreen />);
     await simulateFocus();
 
-    // Total = 3, breakdown visible, and the partial-failure notice appears
-    // (the component uses "Some sessions couldn't be classified" when
-    // drillsPartialFailure is true — i.e., at least one analysis fetch rejected).
+    // Total = 3, breakdown visible, and the unclassified footnote appears
+    // (drillsPartialFailure is false — no fetch rejected; the unclassified
+    // count = 1 because drill-unknown has no matching tip type).
     await waitFor(() => {
       expect(getByText("3")).toBeTruthy();
-      expect(getByText("Some sessions couldn\u2019t be classified")).toBeTruthy();
+      expect(getByText("+ 1 unclassified")).toBeTruthy();
     });
   });
 

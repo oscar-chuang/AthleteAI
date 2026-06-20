@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count } from "drizzle-orm";
 import sharp from "sharp";
-import { db, profilesTable, analysesTable } from "@workspace/db";
+import { db, profilesTable, analysesTable, completedDrillsTable } from "@workspace/db";
 import { requireAuth } from "./auth";
 import { computeProfileStats } from "../lib/stats";
 
@@ -180,7 +180,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
 router.get("/profile/stats", requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).userId as number;
 
-  const [profileRow, rows] = await Promise.all([
+  const [profileRow, rows, drillsMasteredResult] = await Promise.all([
     db
       .select({ trainingDays: profilesTable.trainingDays })
       .from(profilesTable)
@@ -192,6 +192,11 @@ router.get("/profile/stats", requireAuth, async (req: Request, res: Response) =>
       .from(analysesTable)
       .where(and(eq(analysesTable.userId, userId), eq(analysesTable.status, "complete")))
       .orderBy(desc(analysesTable.uploadedAt)),
+    db
+      .select({ count: count() })
+      .from(completedDrillsTable)
+      .where(eq(completedDrillsTable.userId, userId))
+      .then((r) => r[0]?.count ?? 0),
   ]);
 
   const trainingDaySet =
@@ -253,7 +258,7 @@ router.get("/profile/stats", requireAuth, async (req: Request, res: Response) =>
   const scoreDelta   = latestScore != null && prevScore != null
     ? Math.round(latestScore - prevScore) : null;
 
-  res.json({ streak, totalAnalyses: rows.length, thisWeekCount, lastWeekCount, personalBests, latestScore, scoreDelta });
+  res.json({ streak, totalAnalyses: rows.length, thisWeekCount, lastWeekCount, personalBests, latestScore, scoreDelta, drillsMastered: drillsMasteredResult });
 });
 
 export default router;
