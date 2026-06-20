@@ -271,6 +271,38 @@ describe("Progress — loadDrillsDone", () => {
 
   // ── Test 7 ────────────────────────────────────────────────────────────────
 
+  it("shows an unclassified footnote when some fetches fail and the counts don't add up to the total", async () => {
+    (AsyncStorage.getAllKeys as jest.Mock).mockResolvedValue([
+      "drill_done_analysis-ok",
+      "drill_done_analysis-fail",
+    ]);
+    (AsyncStorage.multiGet as jest.Mock).mockResolvedValue([
+      ["drill_done_analysis-ok",   JSON.stringify(["drill-c1", "drill-p1"])],
+      ["drill_done_analysis-fail", JSON.stringify(["drill-unknown"])],
+    ]);
+
+    // Only the first analysis fetch succeeds — the second drill can't be classified
+    mockAnalysesGet
+      .mockResolvedValueOnce({
+        analysis: { id: "analysis-ok" },
+        tips: [
+          { id: "drill-c1", tipType: "injury" },
+          { id: "drill-p1", tipType: "performance" },
+        ],
+        injuryRisks: [],
+      })
+      .mockRejectedValueOnce(new Error("not found"));
+
+    const { getByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // Total = 3, classified = 2, unclassified = 1
+    expect(getByText("3")).toBeTruthy();
+    expect(getByText("+ 1 unclassified")).toBeTruthy();
+  });
+
+  // ── Test 8 ────────────────────────────────────────────────────────────────
+
   it("hides breakdown when all analysis fetches fail", async () => {
     (AsyncStorage.getAllKeys as jest.Mock).mockResolvedValue([
       "drill_done_analysis-a",

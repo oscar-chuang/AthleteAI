@@ -190,6 +190,7 @@ export default function ProgressScreen() {
   const [drillsDoneCount, setDrillsDoneCount] = useState(0);
   const [drillsCorrective, setDrillsCorrective] = useState<number | null>(null);
   const [drillsPerformance, setDrillsPerformance] = useState<number | null>(null);
+  const [drillsUnclassified, setDrillsUnclassified] = useState<number>(0);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -238,6 +239,7 @@ export default function ProgressScreen() {
         setDrillsDoneCount(0);
         setDrillsCorrective(null);
         setDrillsPerformance(null);
+        setDrillsUnclassified(0);
         return;
       }
 
@@ -290,14 +292,17 @@ export default function ProgressScreen() {
         if (atLeastOneFulfilled) {
           setDrillsCorrective(corrective);
           setDrillsPerformance(performance);
+          setDrillsUnclassified(Math.max(0, total - corrective - performance));
         } else {
           setDrillsCorrective(null);
           setDrillsPerformance(null);
+          setDrillsUnclassified(0);
         }
       } catch {
         // If tip fetching fails, show total only (no breakdown)
         setDrillsCorrective(null);
         setDrillsPerformance(null);
+        setDrillsUnclassified(0);
       }
     } catch {}
   }, []);
@@ -880,15 +885,22 @@ export default function ProgressScreen() {
               </View>
             </View>
             {(drillsCorrective !== null || drillsPerformance !== null) && (
-              <View style={{ flexDirection: "row", gap: 10, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
-                <View style={{ flex: 1, backgroundColor: colors.warning + "14", borderRadius: 8, padding: 10, alignItems: "center", borderWidth: 1, borderColor: colors.warning + "33" }}>
-                  <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.warning }}>{drillsCorrective ?? 0}</Text>
-                  <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.warning, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Corrective</Text>
+              <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border, gap: 8 }}>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <View style={{ flex: 1, backgroundColor: colors.warning + "14", borderRadius: 8, padding: 10, alignItems: "center", borderWidth: 1, borderColor: colors.warning + "33" }}>
+                    <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.warning }}>{drillsCorrective ?? 0}</Text>
+                    <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.warning, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Corrective</Text>
+                  </View>
+                  <View style={{ flex: 1, backgroundColor: colors.primary + "14", borderRadius: 8, padding: 10, alignItems: "center", borderWidth: 1, borderColor: colors.primary + "33" }}>
+                    <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.primary }}>{drillsPerformance ?? 0}</Text>
+                    <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.primary, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Performance</Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1, backgroundColor: colors.primary + "14", borderRadius: 8, padding: 10, alignItems: "center", borderWidth: 1, borderColor: colors.primary + "33" }}>
-                  <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.primary }}>{drillsPerformance ?? 0}</Text>
-                  <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.primary, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Performance</Text>
-                </View>
+                {drillsUnclassified > 0 && (
+                  <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center" }}>
+                    {`+ ${drillsUnclassified} unclassified`}
+                  </Text>
+                )}
               </View>
             )}
           </View>
