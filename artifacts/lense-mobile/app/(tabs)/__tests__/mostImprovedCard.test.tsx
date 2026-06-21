@@ -402,4 +402,42 @@ describe("ProgressScreen — most improved joint card with sport filter", () => 
     // Runner-up (leftElbow) must not appear — running excludes elbow joints.
     expect(queryByText("Left Elbow +7°")).toBeNull();
   });
+
+  // ── Test 9 ──────────────────────────────────────────────────────────────────
+
+  it("hides the card when the sport filter is switched to a sport whose joints exclude the improved joint", async () => {
+    // Two sports available so the chip row renders (requires sportsList.length >= 2).
+    // running is sports[0] → auto-selected on load; its joints include leftKnee.
+    // tennis is sports[1]; its joints are [leftElbow, rightElbow, leftHip, rightHip] — no knees.
+    mockSports.mockResolvedValue({
+      sports: [
+        { sport: "running", count: 4, movementTypes: [] },
+        { sport: "tennis",  count: 3, movementTypes: [] },
+      ],
+    });
+    mockJointTrendsGet.mockResolvedValue({
+      joints: {},
+      improvements: [
+        { joint: "leftKnee", deltaDeg: 12, sessions: 3, improved: true },
+      ],
+    });
+
+    const { getByText, queryByText, getAllByText } = render(<ProgressScreen />);
+    await simulateFocus();
+
+    // After initial load: running is auto-selected; leftKnee is a running joint → card visible.
+    await waitFor(() => expect(getByText("Left Knee +12°")).toBeTruthy());
+    expect(getByText(MOST_IMPROVED_LABEL)).toBeTruthy();
+
+    // Press the tennis chip — tennis has no knee joints, so leftKnee is excluded
+    // from filteredTrends.improvements and mostImproved reduces to null.
+    const [tennisChip] = getAllByText("tennis");
+    await act(async () => {
+      fireEvent.press(tennisChip!);
+    });
+
+    // Card must disappear: no eligible joint survives the tennis joint filter.
+    await waitFor(() => expect(queryByText(MOST_IMPROVED_LABEL)).toBeNull());
+    expect(queryByText("Left Knee +12°")).toBeNull();
+  });
 });
