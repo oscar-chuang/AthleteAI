@@ -71,6 +71,74 @@ import {
   HIDDEN_SHARE_CARD_STYLE,
 } from "@/utils/shareCardCapture";
 
+// ─── 0. Sport label is always title-cased ────────────────────────────────────
+
+describe("ShareCard — sport label title case", () => {
+  it("renders a lowercase raw sport value in title case in the sport badge", () => {
+    const { getAllByText } = render(<ShareCard analysis={ANALYSIS} />);
+    expect(getAllByText("Running").length).toBeGreaterThan(0);
+  });
+
+  it("never renders the raw lowercase sport value", () => {
+    const { queryByText } = render(<ShareCard analysis={ANALYSIS} />);
+    expect(queryByText("running")).toBeNull();
+  });
+
+  it("renders 'Swimming' when sport is 'swimming'", () => {
+    const { getAllByText } = render(
+      <ShareCard analysis={{ ...ANALYSIS, sport: "swimming" }} />,
+    );
+    expect(getAllByText("Swimming").length).toBeGreaterThan(0);
+  });
+
+  it("does not render the raw 'swimming' value", () => {
+    const { queryByText } = render(
+      <ShareCard analysis={{ ...ANALYSIS, sport: "swimming" }} />,
+    );
+    expect(queryByText("swimming")).toBeNull();
+  });
+
+  it("renders a multi-word sport in title case", () => {
+    const { getAllByText } = render(
+      <ShareCard analysis={{ ...ANALYSIS, sport: "weight lifting" }} />,
+    );
+    expect(getAllByText("Weight Lifting").length).toBeGreaterThan(0);
+  });
+
+  it("does not render the raw multi-word sport value", () => {
+    const { queryByText } = render(
+      <ShareCard analysis={{ ...ANALYSIS, sport: "weight lifting" }} />,
+    );
+    expect(queryByText("weight lifting")).toBeNull();
+  });
+
+  it("renders 'Basketball' when sport is 'basketball'", () => {
+    const { getAllByText } = render(
+      <ShareCard analysis={{ ...ANALYSIS, sport: "basketball" }} />,
+    );
+    expect(getAllByText("Basketball").length).toBeGreaterThan(0);
+  });
+
+  it("renders 'Yoga' when sport is 'yoga'", () => {
+    const { getAllByText } = render(
+      <ShareCard analysis={{ ...ANALYSIS, sport: "yoga" }} />,
+    );
+    expect(getAllByText("Yoga").length).toBeGreaterThan(0);
+  });
+
+  it("renders a title-cased sport label in the thumbnail fallback when there is no thumbnailUrl", () => {
+    const { UNSAFE_getAllByType } = render(
+      <ShareCard analysis={{ ...ANALYSIS, sport: "cycling" }} />,
+    );
+    const { Text } = require("react-native");
+    const textNodes = UNSAFE_getAllByType(Text);
+    const cyclingNodes = textNodes.filter(
+      (n: { props: { children?: unknown } }) => n.props.children === "Cycling",
+    );
+    expect(cyclingNodes.length).toBeGreaterThan(0);
+  });
+});
+
 // ─── 1. Smoke tests ───────────────────────────────────────────────────────────
 
 describe("ShareCard — render smoke test", () => {

@@ -46,6 +46,7 @@ import JointHistorySheet from "@/components/JointHistorySheet";
 import { ConfettiBurst } from "@/components/ConfettiBurst";
 import { checkConfettiGate, persistCelebrationToServer, retryCelebrationSync } from "@/utils/confettiGate";
 import { toTitleCase } from "@/utils/formatDisplay";
+import { STATUS_LABEL } from "@/utils/sessionStatus";
 import { buildDeltaMap } from "@/lib/sessionDelta";
 import { WeekDotRow } from "@/components/WeekDotRow";
 import { captureRef } from "react-native-view-shot";
@@ -61,14 +62,6 @@ const QUICK_ACTIONS: { label: string; icon: React.ComponentProps<typeof Feather>
   { label: "Compare",       icon: "users",          route: "/(tabs)/compare"  },
 ];
 
-
-const STATUS_LABEL: Record<string, string> = {
-  pending:    "Queued",
-  uploading:  "Uploading…",
-  processing: "Analysing…",
-  complete:   "",
-  failed:     "Could not analyse",
-};
 
 function getHour() {
   const h = new Date().getHours();

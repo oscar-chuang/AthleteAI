@@ -87,3 +87,59 @@ describe("ShareCard — tip strip absent when topTip is undefined", () => {
     expect(queryByTestId("feather-message-circle-11")).toBeNull();
   });
 });
+
+// ─── 3. Sport label is always title-cased ─────────────────────────────────────
+
+describe("ShareCard — sport label title case", () => {
+  it("renders a lowercase raw sport value in title case", () => {
+    const { getAllByText } = render(<ShareCard analysis={BASE_ANALYSIS} />);
+    expect(getAllByText("Running").length).toBeGreaterThan(0);
+  });
+
+  it("never renders the raw lowercase sport value", () => {
+    const { queryByText } = render(<ShareCard analysis={BASE_ANALYSIS} />);
+    expect(queryByText("running")).toBeNull();
+  });
+
+  it("renders 'Swimming' when sport is 'swimming'", () => {
+    const { getAllByText } = render(
+      <ShareCard analysis={{ ...BASE_ANALYSIS, sport: "swimming" }} />,
+    );
+    expect(getAllByText("Swimming").length).toBeGreaterThan(0);
+  });
+
+  it("does not render the raw 'swimming' value", () => {
+    const { queryByText } = render(
+      <ShareCard analysis={{ ...BASE_ANALYSIS, sport: "swimming" }} />,
+    );
+    expect(queryByText("swimming")).toBeNull();
+  });
+
+  it("renders a multi-word sport in title case", () => {
+    const { getAllByText } = render(
+      <ShareCard analysis={{ ...BASE_ANALYSIS, sport: "weight lifting" }} />,
+    );
+    expect(getAllByText("Weight Lifting").length).toBeGreaterThan(0);
+  });
+
+  it("does not render the raw multi-word sport value", () => {
+    const { queryByText } = render(
+      <ShareCard analysis={{ ...BASE_ANALYSIS, sport: "weight lifting" }} />,
+    );
+    expect(queryByText("weight lifting")).toBeNull();
+  });
+
+  it("renders 'Basketball' when sport is 'basketball'", () => {
+    const { getAllByText } = render(
+      <ShareCard analysis={{ ...BASE_ANALYSIS, sport: "basketball" }} />,
+    );
+    expect(getAllByText("Basketball").length).toBeGreaterThan(0);
+  });
+
+  it("renders 'Yoga' when sport is 'yoga'", () => {
+    const { getAllByText } = render(
+      <ShareCard analysis={{ ...BASE_ANALYSIS, sport: "yoga" }} />,
+    );
+    expect(getAllByText("Yoga").length).toBeGreaterThan(0);
+  });
+});
