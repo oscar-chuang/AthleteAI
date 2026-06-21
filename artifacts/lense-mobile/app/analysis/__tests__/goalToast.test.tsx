@@ -458,12 +458,18 @@ describe("AnalysisDetailScreen — 'Weekly goal reached!' toast", () => {
 // scheduler stable across all await/act calls.
 describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () => {
   beforeEach(() => {
+    // Extend the timeout here, where it applies to every test in this describe.
+    // Calling jest.setTimeout() inside a test body only affects *subsequent*
+    // tests, not the one currently running — a common Jest footgun.
+    jest.setTimeout(60_000);
     jest.useFakeTimers({ doNotFake: ["MessageChannel" as "nextTick"] });
   });
 
   afterEach(() => {
     jest.clearAllTimers();
     jest.useRealTimers();
+    // Restore Jest's default timeout so later suites are not affected.
+    jest.setTimeout(5_000);
   });
 
   /**
@@ -479,14 +485,11 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
   }
 
   // ── Test 10 — auto-dismiss after 3.5 s ──────────────────────────────────
-  // 60 s budget: the fake-timer dance takes ~24 s in isolation and can exceed
-  // the 30 s default when the full suite runs in parallel under load.
 
   it("automatically dismisses the toast after 3.5 s without any user interaction", async () => {
     mockAnalysesGet
       .mockResolvedValueOnce({ analysis: PROCESSING_ANALYSIS, tips: [], injuryRisks: [] })
       .mockResolvedValueOnce({ analysis: COMPLETE_ANALYSIS,   tips: [], injuryRisks: [] });
-    jest.setTimeout(60000);
 
     const { queryByText } = render(<AnalysisDetailScreen />);
 
@@ -500,7 +503,7 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
 
     // Advance one poll interval — the setInterval fires load(), which returns
     // COMPLETE_ANALYSIS.  prevStatusRef was "processing" → toast appears.
-    // Use synchronous act() + flush() mirroring the pattern used in Test 11.
+    // Use synchronous act() + flush() mirroring the pattern used in the polling test.
     act(() => { jest.advanceTimersByTime(4000); });
     await flush();
 
