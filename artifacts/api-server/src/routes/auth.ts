@@ -1,4 +1,9 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+
+/** Extends the base Express Request with a guaranteed userId — only use after requireAuth middleware. */
+export interface AuthedRequest extends Request {
+  userId: number;
+}
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { eq } from "drizzle-orm";

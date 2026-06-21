@@ -1662,9 +1662,10 @@ export default function AnalysisDetailScreen() {
           {/* CTA buttons */}
           <View style={styles.ctaRow}>
             <ScaleButton
-              onPress={() =>
-                router.push(`/analysis/person-select/${id}?tab=${activeTab}` as any)
-              }
+              onPress={() => {
+                if (!id) return;
+                router.push(`/analysis/person-select/${id}?tab=${activeTab}` as any);
+              }}
               style={[
                 styles.ctaBtn,
                 {

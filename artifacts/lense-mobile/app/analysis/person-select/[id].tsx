@@ -351,6 +351,7 @@ export default function PersonSelectScreen() {
   }
 
   function proceedToSkeleton(crop?: { nx: number; ny: number; nw: number; nh: number }) {
+    if (!id) return;
     const base = `/analysis/skeleton/${id}`;
     if (crop) {
       router.replace(

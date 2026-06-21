@@ -650,9 +650,9 @@ export default function AnalyzeScreen() {
               })}
             </View>
             <TouchableOpacity
-              style={[s.analyzeBtn, !selectedSport && s.analyzeBtnDis]}
+              style={[s.analyzeBtn, (!selectedSport || analyzing) && s.analyzeBtnDis]}
               onPress={submitAnalysis}
-              disabled={!selectedSport}
+              disabled={!selectedSport || analyzing}
               activeOpacity={0.85}
             >
               <Text style={s.analyzeBtnText}>

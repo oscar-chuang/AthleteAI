@@ -74,6 +74,7 @@ export default function ChatScreen() {
   const [hasCompletedAnalyses, setHasCompletedAnalyses] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
+  const [historyError, setHistoryError] = useState(false);
   const [sending, setSending] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   // Track whether the initial load has completed so profile-change effects
@@ -104,8 +105,9 @@ export default function ChatScreen() {
       setMessages(msgs);
       setSuggestions(suggs);
       setHasCompletedAnalyses(hasAnalyses);
+      setHistoryError(false);
     } catch {
-      // ignore
+      setHistoryError(true);
     } finally {
       setLoading(false);
       initialLoadDone.current = true;
@@ -343,6 +345,22 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {historyError && !loading && (
+        <TouchableOpacity
+          style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.warning + "18", borderBottomWidth: 1, borderBottomColor: colors.warning + "33", paddingVertical: 10, paddingHorizontal: 16 }}
+          onPress={loadHistory}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading chat history"
+        >
+          <Feather name="alert-circle" size={15} color={colors.warning} />
+          <Text style={{ flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: colors.warning }}>
+            Couldn't load history — new messages still work.{" "}
+            <Text style={{ fontFamily: "Inter_600SemiBold" }}>Tap to retry.</Text>
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {loading ? (
         <View style={{ flex: 1, padding: 20, gap: 16 }}>

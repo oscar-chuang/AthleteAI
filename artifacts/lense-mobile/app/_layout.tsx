@@ -102,6 +102,14 @@ function RootLayoutNav() {
         options={{ headerShown: false, presentation: "fullScreenModal" }}
       />
       <Stack.Screen
+        name="analysis/person-select/[id]"
+        options={{ headerShown: false, presentation: "fullScreenModal" }}
+      />
+      <Stack.Screen
+        name="analysis/live/[id]"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="profile-settings"
         options={{ headerShown: false, presentation: "modal" }}
       />

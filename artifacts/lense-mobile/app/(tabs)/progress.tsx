@@ -318,9 +318,9 @@ export default function ProgressScreen() {
   const loadData = useCallback(async () => {
     setError(false);
     try {
-      const [{ entries: e }, { sports }, { achievements: a }, st, tr, mh] = await Promise.all([
+      const [{ entries: e }, sportsResult, { achievements: a }, st, tr, mh] = await Promise.all([
         progressApi.list(),
-        progressApi.sports(),
+        Promise.resolve().then(() => progressApi.sports()).catch(() => ({ sports: [] as SportEntry[] })),
         achievementsApi.list(),
         profileApi.stats().catch(() => null),
         jointTrendsApi.get().catch(() => null),
@@ -333,6 +333,7 @@ export default function ProgressScreen() {
       if (mh) setAllMovementHistory(mh.history);
 
       // Auto-select the most-common sport if not already selected
+      const sports = sportsResult.sports;
       if (sports.length > 0) {
         setSportsList(sports);
         setSelectedSport((prev) => prev ?? sports[0]!.sport);

@@ -241,15 +241,17 @@ export default function CompareScreen() {
   const [activeSport, setActiveSport] = useState<string>("all");
   const [userAnalyses, setUserAnalyses] = useState<AnalysisRecord[]>([]);
   const [loadingAnalyses, setLoadingAnalyses] = useState(true);
+  const [analysesLoadError, setAnalysesLoadError] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
 
   useFocusEffect(useCallback(() => {
     setLoadingAnalyses(true);
+    setAnalysesLoadError(false);
     analysesApi.list()
       .then(({ analyses }) => setUserAnalyses(analyses))
-      .catch(() => {})
+      .catch(() => setAnalysesLoadError(true))
       .finally(() => setLoadingAnalyses(false));
   }, []));
 
@@ -426,8 +428,32 @@ export default function CompareScreen() {
           </View>
         )}
 
+        {/* Analyses fetch error banner */}
+        {analysesLoadError && !loadingAnalyses && (
+          <TouchableOpacity
+            style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.warning + "18", borderRadius: 10, marginHorizontal: 20, marginBottom: 12, padding: 12, borderWidth: 1, borderColor: colors.warning + "33" }}
+            onPress={() => {
+              setLoadingAnalyses(true);
+              setAnalysesLoadError(false);
+              analysesApi.list()
+                .then(({ analyses }) => setUserAnalyses(analyses))
+                .catch(() => setAnalysesLoadError(true))
+                .finally(() => setLoadingAnalyses(false));
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading your analyses"
+          >
+            <Feather name="wifi-off" size={15} color={colors.warning} />
+            <Text style={{ flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: colors.warning }}>
+              Couldn't load your analyses — similarity scores may be missing.{" "}
+              <Text style={{ fontFamily: "Inter_600SemiBold" }}>Tap to retry.</Text>
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {/* First-time hint */}
-        {!loadingAnalyses && !bestMatch && (
+        {!loadingAnalyses && !analysesLoadError && !bestMatch && (
           <View style={s.noDataNote}>
             <Feather name="info" size={14} color={colors.mutedForeground} />
             <Text style={s.noDataText}>
