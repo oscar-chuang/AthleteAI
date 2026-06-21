@@ -43,41 +43,18 @@ const SPORTS = [
   "Wrestling", "Rugby", "Hockey", "Yoga", "Other",
 ];
 
-const SPORT_ACCENT: Record<string, string> = {
-  weightlifting: "#FF4444",
-  running:       "#1DB954",
-  basketball:    "#f97316",
-  golf:          "#10b981",
-  tennis:        "#00C2FF",
-  swimming:      "#38bdf8",
-  crossfit:      "#FF6B35",
-  boxing:        "#dc2626",
-  soccer:        "#16a34a",
-  gymnastics:    "#a855f7",
-  cycling:       "#0ea5e9",
-  fencing:       "#FF6B35",
-  rowing:        "#14b8a6",
-  volleyball:    "#fbbf24",
-  baseball:      "#60a5fa",
-  wrestling:     "#fb923c",
-  rugby:         "#34d399",
-  hockey:        "#00C2FF",
-  yoga:          "#ec4899",
-  other:         "#00C2FF",
-};
-
 const ANALYSIS_STEPS = [
-  { label: "Scanning your video",          icon: "film",      color: "#00C2FF" },
-  { label: "Finding the athlete",          icon: "user",      color: "#00C2FF" },
-  { label: "Tracking movement",            icon: "activity",  color: "#38bdf8" },
-  { label: "Measuring key positions",      icon: "target",    color: "#1DB954" },
+  { label: "Scanning your video",          icon: "film",      color: "#2F7BFF" },
+  { label: "Finding the athlete",          icon: "user",      color: "#2F7BFF" },
+  { label: "Tracking movement",            icon: "activity",  color: "#2F7BFF" },
+  { label: "Measuring key positions",      icon: "target",    color: "#22C55E" },
   { label: "Building your coaching plan",  icon: "cpu",       color: "#FF6B35" },
 ];
 
 type SortMode = "newest" | "oldest" | "score-high" | "score-low";
 
-function getSportAccent(sport: string, fallback: string) {
-  return SPORT_ACCENT[sport.toLowerCase()] ?? fallback;
+function getSportAccent(_sport: string, fallback: string) {
+  return fallback;
 }
 
 function getScoreColor(score: number, colors: ReturnType<typeof useColors>) {
@@ -192,6 +169,12 @@ export default function AnalyzeScreen() {
 
   // Precompute delta badges once per analyses refresh — O(n log n) total
   const deltaBadgeMap = useMemo(() => buildDeltaMap(analysisList), [analysisList]);
+
+  // Most recent completed session — shown as the hero block
+  const heroAnalysis = useMemo(
+    () => analysisList.find((a) => a.status === "complete"),
+    [analysisList]
+  );
 
   // Filter + sort
   const displayList = useMemo(() => {
@@ -398,11 +381,20 @@ export default function AnalyzeScreen() {
     sortChipActive:  { backgroundColor: colors.primary + "22", borderColor: colors.primary },
     sortChipText:    { fontSize: 12, fontFamily: "Inter_500Medium", color: colors.mutedForeground },
     sortChipTextActive: { color: colors.primary },
-    actionRow:       { flexDirection: "row", gap: 10, marginHorizontal: 20, marginBottom: 20 },
-    recordBtn:       { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.card, borderRadius: colors.radius, paddingVertical: 13, paddingHorizontal: 16, justifyContent: "center", borderWidth: 1.5, borderColor: colors.primary },
+    actionRow:       { flexDirection: "row", gap: 8, marginHorizontal: 20, marginBottom: 16 },
+    recordBtn:       { width: 48, height: 48, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderRadius: colors.radius, borderWidth: 1.5, borderColor: colors.primary },
     recordBtnText:   { color: colors.primary, fontSize: 14, fontFamily: "Inter_600SemiBold" },
-    uploadBtn:       { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.primary, borderRadius: colors.radius, paddingVertical: 13, paddingHorizontal: 16, justifyContent: "center" },
-    uploadBtnText:   { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
+    uploadBtn:       { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.primary, borderRadius: colors.radius, paddingVertical: 14, paddingHorizontal: 20, justifyContent: "center" },
+    uploadBtnText:   { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+    hero:            { marginHorizontal: 20, marginBottom: 16, borderRadius: 16, overflow: "hidden", height: 160 },
+    heroThumb:       { width: "100%", height: "100%" },
+    heroOverlay:     { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" },
+    heroInfo:        { position: "absolute", bottom: 14, left: 14, right: 72 },
+    heroTitle:       { fontSize: 17, fontFamily: "Inter_700Bold", color: "#fff", marginBottom: 3 },
+    heroSport:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.72)", textTransform: "capitalize" },
+    heroScoreBlock:  { position: "absolute", top: 14, right: 14, alignItems: "center" },
+    heroScoreNum:    { fontSize: 34, fontFamily: "Inter_700Bold", color: "#fff", lineHeight: 38 },
+    heroScoreLbl:    { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.72)", letterSpacing: 0.5 },
     card:            { backgroundColor: colors.card, borderRadius: colors.radius, marginHorizontal: 20, marginBottom: 10, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
     cardLeft:        { width: 4, alignSelf: "stretch" },
     cardBody:        { flex: 1, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingRight: 16 },
@@ -461,32 +453,56 @@ export default function AnalyzeScreen() {
     <>
       <View style={s.header}>
         <View style={s.titleRow}>
-          <Text style={s.title}>Analyses</Text>
-          <TouchableOpacity onPress={handleUpload} activeOpacity={0.85}
-            style={{ backgroundColor: colors.primary, borderRadius: 22, paddingHorizontal: 14, paddingVertical: 7, flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Feather name="plus" size={15} color="#fff" />
-            <Text style={{ color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" }}>New</Text>
+          <Text style={s.title}>Analyse</Text>
+        </View>
+      </View>
+
+      {/* Hero block — most recent completed session */}
+      {heroAnalysis && !searchQuery && (
+        <TouchableOpacity
+          style={s.hero}
+          onPress={() => router.push(`/analysis/${heroAnalysis.id}` as any)}
+          activeOpacity={0.9}
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${heroAnalysis.title}`}
+        >
+          {heroAnalysis.thumbnailUrl ? (
+            <Image source={{ uri: heroAnalysis.thumbnailUrl }} style={s.heroThumb} resizeMode="cover" />
+          ) : (
+            <View style={[s.heroThumb, { backgroundColor: colors.primary + "22", alignItems: "center", justifyContent: "center" }]}>
+              <Feather name="activity" size={40} color={colors.primary} />
+            </View>
+          )}
+          <View style={s.heroOverlay} />
+          <View style={s.heroInfo}>
+            <Text style={s.heroTitle} numberOfLines={1}>{heroAnalysis.title}</Text>
+            <Text style={s.heroSport}>{toTitleCase(heroAnalysis.sport)} · {formatDate(heroAnalysis.uploadedAt)}</Text>
+          </View>
+          <View style={s.heroScoreBlock}>
+            <Text style={s.heroScoreNum}>{Math.round(heroAnalysis.overallScore ?? 0)}</Text>
+            <Text style={s.heroScoreLbl}>SCORE</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Upload CTA — dominant primary button + icon-only record */}
+      {!searchQuery && (
+        <View style={s.actionRow}>
+          <TouchableOpacity style={s.uploadBtn} onPress={handleUpload} activeOpacity={0.85}>
+            <Feather name="upload" size={16} color="#fff" />
+            <Text style={s.uploadBtnText}>Upload Video</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.recordBtn}
+            onPress={handleRecord}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Record video"
+          >
+            <Feather name="video" size={15} color={colors.primary} />
           </TouchableOpacity>
         </View>
-
-        {/* Stats row */}
-        {headerStats.total > 0 && (
-          <View style={s.statsRow}>
-            <View style={s.statPill}>
-              <Text style={s.statVal}>{headerStats.total}</Text>
-              <Text style={s.statLbl}>Total</Text>
-            </View>
-            <View style={s.statPill}>
-              <Text style={s.statVal}>{headerStats.thisWeek}</Text>
-              <Text style={s.statLbl}>This Week</Text>
-            </View>
-            <View style={[s.statPill]}>
-              <Text style={[s.statVal, { color: getScoreColor(headerStats.avg, colors) }]}>{headerStats.avg}</Text>
-              <Text style={s.statLbl}>Avg Score</Text>
-            </View>
-          </View>
-        )}
-      </View>
+      )}
 
       {/* Search */}
       <View style={s.searchRow}>
@@ -521,20 +537,6 @@ export default function AnalyzeScreen() {
         ))}
       </ScrollView>
 
-      {/* Action row — only when no search query */}
-      {!searchQuery && (
-        <View style={s.actionRow}>
-          <TouchableOpacity style={s.recordBtn} onPress={handleRecord} activeOpacity={0.85}>
-            <Feather name="video" size={15} color={colors.primary} />
-            <Text style={s.recordBtnText}>Record</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.uploadBtn} onPress={handleUpload} activeOpacity={0.85}>
-            <Feather name="upload" size={15} color="#fff" />
-            <Text style={s.uploadBtnText}>Upload Video</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
       {/* Limit indicator */}
       {!canUnlimited && (
         <View style={s.limitRow}>
@@ -543,7 +545,7 @@ export default function AnalyzeScreen() {
             <Text style={s.limitBold}>{Math.min(analysisList.length, 3)}/3</Text> free analyses used
             {analysisList.length >= 3 ? " — " : ""}
             {analysisList.length >= 3 && (
-              <Text style={{ color: colors.primary }} onPress={() => router.push("/pricing")}>
+              <Text style={{ color: colors.primary }} onPress={() => router.push("/pricing" as any)}>
                 Upgrade for unlimited
               </Text>
             )}

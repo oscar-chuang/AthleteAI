@@ -47,7 +47,7 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;}
 </div>
 <script>
 (function(){
-  const COLORS=['#00C2FF','#22d3ee','#FF6B35','#1DB954','#f43f5e'];
+  const COLORS=['#2F7BFF','#22d3ee','#FF6B35','#22C55E','#f43f5e'];
   const v=document.getElementById('v');
   const cv=document.getElementById('cv');
   const ctx=cv.getContext('2d');
@@ -370,7 +370,7 @@ export default function PersonSelectScreen() {
   const statusDotColor =
     personCount === null ? "#55556e" :
     personCount === 0    ? "#FF6B35" :
-    "#1DB954";
+    "#22C55E";
 
   const statusLabel =
     personCount === null ? "Scanning frame…" :
@@ -408,7 +408,7 @@ export default function PersonSelectScreen() {
       paddingHorizontal: 10, paddingVertical: 4,
       borderWidth: 1, borderColor: "rgba(108,99,255,.3)",
     },
-    sportText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#00C2FF", textTransform: "capitalize" },
+    sportText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#2F7BFF", textTransform: "capitalize" },
     videoSlot: {
       width: SCREEN_W, height: videoH, backgroundColor: "#000",
       alignItems: "center", justifyContent: "center",
@@ -458,7 +458,7 @@ export default function PersonSelectScreen() {
     noVideoBody: { fontSize: 13, color: "#55556e", fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18 },
     buttons: { padding: 20, paddingTop: 14, gap: 10 },
     primaryBtn: {
-      backgroundColor: "#00C2FF", borderRadius: 14,
+      backgroundColor: "#2F7BFF", borderRadius: 14,
       paddingVertical: 14, alignItems: "center",
       flexDirection: "row", justifyContent: "center", gap: 8,
     },
@@ -477,7 +477,7 @@ export default function PersonSelectScreen() {
         <Text style={s.title}>Who are we scoring?</Text>
         {sport ? (
           <View style={s.sportPill}>
-            <Feather name="tag" size={11} color="#00C2FF" />
+            <Feather name="tag" size={11} color="#2F7BFF" />
             <Text style={s.sportText} numberOfLines={1} ellipsizeMode="tail">{sport}</Text>
           </View>
         ) : null}

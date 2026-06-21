@@ -313,11 +313,11 @@ describe("Skeleton CTA — tab param is included in the router.push to person-se
     const { getByText } = render(React.createElement(AnalysisDetailScreen));
     await flush();
 
-    fireEvent.press(getByText("Skeleton"));
+    fireEvent.press(getByText("Movement"));
 
     expect(mockPush).toHaveBeenCalledTimes(1);
     const callArg: string = mockPush.mock.calls[0][0];
-    expect(callArg).toContain("person-select/session-a");
+    expect(callArg).toContain("skeleton/session-a");
     expect(callArg).toMatch(/\?tab=tips$/);
   });
 
@@ -327,11 +327,11 @@ describe("Skeleton CTA — tab param is included in the router.push to person-se
     const { getByText } = render(React.createElement(AnalysisDetailScreen));
     await flush();
 
-    fireEvent.press(getByText("Skeleton"));
+    fireEvent.press(getByText("Movement"));
 
     expect(mockPush).toHaveBeenCalledTimes(1);
     const callArg: string = mockPush.mock.calls[0][0];
-    expect(callArg).toContain("person-select/session-a");
+    expect(callArg).toContain("skeleton/session-a");
     expect(callArg).toMatch(/\?tab=scores$/);
   });
 });

@@ -34,7 +34,7 @@ const JOINT_HISTORY_DISPLAY: Record<string, string> = {
   rightElbow: "Right Elbow",
 };
 
-const RISK_COLOR_MAP = ["#1DB954", "#FF6B35", "#FF4444"] as const;
+const RISK_COLOR_MAP = ["#22C55E", "#FF6B35", "#EF4444"] as const;
 const RISK_LABEL_MAP = ["Safe", "Caution", "High Risk"] as const;
 
 const CHART_PAD_L = 36,
@@ -232,7 +232,7 @@ export default function JointHistorySheet({
   const first = data[0];
   const deltaDeg = last && first ? Math.round(last.angle - first.angle) : 0;
   const latestRisk = last?.risk ?? 0;
-  const riskColor = RISK_COLOR_MAP[latestRisk] ?? "#00C2FF";
+  const riskColor = RISK_COLOR_MAP[latestRisk] ?? "#2F7BFF";
   const riskLabel = RISK_LABEL_MAP[latestRisk] ?? "";
 
   const currentIdx = currentAnalysisId
@@ -317,13 +317,13 @@ export default function JointHistorySheet({
                     <Feather
                       name={deltaDeg >= 0 ? "arrow-up-right" : "arrow-down-right"}
                       size={12}
-                      color={deltaDeg >= 0 ? "#1DB954" : "#FF6B35"}
+                      color={deltaDeg >= 0 ? "#22C55E" : "#FF6B35"}
                     />
                     <Text
                       style={{
                         fontSize: 11,
                         fontFamily: "Inter_400Regular",
-                        color: deltaDeg >= 0 ? "#1DB954" : "#FF6B35",
+                        color: deltaDeg >= 0 ? "#22C55E" : "#FF6B35",
                       }}
                     >
                       {deltaDeg >= 0 ? "+" : ""}
@@ -382,12 +382,12 @@ export default function JointHistorySheet({
                     width: 10,
                     height: 10,
                     borderRadius: 5,
-                    backgroundColor: "#00C2FF",
+                    backgroundColor: "#2F7BFF",
                     borderWidth: 2,
                     borderColor: "#0D0F11",
                   }}
                 />
-                <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: "#00C2FF" }}>
+                <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: "#2F7BFF" }}>
                   {currentAnalysisId ? "This session" : "Latest"}
                 </Text>
               </View>
@@ -485,7 +485,7 @@ export default function JointHistorySheet({
                   <Polyline
                     points={polyPts}
                     fill="none"
-                    stroke="#00C2FF"
+                    stroke="#2F7BFF"
                     strokeWidth={2}
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -494,7 +494,7 @@ export default function JointHistorySheet({
 
                 {/* Data points — risk-coloured; tappable; selected point gets highlight ring */}
                 {data.map((d, i) => {
-                  const dotColor = RISK_COLOR_MAP[d.risk] ?? "#00C2FF";
+                  const dotColor = RISK_COLOR_MAP[d.risk] ?? "#2F7BFF";
                   const isCurrent = i === currentIdx;
                   const isSelected = selectedIndex === i;
                   const cx = toX(i);
@@ -573,7 +573,7 @@ export default function JointHistorySheet({
                   const sel = data[displayedIndex]!;
                   const cx = toX(displayedIndex);
                   const cy = toY(sel.angle);
-                  const dotColor = RISK_COLOR_MAP[sel.risk] ?? "#00C2FF";
+                  const dotColor = RISK_COLOR_MAP[sel.risk] ?? "#2F7BFF";
                   const rLabel = RISK_LABEL_MAP[sel.risk] ?? "";
                   const canNavigate = !!sel.analysisId;
                   const tooltipW = 130;
@@ -773,7 +773,7 @@ const tooltipStyles = StyleSheet.create({
   navHint: {
     fontSize: 9,
     fontFamily: "Inter_500Medium",
-    color: "#00C2FF",
+    color: "#2F7BFF",
     marginTop: 3,
   },
 });

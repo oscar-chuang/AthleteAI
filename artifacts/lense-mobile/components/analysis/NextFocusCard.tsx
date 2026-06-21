@@ -46,7 +46,7 @@ export function NextFocusCard({ focusCue, drill, goal }: Props) {
       )}
 
       <View style={[styles.row, { borderColor: colors.border, borderBottomWidth: 0 }]}>
-        <Feather name="check-circle" size={13} color="#1DB954" />
+        <Feather name="check-circle" size={13} color="#22C55E" />
         <View style={styles.rowContent}>
           <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>Measurable goal</Text>
           <Text style={[styles.rowValue, { color: colors.foreground }]}>{goal}</Text>

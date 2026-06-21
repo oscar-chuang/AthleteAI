@@ -120,8 +120,8 @@ const MAX_RAW_AVATAR_DIMENSION = 1024;
 const MAX_AVATAR_DATA_URI_CHARS = 2 * 1024 * 1024; // 2 MB of base64 characters
 
 const PRESET_AVATARS = [
-  { key: "preset:#00C2FF", color: "#00C2FF" },
-  { key: "preset:#1DB954", color: "#1DB954" },
+  { key: "preset:#2F7BFF", color: "#2F7BFF" },
+  { key: "preset:#22C55E", color: "#22C55E" },
   { key: "preset:#FF6B35", color: "#FF6B35" },
   { key: "preset:#ff4d6d", color: "#ff4d6d" },
   { key: "preset:#06b6d4", color: "#06b6d4" },
@@ -129,6 +129,11 @@ const PRESET_AVATARS = [
   { key: "preset:#ff6b35", color: "#ff6b35" },
   { key: "preset:#14b8a6", color: "#14b8a6" },
 ];
+
+const PRESET_COLOR_REMAP: Record<string, string> = {
+  "#00C2FF": "#2F7BFF",
+  "#1DB954": "#22C55E",
+};
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -139,7 +144,8 @@ function getInitials(name: string): string {
 
 function getPresetColor(avatarUrl: string | null | undefined): string | null {
   if (!avatarUrl?.startsWith("preset:")) return null;
-  return avatarUrl.replace("preset:", "");
+  const color = avatarUrl.replace("preset:", "");
+  return PRESET_COLOR_REMAP[color] ?? color;
 }
 
 function isPhotoAvatar(avatarUrl: string | null | undefined): boolean {

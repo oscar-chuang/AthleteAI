@@ -41,16 +41,16 @@ import { computeMostImproved } from "@/lib/jointImprovement";
 import JointHistorySheet from "@/components/JointHistorySheet";
 import MovementDimensionHistorySheet from "@/components/MovementDimensionHistorySheet";
 
-const RISK_COLOR_MAP = ["#1DB954", "#FF6B35", "#FF4444"] as const;
+const RISK_COLOR_MAP = ["#22C55E", "#F59E0B", "#EF4444"] as const;
 const RISK_LABEL_MAP = ["Safe", "Caution", "High Risk"] as const;
 
 // Movement quality dimension config — colors match the live skeleton screen
 const MOVEMENT_DIMENSIONS: { key: keyof MovementSummaryDataPoint; label: string; color: string }[] = [
-  { key: "flowScore",         label: "Flow",        color: "#00C2FF" },
-  { key: "efficiencyScore",   label: "Efficiency",  color: "#1DB954" },
+  { key: "flowScore",         label: "Flow",        color: "#2F7BFF" },
+  { key: "efficiencyScore",   label: "Efficiency",  color: "#22C55E" },
   { key: "bodyControlScore",  label: "Control",     color: "#FF6B35" },
-  { key: "consistencyScore",  label: "Consistency", color: "#06b6d4" },
-  { key: "rhythmScore",       label: "Rhythm",      color: "#00C2FF" },
+  { key: "consistencyScore",  label: "Consistency", color: "#2F7BFF" },
+  { key: "rhythmScore",       label: "Rhythm",      color: "#2F7BFF" },
 ];
 
 const JOINT_SPARKLINE_W = 64;
@@ -541,7 +541,7 @@ export default function ProgressScreen() {
     sectionTitle:     { fontSize: 17, fontFamily: "Inter_700Bold", color: colors.foreground, letterSpacing: -0.2 },
     sectionCount:     { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
     summaryRow:       { flexDirection: "row", gap: 10, marginBottom: 24, paddingHorizontal: 20 },
-    summaryCard:      { flex: 1, backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
+    summaryCard:      { flex: 1, padding: 14, alignItems: "center" },
     summaryValue:     { fontSize: 26, fontFamily: "Inter_700Bold", color: colors.foreground, letterSpacing: -0.5 },
     summaryLabel:     { fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.5 },
     periodRow:        { flexDirection: "row", gap: 6, marginBottom: 14 },
@@ -550,7 +550,7 @@ export default function ProgressScreen() {
     metricPicker:     { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 14 },
     metricChip:       { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
     metricChipText:   { fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, textTransform: "capitalize" },
-    chartContainer:   { backgroundColor: colors.card, borderRadius: colors.radius, borderWidth: 1, borderColor: colors.border, padding: 16, overflow: "hidden" },
+    chartContainer:   { paddingVertical: 16, overflow: "hidden" },
     chartHeader:      { flexDirection: "row", alignItems: "baseline", gap: 8, marginBottom: 12 },
     chartScore:       { fontSize: 28, fontFamily: "Inter_700Bold" },
     chartBand:        { fontSize: 12, fontFamily: "Inter_500Medium" },
@@ -855,49 +855,44 @@ export default function ProgressScreen() {
           </View>
         )}
 
-        {/* ── Streak & Weekly Pulse ── */}
+        {/* ── Hero strip: streak + weekly pulse ── */}
         {stats && (
-          <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 20, marginBottom: 20 }}>
+          <View style={{ flexDirection: "row", paddingHorizontal: 20, marginBottom: 24, gap: 0 }}>
             {stats.streak > 0 && (
-              <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#ff6b3514", borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: "#ff6b3533" }}>
-                <Feather name="zap" size={20} color="#ff6b35" />
-                <View>
-                  <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#ff6b35" }}>{stats.streak}d</Text>
-                  <Text style={{ fontSize: 10, color: "#ff6b3588", fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5 }}>Streak</Text>
+              <View style={{ flex: 1, alignItems: "center", paddingVertical: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <Feather name="zap" size={16} color="#FF6B35" />
+                  <Text style={{ fontSize: 32, fontFamily: "Inter_700Bold", color: "#FF6B35", letterSpacing: -1 }}>{stats.streak}</Text>
                 </View>
+                <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Day streak</Text>
               </View>
             )}
-            <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.card, borderRadius: colors.radius, padding: 12, borderWidth: 1, borderColor: colors.border }}>
-              <Feather name="calendar" size={18} color={colors.primary} />
-              <View>
-                <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: colors.foreground }}>{stats.thisWeekCount}</Text>
-                <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  This week
-                </Text>
-                {stats.lastWeekCount > 0 && (() => {
-                  const delta = stats.thisWeekCount - stats.lastWeekCount;
-                  if (delta > 0) {
-                    return (
-                      <Text style={{ fontSize: 10, color: colors.success, fontFamily: "Inter_500Medium", marginTop: 1 }}>
-                        {`↑ ${delta} from last week`}
-                      </Text>
-                    );
-                  }
-                  if (delta < 0) {
-                    return (
-                      <Text style={{ fontSize: 10, color: colors.warning, fontFamily: "Inter_500Medium", marginTop: 1 }}>
-                        {`↓ ${Math.abs(delta)} from last week`}
-                      </Text>
-                    );
-                  }
-                  return (
-                    <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginTop: 1 }}>
-                      same as last week
-                    </Text>
-                  );
-                })()}
-              </View>
+            <View style={[{ flex: 1, alignItems: "center", paddingVertical: 8 }, stats.streak > 0 && { borderLeftWidth: 1, borderLeftColor: colors.border }]}>
+              <Text style={{ fontSize: 32, fontFamily: "Inter_700Bold", color: colors.foreground, letterSpacing: -1 }}>{stats.thisWeekCount}</Text>
+              <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>This week</Text>
+              {stats.lastWeekCount > 0 && (() => {
+                const delta = stats.thisWeekCount - stats.lastWeekCount;
+                if (delta > 0) return (
+                  <Text style={{ fontSize: 10, color: colors.success, fontFamily: "Inter_500Medium", marginTop: 2 }}>{`↑ ${delta} from last week`}</Text>
+                );
+                if (delta < 0) return (
+                  <Text style={{ fontSize: 10, color: colors.warning, fontFamily: "Inter_500Medium", marginTop: 2 }}>{`↓ ${Math.abs(delta)} from last week`}</Text>
+                );
+                return (
+                  <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginTop: 2 }}>same as last week</Text>
+                );
+              })()}
             </View>
+            {filteredEntries.length > 0 && (
+              <View style={{ flex: 1, alignItems: "center", paddingVertical: 8, borderLeftWidth: 1, borderLeftColor: colors.border }}>
+                <Text style={{ fontSize: 32, fontFamily: "Inter_700Bold", color: gained >= 0 ? colors.success : colors.destructive, letterSpacing: -1 }}>
+                  {gained >= 0 ? "+" : ""}{gained}
+                </Text>
+                <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>
+                  {period === "All" ? "All-time" : period} gain
+                </Text>
+              </View>
+            )}
           </View>
         )}
 

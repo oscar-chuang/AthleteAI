@@ -100,7 +100,7 @@ const SPORT_CONFIGS: Record<string, SportConfig> = {
   fencing: {
     joints: ["leftKnee", "rightKnee", "leftElbow", "rightElbow"],
     metrics: ["overall", "technique", "speed", "balance", "consistency"],
-    accentColor: "#00C2FF",
+    accentColor: "#2F7BFF",
     icon: "zap",
   },
   rowing: {
@@ -146,7 +146,7 @@ export function getSportConfig(sport: string): SportConfig {
   return SPORT_CONFIGS[normalized] ?? {
     joints: DEFAULT_JOINTS,
     metrics: DEFAULT_METRICS,
-    accentColor: "#00C2FF",
+    accentColor: "#2F7BFF",
     icon: "video",
   };
 }

@@ -54,9 +54,9 @@ const JOINT_LM_IDX: Record<JointKey, number> = {
 };
 
 const RISK_COLOR: Record<number, string> = {
-  0: "#1DB954",
-  1: "#FF6B35",
-  2: "#FF4444",
+  0: "#22C55E",
+  1: "#F59E0B",
+  2: "#EF4444",
 };
 const RISK_LABEL: Record<number, string> = {
   0: "STRENGTH",
@@ -436,14 +436,14 @@ export default function LivePlaybackScreen() {
     const activeJoint = activeInterrupt?.joints[0];
     const activeIdx = activeJoint ? JOINT_LM_IDX[activeJoint] : null;
     const activeAngle = activeJoint ? currentTick.angles[activeJoint] : null;
-    const activeColor = activeInterrupt ? (RISK_COLOR[activeInterrupt.riskLevel] ?? "#1DB954") : null;
+    const activeColor = activeInterrupt ? (RISK_COLOR[activeInterrupt.riskLevel] ?? "#22C55E") : null;
 
     const connections = CONNECTIONS.map(([a, b], i) => {
       const pa = proj(a);
       const pb = proj(b);
       if (!pa || !pb) return null;
       const risk = Math.max(lmRisk[a] ?? 0, lmRisk[b] ?? 0);
-      const color = risk >= 2 ? "#FF444499" : risk >= 1 ? "#FF6B3599" : colors.primary + "88";
+      const color = risk >= 2 ? "#EF444499" : risk >= 1 ? "#FF6B3599" : colors.primary + "88";
       return <Line key={`c${i}`} x1={pa.cx} y1={pa.cy} x2={pb.cx} y2={pb.cy} stroke={color} strokeWidth={2.5} strokeLinecap="round" />;
     }).filter(Boolean);
 
@@ -452,7 +452,7 @@ export default function LivePlaybackScreen() {
       const cx = videoRect.left + p.x * videoRect.width;
       const cy = videoRect.top + p.y * videoRect.height;
       const risk = lmRisk[i] ?? 0;
-      const color = risk >= 2 ? "#FF4444" : risk >= 1 ? "#FF6B35" : colors.primary + "bb";
+      const color = risk >= 2 ? "#EF4444" : risk >= 1 ? "#FF6B35" : colors.primary + "bb";
       const r = risk >= 1 ? 5 : 3.5;
       return (
         <G key={`d${i}`}>
@@ -543,7 +543,7 @@ export default function LivePlaybackScreen() {
           </View>
         )}
         <TouchableOpacity style={[ss.summaryBtn, { backgroundColor: colors.primary + "22", borderColor: colors.primary + "44" }]} onPress={fetchMovementSummary} activeOpacity={0.8}>
-          <Feather name="bar-chart-2" size={13} color="#00C2FF" />
+          <Feather name="bar-chart-2" size={13} color="#2F7BFF" />
           <Text style={ss.summaryBtnText}>Summary</Text>
         </TouchableOpacity>
       </View>
@@ -573,7 +573,7 @@ export default function LivePlaybackScreen() {
             .sort(([, a], [, b]) => (b?.lvl ?? 0) - (a?.lvl ?? 0));
           if (!flagged.length) return null;
           const [topJ, topJr] = flagged[0]!;
-          const color = RISK_COLOR[topJr?.lvl ?? 0] ?? "#1DB954";
+          const color = RISK_COLOR[topJr?.lvl ?? 0] ?? "#22C55E";
           return (
             <View style={[ss.hud, { borderColor: color + "60" }]}>
               <View style={[ss.hudDot, { backgroundColor: color }]} />
@@ -593,9 +593,9 @@ export default function LivePlaybackScreen() {
         <Text style={ss.timeText}>{formatTime(position)} / {formatTime(duration)}</Text>
         <View style={{ flex: 1 }} />
         <View style={ss.legendRow}>
-          <View style={[ss.legendDot, { backgroundColor: "#FF4444" }]} />
+          <View style={[ss.legendDot, { backgroundColor: "#EF4444" }]} />
           <Text style={ss.legendText}>Risk</Text>
-          <View style={[ss.legendDot, { backgroundColor: "#1DB954" }]} />
+          <View style={[ss.legendDot, { backgroundColor: "#22C55E" }]} />
           <Text style={ss.legendText}>Strong</Text>
         </View>
       </View>
@@ -614,7 +614,7 @@ export default function LivePlaybackScreen() {
         {/* Event markers — each individually tappable */}
         {allEvents.map((ev) => {
           const pct = duration > 0 ? Math.min(100, (ev.t / duration) * 100) : 0;
-          const color = ev.riskLevel >= 2 ? "#FF4444" : ev.riskLevel >= 1 ? "#FF6B35" : "#1DB954";
+          const color = ev.riskLevel >= 2 ? "#EF4444" : ev.riskLevel >= 1 ? "#FF6B35" : "#22C55E";
           const isSelected = selectedMarker?.t === ev.t;
           return (
             <TouchableOpacity
@@ -653,7 +653,7 @@ export default function LivePlaybackScreen() {
         {activeInterrupt && (() => {
           const ev = activeInterrupt;
           const m = ev.moment;
-          const color = RISK_COLOR[ev.riskLevel] ?? "#1DB954";
+          const color = RISK_COLOR[ev.riskLevel] ?? "#22C55E";
           const topJ = ev.joints[0];
           const jrData = topJ ? ev.tick.jr[topJ] : undefined;
           const isStrength = ev.kind === "strength";
@@ -818,16 +818,16 @@ export default function LivePlaybackScreen() {
               {/* 5 dimension rings */}
               <View style={ss.ringsRow}>
                 <ScoreRing label="Flow"        score={movementSummary.flowScore}         color={colors.primary} />
-                <ScoreRing label="Efficiency"  score={movementSummary.efficiencyScore}   color="#1DB954" />
+                <ScoreRing label="Efficiency"  score={movementSummary.efficiencyScore}   color="#22C55E" />
                 <ScoreRing label="Control"     score={movementSummary.bodyControlScore}  color="#FF6B35" />
-                <ScoreRing label="Consistency" score={movementSummary.consistencyScore}  color="#06b6d4" />
-                <ScoreRing label="Rhythm"      score={movementSummary.rhythmScore}       color="#00C2FF" />
+                <ScoreRing label="Consistency" score={movementSummary.consistencyScore}  color={colors.primary} />
+                <ScoreRing label="Rhythm"      score={movementSummary.rhythmScore}       color="#2F7BFF" />
               </View>
 
               {/* Priority fix */}
               <View style={ss.priorityCard}>
                 <View style={ss.priorityHeader}>
-                  <Feather name="target" size={13} color="#FF4444" />
+                  <Feather name="target" size={13} color="#EF4444" />
                   <Text style={ss.priorityLabel}>PRIORITY FIX</Text>
                 </View>
                 <Text style={ss.priorityText}>{movementSummary.mostImportantFix}</Text>
@@ -836,12 +836,12 @@ export default function LivePlaybackScreen() {
               {/* Strengths */}
               <View style={ss.listBlock}>
                 <View style={ss.listBlockHeader}>
-                  <Feather name="trending-up" size={11} color="#1DB954" />
-                  <Text style={[ss.listBlockLabel, { color: "#1DB95488" }]}>TOP STRENGTHS</Text>
+                  <Feather name="trending-up" size={11} color="#22C55E" />
+                  <Text style={[ss.listBlockLabel, { color: "#22C55E88" }]}>TOP STRENGTHS</Text>
                 </View>
                 {movementSummary.topStrengths.map((s, i) => (
                   <View key={i} style={ss.listRow}>
-                    <View style={[ss.listDot, { backgroundColor: "#1DB954" }]} />
+                    <View style={[ss.listDot, { backgroundColor: "#22C55E" }]} />
                     <Text style={ss.listText}>{s}</Text>
                   </View>
                 ))}
@@ -919,7 +919,7 @@ const ss = StyleSheet.create({
     borderRadius: RADIUS.sm,
     borderWidth: 1,
   },
-  summaryBtnText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#00C2FF" },
+  summaryBtnText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#2F7BFF" },
 
   // Video
   videoBox: { width: "100%", backgroundColor: "#000", overflow: "hidden" },
@@ -1094,7 +1094,7 @@ const ss = StyleSheet.create({
     borderRadius: RADIUS.md,
     borderWidth: 1,
   },
-  outlineBtnText: { fontSize: 14, fontFamily: "Inter_500Medium", color: "#00C2FF" },
+  outlineBtnText: { fontSize: 14, fontFamily: "Inter_500Medium", color: "#2F7BFF" },
   loadingText: { fontSize: 14, fontFamily: "Inter_400Regular", color: "#8888aa" },
   noDataTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#e8e8ff", textAlign: "center" },
   noDataSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#55556e", textAlign: "center", paddingHorizontal: 28 },

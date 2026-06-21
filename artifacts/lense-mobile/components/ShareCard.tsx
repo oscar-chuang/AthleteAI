@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { toTitleCase } from "@/utils/formatDisplay";
 
-const ACCENT  = "#00C2FF";
+const ACCENT  = "#2F7BFF";
 const BG      = "#0e0e18";
 const SURFACE = "#16161f";
 const BORDER  = "#22223a";

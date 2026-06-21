@@ -268,7 +268,7 @@ describe("AnalysisDetailScreen — Movement Quality ring tap", () => {
     expect(queryByTestId("movement-dim-sheet")).not.toBeNull();
     expect(capturedDimKey).toBe("flowScore");
     expect(capturedLabel).toBe("Flow");
-    expect(capturedColor).toBe("#00C2FF");
+    expect(capturedColor).toBe("#6c63ff");
   });
 
   it("opens MovementDimensionHistorySheet with correct props when Control ring is tapped", async () => {
@@ -282,7 +282,7 @@ describe("AnalysisDetailScreen — Movement Quality ring tap", () => {
 
     expect(capturedDimKey).toBe("bodyControlScore");
     expect(capturedLabel).toBe("Control");
-    expect(capturedColor).toBe("#FF6B35");
+    expect(capturedColor).toBe("#f59e0b");
   });
 
   it("closes the sheet when onClose is called", async () => {

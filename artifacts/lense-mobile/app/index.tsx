@@ -29,8 +29,8 @@ const FEATURES = [
 ];
 
 const HIGHLIGHTS = [
-  { icon: "layers" as const,  color: "#00C2FF", label: "13 Sports", sub: "Supported" },
-  { icon: "book-open" as const, color: "#1DB954", label: "Peer-reviewed", sub: "Research-backed tips" },
+  { icon: "layers" as const,  color: "#2F7BFF", label: "13 Sports", sub: "Supported" },
+  { icon: "book-open" as const, color: "#22C55E", label: "Peer-reviewed", sub: "Research-backed tips" },
 ];
 
 export default function LandingScreen() {

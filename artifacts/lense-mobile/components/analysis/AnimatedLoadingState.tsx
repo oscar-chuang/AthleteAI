@@ -4,10 +4,10 @@ import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 
 const STEPS = [
-  { label: "Scanning your video",        icon: "film"        as const, color: "#00C2FF" },
-  { label: "Finding the athlete",        icon: "user"        as const, color: "#a855f7" },
-  { label: "Tracking movement",          icon: "activity"    as const, color: "#3b82f6" },
-  { label: "Measuring key positions",    icon: "target"      as const, color: "#10b981" },
+  { label: "Scanning your video",        icon: "film"        as const, color: "#2F7BFF" },
+  { label: "Finding the athlete",        icon: "user"        as const, color: "#2F7BFF" },
+  { label: "Tracking movement",          icon: "activity"    as const, color: "#22C55E" },
+  { label: "Measuring key positions",    icon: "target"      as const, color: "#22C55E" },
   { label: "Building your coaching plan",icon: "cpu"         as const, color: "#FF6B35" },
 ];
 

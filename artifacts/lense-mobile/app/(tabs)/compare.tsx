@@ -53,8 +53,8 @@ const SPORT_COLORS: Record<string, string> = {
   running:       "#38bdf8",
   swimming:      "#22d3ee",
   cycling:       "#fb923c",
-  boxing:        "#FF4444",
-  rowing:        "#00C2FF",
+  boxing:        "#EF4444",
+  rowing:        "#2F7BFF",
   crossfit:      "#84cc16",
   soccer:        "#34d399",
   weightlifting: "#e879f9",
@@ -124,7 +124,7 @@ function RadarChart({
   proScores,
   size = 260,
   primaryColor,
-  userColor = "#1DB954",
+  userColor = "#22C55E",
 }: {
   userScores: ProAthleteBenchmarks;
   proScores: ProAthleteBenchmarks;
@@ -387,7 +387,7 @@ export default function CompareScreen() {
     tipNumTxt:    { fontSize: 11, color: "#fff", fontFamily: "Inter_700Bold" },
     tipTxt:       { fontSize: 12, color: "#ffffffaa", fontFamily: "Inter_400Regular", flex: 1, lineHeight: 18 },
     srcRow:       { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 7 },
-    srcTxt:       { fontSize: 11, color: "#00C2FF", fontFamily: "Inter_400Regular", flex: 1, textDecorationLine: "underline" },
+    srcTxt:       { fontSize: 11, color: "#2F7BFF", fontFamily: "Inter_400Regular", flex: 1, textDecorationLine: "underline" },
     noMatchBox:   { backgroundColor: "#ffffff08", borderRadius: 10, padding: 14, marginBottom: 12 },
     noMatchTxt:   { color: "#ffffff66", fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18 },
     closeBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: "#ffffff1a", marginTop: 4 },

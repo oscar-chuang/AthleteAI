@@ -502,7 +502,7 @@ describe("ProfileSettingsScreen — training-day toggle auto-updates weekly goal
 // ─── Preset color swatch selection ────────────────────────────────────────────
 
 describe("ProfileSettingsScreen — preset color swatches", () => {
-  const PRESET_KEY = "preset:#00C2FF";
+  const PRESET_KEY = "preset:#2F7BFF";
 
   it("calls updateProfile with the chosen preset key when a swatch is tapped", async () => {
     mockProfile.avatarUrl = null;
@@ -564,7 +564,7 @@ describe("ProfileSettingsScreen — preset color swatches", () => {
 
     expect(getByTestId(`preset-swatch-${PRESET_KEY}`).props.accessibilityState?.selected).toBe(true);
 
-    const OTHER_KEY = "preset:#1DB954";
+    const OTHER_KEY = "preset:#22C55E";
     expect(getByTestId(`preset-swatch-${OTHER_KEY}`).props.accessibilityState?.selected).toBe(false);
   });
 });

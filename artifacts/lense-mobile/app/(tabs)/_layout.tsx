@@ -44,10 +44,10 @@ export default function TabLayout() {
   }, [isLoading, isAuthenticated]);
 
   const isIOS = Platform.OS === "ios";
-  const isWeb = Platform.OS === "web";
 
   return (
     <Tabs
+      initialRouteName="analyze"
       screenOptions={{
         headerShown:             false,
         tabBarActiveTintColor:   colors.primary,
@@ -70,7 +70,7 @@ export default function TabLayout() {
               style={[
                 StyleSheet.absoluteFill,
                 {
-                  backgroundColor: isDark ? "rgba(13,15,17,0.92)" : "rgba(245,247,250,0.92)",
+                  backgroundColor: isDark ? "rgba(11,13,15,0.92)" : "rgba(245,247,250,0.92)",
                   borderTopWidth: StyleSheet.hairlineWidth,
                   borderTopColor: colors.borderStrong,
                 },
@@ -96,15 +96,21 @@ export default function TabLayout() {
         },
       }}
     >
+      {/* Hidden tabs — routes still work, not shown in tab bar */}
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="home" color={color} focused={focused} />
-          ),
+          href: null,
         }}
       />
+      <Tabs.Screen
+        name="compare"
+        options={{
+          href: null,
+        }}
+      />
+
+      {/* Visible tabs — Analyze · Progress · Coach · Profile */}
       <Tabs.Screen
         name="analyze"
         options={{
@@ -124,20 +130,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="compare"
-        options={{
-          title: "Compare",
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="users" color={color} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="chat"
         options={{
           title: "Coach",
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="message-circle" color={color} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="user" color={color} focused={focused} />
           ),
         }}
       />
