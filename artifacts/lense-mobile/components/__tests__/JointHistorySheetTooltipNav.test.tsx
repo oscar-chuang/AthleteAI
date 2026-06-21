@@ -75,6 +75,7 @@ describe("JointHistorySheet — tooltip navigation", () => {
     const pressable = getByTestId("tooltip-pressable");
     await act(async () => {
       fireEvent.press(pressable);
+      jest.runAllTimers();
     });
 
     expect(mockPush).toHaveBeenCalledWith(`/analysis/skeleton/${ANALYSIS_ID}`);
@@ -97,6 +98,7 @@ describe("JointHistorySheet — tooltip navigation", () => {
     const pressable = getByTestId("tooltip-pressable");
     await act(async () => {
       fireEvent.press(pressable);
+      jest.runAllTimers();
     });
 
     expect(order).toEqual(["onClose", "push"]);
@@ -117,6 +119,7 @@ describe("JointHistorySheet — tooltip navigation", () => {
     const pressable = getByTestId("tooltip-pressable");
     await act(async () => {
       fireEvent.press(pressable);
+      jest.runAllTimers();
     });
 
     expect(mockPush).toHaveBeenCalledTimes(1);
@@ -138,6 +141,7 @@ describe("JointHistorySheet — tooltip navigation", () => {
     const pressable = getByTestId("tooltip-pressable");
     await act(async () => {
       fireEvent.press(pressable);
+      jest.runAllTimers();
     });
 
     expect(mockPush).toHaveBeenCalledWith(`/analysis/skeleton/${SAMPLE_DATA[0]!.analysisId}`);
@@ -163,6 +167,7 @@ describe("JointHistorySheet — tooltip navigation", () => {
     const pressable = getByTestId("tooltip-pressable");
     await act(async () => {
       fireEvent.press(pressable);
+      jest.runAllTimers();
     });
 
     expect(mockPush).not.toHaveBeenCalled();

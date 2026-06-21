@@ -79,6 +79,7 @@ export default function JointHistorySheet({
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [displayedIndex, setDisplayedIndex] = useState<number | null>(null);
   const tooltipOpacity = useRef(new Animated.Value(0)).current;
+  const tooltipExitAnim = useRef(new Animated.Value(1)).current;
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fadeAnim = useRef<Animated.CompositeAnimation | null>(null);
 
@@ -135,6 +136,7 @@ export default function JointHistorySheet({
     const isFirstShow = selectedIndex === null;
     setSelectedIndex(i);
     setDisplayedIndex(i);
+    tooltipExitAnim.setValue(1);
 
     if (isFirstShow) {
       tooltipOpacity.setValue(0);
@@ -560,9 +562,21 @@ export default function JointHistorySheet({
 
                   function handleTooltipPress() {
                     if (!canNavigate) return;
-                    handleClose();
-                    router.push(`/analysis/skeleton/${sel.analysisId}` as any);
+                    tooltipExitAnim.setValue(1);
+                    Animated.timing(tooltipExitAnim, {
+                      toValue: 0,
+                      duration: 150,
+                      useNativeDriver: true,
+                    }).start(() => {
+                      handleClose();
+                      router.push(`/analysis/skeleton/${sel.analysisId}` as any);
+                    });
                   }
+
+                  const tooltipScale = tooltipExitAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.85, 1],
+                  });
 
                   return (
                     <Animated.View
@@ -576,7 +590,8 @@ export default function JointHistorySheet({
                           width: tooltipW,
                           height: tooltipH,
                           borderColor: dotColor,
-                          opacity: tooltipOpacity,
+                          opacity: Animated.multiply(tooltipOpacity, tooltipExitAnim),
+                          transform: [{ scale: tooltipScale }],
                         },
                       ]}
                     >
