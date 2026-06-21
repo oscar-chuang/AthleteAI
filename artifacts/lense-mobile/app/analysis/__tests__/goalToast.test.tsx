@@ -491,9 +491,11 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
     const { queryByText } = render(<AnalysisDetailScreen />);
 
     // First focus: loads 'processing'. isProcessing → true, polling setInterval starts.
-    // Use the same simulateFocus() as the polling test (Test 11) — it works correctly
-    // with doNotFake:["MessageChannel"] because Promise-based microtasks still drain.
-    await simulateFocus();
+    // Use synchronous act() for the focus trigger — same pattern as the timer
+    // advances below — to avoid React 18's async-act scheduler waiting on a
+    // fake-captured setTimeout(0) and stalling for several seconds in CI.
+    act(() => { mockFocusCallback?.(); });
+    await flush();
     expect(queryByText("Weekly goal reached!")).toBeNull();
 
     // Advance one poll interval — the setInterval fires load(), which returns
@@ -513,7 +515,7 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
 
     // Toast must be gone after the auto-dismiss timer + animation elapse.
     expect(queryByText("Weekly goal reached!")).toBeNull();
-  });
+  }, 60000);
 
   // ── Test 9 — tapping the toast body dismisses it ─────────────────────────
 
