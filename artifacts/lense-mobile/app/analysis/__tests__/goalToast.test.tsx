@@ -462,7 +462,7 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
     // Calling jest.setTimeout() inside a test body only affects *subsequent*
     // tests, not the one currently running — a common Jest footgun.
     jest.setTimeout(60_000);
-    jest.useFakeTimers({ doNotFake: ["MessageChannel" as "nextTick"] });
+    jest.useFakeTimers({ doNotFake: ["MessageChannel" as any] });
   });
 
   afterEach(() => {
@@ -578,7 +578,7 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
 
 describe("AnalysisDetailScreen — toast fires from the 4 s polling path", () => {
   beforeEach(() => {
-    jest.useFakeTimers({ doNotFake: ["MessageChannel" as "nextTick"] });
+    jest.useFakeTimers({ doNotFake: ["MessageChannel" as any] });
   });
 
   afterEach(() => {
