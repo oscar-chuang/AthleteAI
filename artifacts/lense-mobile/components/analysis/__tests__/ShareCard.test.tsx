@@ -139,6 +139,29 @@ describe("ShareCard — sport label title case", () => {
   });
 });
 
+// ─── 0b. testID contract ──────────────────────────────────────────────────────
+// Regression guard: share-card-surface must always carry its testID so that
+// `captureRef(surfaceRef)` can be queried in tests and identified in
+// view-shot captures.  If this testID is ever accidentally removed, the
+// snapshot-based capture flow silently breaks.
+
+describe("ShareCard — testID contract", () => {
+  it("renders testID='share-card-surface' on the surface view", () => {
+    const { getByTestId } = render(<ShareCard analysis={ANALYSIS} />);
+    expect(getByTestId("share-card-surface")).toBeTruthy();
+  });
+
+  it("renders testID='share-card-dark' on the outer card in dark scheme", () => {
+    const { getByTestId } = render(<ShareCard analysis={ANALYSIS} colorScheme="dark" />);
+    expect(getByTestId("share-card-dark")).toBeTruthy();
+  });
+
+  it("renders testID='share-card-light' on the outer card in light scheme", () => {
+    const { getByTestId } = render(<ShareCard analysis={ANALYSIS} colorScheme="light" />);
+    expect(getByTestId("share-card-light")).toBeTruthy();
+  });
+});
+
 // ─── 1. Smoke tests ───────────────────────────────────────────────────────────
 
 describe("ShareCard — render smoke test", () => {
@@ -422,6 +445,13 @@ describe("ShareCard — snapshots", () => {
         topTip={TOP_TIP}
         colorScheme="dark"
       />,
+    );
+    expect(toJSON()).toMatchSnapshot();
+  });
+
+  it("matches snapshot: light scheme, no tip, no thumbnail", () => {
+    const { toJSON } = render(
+      <ShareCard analysis={ANALYSIS} colorScheme="light" />,
     );
     expect(toJSON()).toMatchSnapshot();
   });
