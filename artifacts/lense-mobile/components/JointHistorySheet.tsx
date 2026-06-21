@@ -371,6 +371,7 @@ export default function JointHistorySheet({
             </View>
           ) : data.length === 1 ? (
             <View
+              testID="single-scan-state"
               style={{
                 alignItems: "center",
                 paddingVertical: 36,

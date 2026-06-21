@@ -18,7 +18,7 @@
  */
 
 import React from "react";
-import { render } from "@testing-library/react-native";
+import { render, within } from "@testing-library/react-native";
 
 jest.mock("react-native-svg", () => {
   const { View } = require("react-native");
@@ -71,6 +71,54 @@ describe("JointHistorySheet — empty state rendering", () => {
     expect(getByText("Scan again to see your trend")).toBeTruthy();
     expect(queryByText("No history yet")).toBeNull();
     expect(queryByTestId("joint-history-chart")).toBeNull();
+  });
+
+  it("displays the correct angle value inside the single-scan card", () => {
+    const { getByTestId } = render(
+      <JointHistorySheet joint="leftKnee" data={ONE_POINT} onClose={noop} />,
+    );
+
+    // Scope to the single-scan block so we confirm the prominent display — not
+    // just any matching text that might come from the header.
+    const card = getByTestId("single-scan-state");
+    expect(within(card).getByText("45°")).toBeTruthy();
+  });
+
+  it("displays the correct risk label inside the single-scan card (Safe)", () => {
+    const { getByTestId } = render(
+      <JointHistorySheet joint="leftKnee" data={ONE_POINT} onClose={noop} />,
+    );
+
+    // Scope to the single-scan block — the risk legend always renders "Safe" /
+    // "Caution" / "High Risk" too, so we must assert inside the card specifically.
+    const card = getByTestId("single-scan-state");
+    expect(within(card).getByText("Safe")).toBeTruthy();
+  });
+
+  it("displays Caution label inside the single-scan card for risk level 1", () => {
+    const cautionPoint = [
+      { analysisId: "b1", date: "2025-03-01", angle: 72, risk: 1 as const, sport: "cycling" },
+    ];
+    const { getByTestId } = render(
+      <JointHistorySheet joint="rightKnee" data={cautionPoint} onClose={noop} />,
+    );
+
+    const card = getByTestId("single-scan-state");
+    expect(within(card).getByText("72°")).toBeTruthy();
+    expect(within(card).getByText("Caution")).toBeTruthy();
+  });
+
+  it("displays High Risk label inside the single-scan card for risk level 2", () => {
+    const highRiskPoint = [
+      { analysisId: "c1", date: "2025-04-01", angle: 30, risk: 2 as const, sport: "tennis" },
+    ];
+    const { getByTestId } = render(
+      <JointHistorySheet joint="leftHip" data={highRiskPoint} onClose={noop} />,
+    );
+
+    const card = getByTestId("single-scan-state");
+    expect(within(card).getByText("30°")).toBeTruthy();
+    expect(within(card).getByText("High Risk")).toBeTruthy();
   });
 
   it("renders the chart and no empty-state message when there are two or more data points", () => {
