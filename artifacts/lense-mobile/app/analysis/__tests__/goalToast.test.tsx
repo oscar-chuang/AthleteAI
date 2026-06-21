@@ -473,10 +473,25 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
   });
 
   /**
-   * Drain pending microtasks only — no setTimeout — so this helper is safe
-   * inside a fake-timer context where await act(async()=>{}) would hang
-   * (React 18 scheduler internally uses setTimeout(0) which fake timers capture).
+   * Flush pending microtasks inside an act() boundary.
+   *
+   * Under fake timers, await act(async()=>{}) stalls for real seconds because
+   * React 18's post-flush step waits for setTimeout(0) — which fake timers
+   * never fire automatically.  The workaround is to drain the async Promise
+   * chain *inside* the act callback so that all state updates settle through
+   * microtasks before React's flush step runs.  Finding no pending setTimeout
+   * work, act() exits immediately instead of waiting.
    */
+  async function flushWithAct(rounds = 12) {
+    await act(async () => {
+      for (let i = 0; i < rounds; i++) {
+        // eslint-disable-next-line no-await-in-loop
+        await Promise.resolve();
+      }
+    });
+  }
+
+  /** Drain pending microtasks only (no setTimeout) — safe after runAllTimers(). */
   async function flushMicrotasksOnly(rounds = 8) {
     for (let i = 0; i < rounds; i++) {
       // eslint-disable-next-line no-await-in-loop
@@ -494,18 +509,17 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
     const { queryByText } = render(<AnalysisDetailScreen />);
 
     // First focus: loads 'processing'. isProcessing → true, polling setInterval starts.
-    // Use synchronous act() for the focus trigger — same pattern as the timer
-    // advances below — to avoid React 18's async-act scheduler waiting on a
-    // fake-captured setTimeout(0) and stalling for several seconds in CI.
+    // Synchronous act() avoids React's async-act scheduler touching fake setTimeout(0).
+    // flushWithAct() then drains the async load() Promise chain inside an act boundary
+    // so all state updates (setAnalysis, setLoading …) commit before we assert.
     act(() => { mockFocusCallback?.(); });
-    await flush();
+    await flushWithAct();
     expect(queryByText("Weekly goal reached!")).toBeNull();
 
     // Advance one poll interval — the setInterval fires load(), which returns
-    // COMPLETE_ANALYSIS.  prevStatusRef was "processing" → toast appears.
-    // Use synchronous act() + flush() mirroring the pattern used in the polling test.
+    // COMPLETE_ANALYSIS.  prevStatusRef was "processing" → checkGoalToast runs.
     act(() => { jest.advanceTimersByTime(4000); });
-    await flush();
+    await flushWithAct();
 
     // Toast must be visible immediately after the status transition.
     expect(queryByText("Weekly goal reached!")).not.toBeNull();
@@ -524,7 +538,7 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
 
     // Toast must be gone after the auto-dismiss timer + animation elapse.
     expect(queryByText("Weekly goal reached!")).toBeNull();
-  }, 60000);
+  });
 
   // ── Test 9 — tapping the toast body dismisses it ─────────────────────────
 
