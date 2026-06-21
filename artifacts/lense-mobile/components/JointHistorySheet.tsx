@@ -62,7 +62,7 @@ export default function JointHistorySheet({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const { width: sw } = Dimensions.get("window");
+  const { width: sw, height: sh } = Dimensions.get("window");
   const chartW = sw - 48 - CHART_PAD_L - CHART_PAD_R;
   const label = JOINT_HISTORY_DISPLAY[joint] ?? joint;
 
@@ -83,6 +83,10 @@ export default function JointHistorySheet({
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fadeAnim = useRef<Animated.CompositeAnimation | null>(null);
 
+  // Animated values for swipe-to-dismiss
+  const translateY = useRef(new Animated.Value(0)).current;
+  const handleOpacity = useRef(new Animated.Value(1)).current;
+
   const SWIPE_DOWN_THRESHOLD = 80;
 
   // Always points to the latest handleClose so the panResponder (created once)
@@ -93,9 +97,35 @@ export default function JointHistorySheet({
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_evt, gs) => gs.dy > 10 && Math.abs(gs.dy) > Math.abs(gs.dx),
+      onPanResponderMove: (_evt, gs) => {
+        if (gs.dy > 0) {
+          translateY.setValue(gs.dy);
+          // Dim the handle as the user drags: fully opaque at 0, 0.3 at threshold
+          const progress = Math.min(gs.dy / SWIPE_DOWN_THRESHOLD, 1);
+          handleOpacity.setValue(1 - progress * 0.7);
+        }
+      },
       onPanResponderRelease: (_evt, gs) => {
         if (gs.dy >= SWIPE_DOWN_THRESHOLD) {
-          handleCloseRef.current();
+          // Animate off-screen then dismiss
+          Animated.timing(translateY, {
+            toValue: sh,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            handleCloseRef.current();
+          });
+        } else {
+          // Snap back to resting position
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+          Animated.timing(handleOpacity, {
+            toValue: 1,
+            duration: 150,
+            useNativeDriver: true,
+          }).start();
         }
       },
     })
@@ -224,7 +254,7 @@ export default function JointHistorySheet({
           <Text style={backdropHintStyles.text}>Tap × to close</Text>
         </View>
 
-          <View
+          <Animated.View
           testID="sheet-swipe-container"
           {...panResponder.panHandlers}
           style={{
@@ -236,10 +266,11 @@ export default function JointHistorySheet({
             paddingHorizontal: 24,
             paddingBottom: 40,
             paddingTop: 16,
+            transform: [{ translateY }],
           }}
         >
-          {/* Handle */}
-          <View
+          {/* Handle — dims slightly as the user drags down */}
+          <Animated.View
             testID="sheet-drag-handle"
             style={{
               width: 36,
@@ -248,6 +279,7 @@ export default function JointHistorySheet({
               backgroundColor: "#3a3a5c",
               alignSelf: "center",
               marginBottom: 18,
+              opacity: handleOpacity,
             }}
           />
 
@@ -654,7 +686,7 @@ export default function JointHistorySheet({
           >
             {data.length} scan{data.length === 1 ? "" : "s"} · angle history
           </Text>
-        </View>
+        </Animated.View>
       </Pressable>
     </Modal>
   );
