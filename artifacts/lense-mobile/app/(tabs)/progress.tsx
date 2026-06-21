@@ -1541,6 +1541,8 @@ export default function ProgressScreen() {
               const first = scores[0] ?? 0;
               const delta = Math.round(latest - first);
               const improved = delta > 0;
+              const latestEntry = filteredMovementHistory[filteredMovementHistory.length - 1];
+              const latestAnalysisId = latestEntry?.analysisId || null;
               return (
                 <TouchableOpacity
                   key={key}
@@ -1583,6 +1585,25 @@ export default function ProgressScreen() {
                           {delta >= 0 ? "+" : ""}{delta} over {scores.length} scan{scores.length === 1 ? "" : "s"}
                         </Text>
                       </View>
+                    )}
+                    {latestAnalysisId && (
+                      <Pressable
+                        testID={`movement-session-link-${key}`}
+                        onPress={() => router.push(`/analysis/skeleton/${latestAnalysisId}` as any)}
+                        style={({ pressed }) => ({
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 3,
+                          marginTop: 8,
+                          alignSelf: "flex-start",
+                          opacity: pressed ? 0.6 : 1,
+                        })}
+                      >
+                        <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.primary }}>
+                          Latest session
+                        </Text>
+                        <Feather name="chevron-right" size={11} color={colors.primary} />
+                      </Pressable>
                     )}
                   </View>
                   <ScoreSparkline scores={scores} color={color} />
