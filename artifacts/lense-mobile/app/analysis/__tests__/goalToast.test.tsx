@@ -479,11 +479,14 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
   }
 
   // ── Test 10 — auto-dismiss after 3.5 s ──────────────────────────────────
+  // 60 s budget: the fake-timer dance takes ~24 s in isolation and can exceed
+  // the 30 s default when the full suite runs in parallel under load.
 
   it("automatically dismisses the toast after 3.5 s without any user interaction", async () => {
     mockAnalysesGet
       .mockResolvedValueOnce({ analysis: PROCESSING_ANALYSIS, tips: [], injuryRisks: [] })
       .mockResolvedValueOnce({ analysis: COMPLETE_ANALYSIS,   tips: [], injuryRisks: [] });
+    jest.setTimeout(60000);
 
     const { queryByText } = render(<AnalysisDetailScreen />);
 
