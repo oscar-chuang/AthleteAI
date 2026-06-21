@@ -450,6 +450,47 @@ describe("POST /chat — systemPrompt only reflects completed sessions", () => {
     }
   });
 
+  it("forwards the athlete's name in the system prompt sent to Anthropic", async () => {
+    setProfile("tennis", "Serena", "advanced");
+
+    const app = makeApp();
+    const res = await request(app)
+      .post("/chat")
+      .send({ content: "What should I work on today?" });
+
+    expect(res.status).toBe(200);
+    expect(h.captured.systemPrompt).toContain("Serena");
+  });
+
+  it("addresses a different athlete by their own name — not a generic placeholder", async () => {
+    setProfile("basketball", "Marcus", "beginner");
+
+    const app = makeApp();
+    const res = await request(app)
+      .post("/chat")
+      .send({ content: "Give me some tips" });
+
+    expect(res.status).toBe(200);
+    const prompt = h.captured.systemPrompt;
+    expect(prompt).toContain("Marcus");
+    // Must not fall back to the generic 'this athlete' placeholder when a name is set
+    expect(prompt).not.toContain("this athlete");
+  });
+
+  it("uses the generic placeholder only when no profile name is set", async () => {
+    // Profile with no name (null)
+    h.profileStore.length = 0;
+    h.profileStore.push({ userId: TEST_USER_ID, name: null, sport: "running", level: "intermediate", goals: null, injuryConcerns: null });
+
+    const app = makeApp();
+    const res = await request(app)
+      .post("/chat")
+      .send({ content: "How do I get faster?" });
+
+    expect(res.status).toBe(200);
+    expect(h.captured.systemPrompt).toContain("this athlete");
+  });
+
   it("includes drill tips from a completed session but not from a processing session", async () => {
     setProfile("running");
     addAnalysis({
