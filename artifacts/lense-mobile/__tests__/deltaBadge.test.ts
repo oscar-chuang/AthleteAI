@@ -31,6 +31,44 @@ function makeAnalysis(
   };
 }
 
+// ── First session in a multi-session list: no delta ──────────────────────────
+
+describe("DeltaBadge — first session in a multi-session list produces no delta", () => {
+  it("computeBestDelta returns null when current is the oldest entry in a two-session list", () => {
+    const first = makeAnalysis({
+      uploadedAt: "2025-06-01T10:00:00Z",
+      jointAngles: { leftKnee: 160, rightKnee: 158 },
+      jointRisks:  { leftKnee: 2,   rightKnee: 2 },
+    });
+    const second = makeAnalysis({
+      uploadedAt: "2025-06-10T10:00:00Z",
+      jointAngles: { leftKnee: 170, rightKnee: 168 },
+      jointRisks:  { leftKnee: 1,   rightKnee: 1 },
+    });
+
+    expect(computeBestDelta(first, [first, second])).toBeNull();
+  });
+
+  it("a null delta for the first session carries no label or colour (badge branch skipped)", () => {
+    const first = makeAnalysis({
+      uploadedAt: "2025-06-01T10:00:00Z",
+      jointAngles: { leftKnee: 160, rightKnee: 158 },
+      jointRisks:  { leftKnee: 2,   rightKnee: 2 },
+    });
+    const second = makeAnalysis({
+      uploadedAt: "2025-06-10T10:00:00Z",
+      jointAngles: { leftKnee: 170, rightKnee: 168 },
+      jointRisks:  { leftKnee: 1,   rightKnee: 1 },
+    });
+
+    const deltaBadge = computeBestDelta(first, [first, second]);
+
+    expect(deltaBadge).toBeNull();
+    expect(deltaBadge?.jointLabel).toBeUndefined();
+    expect(deltaBadge?.color).toBeUndefined();
+  });
+});
+
 // ── Single-session: no delta ──────────────────────────────────────────────────
 
 describe("DeltaBadge — single session produces no delta", () => {

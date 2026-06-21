@@ -17,7 +17,29 @@
 import React from "react";
 import { render, fireEvent } from "@testing-library/react-native";
 import { DeltaBadge } from "@/components/DeltaBadge";
+import { computeBestDelta } from "@/lib/sessionDelta";
 import type { DeltaBadgeInfo } from "@/lib/sessionDelta";
+import type { AnalysisRecord } from "@/lib/api";
+
+// ── Two-session fixture for first-session render tests ────────────────────────
+
+let _fixtureId = 100;
+function makeFixtureAnalysis(
+  overrides: Partial<AnalysisRecord> & { uploadedAt?: string }
+): AnalysisRecord {
+  _fixtureId++;
+  return {
+    id: String(_fixtureId),
+    userId: "u1",
+    title: "Session",
+    sport: "running",
+    status: "complete",
+    strengths: [],
+    improvements: [],
+    uploadedAt: `2025-06-${String(_fixtureId % 28 + 1).padStart(2, "0")}T10:00:00Z`,
+    ...overrides,
+  };
+}
 
 // ── Colour constants (must match lib/sessionDelta.ts) ─────────────────────────
 
@@ -193,6 +215,38 @@ describe("DeltaBadge — null info skips rendering", () => {
 
   it("renders no badge text when info is null", () => {
     const { queryByTestId } = render(<BadgeGuard info={null} />);
+    expect(queryByTestId("delta-badge-text")).toBeNull();
+  });
+
+  it("renders no badge container for the first (oldest) session in a two-session list", () => {
+    const first = makeFixtureAnalysis({
+      uploadedAt: "2025-06-01T10:00:00Z",
+      jointAngles: { leftKnee: 160, rightKnee: 158 },
+      jointRisks:  { leftKnee: 2,   rightKnee: 2 },
+    });
+    const second = makeFixtureAnalysis({
+      uploadedAt: "2025-06-10T10:00:00Z",
+      jointAngles: { leftKnee: 170, rightKnee: 168 },
+      jointRisks:  { leftKnee: 1,   rightKnee: 1 },
+    });
+    const info = computeBestDelta(first, [first, second]);
+    const { queryByTestId } = render(<BadgeGuard info={info} />);
+    expect(queryByTestId("delta-badge")).toBeNull();
+  });
+
+  it("renders no badge text for the first (oldest) session in a two-session list", () => {
+    const first = makeFixtureAnalysis({
+      uploadedAt: "2025-06-01T10:00:00Z",
+      jointAngles: { leftKnee: 160, rightKnee: 158 },
+      jointRisks:  { leftKnee: 2,   rightKnee: 2 },
+    });
+    const second = makeFixtureAnalysis({
+      uploadedAt: "2025-06-10T10:00:00Z",
+      jointAngles: { leftKnee: 170, rightKnee: 168 },
+      jointRisks:  { leftKnee: 1,   rightKnee: 1 },
+    });
+    const info = computeBestDelta(first, [first, second]);
+    const { queryByTestId } = render(<BadgeGuard info={info} />);
     expect(queryByTestId("delta-badge-text")).toBeNull();
   });
 });
