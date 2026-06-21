@@ -118,6 +118,11 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
     }
   }
 
+  const deduplicatedInjuryConcerns =
+    injuryConcerns !== undefined
+      ? [...new Set(injuryConcerns)]
+      : undefined;
+
   let processedAvatarUrl = avatarUrl;
   if (typeof avatarUrl === "string") {
     processedAvatarUrl = await compressAvatarIfNeeded(avatarUrl);
@@ -139,7 +144,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
         ...(sport !== undefined && { sport }),
         ...(level !== undefined && { level }),
         ...(goals !== undefined && { goals }),
-        ...(injuryConcerns !== undefined && { injuryConcerns }),
+        ...(deduplicatedInjuryConcerns !== undefined && { injuryConcerns: deduplicatedInjuryConcerns }),
         ...(weeklyGoal !== undefined && { weeklyGoal }),
         ...(trainingDays !== undefined && { trainingDays }),
         ...(checkInHour !== undefined && { checkInHour }),
@@ -159,7 +164,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
         sport: sport ?? "",
         level: level ?? "beginner",
         goals: goals ?? [],
-        injuryConcerns: injuryConcerns ?? [],
+        injuryConcerns: deduplicatedInjuryConcerns ?? [],
         weeklyGoal: weeklyGoal ?? 3,
         trainingDays: trainingDays ?? [0, 1, 2, 3, 4, 5, 6],
         checkInHour: checkInHour ?? 9,
