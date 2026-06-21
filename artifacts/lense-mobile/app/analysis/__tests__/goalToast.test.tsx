@@ -466,6 +466,18 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
     jest.useRealTimers();
   });
 
+  /**
+   * Drain pending microtasks only — no setTimeout — so this helper is safe
+   * inside a fake-timer context where await act(async()=>{}) would hang
+   * (React 18 scheduler internally uses setTimeout(0) which fake timers capture).
+   */
+  async function flushMicrotasksOnly(rounds = 8) {
+    for (let i = 0; i < rounds; i++) {
+      // eslint-disable-next-line no-await-in-loop
+      await Promise.resolve();
+    }
+  }
+
   // ── Test 10 — auto-dismiss after 3.5 s ──────────────────────────────────
 
   it("automatically dismisses the toast after 3.5 s without any user interaction", async () => {
@@ -476,14 +488,14 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
     const { queryByText } = render(<AnalysisDetailScreen />);
 
     // First focus: loads 'processing'. isProcessing → true, polling setInterval starts.
+    // Use the same simulateFocus() as the polling test (Test 11) — it works correctly
+    // with doNotFake:["MessageChannel"] because Promise-based microtasks still drain.
     await simulateFocus();
     expect(queryByText("Weekly goal reached!")).toBeNull();
 
     // Advance one poll interval — the setInterval fires load(), which returns
     // COMPLETE_ANALYSIS.  prevStatusRef was "processing" → toast appears.
-    // Use synchronous act() + manual microtask drain to avoid React 18 scheduler
-    // hanging when async act() waits for its internal setTimeout(0) which fake
-    // timers capture and never fire.
+    // Use synchronous act() + flush() mirroring the pattern used in Test 11.
     act(() => { jest.advanceTimersByTime(4000); });
     await flush();
 

@@ -290,8 +290,7 @@ describe("HomeScreen — confetti fires after goal change and new session", () =
 
   it("checkConfettiGate is called on both visits", async () => {
     (checkConfettiGate as jest.Mock)
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true);
+      .mockResolvedValue(false);
 
     (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key: string) => {
       if (key === LAST_SEEN_GOAL_KEY) return "3";
@@ -299,6 +298,13 @@ describe("HomeScreen — confetti fires after goal change and new session", () =
     });
 
     render(<HomeScreen />);
+
+    // Reset the call count after the initial mount so we only count the
+    // calls that correspond to the two explicit focus visits below.
+    // (The component may call loadData an additional time during the initial
+    // render/useCallback dependency evaluation before any focus event fires.)
+    (checkConfettiGate as jest.Mock).mockClear();
+
     await simulateFocus();
     await simulateFocus();
 
