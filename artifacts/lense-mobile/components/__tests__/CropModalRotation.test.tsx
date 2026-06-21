@@ -23,7 +23,8 @@
  */
 
 import React from "react";
-import { act, render } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import * as ImageManipulator from "expo-image-manipulator";
 
 // ─── Shared-value registry ────────────────────────────────────────────────────
 // Populated by the useSharedValue mock below; cleared in beforeEach.
@@ -387,5 +388,140 @@ describe("CropModal — reopening the modal resets crop position", () => {
     expect(capturedSVs[SV_TY].value).toBe(0);
     const expectedMinScale = Math.max(320 / 600, 320 / 800);
     expect(capturedSVs[SV_SCALE].value).toBeCloseTo(expectedMinScale, 3);
+  });
+});
+
+// ─── 'Use Photo' crops at the exact pan/zoom position ────────────────────────
+//
+// Regression guard: a future refactor of handleConfirm must not silently
+// produce wrong crop coordinates.  We set known shared values, press the
+// button, and assert that manipulateAsync receives the crop rect that
+// computeCropRect would compute for those exact values.
+//
+// CROP_SIZE in the RN test environment:
+//   Dimensions.get("window").width defaults to 375 → Math.min(375-48, 320) = 320
+
+describe("CropModal — 'Use Photo' passes the correct crop rect to ImageManipulator", () => {
+  // The manual mock in __mocks__/expo-image-manipulator.js exposes manipulateAsync
+  // as a jest.fn().  Importing via the namespace gives us a reference to spy on.
+  const mockManipulate = ImageManipulator.manipulateAsync as jest.Mock;
+
+  beforeEach(() => {
+    capturedSVs.length = 0;
+    mockManipulate.mockClear();
+  });
+
+  it("crop originX/originY/width/height match computeCropRect for scale=2, tx=30, ty=20", async () => {
+    const IMAGE_W = 800;
+    const IMAGE_H = 600;
+    const TEST_CROP_SIZE = 320; // Math.min(375-48, 320)
+
+    const { findByText } = render(
+      <CropModal {...makeProps({ imageWidth: IMAGE_W, imageHeight: IMAGE_H })} />,
+    );
+
+    // Write known pan/zoom state directly to the shared values.
+    // Named constants match hook-call order; see top of file.
+    act(() => {
+      capturedSVs[SV_SCALE].value = 2;
+      capturedSVs[SV_TX].value    = 30;
+      capturedSVs[SV_TY].value    = 20;
+    });
+
+    // Press "Use Photo" — triggers handleConfirm (async)
+    const btn = await findByText("Use Photo");
+    fireEvent.press(btn);
+
+    // Wait for the async ImageManipulator call to resolve
+    await waitFor(() => {
+      expect(mockManipulate).toHaveBeenCalledTimes(1);
+    });
+
+    // The first argument to the first action in the actions array is the crop step.
+    const [_uri, actions] = mockManipulate.mock.calls[0] as [
+      string,
+      Array<{ crop?: object }>,
+      object,
+    ];
+    const cropStep = actions[0] as { crop: { originX: number; originY: number; width: number; height: number } };
+
+    const expected = computeCropRect(IMAGE_W, IMAGE_H, 2, 30, 20, TEST_CROP_SIZE);
+    expect(cropStep.crop).toEqual(expected);
+  });
+
+  it("crop rect is centred on the image when translation is zero", async () => {
+    const IMAGE_W = 800;
+    const IMAGE_H = 600;
+    const TEST_CROP_SIZE = 320;
+    const SCALE = 2;
+
+    const { findByText } = render(
+      <CropModal {...makeProps({ imageWidth: IMAGE_W, imageHeight: IMAGE_H })} />,
+    );
+
+    act(() => {
+      capturedSVs[SV_SCALE].value = SCALE;
+      capturedSVs[SV_TX].value    = 0;
+      capturedSVs[SV_TY].value    = 0;
+    });
+
+    const btn = await findByText("Use Photo");
+    fireEvent.press(btn);
+
+    await waitFor(() => {
+      expect(mockManipulate).toHaveBeenCalledTimes(1);
+    });
+
+    const [_uri, actions] = mockManipulate.mock.calls[0] as [
+      string,
+      Array<{ crop?: object }>,
+      object,
+    ];
+    const cropStep = actions[0] as { crop: { originX: number; originY: number; width: number; height: number } };
+
+    const expected = computeCropRect(IMAGE_W, IMAGE_H, SCALE, 0, 0, TEST_CROP_SIZE);
+    expect(cropStep.crop).toEqual(expected);
+
+    // With tx=0 ty=0 the crop must be centred on the image.
+    const centreX = cropStep.crop.originX + cropStep.crop.width / 2;
+    const centreY = cropStep.crop.originY + cropStep.crop.height / 2;
+    expect(centreX).toBeCloseTo(IMAGE_W / 2, 0);
+    expect(centreY).toBeCloseTo(IMAGE_H / 2, 0);
+  });
+
+  it("a large pan offset shifts the crop rect accordingly", async () => {
+    const IMAGE_W = 1000;
+    const IMAGE_H = 1000;
+    const TEST_CROP_SIZE = 320;
+    const SCALE = 3;
+    const TX = -80;
+    const TY = 50;
+
+    const { findByText } = render(
+      <CropModal {...makeProps({ imageWidth: IMAGE_W, imageHeight: IMAGE_H })} />,
+    );
+
+    act(() => {
+      capturedSVs[SV_SCALE].value = SCALE;
+      capturedSVs[SV_TX].value    = TX;
+      capturedSVs[SV_TY].value    = TY;
+    });
+
+    const btn = await findByText("Use Photo");
+    fireEvent.press(btn);
+
+    await waitFor(() => {
+      expect(mockManipulate).toHaveBeenCalledTimes(1);
+    });
+
+    const [_uri, actions] = mockManipulate.mock.calls[0] as [
+      string,
+      Array<{ crop?: object }>,
+      object,
+    ];
+    const cropStep = actions[0] as { crop: { originX: number; originY: number; width: number; height: number } };
+
+    const expected = computeCropRect(IMAGE_W, IMAGE_H, SCALE, TX, TY, TEST_CROP_SIZE);
+    expect(cropStep.crop).toEqual(expected);
   });
 });
