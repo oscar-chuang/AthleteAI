@@ -512,9 +512,15 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
 
     // Advance past the 3.5 s auto-dismiss timer and the 250 ms fade-out
     // animation so the Animated.timing completion callback fires and sets
-    // goalToast to null.
-    act(() => { jest.advanceTimersByTime(3500 + 300); });
-    await flush();
+    // goalToast to null.  Then runAllTimers() drains any React-scheduler
+    // setTimeout(0) that was queued by the Animated callback — without this,
+    // the scheduler timeout stays in the fake-timer queue and the subsequent
+    // await hangs indefinitely.
+    act(() => {
+      jest.advanceTimersByTime(3500 + 300);
+      jest.runAllTimers();
+    });
+    await flushMicrotasksOnly();
 
     // Toast must be gone after the auto-dismiss timer + animation elapse.
     expect(queryByText("Weekly goal reached!")).toBeNull();
