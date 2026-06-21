@@ -250,6 +250,21 @@ export default function ChatScreen() {
           <Text style={s.paywallSub}>
             Get personalized coaching powered by Claude AI. Discuss your form, get drill recommendations, and improve faster.
           </Text>
+          {(() => {
+            const concerns = (profile?.injuryConcerns ?? []).filter(
+              (c) => c !== "No current injuries"
+            );
+            if (concerns.length === 0) return null;
+            return (
+              <Text
+                testID="paywall-injury-concerns"
+                style={[s.paywallSub, { marginBottom: 16, marginTop: -16 }]}
+              >
+                {"Injury concerns on file: "}
+                {concerns.join(", ")}
+              </Text>
+            );
+          })()}
           <TouchableOpacity style={s.upgradeBtn} onPress={() => router.push("/pricing")} activeOpacity={0.85}>
             <Feather name="zap" size={16} color="#fff" />
             <Text style={s.upgradeBtnText}>Upgrade to Pro</Text>
