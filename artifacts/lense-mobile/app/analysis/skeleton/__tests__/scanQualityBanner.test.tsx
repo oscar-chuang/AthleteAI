@@ -80,6 +80,15 @@ jest.mock("react-native-safe-area-context", () => ({
   SafeAreaProvider: ({ children }: any) => children,
 }));
 
+jest.mock("@/hooks/useColors", () => ({
+  useColors: () => ({
+    background: "#0a0a0a", foreground: "#f5f5f5", card: "#1a1a1a",
+    border: "#2a2a2a", primary: "#6c63ff", mutedForeground: "#888888",
+    muted: "#333333", success: "#22c55e", warning: "#f59e0b",
+    destructive: "#ff4d6d", radius: 12,
+  }),
+}));
+
 import SkeletonScreen from "../[id]";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
