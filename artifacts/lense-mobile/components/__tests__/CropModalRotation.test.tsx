@@ -213,6 +213,66 @@ describe("computeCropRect — pure function", () => {
     expect(centreX).toBeCloseTo(400, 0);
     expect(centreY).toBeCloseTo(300, 0);
   });
+
+  // ── Degenerate: image smaller than the crop window ────────────────────────
+  //
+  // When imageWidth < CROP_SIZE and imageHeight < CROP_SIZE, minScale > 1 and
+  // the image must be stretched to fill the crop window.  The resulting rect
+  // should capture the full source image: originX=0, originY=0,
+  // width=imageWidth, height=imageHeight.
+
+  it("tiny image (50×50) at minScale captures the full source image", () => {
+    // minScale = max(320/50, 320/50) = 6.4
+    const minScale = Math.max(CROP / 50, CROP / 50);
+    expect(minScale).toBeGreaterThan(1); // confirm this is the stretched case
+
+    const r = computeCropRect(50, 50, minScale, 0, 0, CROP);
+    expect(r.originX).toBe(0);
+    expect(r.originY).toBe(0);
+    expect(r.width).toBe(50);
+    expect(r.height).toBe(50);
+  });
+
+  it("tiny image (50×50): width and height equal imageWidth and imageHeight", () => {
+    const minScale = Math.max(CROP / 50, CROP / 50);
+    const r = computeCropRect(50, 50, minScale, 0, 0, CROP);
+    expect(r.width).toBe(50);
+    expect(r.height).toBe(50);
+  });
+
+  it("tiny image (50×50): scale is forced above 1 (minScale > 1)", () => {
+    const minScale = Math.max(CROP / 50, CROP / 50);
+    expect(minScale).toBeGreaterThan(1);
+  });
+
+  it("tiny non-square image (50×80): all fields are valid at minScale", () => {
+    // minScale = max(320/50, 320/80) = max(6.4, 4) = 6.4
+    // At scale 6.4: displayW=320 (fills crop window), displayH=512 (overflows).
+    // The crop window captures the full width but only a 320-pixel slice of height,
+    // which in image-space is 320/6.4 = 50 source pixels.
+    const minScale = Math.max(CROP / 50, CROP / 80);
+    expect(minScale).toBeGreaterThan(1);
+
+    const r = computeCropRect(50, 80, minScale, 0, 0, CROP);
+    expect(r.originX).toBeGreaterThanOrEqual(0);
+    expect(r.originY).toBeGreaterThanOrEqual(0);
+    expect(r.width).toBeGreaterThan(0);
+    expect(r.height).toBeGreaterThan(0);
+    // Width captures the full image width (the narrow axis exactly fills the window)
+    expect(r.width).toBe(50);
+    // Width + origin must not overflow image bounds
+    expect(r.originX + r.width).toBeLessThanOrEqual(50);
+    expect(r.originY + r.height).toBeLessThanOrEqual(80);
+  });
+
+  it("tiny image (50×50): all fields remain non-negative at minScale", () => {
+    const minScale = Math.max(CROP / 50, CROP / 50);
+    const r = computeCropRect(50, 50, minScale, 0, 0, CROP);
+    expect(r.originX).toBeGreaterThanOrEqual(0);
+    expect(r.originY).toBeGreaterThanOrEqual(0);
+    expect(r.width).toBeGreaterThan(0);
+    expect(r.height).toBeGreaterThan(0);
+  });
 });
 
 // ─── Rotation: position is preserved, not zeroed ─────────────────────────────
@@ -523,5 +583,67 @@ describe("CropModal — 'Use Photo' passes the correct crop rect to ImageManipul
 
     const expected = computeCropRect(IMAGE_W, IMAGE_H, SCALE, TX, TY, TEST_CROP_SIZE);
     expect(cropStep.crop).toEqual(expected);
+  });
+});
+
+// ─── Smoke test: tiny image does not crash the component ─────────────────────
+//
+// Renders CropModal with imageWidth=50, imageHeight=50 (both smaller than
+// CROP_SIZE=320) to confirm that minScale > 1 does not cause any runtime error
+// in the component's useEffect or gesture setup.
+
+describe("CropModal — tiny image (50×50) smoke test", () => {
+  beforeEach(() => {
+    capturedSVs.length = 0;
+  });
+
+  it("renders without crashing when imageWidth and imageHeight are both smaller than CROP_SIZE", () => {
+    expect(() => {
+      render(
+        <CropModal
+          visible
+          imageUri="file://tiny.jpg"
+          imageWidth={50}
+          imageHeight={50}
+          onConfirm={noop}
+          onCancel={noop}
+        />,
+      );
+    }).not.toThrow();
+  });
+
+  it("initialises scale to minScale (> 1) for a tiny 50×50 image", () => {
+    render(
+      <CropModal
+        visible
+        imageUri="file://tiny.jpg"
+        imageWidth={50}
+        imageHeight={50}
+        onConfirm={noop}
+        onCancel={noop}
+      />,
+    );
+
+    // CROP_SIZE in the test env = Math.min(375 - 48, 320) = 320
+    // minScale = max(320/50, 320/50) = 6.4
+    const expectedMinScale = Math.max(320 / 50, 320 / 50);
+    expect(expectedMinScale).toBeGreaterThan(1);
+    expect(capturedSVs[SV_SCALE].value).toBeCloseTo(expectedMinScale, 3);
+  });
+
+  it("resets translation to 0 when opened with a tiny image", () => {
+    render(
+      <CropModal
+        visible
+        imageUri="file://tiny.jpg"
+        imageWidth={50}
+        imageHeight={50}
+        onConfirm={noop}
+        onCancel={noop}
+      />,
+    );
+
+    expect(capturedSVs[SV_TX].value).toBe(0);
+    expect(capturedSVs[SV_TY].value).toBe(0);
   });
 });
