@@ -441,4 +441,17 @@ describe("ChatScreen — paywall header subtitle reflects current profile", () =
 
     expect(getByText("Set sport & level →")).toBeTruthy();
   });
+
+  // ── Test 4 ─────────────────────────────────────────────────────────────────
+
+  it("renders without crashing and shows fallback subtitle when profile is null", async () => {
+    mockProfile = null;
+
+    const { getByText } = render(<ChatScreen />);
+    await flush();
+
+    // profile is null → profile?.sport is undefined (falsy) → falls back to
+    // the "Set sport & level →" prompt, same as the empty-string case.
+    expect(getByText("Set sport & level →")).toBeTruthy();
+  });
 });
