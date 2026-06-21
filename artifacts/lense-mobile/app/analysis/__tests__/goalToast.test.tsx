@@ -458,7 +458,7 @@ describe("AnalysisDetailScreen — 'Weekly goal reached!' toast", () => {
 // scheduler stable across all await/act calls.
 describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () => {
   beforeEach(() => {
-    jest.useFakeTimers({ doNotFake: ["MessageChannel"] });
+    jest.useFakeTimers({ doNotFake: ["MessageChannel" as "nextTick"] });
   });
 
   afterEach(() => {
@@ -538,7 +538,7 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
 
 describe("AnalysisDetailScreen — toast fires from the 4 s polling path", () => {
   beforeEach(() => {
-    jest.useFakeTimers({ doNotFake: ["MessageChannel"] });
+    jest.useFakeTimers({ doNotFake: ["MessageChannel" as "nextTick"] });
   });
 
   afterEach(() => {
