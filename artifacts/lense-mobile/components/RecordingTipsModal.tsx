@@ -34,6 +34,8 @@ interface Props {
   exampleCards?: typeof EXAMPLE_CARDS;
 }
 
+export const RECORDING_TIPS_KEY = "recording_tips_dismissed";
+
 export default function RecordingTipsModal({
   visible,
   onClose,

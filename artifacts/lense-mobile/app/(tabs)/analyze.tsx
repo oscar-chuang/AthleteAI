@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,6 @@ import {
   Platform,
   Modal,
   ActivityIndicator as RNActivityIndicator,
-  Alert,
   RefreshControl,
   TextInput,
   Image,
@@ -17,38 +16,22 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { toTitleCase } from "@/utils/formatDisplay";
 import { Feather } from "@expo/vector-icons";
-import { useRouter, useFocusEffect } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as ImagePicker from "expo-image-picker";
-
-function getWeekKey(): string {
-  const d = new Date();
-  const sunday = new Date(d);
-  sunday.setDate(d.getDate() - d.getDay()); // Sunday-start, matches thisWeekCount on server
-  return sunday.toISOString().split("T")[0]!;
-}
+import { useRouter } from "expo-router";
 
 import { useColors } from "@/hooks/useColors";
 import { SkeletonCard } from "@/components/ui/SkeletonLoader";
-import { analyses as analysesApi, jointTrends, type AnalysisRecord, type JointTrendsResponse, ApiError } from "@/lib/api";
 import { useAuth, useCanAccessFeature } from "@/lib/authContext";
-import { buildDeltaMap } from "@/lib/sessionDelta";
 import RecordingTipsModal from "@/components/RecordingTipsModal";
 import JointHistorySheet from "@/components/JointHistorySheet";
+import { useAnalysisHistory } from "@/hooks/useAnalysisHistory";
+import { useAnalyses } from "@/hooks/useAnalyses";
+import { useVideoUpload, ANALYSIS_STEPS } from "@/hooks/useVideoUpload";
 
 const SPORTS = [
   "Weightlifting", "Running", "Basketball", "Golf", "Tennis",
   "Swimming", "CrossFit", "Boxing", "Soccer", "Gymnastics",
   "Cycling", "Fencing", "Rowing", "Volleyball", "Baseball",
   "Wrestling", "Rugby", "Hockey", "Yoga", "Other",
-];
-
-const ANALYSIS_STEPS = [
-  { label: "Scanning your video",          icon: "film",      color: "#2F7BFF" },
-  { label: "Finding the athlete",          icon: "user",      color: "#2F7BFF" },
-  { label: "Tracking movement",            icon: "activity",  color: "#2F7BFF" },
-  { label: "Measuring key positions",      icon: "target",    color: "#22C55E" },
-  { label: "Building your coaching plan",  icon: "cpu",       color: "#FF6B35" },
 ];
 
 type SortMode = "newest" | "oldest" | "score-high" | "score-low";
@@ -74,285 +57,23 @@ export default function AnalyzeScreen() {
   const { profile } = useAuth();
   const canUnlimited = useCanAccessFeature("unlimitedAnalyses");
 
-  const [analysisList, setAnalysisList] = useState<AnalysisRecord[]>([]);
-  const [analysesWithTicks, setAnalysesWithTicks] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loadError, setLoadError] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analysisStep, setAnalysisStep] = useState(0);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<SortMode>("newest");
-  const [jointTrendsData, setJointTrendsData] = useState<JointTrendsResponse | null>(null);
-  const [historyJoint, setHistoryJoint] = useState<string | null>(null);
-  const [historyAnalysisId, setHistoryAnalysisId] = useState<string>("");
+  const {
+    analysisList, analysesWithTicks, loading, refreshing, setRefreshing,
+    loadError, jointTrendsData, historyJoint, setHistoryJoint, historyAnalysisId, setHistoryAnalysisId,
+    headerStats, deltaBadgeMap, heroAnalysis, loadAnalyses,
+  } = useAnalysisHistory();
 
-  // Sport picker modal
-  const [showSportPicker, setShowSportPicker] = useState(false);
-  const [pendingUri, setPendingUri] = useState<string | null>(null);
-  const [pendingTitle, setPendingTitle] = useState("");
-  const [selectedSport, setSelectedSport] = useState("");
+  const { searchQuery, setSearchQuery, sortBy, setSortBy, displayList } = useAnalyses(analysisList);
 
-  // Recording tips modal
-  const [showRecordingTips, setShowRecordingTips] = useState(false);
-  const [pendingAction, setPendingAction] = useState<"upload" | "record" | null>(null);
+  const {
+    showSportPicker, setShowSportPicker, pendingTitle, setPendingTitle,
+    selectedSport, setSelectedSport, analyzing, analysisStep,
+    showRecordingTips, setShowRecordingTips, pendingAction,
+    handleUpload, handleRecord, handleRecordingTipsContinue, submitAnalysis,
+  } = useVideoUpload(profile, headerStats, loadAnalyses, router);
 
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
-
-  const loadAnalyses = useCallback(async () => {
-    setLoadError(false);
-    try {
-      const [{ analyses }, trendsResult] = await Promise.all([
-        analysesApi.list(),
-        jointTrends.get().catch(() => null),
-      ]);
-      setAnalysisList(analyses);
-      if (trendsResult) setJointTrendsData(trendsResult);
-
-      // Check which complete analyses have frameTicks stored locally
-      const tickIds = await Promise.all(
-        analyses
-          .filter(a => a.status === "complete")
-          .map(async a => {
-            try {
-              const raw = await AsyncStorage.getItem(`frameTicks_${a.id}`);
-              if (!raw) return null;
-              const parsed: unknown[] = JSON.parse(raw);
-              return Array.isArray(parsed) && parsed.length > 0 ? a.id : null;
-            } catch {
-              return null;
-            }
-          })
-      );
-      setAnalysesWithTicks(new Set(tickIds.filter((id): id is string => id !== null)));
-    } catch {
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  // Refresh every time this tab is focused
-  useFocusEffect(useCallback(() => { loadAnalyses(); }, [loadAnalyses]));
-
-  // Poll if any analysis is still processing — capped at ~3 min to avoid battery drain.
-  const hasProcessing = useMemo(
-    () => analysisList.some((a) => a.status === "processing" || a.status === "pending"),
-    [analysisList]
-  );
-  useEffect(() => {
-    if (!hasProcessing) return;
-    let count = 0;
-    const id = setInterval(() => {
-      count += 1;
-      if (count > 36) { clearInterval(id); return; }
-      loadAnalyses();
-    }, 5000);
-    return () => clearInterval(id);
-  }, [hasProcessing, loadAnalyses]);
-
-  // Stats computed from list
-  const headerStats = useMemo(() => {
-    const done = analysisList.filter((a) => a.status === "complete");
-    const now = new Date();
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - now.getDay());
-    weekStart.setHours(0, 0, 0, 0);
-    const thisWeek = done.filter((a) => new Date(a.uploadedAt) >= weekStart).length;
-    const avg = done.length
-      ? Math.round(done.reduce((s, a) => s + (a.overallScore ?? 0), 0) / done.length)
-      : 0;
-    return { total: done.length, thisWeek, avg };
-  }, [analysisList]);
-
-  // Precompute delta badges once per analyses refresh — O(n log n) total
-  const deltaBadgeMap = useMemo(() => buildDeltaMap(analysisList), [analysisList]);
-
-  // Most recent completed session — shown as the hero block
-  const heroAnalysis = useMemo(
-    () => analysisList.find((a) => a.status === "complete"),
-    [analysisList]
-  );
-
-  // Filter + sort
-  const displayList = useMemo(() => {
-    let list = analysisList;
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (a) => a.title.toLowerCase().includes(q) || a.sport.toLowerCase().includes(q)
-      );
-    }
-    return [...list].sort((a, b) => {
-      switch (sortBy) {
-        case "score-high": return (b.overallScore ?? 0) - (a.overallScore ?? 0);
-        case "score-low":  return (a.overallScore ?? 0) - (b.overallScore ?? 0);
-        case "oldest":     return new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime();
-        default:           return new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime();
-      }
-    });
-  }, [analysisList, searchQuery, sortBy]);
-
-  function requireSport(): boolean {
-    if (!profile?.sport) {
-      Alert.alert(
-        "Set your sport first",
-        "Tell us your sport so we can give you accurate, sport-specific biomechanics feedback.",
-        [
-          { text: "Skip for now", style: "cancel" },
-          { text: "Set up profile", onPress: () => router.push("/onboarding" as any) },
-        ]
-      );
-      return false;
-    }
-    return true;
-  }
-
-  function handleUpload() {
-    if (!requireSport()) return;
-    setPendingAction("upload");
-    setShowRecordingTips(true);
-  }
-
-  function handleRecord() {
-    if (!requireSport()) return;
-    if (Platform.OS === "web") {
-      Alert.alert("Not available", "Video recording is only available on the mobile app.");
-      return;
-    }
-    setPendingAction("record");
-    setShowRecordingTips(true);
-  }
-
-  async function handleRecordingTipsContinue() {
-    setShowRecordingTips(false);
-    const action = pendingAction;
-    setPendingAction(null);
-    if (action === "upload") {
-      await doUpload();
-    } else if (action === "record") {
-      await doRecord();
-    }
-  }
-
-  function handleRecordingTipsClose() {
-    setShowRecordingTips(false);
-    setPendingAction(null);
-  }
-
-  async function doUpload() {
-    try {
-      if (Platform.OS !== "web") {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== "granted") {
-          Alert.alert("Permission needed", "Allow photo & video access in Settings to pick a clip.");
-          return;
-        }
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: "videos",
-        allowsEditing: false,
-        quality: 1,
-      });
-      if (result.canceled) return;
-      const uri = result.assets[0]?.uri ?? "";
-      if (!uri) return;
-      setPendingUri(uri);
-      setPendingTitle("");
-      setSelectedSport(profile?.sport ?? "");
-      setShowSportPicker(true);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const isiCloud = /3164|PHPhotos|could not be completed/i.test(msg);
-      Alert.alert(
-        "Couldn't load that video",
-        isiCloud
-          ? "This clip is in iCloud and hasn't downloaded yet. Open Photos, let it download, then try again."
-          : "Something went wrong. Please try a different clip.",
-      );
-    }
-  }
-
-  async function doRecord() {
-    try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission needed", "Allow camera access in Settings to record a clip.");
-        return;
-      }
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: "videos",
-        allowsEditing: false,
-        videoMaxDuration: 90,
-        quality: 0.85,
-      });
-      if (result.canceled) return;
-      const uri = result.assets[0]?.uri ?? "";
-      if (!uri) return;
-      setPendingUri(uri);
-      setPendingTitle("");
-      setSelectedSport(profile?.sport ?? "");
-      setShowSportPicker(true);
-    } catch {
-      Alert.alert("Couldn't record video", "Something went wrong. Please try again.");
-    }
-  }
-
-  async function submitAnalysis() {
-    if (!selectedSport || !pendingUri) return;
-    setShowSportPicker(false);
-    setAnalyzing(true);
-    setAnalysisStep(0);
-
-    const stepInterval = setInterval(() => {
-      setAnalysisStep((s) => Math.min(s + 1, ANALYSIS_STEPS.length - 1));
-    }, 1100);
-
-    try {
-      const { analysis } = await analysesApi.create({
-        title: pendingTitle.trim() || `${selectedSport} — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
-        sport: selectedSport.toLowerCase(),
-        videoUrl: pendingUri,
-      });
-      await AsyncStorage.setItem(`video_uri_${analysis.id}`, pendingUri);
-
-      // Write a pending-confetti flag if this upload crosses the weekly goal.
-      // headerStats.thisWeek is the count of COMPLETE sessions before this one;
-      // the new analysis adds +1 complete session once processed.
-      const weeklyGoal = profile?.weeklyGoal ?? 3;
-      if (weeklyGoal > 0 && headerStats.thisWeek < weeklyGoal && headerStats.thisWeek + 1 >= weeklyGoal) {
-        const weekKey = getWeekKey();
-        const alreadyCelebrated = await AsyncStorage.getItem(`confetti_celebrated_${weekKey}`);
-        if (!alreadyCelebrated) {
-          await AsyncStorage.setItem(`confetti_pending_${weekKey}`, "true");
-        }
-      }
-
-      clearInterval(stepInterval);
-      setAnalysisStep(ANALYSIS_STEPS.length - 1);
-      await new Promise((r) => setTimeout(r, 500));
-      setAnalyzing(false);
-      await loadAnalyses();
-      router.push(`/analysis/${analysis.id}`);
-    } catch (err) {
-      clearInterval(stepInterval);
-      setAnalyzing(false);
-      if (err instanceof ApiError && err.code === "UPGRADE_REQUIRED") {
-        Alert.alert(
-          "Upgrade Required",
-          err.message,
-          [
-            { text: "Not now", style: "cancel" },
-            { text: "View Plans", onPress: () => router.push("/pricing") },
-          ]
-        );
-      } else {
-        Alert.alert("Something went wrong", "Please try again.");
-      }
-    }
-  }
 
   const sortOptions: { key: SortMode; label: string }[] = [
     { key: "newest",     label: "Newest"    },
@@ -413,7 +134,6 @@ export default function AnalyzeScreen() {
     emptyBtnText:    { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
     noResults:       { paddingVertical: 32, alignItems: "center" },
     noResultsText:   { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-    // Processing overlay
     overlay:         { flex: 1, backgroundColor: "rgba(0,0,0,0.88)", alignItems: "center", justifyContent: "center", padding: 32 },
     overlayCard:     { backgroundColor: colors.card, borderRadius: 24, padding: 32, alignItems: "center", width: "100%", gap: 10 },
     overlayIconRing: { width: 84, height: 84, borderRadius: 42, borderWidth: 2, alignItems: "center", justifyContent: "center" },
@@ -423,7 +143,6 @@ export default function AnalyzeScreen() {
     overlayBarFill:  { height: 6, borderRadius: 3 },
     stepDots:        { flexDirection: "row", gap: 6, marginTop: 4, marginBottom: 2, alignItems: "center" },
     stepDot:         { height: 7, borderRadius: 4 },
-    // Sport picker modal
     pickerModal:     { flex: 1, backgroundColor: colors.background },
     pickerHeader:    { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     pickerTitle:     { fontSize: 16, fontFamily: "Inter_600SemiBold", color: colors.foreground },
@@ -568,7 +287,7 @@ export default function AnalyzeScreen() {
       {/* Recording tips gate */}
       <RecordingTipsModal
         visible={showRecordingTips}
-        onClose={handleRecordingTipsClose}
+        onClose={() => { setShowRecordingTips(false); }}
         onContinue={handleRecordingTipsContinue}
       />
 

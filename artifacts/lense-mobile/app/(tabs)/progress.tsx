@@ -16,17 +16,10 @@ import Svg, { Line, Path, Polyline, Circle, Text as SvgText, Rect, G } from "rea
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { SkeletonBox, SkeletonCard } from "@/components/ui/SkeletonLoader";
 import { toTitleCase } from "@/utils/formatDisplay";
 import {
-  progress as progressApi,
-  achievements as achievementsApi,
-  profile as profileApi,
-  jointTrends as jointTrendsApi,
-  movementSummaryHistory as movementSummaryHistoryApi,
-  analyses as analysesApi,
   type ProgressRecord,
   type AchievementRecord,
   type ProfileStats,
@@ -37,6 +30,8 @@ import {
   type JointImprovement,
   type MovementSummaryDataPoint,
 } from "@/lib/api";
+import { useProgressData } from "@/hooks/useProgressData";
+import { useProgressFilters } from "@/hooks/useProgressFilters";
 import { getSportConfig, JOINT_DISPLAY, SPORT_ICONS, type MetricKey } from "@/constants/sportConfig";
 import { computeMostImproved } from "@/lib/jointImprovement";
 import JointHistorySheet from "@/components/JointHistorySheet";
@@ -182,31 +177,24 @@ export default function ProgressScreen() {
   const scrollViewRef = useRef<FlatList<ProgressRecord>>(null);
   const trendsYRef = useRef<number>(0);
 
-  const [selectedSport, setSelectedSport] = useState<string | null>(null);
-  const [selectedMovementType, setSelectedMovementType] = useState<string | null>(null);
-  const [compareMode, setCompareMode] = useState(false);
-  const [compareMovementType, setCompareMovementType] = useState<string | null>(null);
-  const [activeMetric, setActiveMetric] = useState<MetricKey>("overall");
-  const [period, setPeriod] = useState<Period>("All");
+  const {
+    allEntries, sportsList, achievements, stats, allTrends, allMovementHistory,
+    personalRecords, setPersonalRecords, aiSummary, setAiSummary,
+    aiSummaryLoading, setAiSummaryLoading,
+    drillsDoneCount, drillsCorrective, drillsPerformance, drillsUnclassified, drillsPartialFailure,
+    loading, refreshing, setRefreshing, error,
+    selectedSport, setSelectedSport,
+    loadData, loadSportSpecific,
+  } = useProgressData();
 
-  const [allEntries, setAllEntries] = useState<ProgressRecord[]>([]);
-  const [sportsList, setSportsList] = useState<SportEntry[]>([]);
-  const [achievements, setAchievements] = useState<AchievementRecord[]>([]);
-  const [stats, setStats] = useState<ProfileStats | null>(null);
-  const [allTrends, setAllTrends] = useState<JointTrendsResponse | null>(null);
-  const [allMovementHistory, setAllMovementHistory] = useState<MovementSummaryDataPoint[]>([]);
-  const [personalRecords, setPersonalRecords] = useState<Record<string, PersonalRecordEntry>>({});
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
-  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
-  const [drillsDoneCount, setDrillsDoneCount] = useState(0);
-  const [drillsCorrective, setDrillsCorrective] = useState<number | null>(null);
-  const [drillsPerformance, setDrillsPerformance] = useState<number | null>(null);
-  const [drillsUnclassified, setDrillsUnclassified] = useState<number>(0);
-  const [drillsPartialFailure, setDrillsPartialFailure] = useState(false);
+  const {
+    selectedMovementType, setSelectedMovementType,
+    compareMode, setCompareMode,
+    compareMovementType, setCompareMovementType,
+    activeMetric, setActiveMetric,
+    period, setPeriod,
+  } = useProgressFilters();
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(false);
   const [selectedJoint, setSelectedJoint] = useState<string | null>(null);
   const [selectedDimension, setSelectedDimension] = useState<(typeof MOVEMENT_DIMENSIONS)[number] | null>(null);
   const [compareTooltip, setCompareTooltip] = useState<{
@@ -242,139 +230,6 @@ export default function ProgressScreen() {
     const entry = sportsList.find((s) => s.sport === selectedSport);
     return entry?.movementTypes ?? [];
   }, [selectedSport, sportsList]);
-
-  const loadDrillsDone = useCallback(async () => {
-    try {
-      const keys = await AsyncStorage.getAllKeys();
-      const drillKeys = keys.filter((k) => k.startsWith("drill_done_"));
-      if (drillKeys.length === 0) {
-        setDrillsDoneCount(0);
-        setDrillsCorrective(null);
-        setDrillsPerformance(null);
-        setDrillsUnclassified(0);
-        return;
-      }
-
-      const pairs = await AsyncStorage.multiGet(drillKeys);
-
-      // Build a map of analysisId → completed tip IDs
-      const analysisCompletedTips: Record<string, string[]> = {};
-      let total = 0;
-      for (const [key, val] of pairs) {
-        if (val) {
-          try {
-            const ids = JSON.parse(val) as string[];
-            const analysisId = key.replace("drill_done_", "");
-            analysisCompletedTips[analysisId] = ids;
-            total += ids.length;
-          } catch {}
-        }
-      }
-      setDrillsDoneCount(total);
-
-      // Fetch tips for each analysis to classify drills as corrective vs performance
-      try {
-        const results = await Promise.allSettled(
-          Object.keys(analysisCompletedTips).map((id) => analysesApi.get(id))
-        );
-
-        let corrective = 0;
-        let performance = 0;
-        let atLeastOneFulfilled = false;
-        let atLeastOneRejected = false;
-
-        results.forEach((result, idx) => {
-          const analysisId = Object.keys(analysisCompletedTips)[idx]!;
-          const completedIds = new Set(analysisCompletedTips[analysisId]);
-          if (result.status === "fulfilled") {
-            atLeastOneFulfilled = true;
-            for (const tip of result.value.tips) {
-              if (completedIds.has(tip.id)) {
-                if (tip.tipType === "injury") {
-                  corrective++;
-                } else {
-                  performance++;
-                }
-              }
-            }
-          } else {
-            atLeastOneRejected = true;
-          }
-        });
-
-        // Show breakdown if at least one analysis fetch succeeded, even if the
-        // classified count is zero (partial fetch is more informative than hiding)
-        if (atLeastOneFulfilled) {
-          setDrillsCorrective(corrective);
-          setDrillsPerformance(performance);
-          setDrillsUnclassified(Math.max(0, total - corrective - performance));
-          // Flag partial failure so the UI can show a caveat note
-          setDrillsPartialFailure(atLeastOneRejected);
-        } else {
-          setDrillsCorrective(null);
-          setDrillsPerformance(null);
-          setDrillsUnclassified(0);
-          setDrillsPartialFailure(false);
-        }
-      } catch {
-        // If tip fetching fails, show total only (no breakdown)
-        setDrillsCorrective(null);
-        setDrillsPerformance(null);
-        setDrillsUnclassified(0);
-        setDrillsPartialFailure(false);
-      }
-    } catch {}
-  }, []);
-
-  const loadData = useCallback(async () => {
-    setError(false);
-    try {
-      const [{ entries: e }, sportsResult, { achievements: a }, st, tr, mh] = await Promise.all([
-        progressApi.list(),
-        Promise.resolve().then(() => progressApi.sports()).catch(() => ({ sports: [] as SportEntry[] })),
-        achievementsApi.list(),
-        profileApi.stats().catch(() => null),
-        jointTrendsApi.get().catch(() => null),
-        movementSummaryHistoryApi.get().catch(() => null),
-      ]);
-      setAllEntries(e);
-      setAchievements(a);
-      if (st) setStats(st);
-      if (tr) setAllTrends(tr);
-      if (mh) setAllMovementHistory(mh.history);
-
-      // Auto-select the most-common sport if not already selected
-      const sports = sportsResult.sports;
-      if (sports.length > 0) {
-        setSportsList(sports);
-        setSelectedSport((prev) => prev ?? sports[0]!.sport);
-      }
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-    await loadDrillsDone();
-  }, [loadDrillsDone]);
-
-  // Load personal records and AI summary when sport/movement changes
-  const loadSportSpecific = useCallback(async (sport: string | null, movementType: string | null) => {
-    if (!sport) return;
-
-    const [prResult] = await Promise.all([
-      progressApi.personalRecords(sport).catch(() => null),
-    ]);
-    if (prResult) setPersonalRecords(prResult.records);
-
-    // AI summary in background
-    setAiSummaryLoading(true);
-    setAiSummary(null);
-    progressApi.summary(sport, movementType ?? undefined)
-      .then(({ summary }) => setAiSummary(summary))
-      .catch(() => setAiSummary(null))
-      .finally(() => setAiSummaryLoading(false));
-  }, []);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
