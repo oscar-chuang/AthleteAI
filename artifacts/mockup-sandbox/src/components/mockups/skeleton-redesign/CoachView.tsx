@@ -86,75 +86,231 @@ function AnnotatedSkeleton() {
   );
 }
 
-/* ─── Anatomical muscle map — matches real app renderMuscleMap() ─────── */
-// flagged: which muscle groups to highlight and at what risk level
+/* ─── Anatomical muscle map ──────────────────────────────────────────── */
 interface MuscleFlags {
-  qL?: number; qR?: number;     // quads
-  hmL?: number; hmR?: number;   // hamstrings
-  hfL?: number; hfR?: number;   // hip flexors
-  gL?: number; gR?: number;     // glutes
-  bL?: number; bR?: number;     // biceps
-  tL?: number; tR?: number;     // triceps
+  qL?: number; qR?: number;
+  hmL?: number; hmR?: number;
+  hfL?: number; hfR?: number;
+  gL?: number; gR?: number;
+  bL?: number; bR?: number;
+  tL?: number; tR?: number;
 }
 
 function AnatomyMap({ flags }: { flags: MuscleFlags }) {
-  const mf = (k: keyof MuscleFlags) =>
-    flags[k] !== undefined ? RISK_COLORS[flags[k]!] + "55" : "#1c1c30";
-  const ms = (k: keyof MuscleFlags) =>
-    flags[k] !== undefined ? RISK_COLORS[flags[k]!] : "#2a2a45";
-  const mw = (k: keyof MuscleFlags) =>
-    flags[k] !== undefined ? 1.5 : 1;
+  const BASE = "#18182a";
+  const OUTLINE = "#2e2e50";
+
+  const fill = (k: keyof MuscleFlags) =>
+    flags[k] !== undefined ? RISK_COLORS[flags[k]!] + "50" : BASE;
+  const stroke = (k: keyof MuscleFlags) =>
+    flags[k] !== undefined ? RISK_COLORS[flags[k]!] : OUTLINE;
+  const sw = (k: keyof MuscleFlags) =>
+    flags[k] !== undefined ? 1.6 : 0.9;
+  const glow = (k: keyof MuscleFlags) =>
+    flags[k] !== undefined ? `drop-shadow(0 0 3px ${RISK_COLORS[flags[k]!]}88)` : undefined;
 
   return (
-    <svg width={120} height={156} viewBox="0 0 120 156">
-      {/* ── FRONT ── */}
-      <circle cx={25} cy={11} r={9} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      <rect x={22} y={20} width={7} height={7} rx={2} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      {/* biceps */}
-      <rect x={5} y={27} width={8} height={27} rx={3} fill={mf("bL")} stroke={ms("bL")} strokeWidth={mw("bL")}/>
-      <rect x={38} y={27} width={8} height={27} rx={3} fill={mf("bR")} stroke={ms("bR")} strokeWidth={mw("bR")}/>
-      {/* chest/torso */}
-      <rect x={14} y={27} width={23} height={30} rx={4} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      {/* forearms */}
-      <rect x={3} y={56} width={7} height={22} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      <rect x={41} y={56} width={7} height={22} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      {/* abs */}
-      <rect x={14} y={58} width={23} height={18} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      {/* hip flexors */}
-      <rect x={9} y={77} width={13} height={17} rx={3} fill={mf("hfL")} stroke={ms("hfL")} strokeWidth={mw("hfL")}/>
-      <rect x={29} y={77} width={13} height={17} rx={3} fill={mf("hfR")} stroke={ms("hfR")} strokeWidth={mw("hfR")}/>
-      {/* quads */}
-      <rect x={9} y={95} width={12} height={38} rx={4} fill={mf("qL")} stroke={ms("qL")} strokeWidth={mw("qL")}/>
-      <rect x={30} y={95} width={12} height={38} rx={4} fill={mf("qR")} stroke={ms("qR")} strokeWidth={mw("qR")}/>
-      {/* shins */}
-      <rect x={10} y={134} width={10} height={21} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      <rect x={31} y={134} width={10} height={21} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      <text x={25} y={154} fontSize={7} fill="#44445a" textAnchor="middle" fontFamily="Inter, sans-serif">FRONT</text>
-      {/* divider */}
-      <line x1={60} y1={4} x2={60} y2={148} stroke="#2a2a45" strokeWidth={0.5} strokeDasharray="2 3"/>
-      {/* ── BACK ── */}
-      <circle cx={95} cy={11} r={9} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      <rect x={92} y={20} width={7} height={7} rx={2} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      {/* triceps */}
-      <rect x={75} y={27} width={8} height={27} rx={3} fill={mf("tL")} stroke={ms("tL")} strokeWidth={mw("tL")}/>
-      <rect x={108} y={27} width={8} height={27} rx={3} fill={mf("tR")} stroke={ms("tR")} strokeWidth={mw("tR")}/>
-      {/* back/traps */}
-      <rect x={84} y={27} width={23} height={30} rx={4} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      {/* forearms */}
-      <rect x={73} y={56} width={7} height={22} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      <rect x={111} y={56} width={7} height={22} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      {/* lower back */}
-      <rect x={84} y={58} width={23} height={18} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      {/* glutes */}
-      <rect x={79} y={77} width={13} height={17} rx={3} fill={mf("gL")} stroke={ms("gL")} strokeWidth={mw("gL")}/>
-      <rect x={99} y={77} width={13} height={17} rx={3} fill={mf("gR")} stroke={ms("gR")} strokeWidth={mw("gR")}/>
-      {/* hamstrings */}
-      <rect x={79} y={95} width={12} height={38} rx={4} fill={mf("hmL")} stroke={ms("hmL")} strokeWidth={mw("hmL")}/>
-      <rect x={100} y={95} width={12} height={38} rx={4} fill={mf("hmR")} stroke={ms("hmR")} strokeWidth={mw("hmR")}/>
-      {/* calves */}
-      <rect x={80} y={134} width={10} height={21} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      <rect x={101} y={134} width={10} height={21} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1}/>
-      <text x={95} y={154} fontSize={7} fill="#44445a" textAnchor="middle" fontFamily="Inter, sans-serif">BACK</text>
+    <svg width={130} height={160} viewBox="0 0 130 160">
+      <defs>
+        {/* subtle inner glow for highlighted muscles */}
+        <filter id="mGlow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      {/* ══════════════ FRONT (centred x=31) ══════════════ */}
+
+      {/* Body silhouette outline */}
+      <path
+        d="M31,3 a8,8 0 1,0 0.01,0
+           M24,19 Q15,21 10,28 Q6,33 9,36
+           Q12,34 14,27 L18,24
+           Q20,57 20,63 Q18,70 17,78
+           L14,96 Q13,115 13,118
+           L11,140 Q11,144 14,145 L18,145 Q21,144 21,140
+           L22,118 L23,113 L24,118 L24,140
+           Q24,144 27,145 L33,145 Q36,144 36,140
+           L37,118 L38,113 L39,118 L39,140
+           Q39,144 42,145 L46,145 Q49,144 49,140
+           L47,118 Q47,115 45,96
+           L43,78 Q42,70 40,63 Q40,57 42,24
+           L46,27 Q48,34 51,36
+           Q54,33 50,28 Q45,21 38,19 Z"
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.8} strokeLinejoin="round"
+      />
+
+      {/* Head */}
+      <circle cx={31} cy={10} r={8} fill={BASE} stroke={OUTLINE} strokeWidth={0.9}/>
+      {/* Neck */}
+      <rect x={27.5} y={18} width={7} height={6} rx={2} fill={BASE} stroke={OUTLINE} strokeWidth={0.7}/>
+
+      {/* Left deltoid */}
+      <ellipse cx={12} cy={28} rx={6} ry={5} transform="rotate(-20 12 28)"
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.9}/>
+      {/* Right deltoid */}
+      <ellipse cx={50} cy={28} rx={6} ry={5} transform="rotate(20 50 28)"
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.9}/>
+
+      {/* Left pec */}
+      <ellipse cx={23} cy={32} rx={6} ry={7} transform="rotate(-5 23 32)"
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.9}/>
+      {/* Right pec */}
+      <ellipse cx={39} cy={32} rx={6} ry={7} transform="rotate(5 39 32)"
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.9}/>
+
+      {/* Left bicep */}
+      <ellipse cx={10} cy={40} rx={4.5} ry={11} transform="rotate(-10 10 40)"
+        fill={fill("bL")} stroke={stroke("bL")} strokeWidth={sw("bL")}
+        style={{ filter: glow("bL") }}/>
+      {/* Right bicep */}
+      <ellipse cx={52} cy={40} rx={4.5} ry={11} transform="rotate(10 52 40)"
+        fill={fill("bR")} stroke={stroke("bR")} strokeWidth={sw("bR")}
+        style={{ filter: glow("bR") }}/>
+
+      {/* Abs */}
+      <rect x={22} y={40} width={18} height={22} rx={5} fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+      <line x1={31} y1={40} x2={31} y2={62} stroke={OUTLINE} strokeWidth={0.6}/>
+      <line x1={22} y1={48} x2={40} y2={48} stroke={OUTLINE} strokeWidth={0.6}/>
+      <line x1={22} y1={55} x2={40} y2={55} stroke={OUTLINE} strokeWidth={0.6}/>
+
+      {/* Left forearm */}
+      <ellipse cx={8} cy={58} rx={3.5} ry={9} transform="rotate(10 8 58)"
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+      {/* Right forearm */}
+      <ellipse cx={54} cy={58} rx={3.5} ry={9} transform="rotate(-10 54 58)"
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+
+      {/* Hip flexors */}
+      <ellipse cx={23} cy={70} rx={7.5} ry={6}
+        fill={fill("hfL")} stroke={stroke("hfL")} strokeWidth={sw("hfL")}
+        style={{ filter: glow("hfL") }}/>
+      <ellipse cx={39} cy={70} rx={7.5} ry={6}
+        fill={fill("hfR")} stroke={stroke("hfR")} strokeWidth={sw("hfR")}
+        style={{ filter: glow("hfR") }}/>
+
+      {/* Left quad */}
+      <ellipse cx={22} cy={95} rx={8} ry={19}
+        fill={fill("qL")} stroke={stroke("qL")} strokeWidth={sw("qL")}
+        style={{ filter: glow("qL") }}/>
+      {/* Right quad */}
+      <ellipse cx={40} cy={95} rx={8} ry={19}
+        fill={fill("qR")} stroke={stroke("qR")} strokeWidth={sw("qR")}
+        style={{ filter: glow("qR") }}/>
+
+      {/* Knee caps */}
+      <ellipse cx={22} cy={115} rx={5.5} ry={4} fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+      <ellipse cx={40} cy={115} rx={5.5} ry={4} fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+
+      {/* Left shin */}
+      <ellipse cx={21} cy={131} rx={4.5} ry={12}
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+      {/* Right shin */}
+      <ellipse cx={39} cy={131} rx={4.5} ry={12}
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+
+      {/* Feet */}
+      <ellipse cx={22} cy={144} rx={6} ry={2.5} fill={BASE} stroke={OUTLINE} strokeWidth={0.7}/>
+      <ellipse cx={39} cy={144} rx={6} ry={2.5} fill={BASE} stroke={OUTLINE} strokeWidth={0.7}/>
+
+      <text x={31} y={154} fontSize={7} fill="#44445a" textAnchor="middle" fontFamily="Inter, sans-serif">FRONT</text>
+
+      {/* ── divider ── */}
+      <line x1={65} y1={4} x2={65} y2={150} stroke="#252540" strokeWidth={0.6} strokeDasharray="2 3"/>
+
+      {/* ══════════════ BACK (centred x=96) ══════════════ */}
+
+      {/* Body silhouette outline */}
+      <path
+        d="M96,3 a8,8 0 1,0 0.01,0
+           M89,19 Q80,21 75,28 Q71,33 74,36
+           Q77,34 79,27 L83,24
+           Q85,50 85,58 Q80,60 78,68
+           Q76,75 75,78 L73,96 Q72,115 72,118
+           L70,140 Q70,144 73,145 L77,145 Q80,144 80,140
+           L81,118 L83,113 L84,118 L84,140
+           Q84,144 87,145 L93,145 Q96,144 96,140
+           L97,118 L98,113 L99,118 L99,140
+           Q99,144 102,145 L106,145 Q109,144 109,140
+           L107,118 Q107,115 105,96
+           L103,78 Q102,75 100,68
+           Q98,60 107,58 Q107,50 109,24
+           L113,27 Q115,34 118,36
+           Q121,33 117,28 Q112,21 103,19 Z"
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.8} strokeLinejoin="round"
+      />
+
+      {/* Head */}
+      <circle cx={96} cy={10} r={8} fill={BASE} stroke={OUTLINE} strokeWidth={0.9}/>
+      {/* Neck */}
+      <rect x={92.5} y={18} width={7} height={6} rx={2} fill={BASE} stroke={OUTLINE} strokeWidth={0.7}/>
+
+      {/* Traps — left / right humps */}
+      <ellipse cx={79} cy={26} rx={9} ry={5} transform="rotate(-15 79 26)"
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.9}/>
+      <ellipse cx={113} cy={26} rx={9} ry={5} transform="rotate(15 113 26)"
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.9}/>
+      {/* Upper trap centre */}
+      <ellipse cx={96} cy={25} rx={8} ry={5} fill={BASE} stroke={OUTLINE} strokeWidth={0.9}/>
+
+      {/* Lats */}
+      <path d="M89,26 Q80,40 82,58 Q85,63 89,63 L89,26 Z"
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+      <path d="M103,26 Q112,40 110,58 Q107,63 103,63 L103,26 Z"
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+
+      {/* Left tricep */}
+      <ellipse cx={74} cy={40} rx={4.5} ry={11} transform="rotate(-10 74 40)"
+        fill={fill("tL")} stroke={stroke("tL")} strokeWidth={sw("tL")}
+        style={{ filter: glow("tL") }}/>
+      {/* Right tricep */}
+      <ellipse cx={118} cy={40} rx={4.5} ry={11} transform="rotate(10 118 40)"
+        fill={fill("tR")} stroke={stroke("tR")} strokeWidth={sw("tR")}
+        style={{ filter: glow("tR") }}/>
+
+      {/* Left forearm */}
+      <ellipse cx={72} cy={58} rx={3.5} ry={9} transform="rotate(10 72 58)"
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+      {/* Right forearm */}
+      <ellipse cx={120} cy={58} rx={3.5} ry={9} transform="rotate(-10 120 58)"
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+
+      {/* Lower back / erector spinae */}
+      <ellipse cx={92} cy={65} rx={3.5} ry={7} fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+      <ellipse cx={100} cy={65} rx={3.5} ry={7} fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+
+      {/* Glutes */}
+      <ellipse cx={84} cy={81} rx={10} ry={10}
+        fill={fill("gL")} stroke={stroke("gL")} strokeWidth={sw("gL")}
+        style={{ filter: glow("gL") }}/>
+      <ellipse cx={108} cy={81} rx={10} ry={10}
+        fill={fill("gR")} stroke={stroke("gR")} strokeWidth={sw("gR")}
+        style={{ filter: glow("gR") }}/>
+
+      {/* Left hamstring */}
+      <ellipse cx={82} cy={99} rx={8} ry={18}
+        fill={fill("hmL")} stroke={stroke("hmL")} strokeWidth={sw("hmL")}
+        style={{ filter: glow("hmL") }}/>
+      {/* Right hamstring */}
+      <ellipse cx={110} cy={99} rx={8} ry={18}
+        fill={fill("hmR")} stroke={stroke("hmR")} strokeWidth={sw("hmR")}
+        style={{ filter: glow("hmR") }}/>
+
+      {/* Knee backs */}
+      <ellipse cx={82} cy={115} rx={5.5} ry={4} fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+      <ellipse cx={110} cy={115} rx={5.5} ry={4} fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+
+      {/* Calves */}
+      <ellipse cx={81} cy={131} rx={5.5} ry={13}
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+      <ellipse cx={111} cy={131} rx={5.5} ry={13}
+        fill={BASE} stroke={OUTLINE} strokeWidth={0.8}/>
+
+      {/* Feet */}
+      <ellipse cx={82} cy={144} rx={6} ry={2.5} fill={BASE} stroke={OUTLINE} strokeWidth={0.7}/>
+      <ellipse cx={110} cy={144} rx={6} ry={2.5} fill={BASE} stroke={OUTLINE} strokeWidth={0.7}/>
+
+      <text x={96} y={154} fontSize={7} fill="#44445a" textAnchor="middle" fontFamily="Inter, sans-serif">BACK</text>
     </svg>
   );
 }
