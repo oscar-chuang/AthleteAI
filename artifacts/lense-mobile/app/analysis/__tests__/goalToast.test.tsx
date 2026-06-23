@@ -457,47 +457,50 @@ describe("AnalysisDetailScreen — 'Weekly goal reached!' toast", () => {
 // are set up at the describe level (not inside the test body) to keep React's
 // scheduler stable across all await/act calls.
 describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let _origStartAnimatingNode: any;
+
   beforeEach(() => {
     // Extend the timeout here, where it applies to every test in this describe.
     // Calling jest.setTimeout() inside a test body only affects *subsequent*
     // tests, not the one currently running — a common Jest footgun.
     jest.setTimeout(60_000);
-    jest.useFakeTimers({ doNotFake: ["MessageChannel" as any] });
+    jest.useFakeTimers({ doNotFake: ["MessageChannel" as "nextTick"] });
+
+    // Root-cause fix for the intermittent act(async) hang
+    // ─────────────────────────────────────────────────────
+    // The RN jest mock for NativeAnimatedModule.startAnimatingNode always fires
+    // its endCallback via setTimeout(..., 16).  Under fake timers that 16 ms
+    // fake setTimeout is captured but never auto-advanced, so act(async) — which
+    // waits for React to become idle — can hang indefinitely when there is a
+    // setState-bearing endCallback in flight (e.g. the dismiss animation's
+    // () => setGoalToast(null)).
+    //
+    // Replacing startAnimatingNode with a synchronous implementation eliminates
+    // the fake timer entirely: endCallback fires immediately, animations complete
+    // in the same synchronous turn, and act(async) never sees a pending fake
+    // timer to wait on.  All observable behaviour (state transitions, assertions)
+    // is preserved; only the animation timing side-effect is collapsed to zero.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+    const { NativeModules } = require("react-native");
+    _origStartAnimatingNode = NativeModules.NativeAnimatedModule.startAnimatingNode;
+    NativeModules.NativeAnimatedModule.startAnimatingNode = jest.fn(
+      (_animId: number, _nodeTag: number, _config: unknown, endCallback: (r: { finished: boolean }) => void) => {
+        endCallback({ finished: true });
+      },
+    );
   });
 
   afterEach(() => {
+    // Restore the original mock so other test files are not affected.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+    const { NativeModules } = require("react-native");
+    NativeModules.NativeAnimatedModule.startAnimatingNode = _origStartAnimatingNode;
     jest.clearAllTimers();
     jest.useRealTimers();
     // Restore Jest's default timeout so later suites are not affected.
     jest.setTimeout(5_000);
   });
-
-  /**
-   * Flush pending microtasks inside an act() boundary.
-   *
-   * Under fake timers, await act(async()=>{}) stalls for real seconds because
-   * React 18's post-flush step waits for setTimeout(0) — which fake timers
-   * never fire automatically.  The workaround is to drain the async Promise
-   * chain *inside* the act callback so that all state updates settle through
-   * microtasks before React's flush step runs.  Finding no pending setTimeout
-   * work, act() exits immediately instead of waiting.
-   */
-  async function flushWithAct(rounds = 12) {
-    await act(async () => {
-      for (let i = 0; i < rounds; i++) {
-        // eslint-disable-next-line no-await-in-loop
-        await Promise.resolve();
-      }
-    });
-  }
-
-  /** Drain pending microtasks only (no setTimeout) — safe after runAllTimers(). */
-  async function flushMicrotasksOnly(rounds = 8) {
-    for (let i = 0; i < rounds; i++) {
-      // eslint-disable-next-line no-await-in-loop
-      await Promise.resolve();
-    }
-  }
 
   // ── Test 10 — auto-dismiss after 3.5 s ──────────────────────────────────
 
@@ -509,32 +512,34 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
     const { queryByText } = render(<AnalysisDetailScreen />);
 
     // First focus: loads 'processing'. isProcessing → true, polling setInterval starts.
-    // Synchronous act() avoids React's async-act scheduler touching fake setTimeout(0).
-    // flushWithAct() then drains the async load() Promise chain inside an act boundary
-    // so all state updates (setAnalysis, setLoading …) commit before we assert.
-    act(() => { mockFocusCallback?.(); });
-    await flushWithAct();
+    await simulateFocus();
     expect(queryByText("Weekly goal reached!")).toBeNull();
 
-    // Advance one poll interval — the setInterval fires load(), which returns
-    // COMPLETE_ANALYSIS.  prevStatusRef was "processing" → checkGoalToast runs.
+    // Advance one poll interval.  The setInterval fires load() → COMPLETE_ANALYSIS.
+    // prevStatusRef was "processing" → checkGoalToast() runs → setGoalToast() →
+    // show animation starts.  Because startAnimatingNode now fires synchronously,
+    // no 16 ms fake timer is registered and act(async) inside flush() never hangs.
     act(() => { jest.advanceTimersByTime(4000); });
-    await flushWithAct();
+    await flush();
 
-    // Toast must be visible immediately after the status transition.
+    // Toast must be visible after the processing → complete transition.
     expect(queryByText("Weekly goal reached!")).not.toBeNull();
 
-    // Advance past the 3.5 s auto-dismiss timer and the 250 ms fade-out
-    // animation so the Animated.timing completion callback fires and sets
-    // goalToast to null.  Then runAllTimers() drains any React-scheduler
-    // setTimeout(0) that was queued by the Animated callback — without this,
-    // the scheduler timeout stays in the fake-timer queue and the subsequent
-    // await hangs indefinitely.
-    act(() => {
-      jest.advanceTimersByTime(3500 + 300);
-      jest.runAllTimers();
-    });
-    await flushMicrotasksOnly();
+    // Advance past the 3.5 s auto-dismiss timer.
+    // Timeline (fake clock):
+    //   t = 0 ms      setInterval registered (during simulateFocus)
+    //   t = 4000 ms   setInterval fires → load() → COMPLETE_ANALYSIS →
+    //                 checkGoalToast() → setTimeout(dismissToast, 3500) registered
+    //   t = 7500 ms   auto-dismiss fires → dismissToast() → dismiss animation
+    //                 starts → because startAnimatingNode is synchronous,
+    //                 () => setGoalToast(null) fires immediately inside this act
+    //   t = 8000 ms   setInterval fires AGAIN (exhausted mock → crash risk)
+    //
+    // We advance exactly 3600 ms (4000 → 7600 ms):
+    //   7500 ms auto-dismiss fires ✓
+    //   8000 ms setInterval does NOT fire ✓  (7600 < 8000)
+    act(() => { jest.advanceTimersByTime(3600); });
+    await flush();
 
     // Toast must be gone after the auto-dismiss timer + animation elapse.
     expect(queryByText("Weekly goal reached!")).toBeNull();
