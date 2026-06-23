@@ -1,69 +1,15 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, and, desc, count, sql } from "drizzle-orm";
-import sharp from "sharp";
+import { eq, and, desc, count } from "drizzle-orm";
 import { db, profilesTable, analysesTable, completedDrillsTable } from "@workspace/db";
 import { requireAuth } from "./auth";
-import { computeProfileStats } from "../lib/stats";
+import { computeProfileStats, computePersonalBests } from "../lib/stats";
+import { formatProfile } from "../lib/formatters";
+import { compressAvatarIfNeeded } from "../lib/media";
 import { cache } from "../lib/redis";
-
-const AVATAR_MAX_PX = 64;
-const AVATAR_MAX_BYTES = 20 * 1024;
-
-export async function compressAvatarIfNeeded(avatarUrl: string): Promise<string> {
-  const match = avatarUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
-  if (!match) return avatarUrl;
-
-  const inputBuffer = Buffer.from(match[2], "base64");
-
-  // First pass at quality 80 — a 64×64 JPEG is typically 2–5 KB, well under limit.
-  let outputBuffer = await sharp(inputBuffer)
-    .resize(AVATAR_MAX_PX, AVATAR_MAX_PX, { fit: "cover", position: "centre" })
-    .jpeg({ quality: 80 })
-    .toBuffer();
-
-  // Second pass (rare): only if the first attempt exceeded the byte limit.
-  // Estimate a lower quality proportionally; clamp to [20, 70] so we don't
-  // re-use 80 or drop below the minimum usable floor.
-  if (outputBuffer.byteLength > AVATAR_MAX_BYTES) {
-    const targetQuality = Math.max(
-      20,
-      Math.min(70, Math.floor((AVATAR_MAX_BYTES / outputBuffer.byteLength) * 80)),
-    );
-    outputBuffer = await sharp(inputBuffer)
-      .resize(AVATAR_MAX_PX, AVATAR_MAX_PX, { fit: "cover", position: "centre" })
-      .jpeg({ quality: targetQuality })
-      .toBuffer();
-  }
-
-  return `data:image/jpeg;base64,${outputBuffer.toString("base64")}`;
-}
 
 const router: IRouter = Router();
 
 const VALID_LEVELS = ["beginner", "intermediate", "advanced", "elite"] as const;
-
-function formatProfile(
-  p: typeof profilesTable.$inferSelect,
-  streakDays = 0,
-  weeklyProgress = 0,
-) {
-  return {
-    id: String(p.id),
-    userId: String(p.userId),
-    name: p.name,
-    sport: p.sport,
-    level: p.level as "beginner" | "intermediate" | "advanced" | "elite",
-    goals: p.goals ?? [],
-    injuryConcerns: p.injuryConcerns ?? [],
-    weeklyGoal: p.weeklyGoal,
-    trainingDays: p.trainingDays ?? [0, 1, 2, 3, 4, 5, 6],
-    checkInHour: p.checkInHour ?? 9,
-    weeklyProgress,
-    streakDays,
-    avatarUrl: p.avatarUrl ?? null,
-    weeklyGoalCelebratedAt: p.weeklyGoalCelebratedAt ?? null,
-  };
-}
 
 router.get("/profile", requireAuth, async (req: Request, res: Response) => {
   const userId = req.userId!;
@@ -202,110 +148,50 @@ router.get("/profile/stats", requireAuth, async (req: Request, res: Response) =>
     `stats:${userId}`,
     60,
     async () => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - today.getDay());
-  const lastWeekStart = new Date(weekStart.getTime() - 7 * 86_400_000);
+  // Fetch training-day config first so computeProfileStats can filter correctly.
+  const profileRow = await db
+    .select({ trainingDays: profilesTable.trainingDays })
+    .from(profilesTable)
+    .where(eq(profilesTable.userId, userId))
+    .limit(1)
+    .then((r) => r[0] ?? null);
 
-  // Run all queries in parallel. Key optimisation: instead of fetching all
-  // columns of every analysis row, we use targeted projection and SQL MAX
-  // aggregates to minimise data transfer from the DB.
-  const [profileRow, dateRows, pbRow, drillsMastered] = await Promise.all([
-    // Profile — only trainingDays needed for week-count filtering.
-    db
-      .select({ trainingDays: profilesTable.trainingDays })
-      .from(profilesTable)
-      .where(eq(profilesTable.userId, userId))
-      .limit(1)
-      .then((r) => r[0] ?? null),
-
-    // Lightweight projection: uploadedAt + overallScore only.
-    // uploadedAt → streak + week counts; overallScore → score delta.
-    // Ordered desc so slice(0, 2) gives the two most recent for delta.
-    db
-      .select({ uploadedAt: analysesTable.uploadedAt, overallScore: analysesTable.overallScore })
-      .from(analysesTable)
-      .where(and(eq(analysesTable.userId, userId), eq(analysesTable.status, "complete")))
-      .orderBy(desc(analysesTable.uploadedAt)),
-
-    // Personal bests via SQL MAX — one row, one round-trip, zero JS loops.
-    db
-      .select({
-        overallMax:     sql<number | null>`MAX(${analysesTable.overallScore})`,
-        techniqueMax:   sql<number | null>`MAX(${analysesTable.techniqueScore})`,
-        powerMax:       sql<number | null>`MAX(${analysesTable.powerScore})`,
-        balanceMax:     sql<number | null>`MAX(${analysesTable.balanceScore})`,
-        consistencyMax: sql<number | null>`MAX(${analysesTable.consistencyScore})`,
-        mobilityMax:    sql<number | null>`MAX(${analysesTable.mobilityScore})`,
-        speedMax:       sql<number | null>`MAX(${analysesTable.speedScore})`,
-        totalCount:     count(),
-      })
-      .from(analysesTable)
-      .where(and(eq(analysesTable.userId, userId), eq(analysesTable.status, "complete")))
-      .then((r) => r[0] ?? null),
-
-    // Drills mastered count.
+  // Run all remaining queries in parallel.
+  const [
+    { streak, weeklyProgress: thisWeekCount, lastWeekCount },
+    drillsMastered,
+    recentScores,
+    totalAnalyses,
+    personalBests,
+  ] = await Promise.all([
+    computeProfileStats(userId, profileRow?.trainingDays ?? undefined),
     db
       .select({ count: count() })
       .from(completedDrillsTable)
       .where(eq(completedDrillsTable.userId, userId))
       .then((r) => r[0]?.count ?? 0),
+    db
+      .select({ overallScore: analysesTable.overallScore })
+      .from(analysesTable)
+      .where(and(eq(analysesTable.userId, userId), eq(analysesTable.status, "complete")))
+      .orderBy(desc(analysesTable.uploadedAt))
+      .limit(2),
+    db
+      .select({ count: count() })
+      .from(analysesTable)
+      .where(and(eq(analysesTable.userId, userId), eq(analysesTable.status, "complete")))
+      .then((r) => r[0]?.count ?? 0),
+    computePersonalBests(userId),
   ]);
 
-  const trainingDaySet =
-    profileRow?.trainingDays && profileRow.trainingDays.length > 0
-      ? new Set(profileRow.trainingDays)
-      : null;
-
-  // Streak: consecutive calendar days ending today (needs JS since it's sequential).
-  const dayKeys = new Set(dateRows.map((r) => {
-    const d = new Date(r.uploadedAt);
-    d.setHours(0, 0, 0, 0);
-    return d.getTime();
-  }));
-
-  let streak = 0;
-  for (let i = 0; i < 365; i++) {
-    const check = new Date(today.getTime() - i * 86_400_000);
-    if (dayKeys.has(check.getTime())) streak++;
-    else if (i > 0) break;
-  }
-
-  // Week counts: JS filtering on the lightweight date-only rows.
-  const thisWeekCount = dateRows.filter((r) => {
-    const d = new Date(r.uploadedAt);
-    if (d < weekStart) return false;
-    if (trainingDaySet !== null && !trainingDaySet.has(d.getDay())) return false;
-    return true;
-  }).length;
-
-  const lastWeekCount = dateRows.filter((r) => {
-    const d = new Date(r.uploadedAt);
-    if (d < lastWeekStart || d >= weekStart) return false;
-    if (trainingDaySet !== null && !trainingDaySet.has(d.getDay())) return false;
-    return true;
-  }).length;
-
-  // Personal bests from SQL MAX — no JS loop needed.
-  const personalBests = {
-    overall:     pbRow?.overallMax ?? 0,
-    technique:   pbRow?.techniqueMax ?? 0,
-    power:       pbRow?.powerMax ?? 0,
-    balance:     pbRow?.balanceMax ?? 0,
-    consistency: pbRow?.consistencyMax ?? 0,
-    mobility:    pbRow?.mobilityMax ?? 0,
-    speed:       pbRow?.speedMax ?? 0,
-  };
-
-  // Score delta: most-recent vs second-most-recent (dateRows ordered desc by uploadedAt).
-  const latestScore = dateRows[0]?.overallScore ?? null;
-  const prevScore   = dateRows[1]?.overallScore ?? null;
+  const latestScore = recentScores[0]?.overallScore ?? null;
+  const prevScore   = recentScores[1]?.overallScore ?? null;
   const scoreDelta  = latestScore != null && prevScore != null
-    ? Math.round(latestScore - prevScore) : null;
+    ? Math.round(latestScore - prevScore)
+    : null;
 
-  return { streak, totalAnalyses: pbRow?.totalCount ?? 0, thisWeekCount, lastWeekCount, personalBests, latestScore, scoreDelta, drillsMastered };
-    }
+    return { streak, totalAnalyses, thisWeekCount, lastWeekCount, personalBests, latestScore, scoreDelta, drillsMastered };
+  }
   );
 
   res.set("X-Cache", hit ? "HIT" : "MISS");

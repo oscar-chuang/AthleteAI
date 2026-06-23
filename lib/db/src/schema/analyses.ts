@@ -32,6 +32,8 @@ export const analysesTable = pgTable("analyses", {
 }, (t) => [
   index("analyses_user_id_idx").on(t.userId),
   index("analyses_uploaded_at_idx").on(t.uploadedAt),
+  index("analyses_user_id_uploaded_at_idx").on(t.userId, t.uploadedAt),
+  index("analyses_user_id_status_biom_idx").on(t.userId, t.status, t.biomechanicsApplied),
 ]);
 
 export type Analysis = typeof analysesTable.$inferSelect;

@@ -1,5 +1,5 @@
 import { db, analysesTable } from "@workspace/db";
-import { eq, and, desc, gte, lt, sql } from "drizzle-orm";
+import { eq, and, desc, max } from "drizzle-orm";
 
 /**
  * Computes real-time streak and weekly progress for a user from their
@@ -69,4 +69,36 @@ export async function computeProfileStats(
   }).length;
 
   return { streak, weeklyProgress, lastWeekCount };
+}
+
+/**
+ * Returns the per-dimension personal-best scores for a user using SQL MAX
+ * aggregates so the full analyses table is never loaded into JS memory.
+ */
+export async function computePersonalBests(userId: number): Promise<{
+  overall: number; technique: number; power: number;
+  balance: number; consistency: number; mobility: number; speed: number;
+}> {
+  const [row] = await db
+    .select({
+      overall:     max(analysesTable.overallScore),
+      technique:   max(analysesTable.techniqueScore),
+      power:       max(analysesTable.powerScore),
+      balance:     max(analysesTable.balanceScore),
+      consistency: max(analysesTable.consistencyScore),
+      mobility:    max(analysesTable.mobilityScore),
+      speed:       max(analysesTable.speedScore),
+    })
+    .from(analysesTable)
+    .where(and(eq(analysesTable.userId, userId), eq(analysesTable.status, "complete")));
+
+  return {
+    overall:     row?.overall     ?? 0,
+    technique:   row?.technique   ?? 0,
+    power:       row?.power       ?? 0,
+    balance:     row?.balance     ?? 0,
+    consistency: row?.consistency ?? 0,
+    mobility:    row?.mobility    ?? 0,
+    speed:       row?.speed       ?? 0,
+  };
 }

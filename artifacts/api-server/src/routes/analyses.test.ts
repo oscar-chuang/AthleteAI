@@ -120,6 +120,7 @@ function aiResult(tag: string) {
 }
 
 vi.mock("../lib/anthropic", () => ({
+  JOINT_KEYS: ["leftKnee", "rightKnee", "leftHip", "rightHip", "leftElbow", "rightElbow"],
   analyzeAthletePerformance: vi.fn((_sport: string, _title: string, _videoUrl: any, _profile: any, jointAngles: any) => {
     const isBiomechanics = !!jointAngles; // biomechanics run is the only one passing measured angles
     const d = h.deferred();

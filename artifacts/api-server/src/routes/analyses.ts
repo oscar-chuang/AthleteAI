@@ -3,16 +3,14 @@ import { db, analysesTable, profilesTable, completedDrillsTable } from "@workspa
 import { eq, and, desc, ne } from "drizzle-orm";
 import { z } from "zod";
 import { requireAuth, type AuthedRequest } from "./auth";
-import { analyzeAthletePerformance, detectSportFromFrame, generateCoachingMoments, generateMovementSummary, type AIAnalysisResult, type FlaggedMoment, type JointAngles, type JointRisks } from "../lib/anthropic";
+import { analyzeAthletePerformance, detectSportFromFrame, generateCoachingMoments, generateMovementSummary, JOINT_KEYS, type AIAnalysisResult, type FlaggedMoment, type JointAngles, type JointRisks, type JointKey } from "../lib/anthropic";
 import { resizeThumbnail } from "../lib/resize-thumbnail";
 import { cache } from "../lib/redis";
 import { enqueueBiomechanicsJob } from "../lib/queue";
 import { aiRateLimit } from "../middleware/rateLimit";
+import { computeJointImprovements } from "../lib/joints";
 
 const router: IRouter = Router();
-
-// The six joints the on-device pose skeleton measures.
-const JOINT_KEYS = ["leftKnee", "rightKnee", "leftHip", "rightHip", "leftElbow", "rightElbow"] as const;
 // A 640x360 JPEG data URL is ~30-60KB; cap well above that to reject abuse.
 const MAX_FRAME_CHARS = 3_000_000;
 export const MAX_TITLE_LENGTH = 120;
@@ -273,27 +271,12 @@ router.get("/analyses/joint-trends", requireAuth, async (req: Request, res: Resp
     }
   }
 
-  // Detect meaningful improvements per joint.
-  // "Improved" = the most recent entry has a lower risk level than the earliest,
-  // or the risk level is the same but angle shifted >= 5° with stable/lower risk.
-  const improvements: Array<{
-    joint: string;
-    deltaDeg: number;
-    sessions: number;
-    improved: boolean;
-  }> = [];
-
-  for (const [joint, history] of Object.entries(jointHistory)) {
-    if (history.length < 2) continue;
-    const first = history[0]!;
-    const last = history[history.length - 1]!;
-    const deltaDeg = Math.round(last.angle - first.angle);
-    const riskDelta = first.risk - last.risk;
-    const improved = riskDelta > 0 || (riskDelta === 0 && Math.abs(deltaDeg) >= 5 && last.risk < 2);
-    if (improved || Math.abs(deltaDeg) >= 3) {
-      improvements.push({ joint, deltaDeg, sessions: history.length, improved });
-    }
-  }
+  const improvements = computeJointImprovements(
+    sessions.map((s) => ({
+      jointAngles: s.jointAngles as Record<string, number> | null,
+      jointRisks:  s.jointRisks  as Record<string, number> | null,
+    }))
+  );
 
   res.json({ joints: jointHistory, improvements });
 });
@@ -570,15 +553,15 @@ router.post("/analyses/:id/coaching-moments", requireAuth, async (req: Request, 
     const angles = (row.jointAngles ?? {}) as Record<string, number>;
     const hasRisk = Object.values(risks).some((v) => (v as number) >= 1);
     if (hasRisk) {
-      const syntheticAngles: Partial<Record<import("../lib/anthropic").JointKey, number>> = {};
-      const syntheticRisks: Partial<Record<import("../lib/anthropic").JointKey, number>> = {};
+      const syntheticAngles: Partial<Record<JointKey, number>> = {};
+      const syntheticRisks: Partial<Record<JointKey, number>> = {};
       for (const [j, lvl] of Object.entries(risks)) {
         if ((lvl as number) >= 1 && angles[j] != null) {
-          syntheticAngles[j as import("../lib/anthropic").JointKey] = angles[j]!;
-          syntheticRisks[j as import("../lib/anthropic").JointKey] = lvl as number;
+          syntheticAngles[j as JointKey] = angles[j]!;
+          syntheticRisks[j as JointKey] = lvl as number;
         }
       }
-      flaggedMoments.push({ t: 0, joints: Object.keys(syntheticRisks) as import("../lib/anthropic").JointKey[], angles: syntheticAngles, risks: syntheticRisks });
+      flaggedMoments.push({ t: 0, joints: Object.keys(syntheticRisks) as JointKey[], angles: syntheticAngles, risks: syntheticRisks });
     }
   }
 

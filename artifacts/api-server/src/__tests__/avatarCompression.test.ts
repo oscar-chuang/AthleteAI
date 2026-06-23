@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeAll } from "vitest";
 import sharp from "sharp";
-import { compressAvatarIfNeeded } from "../routes/profile";
+import { compressAvatarIfNeeded } from "../lib/media";
 
 const AVATAR_MAX_BYTES = 20 * 1024;
 

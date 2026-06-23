@@ -91,7 +91,22 @@ const h = vi.hoisted(() => {
     select: vi.fn(() => ({
       from: () => ({
         where: () => ({
-          orderBy: () => Promise.resolve(rowsForCurrentCall()),
+          // orderBy consumes the queue entry immediately (synchronous), then
+          // returns a thenable that supports both `await orderBy()` and
+          // `orderBy().limit(n)` without double-consuming the queue.
+          orderBy: () => {
+            const rows = rowsForCurrentCall();
+            return {
+              limit: (n: number) => ({
+                then(res: any, rej: any) {
+                  return Promise.resolve(rows.slice(0, n)).then(res, rej);
+                },
+              }),
+              then(res: any, rej: any) {
+                return Promise.resolve(rows).then(res, rej);
+              },
+            };
+          },
           limit: (n: number) => {
             const rows = rowsForCurrentCall();
             return {
@@ -116,9 +131,16 @@ const h = vi.hoisted(() => {
 vi.mock("@workspace/db", () => ({
   db: h.fakeDb,
   analysesTable: {
-    uploadedAt: { __col: "uploadedAt" },
-    userId: { __col: "userId" },
-    status: { __col: "status" },
+    uploadedAt:      { __col: "uploadedAt" },
+    userId:          { __col: "userId" },
+    status:          { __col: "status" },
+    overallScore:    { __col: "overallScore" },
+    techniqueScore:  { __col: "techniqueScore" },
+    powerScore:      { __col: "powerScore" },
+    balanceScore:    { __col: "balanceScore" },
+    consistencyScore:{ __col: "consistencyScore" },
+    mobilityScore:   { __col: "mobilityScore" },
+    speedScore:      { __col: "speedScore" },
   },
   profilesTable: {
     trainingDays: { __col: "trainingDays" },
@@ -139,6 +161,7 @@ vi.mock("drizzle-orm", () => ({
   // sentinel value is fine — we just need the import to be non-undefined.
   sql:   (strings: TemplateStringsArray, ...values: any[]) =>
            ({ __sql: true, strings, values }),
+  max:   (col: any)           => ({ __fn: "max",  key: col.__col }),
 }));
 
 vi.mock("../lib/redis", () => ({
@@ -214,18 +237,24 @@ function makeApp() {
   return app;
 }
 
+// ── DB call ordering for GET /profile/stats ────────────────────────────────────
+//  The route now makes 6 db.select() calls consumed in this order:
+//   idx=0 — profile row        (synchronous: limit call)
+//   idx=1 — analyses for stats (synchronous: orderBy call inside computeProfileStats)
+//   idx=2 — drills count       (synchronous: .then() call on thenable)
+//   idx=3 — recent 2 scores    (synchronous: limit(2) call)
+//   idx=4 — total count        (synchronous: .then() call on thenable)
+//   idx=5 — personalBests MAX  (async microtask: .then() on awaited thenable)
+
 describe("GET /profile/stats — rest-day filtering", () => {
   it("thisWeekCount excludes Sat/Sun sessions when trainingDays = [Mon, Wed, Fri]", async () => {
-    // The route makes four db.select() calls via Promise.all:
-    //   1st — profile row (gives the training-day config)
-    //   2nd — analysis rows (uploadedAt + overallScore, ordered by date desc)
-    //   3rd — personal-bests / total-count aggregate (SQL MAX)
-    //   4th — drills mastered count
     h.state.queue = [
-      [{ trainingDays: TRAINING_DAYS }], // profile query result
-      SESSION_ROWS,                       // analyses query result
-      [{ totalCount: 5 }],               // personal-bests aggregate
-      [{ count: 0 }],                    // drills mastered count
+      [{ trainingDays: TRAINING_DAYS }], // idx=0: profile
+      SESSION_ROWS,                       // idx=1: analyses (computeProfileStats)
+      [{ count: 0 }],                     // idx=2: drills mastered
+      [],                                 // idx=3: recent 2 scores
+      [{ count: 5 }],                     // idx=4: total analyses count
+      [{}],                               // idx=5: personalBests (all null → 0)
     ];
 
     const app = makeApp();
@@ -233,16 +262,17 @@ describe("GET /profile/stats — rest-day filtering", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.thisWeekCount).toBe(3); // Mon + Wed + Fri only
-    expect(res.body.totalAnalyses).toBe(5); // all five rows present
+    expect(res.body.totalAnalyses).toBe(5); // SQL COUNT returns 5
   });
 
   it("thisWeekCount equals all this-week sessions when no profile row exists", async () => {
-    // No profile → trainingDaySet stays null → all sessions counted.
     h.state.queue = [
-      [],            // profile query returns empty (no profile)
-      SESSION_ROWS,  // five sessions this week
-      [{ totalCount: 5 }],
-      [{ count: 0 }],
+      [],             // idx=0: no profile row
+      SESSION_ROWS,   // idx=1: five sessions this week
+      [{ count: 0 }], // idx=2: drills mastered
+      [],             // idx=3: recent 2 scores
+      [{ count: 5 }], // idx=4: total analyses count
+      [{}],           // idx=5: personalBests
     ];
 
     const app = makeApp();
@@ -258,10 +288,12 @@ describe("GET /profile/stats — rest-day filtering", () => {
       { ...SESSION_ROWS[4], userId: 99, status: "complete" }, // Sun
     ];
     h.state.queue = [
-      [{ trainingDays: TRAINING_DAYS }],
-      restOnlySessions,
-      [{ totalCount: 2 }],
-      [{ count: 0 }],
+      [{ trainingDays: TRAINING_DAYS }], // idx=0: profile
+      restOnlySessions,                   // idx=1: analyses
+      [{ count: 0 }],                     // idx=2: drills
+      [],                                 // idx=3: recent 2 scores
+      [{ count: 2 }],                     // idx=4: total analyses count
+      [{}],                               // idx=5: personalBests
     ];
 
     const app = makeApp();
@@ -276,14 +308,13 @@ describe("GET /profile/stats — rest-day filtering", () => {
 
 describe("GET /profile/stats — lastWeekCount rest-day filtering", () => {
   it("lastWeekCount excludes Sat/Sun sessions from last week when trainingDays = [Mon, Wed, Fri]", async () => {
-    // Route makes four DB calls: profile row (queue[0]) + analyses (queue[1])
-    // + personal-bests aggregate (queue[2]) + drills count (queue[3]).
-    // Analyses contain 5 last-week rows: Mon+Wed+Fri (training) + Sat+Sun (rest).
     h.state.queue = [
-      [{ trainingDays: TRAINING_DAYS }],
-      LAST_WEEK_SESSION_ROWS,
-      [{ totalCount: 5 }],
-      [{ count: 0 }],
+      [{ trainingDays: TRAINING_DAYS }], // idx=0: profile
+      LAST_WEEK_SESSION_ROWS,             // idx=1: analyses (5 last-week rows)
+      [{ count: 0 }],                     // idx=2: drills mastered
+      [],                                 // idx=3: recent 2 scores
+      [{ count: 5 }],                     // idx=4: total analyses count
+      [{}],                               // idx=5: personalBests
     ];
 
     const app = makeApp();
@@ -292,7 +323,7 @@ describe("GET /profile/stats — lastWeekCount rest-day filtering", () => {
     expect(res.status).toBe(200);
     expect(res.body.lastWeekCount).toBe(3); // Mon + Wed + Fri only
     expect(res.body.thisWeekCount).toBe(0); // no sessions this week
-    expect(res.body.totalAnalyses).toBe(5); // all five rows present
+    expect(res.body.totalAnalyses).toBe(5); // SQL COUNT returns 5
   });
 
   it("lastWeekCount is 0 when every last-week session falls on a rest day", async () => {
@@ -301,10 +332,12 @@ describe("GET /profile/stats — lastWeekCount rest-day filtering", () => {
       { uploadedAt: dateOnDayLastWeek(0) }, // Sun last week — rest day
     ];
     h.state.queue = [
-      [{ trainingDays: TRAINING_DAYS }],
-      lastWeekRestOnly,
-      [{ totalCount: 2 }],
-      [{ count: 0 }],
+      [{ trainingDays: TRAINING_DAYS }], // idx=0: profile
+      lastWeekRestOnly,                   // idx=1: analyses
+      [{ count: 0 }],                     // idx=2: drills
+      [],                                 // idx=3: recent 2 scores
+      [{ count: 2 }],                     // idx=4: total count
+      [{}],                               // idx=5: personalBests
     ];
 
     const app = makeApp();
@@ -315,12 +348,13 @@ describe("GET /profile/stats — lastWeekCount rest-day filtering", () => {
   });
 
   it("lastWeekCount counts all last-week sessions when no profile row exists", async () => {
-    // No profile → trainingDaySet is null → all days count.
     h.state.queue = [
-      [],                      // no profile row
-      LAST_WEEK_SESSION_ROWS,  // 5 last-week sessions
-      [{ totalCount: 5 }],
-      [{ count: 0 }],
+      [],                      // idx=0: no profile row
+      LAST_WEEK_SESSION_ROWS,  // idx=1: 5 last-week sessions
+      [{ count: 0 }],          // idx=2: drills
+      [],                      // idx=3: recent 2 scores
+      [{ count: 5 }],          // idx=4: total count
+      [{}],                    // idx=5: personalBests
     ];
 
     const app = makeApp();
@@ -331,17 +365,17 @@ describe("GET /profile/stats — lastWeekCount rest-day filtering", () => {
   });
 
   it("lastWeekCount ignores sessions from the current week", async () => {
-    // Mix: 3 last-week training days + 2 this-week training days.
-    // lastWeekCount must only reflect the 3 last-week ones.
     const mixed = [
       ...LAST_WEEK_SESSION_ROWS.slice(0, 3), // Mon/Wed/Fri last week ✓
       ...SESSION_ROWS.slice(0, 2),           // Mon/Wed this week (not last week)
     ];
     h.state.queue = [
-      [{ trainingDays: TRAINING_DAYS }],
-      mixed,
-      [{ totalCount: 5 }],
-      [{ count: 0 }],
+      [{ trainingDays: TRAINING_DAYS }], // idx=0: profile
+      mixed,                              // idx=1: analyses (5 rows)
+      [{ count: 0 }],                     // idx=2: drills
+      [],                                 // idx=3: recent 2 scores
+      [{ count: 5 }],                     // idx=4: total count
+      [{}],                               // idx=5: personalBests
     ];
 
     const app = makeApp();

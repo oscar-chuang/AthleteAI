@@ -4,6 +4,7 @@ import { eq, asc, and, type SQL } from "drizzle-orm";
 import { requireAuth } from "./auth";
 import { generateProgressSummary } from "../lib/anthropic";
 import { cache } from "../lib/redis";
+import { computeJointImprovements } from "../lib/joints";
 
 const router: IRouter = Router();
 
@@ -141,26 +142,14 @@ router.get("/progress/summary", requireAuth, async (req: Request, res: Response)
     techniqueScore: r.techniqueScore ?? null,
   }));
 
-  // Compute joint improvements from grounded sessions
-  const jointHistory: Record<string, Array<{ angle: number; risk: number }>> = {};
-  for (const row of sessions.filter((r) => r.biomechanicsApplied && r.jointAngles)) {
-    const angles = row.jointAngles as Record<string, number>;
-    const risks = (row.jointRisks ?? {}) as Record<string, number>;
-    for (const [joint, angle] of Object.entries(angles)) {
-      if (!jointHistory[joint]) jointHistory[joint] = [];
-      jointHistory[joint]!.push({ angle, risk: risks[joint] ?? 0 });
-    }
-  }
-
-  const jointImprovements = Object.entries(jointHistory)
-    .filter(([, h]) => h.length >= 2)
-    .map(([joint, h]) => {
-      const first = h[0]!;
-      const last = h[h.length - 1]!;
-      const deltaDeg = Math.round(last.angle - first.angle);
-      const improved = first.risk > last.risk || (first.risk === last.risk && Math.abs(deltaDeg) >= 5 && last.risk < 2);
-      return { joint, deltaDeg, improved };
-    });
+  const jointImprovements = computeJointImprovements(
+    sessions
+      .filter((r) => r.biomechanicsApplied && r.jointAngles)
+      .map((r) => ({
+        jointAngles: r.jointAngles as Record<string, number> | null,
+        jointRisks:  r.jointRisks  as Record<string, number> | null,
+      }))
+  );
 
   const personalBest = sessions.length
     ? Math.max(...sessions.map((r) => r.overallScore ?? 0))

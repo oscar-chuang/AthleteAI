@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { db, usersTable, profilesTable } from "@workspace/db";
 import { z } from "zod";
 import { computeProfileStats } from "../lib/stats";
+import { formatProfile } from "../lib/formatters";
 
 const router: IRouter = Router();
 
@@ -148,22 +149,7 @@ router.get("/auth/me", async (req: Request, res: Response) => {
       user.id,
       profileRow.trainingDays ?? undefined
     );
-    formattedProfile = {
-      id: String(profileRow.id),
-      userId: String(profileRow.userId),
-      name: profileRow.name,
-      sport: profileRow.sport,
-      level: profileRow.level,
-      goals: profileRow.goals ?? [],
-      injuryConcerns: profileRow.injuryConcerns ?? [],
-      weeklyGoal: profileRow.weeklyGoal,
-      trainingDays: profileRow.trainingDays ?? [0, 1, 2, 3, 4, 5, 6],
-      checkInHour: profileRow.checkInHour ?? 9,
-      weeklyProgress,
-      streakDays: streak,
-      avatarUrl: profileRow.avatarUrl ?? null,
-      weeklyGoalCelebratedAt: profileRow.weeklyGoalCelebratedAt ?? null,
-    };
+    formattedProfile = formatProfile(profileRow, streak, weeklyProgress);
   }
 
   res.json({ user, profile: formattedProfile, subscription: { id: "free", userId: String(user.id), tier: "free", status: "active" } });
