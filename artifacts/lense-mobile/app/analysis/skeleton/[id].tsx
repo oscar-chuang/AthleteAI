@@ -15,7 +15,7 @@ import {
   Animated,
   Easing,
 } from "react-native";
-import Svg, { Line, Path, Polyline, Circle, Rect, Text as SvgText, G } from "react-native-svg";
+import Svg, { Line, Path, Polyline, Circle, Ellipse, Rect, Text as SvgText, G } from "react-native-svg";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -1549,65 +1549,174 @@ export default function SkeletonScreen() {
       const lvl = scanResult?.risks?.[j] ?? 1;
       risk[key] = Math.max(risk[key] ?? 0, lvl);
     };
-    if (flaggedJoints.includes("leftKnee"  as JointKey)) { add("qL",  "leftKnee"  as JointKey); add("hmL", "leftKnee"  as JointKey); }
-    if (flaggedJoints.includes("rightKnee" as JointKey)) { add("qR",  "rightKnee" as JointKey); add("hmR", "rightKnee" as JointKey); }
-    if (flaggedJoints.includes("leftHip"   as JointKey)) { add("hfL", "leftHip"   as JointKey); add("gL",  "leftHip"   as JointKey); }
-    if (flaggedJoints.includes("rightHip"  as JointKey)) { add("hfR", "rightHip"  as JointKey); add("gR",  "rightHip"  as JointKey); }
-    if (flaggedJoints.includes("leftElbow" as JointKey)) { add("bL",  "leftElbow" as JointKey); add("tL",  "leftElbow" as JointKey); }
-    if (flaggedJoints.includes("rightElbow"as JointKey)) { add("bR",  "rightElbow"as JointKey); add("tR",  "rightElbow"as JointKey); }
-    const mf = (k: string) => risk[k] !== undefined ? RISK_COLORS[risk[k]] + "55" : "#1c1c30";
-    const ms = (k: string) => risk[k] !== undefined ? RISK_COLORS[risk[k]] : "#2a2a45";
-    const mw = (k: string) => risk[k] !== undefined ? 1.5 : 1;
+    if (flaggedJoints.includes("leftKnee"   as JointKey)) { add("qL",  "leftKnee"   as JointKey); add("hmL", "leftKnee"   as JointKey); }
+    if (flaggedJoints.includes("rightKnee"  as JointKey)) { add("qR",  "rightKnee"  as JointKey); add("hmR", "rightKnee"  as JointKey); }
+    if (flaggedJoints.includes("leftHip"    as JointKey)) { add("hfL", "leftHip"    as JointKey); add("gL",  "leftHip"    as JointKey); }
+    if (flaggedJoints.includes("rightHip"   as JointKey)) { add("hfR", "rightHip"   as JointKey); add("gR",  "rightHip"   as JointKey); }
+    if (flaggedJoints.includes("leftElbow"  as JointKey)) { add("bL",  "leftElbow"  as JointKey); add("tL",  "leftElbow"  as JointKey); }
+    if (flaggedJoints.includes("rightElbow" as JointKey)) { add("bR",  "rightElbow" as JointKey); add("tR",  "rightElbow" as JointKey); }
+
+    const BASE    = "#18182a";
+    const OUTLINE = "#2e2e50";
+    const mf  = (k: string) => risk[k] !== undefined ? RISK_COLORS[risk[k]] + "50" : BASE;
+    const ms  = (k: string) => risk[k] !== undefined ? RISK_COLORS[risk[k]] : OUTLINE;
+    const msw = (k: string) => risk[k] !== undefined ? 1.6 : 0.9;
+    // Fake glow: slightly larger, lower-opacity ellipse behind flagged muscles
+    // (react-native-svg has no CSS filter support)
+    const gf  = (k: string) => risk[k] !== undefined ? RISK_COLORS[risk[k]] + "28" : "transparent";
+
     return (
-      <Svg width={120} height={156}>
-        {/* ── FRONT ── */}
-        <Circle cx={25} cy={11} r={9} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        <Rect x={22} y={20} width={7} height={7} rx={2} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        {/* biceps L/R */}
-        <Rect x={5}  y={27} width={8} height={27} rx={3} fill={mf("bL")} stroke={ms("bL")} strokeWidth={mw("bL")} />
-        <Rect x={38} y={27} width={8} height={27} rx={3} fill={mf("bR")} stroke={ms("bR")} strokeWidth={mw("bR")} />
-        {/* chest/torso */}
-        <Rect x={14} y={27} width={23} height={30} rx={4} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        {/* forearms */}
-        <Rect x={3}  y={56} width={7} height={22} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        <Rect x={41} y={56} width={7} height={22} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        {/* abs */}
-        <Rect x={14} y={58} width={23} height={18} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        {/* hip flexors */}
-        <Rect x={9}  y={77} width={13} height={17} rx={3} fill={mf("hfL")} stroke={ms("hfL")} strokeWidth={mw("hfL")} />
-        <Rect x={29} y={77} width={13} height={17} rx={3} fill={mf("hfR")} stroke={ms("hfR")} strokeWidth={mw("hfR")} />
-        {/* quads */}
-        <Rect x={9}  y={95} width={12} height={38} rx={4} fill={mf("qL")} stroke={ms("qL")} strokeWidth={mw("qL")} />
-        <Rect x={30} y={95} width={12} height={38} rx={4} fill={mf("qR")} stroke={ms("qR")} strokeWidth={mw("qR")} />
-        {/* shins */}
-        <Rect x={10} y={134} width={10} height={21} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        <Rect x={31} y={134} width={10} height={21} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        <SvgText x={25} y={154} fontSize={7} fill="#44445a" textAnchor="middle">FRONT</SvgText>
-        {/* divider */}
-        <Line x1={60} y1={4} x2={60} y2={148} stroke="#2a2a45" strokeWidth={0.5} strokeDasharray="2 3" />
-        {/* ── BACK ── */}
-        <Circle cx={95} cy={11} r={9} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        <Rect x={92} y={20} width={7} height={7} rx={2} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        {/* triceps */}
-        <Rect x={75}  y={27} width={8} height={27} rx={3} fill={mf("tL")} stroke={ms("tL")} strokeWidth={mw("tL")} />
-        <Rect x={108} y={27} width={8} height={27} rx={3} fill={mf("tR")} stroke={ms("tR")} strokeWidth={mw("tR")} />
-        {/* back/traps */}
-        <Rect x={84} y={27} width={23} height={30} rx={4} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        {/* forearms */}
-        <Rect x={73}  y={56} width={7} height={22} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        <Rect x={111} y={56} width={7} height={22} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        {/* lower back */}
-        <Rect x={84} y={58} width={23} height={18} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        {/* glutes */}
-        <Rect x={79} y={77} width={13} height={17} rx={3} fill={mf("gL")} stroke={ms("gL")} strokeWidth={mw("gL")} />
-        <Rect x={99} y={77} width={13} height={17} rx={3} fill={mf("gR")} stroke={ms("gR")} strokeWidth={mw("gR")} />
-        {/* hamstrings */}
-        <Rect x={79}  y={95} width={12} height={38} rx={4} fill={mf("hmL")} stroke={ms("hmL")} strokeWidth={mw("hmL")} />
-        <Rect x={100} y={95} width={12} height={38} rx={4} fill={mf("hmR")} stroke={ms("hmR")} strokeWidth={mw("hmR")} />
-        {/* calves */}
-        <Rect x={80}  y={134} width={10} height={21} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        <Rect x={101} y={134} width={10} height={21} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
-        <SvgText x={95} y={154} fontSize={7} fill="#44445a" textAnchor="middle">BACK</SvgText>
+      <Svg width={130} height={160}>
+
+        {/* ══════════════ FRONT (centred x=31) ══════════════ */}
+
+        {/* Body silhouette */}
+        <Path
+          d="M31,3 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0
+             M24,19 Q15,21 10,28 Q6,33 9,36 Q12,34 14,27 L18,24
+             Q20,57 20,63 Q18,70 17,78 L14,96 Q13,115 13,118
+             L11,140 Q11,144 14,145 L18,145 Q21,144 21,140 L22,118 L23,113 L24,118 L24,140
+             Q24,144 27,145 L33,145 Q36,144 36,140 L37,118 L38,113 L39,118 L39,140
+             Q39,144 42,145 L46,145 Q49,144 49,140 L47,118 Q47,115 45,96
+             L43,78 Q42,70 40,63 Q40,57 42,24 L46,27 Q48,34 51,36
+             Q54,33 50,28 Q45,21 38,19 Z"
+          fill={BASE} stroke={OUTLINE} strokeWidth={0.8}
+        />
+        {/* Head */}
+        <Circle cx={31} cy={10} r={8} fill={BASE} stroke={OUTLINE} strokeWidth={0.9} />
+        {/* Neck */}
+        <Rect x={27.5} y={18} width={7} height={6} rx={2} fill={BASE} stroke={OUTLINE} strokeWidth={0.7} />
+
+        {/* Left deltoid */}
+        <Ellipse cx={12} cy={28} rx={6} ry={5} rotation={-20} originX={12} originY={28} fill={BASE} stroke={OUTLINE} strokeWidth={0.9} />
+        {/* Right deltoid */}
+        <Ellipse cx={50} cy={28} rx={6} ry={5} rotation={20} originX={50} originY={28} fill={BASE} stroke={OUTLINE} strokeWidth={0.9} />
+
+        {/* Left pec */}
+        <Ellipse cx={23} cy={32} rx={6} ry={7} rotation={-5} originX={23} originY={32} fill={BASE} stroke={OUTLINE} strokeWidth={0.9} />
+        {/* Right pec */}
+        <Ellipse cx={39} cy={32} rx={6} ry={7} rotation={5} originX={39} originY={32} fill={BASE} stroke={OUTLINE} strokeWidth={0.9} />
+
+        {/* Left bicep glow + shape */}
+        <Ellipse cx={10} cy={40} rx={7.5} ry={14} rotation={-10} originX={10} originY={40} fill={gf("bL")} />
+        <Ellipse cx={10} cy={40} rx={4.5} ry={11} rotation={-10} originX={10} originY={40} fill={mf("bL")} stroke={ms("bL")} strokeWidth={msw("bL")} />
+        {/* Right bicep */}
+        <Ellipse cx={52} cy={40} rx={7.5} ry={14} rotation={10} originX={52} originY={40} fill={gf("bR")} />
+        <Ellipse cx={52} cy={40} rx={4.5} ry={11} rotation={10} originX={52} originY={40} fill={mf("bR")} stroke={ms("bR")} strokeWidth={msw("bR")} />
+
+        {/* Abs */}
+        <Rect x={22} y={40} width={18} height={22} rx={5} fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+        <Line x1={31} y1={40} x2={31} y2={62} stroke={OUTLINE} strokeWidth={0.6} />
+        <Line x1={22} y1={48} x2={40} y2={48} stroke={OUTLINE} strokeWidth={0.6} />
+        <Line x1={22} y1={55} x2={40} y2={55} stroke={OUTLINE} strokeWidth={0.6} />
+
+        {/* Left forearm */}
+        <Ellipse cx={8} cy={58} rx={3.5} ry={9} rotation={10} originX={8} originY={58} fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+        {/* Right forearm */}
+        <Ellipse cx={54} cy={58} rx={3.5} ry={9} rotation={-10} originX={54} originY={58} fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+
+        {/* Left hip flexor glow + shape */}
+        <Ellipse cx={23} cy={70} rx={11} ry={9} fill={gf("hfL")} />
+        <Ellipse cx={23} cy={70} rx={7.5} ry={6} fill={mf("hfL")} stroke={ms("hfL")} strokeWidth={msw("hfL")} />
+        {/* Right hip flexor */}
+        <Ellipse cx={39} cy={70} rx={11} ry={9} fill={gf("hfR")} />
+        <Ellipse cx={39} cy={70} rx={7.5} ry={6} fill={mf("hfR")} stroke={ms("hfR")} strokeWidth={msw("hfR")} />
+
+        {/* Left quad glow + shape */}
+        <Ellipse cx={22} cy={95} rx={12} ry={23} fill={gf("qL")} />
+        <Ellipse cx={22} cy={95} rx={8} ry={19} fill={mf("qL")} stroke={ms("qL")} strokeWidth={msw("qL")} />
+        {/* Right quad */}
+        <Ellipse cx={40} cy={95} rx={12} ry={23} fill={gf("qR")} />
+        <Ellipse cx={40} cy={95} rx={8} ry={19} fill={mf("qR")} stroke={ms("qR")} strokeWidth={msw("qR")} />
+
+        {/* Knee caps */}
+        <Ellipse cx={22} cy={115} rx={5.5} ry={4} fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+        <Ellipse cx={40} cy={115} rx={5.5} ry={4} fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+
+        {/* Left shin */}
+        <Ellipse cx={21} cy={131} rx={4.5} ry={12} fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+        {/* Right shin */}
+        <Ellipse cx={39} cy={131} rx={4.5} ry={12} fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+
+        {/* Feet */}
+        <Ellipse cx={22} cy={144} rx={6} ry={2.5} fill={BASE} stroke={OUTLINE} strokeWidth={0.7} />
+        <Ellipse cx={39} cy={144} rx={6} ry={2.5} fill={BASE} stroke={OUTLINE} strokeWidth={0.7} />
+
+        <SvgText x={31} y={154} fontSize={7} fill="#44445a" textAnchor="middle">FRONT</SvgText>
+
+        {/* ── divider ── */}
+        <Line x1={65} y1={4} x2={65} y2={150} stroke="#252540" strokeWidth={0.6} strokeDasharray="2 3" />
+
+        {/* ══════════════ BACK (centred x=96) ══════════════ */}
+
+        {/* Body silhouette */}
+        <Path
+          d="M96,3 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0
+             M89,19 Q80,21 75,28 Q71,33 74,36 Q77,34 79,27 L83,24
+             Q85,50 85,58 Q80,60 78,68 Q76,75 75,78 L73,96 Q72,115 72,118
+             L70,140 Q70,144 73,145 L77,145 Q80,144 80,140 L81,118 L83,113 L84,118 L84,140
+             Q84,144 87,145 L93,145 Q96,144 96,140 L97,118 L98,113 L99,118 L99,140
+             Q99,144 102,145 L106,145 Q109,144 109,140 L107,118 Q107,115 105,96
+             L103,78 Q102,75 100,68 Q98,60 107,58 Q107,50 109,24 L113,27 Q115,34 118,36
+             Q121,33 117,28 Q112,21 103,19 Z"
+          fill={BASE} stroke={OUTLINE} strokeWidth={0.8}
+        />
+        {/* Head */}
+        <Circle cx={96} cy={10} r={8} fill={BASE} stroke={OUTLINE} strokeWidth={0.9} />
+        {/* Neck */}
+        <Rect x={92.5} y={18} width={7} height={6} rx={2} fill={BASE} stroke={OUTLINE} strokeWidth={0.7} />
+
+        {/* Traps */}
+        <Ellipse cx={79} cy={26} rx={9} ry={5} rotation={-15} originX={79} originY={26} fill={BASE} stroke={OUTLINE} strokeWidth={0.9} />
+        <Ellipse cx={113} cy={26} rx={9} ry={5} rotation={15} originX={113} originY={26} fill={BASE} stroke={OUTLINE} strokeWidth={0.9} />
+        <Ellipse cx={96} cy={25} rx={8} ry={5} fill={BASE} stroke={OUTLINE} strokeWidth={0.9} />
+
+        {/* Lats */}
+        <Path d="M89,26 Q80,40 82,58 Q85,63 89,63 L89,26 Z" fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+        <Path d="M103,26 Q112,40 110,58 Q107,63 103,63 L103,26 Z" fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+
+        {/* Left tricep glow + shape */}
+        <Ellipse cx={74} cy={40} rx={7.5} ry={14} rotation={-10} originX={74} originY={40} fill={gf("tL")} />
+        <Ellipse cx={74} cy={40} rx={4.5} ry={11} rotation={-10} originX={74} originY={40} fill={mf("tL")} stroke={ms("tL")} strokeWidth={msw("tL")} />
+        {/* Right tricep */}
+        <Ellipse cx={118} cy={40} rx={7.5} ry={14} rotation={10} originX={118} originY={40} fill={gf("tR")} />
+        <Ellipse cx={118} cy={40} rx={4.5} ry={11} rotation={10} originX={118} originY={40} fill={mf("tR")} stroke={ms("tR")} strokeWidth={msw("tR")} />
+
+        {/* Forearms */}
+        <Ellipse cx={72} cy={58} rx={3.5} ry={9} rotation={10} originX={72} originY={58} fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+        <Ellipse cx={120} cy={58} rx={3.5} ry={9} rotation={-10} originX={120} originY={58} fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+
+        {/* Lower back */}
+        <Ellipse cx={92} cy={65} rx={3.5} ry={7} fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+        <Ellipse cx={100} cy={65} rx={3.5} ry={7} fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+
+        {/* Left glute glow + shape */}
+        <Ellipse cx={84} cy={81} rx={14} ry={14} fill={gf("gL")} />
+        <Ellipse cx={84} cy={81} rx={10} ry={10} fill={mf("gL")} stroke={ms("gL")} strokeWidth={msw("gL")} />
+        {/* Right glute */}
+        <Ellipse cx={108} cy={81} rx={14} ry={14} fill={gf("gR")} />
+        <Ellipse cx={108} cy={81} rx={10} ry={10} fill={mf("gR")} stroke={ms("gR")} strokeWidth={msw("gR")} />
+
+        {/* Left hamstring glow + shape */}
+        <Ellipse cx={82} cy={99} rx={12} ry={22} fill={gf("hmL")} />
+        <Ellipse cx={82} cy={99} rx={8} ry={18} fill={mf("hmL")} stroke={ms("hmL")} strokeWidth={msw("hmL")} />
+        {/* Right hamstring */}
+        <Ellipse cx={110} cy={99} rx={12} ry={22} fill={gf("hmR")} />
+        <Ellipse cx={110} cy={99} rx={8} ry={18} fill={mf("hmR")} stroke={ms("hmR")} strokeWidth={msw("hmR")} />
+
+        {/* Knee backs */}
+        <Ellipse cx={82} cy={115} rx={5.5} ry={4} fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+        <Ellipse cx={110} cy={115} rx={5.5} ry={4} fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+
+        {/* Calves */}
+        <Ellipse cx={81} cy={131} rx={5.5} ry={13} fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+        <Ellipse cx={111} cy={131} rx={5.5} ry={13} fill={BASE} stroke={OUTLINE} strokeWidth={0.8} />
+
+        {/* Feet */}
+        <Ellipse cx={82} cy={144} rx={6} ry={2.5} fill={BASE} stroke={OUTLINE} strokeWidth={0.7} />
+        <Ellipse cx={110} cy={144} rx={6} ry={2.5} fill={BASE} stroke={OUTLINE} strokeWidth={0.7} />
+
+        <SvgText x={96} y={154} fontSize={7} fill="#44445a" textAnchor="middle">BACK</SvgText>
       </Svg>
     );
   }
