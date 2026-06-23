@@ -1307,14 +1307,7 @@ export default function HomeScreen() {
             {/* Visible card preview */}
             {latestComplete && (
               <ShareCard
-<<<<<<< HEAD
-                sessions={thisWeek}
-                weeklyGoal={weeklyGoal}
-                streakDays={streakDays}
-                sport={latestComplete.sport ?? profile?.sport ?? ""}
-=======
                 analysis={latestComplete}
->>>>>>> 9f91c47 (feat: show weekly goal summary on home share card (sessions, streak, sport))
                 topTip={topTip}
                 weeklyStats={{ sessions: thisWeek, weeklyGoal, streakDays }}
               />
