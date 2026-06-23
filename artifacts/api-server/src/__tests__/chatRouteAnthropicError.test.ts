@@ -8,6 +8,10 @@
  * Asserts that when the Anthropic API is unavailable (network error, quota
  * exceeded, invalid key, etc.) the route catches the error and returns a
  * clean 500 JSON payload rather than crashing with an unhandled rejection.
+ *
+ * Security note: the error message returned to the client is intentionally
+ * generic — SDK internals (error messages, model names, quota details) must
+ * never be forwarded to the client. Full errors are logged server-side only.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -180,6 +184,16 @@ vi.mock("../routes/auth", () => ({
   },
 }));
 
+// Mock pino logger to suppress output in tests
+vi.mock("../lib/logger", () => ({
+  logger: {
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
 // ── imports after mocks ────────────────────────────────────────────────────────
 
 import express from "express";
@@ -219,7 +233,7 @@ beforeEach(() => {
 // ── tests ──────────────────────────────────────────────────────────────────────
 
 describe("POST /chat — Anthropic API error handling", () => {
-  it("returns 500 with a meaningful error field when Anthropic throws a generic error", async () => {
+  it("returns 500 with a non-empty error field when Anthropic throws a generic error", async () => {
     seedProfile();
     h.anthropicBehaviour.errorMessage = "Service unavailable";
 
@@ -234,7 +248,7 @@ describe("POST /chat — Anthropic API error handling", () => {
     expect(res.body.error.length).toBeGreaterThan(0);
   });
 
-  it("includes the upstream error message in the 500 response body", async () => {
+  it("returns a generic error message and does NOT leak the upstream SDK error", async () => {
     seedProfile();
     h.anthropicBehaviour.errorMessage = "Connection refused";
 
@@ -244,10 +258,12 @@ describe("POST /chat — Anthropic API error handling", () => {
       .send({ content: "Give me a drill plan" });
 
     expect(res.status).toBe(500);
-    expect(res.body.error).toContain("Connection refused");
+    // The client must receive a generic message — SDK internals must not be forwarded.
+    expect(res.body.error).not.toContain("Connection refused");
+    expect(res.body.error).toMatch(/unavailable/i);
   });
 
-  it("returns 500 when Anthropic simulates a quota-exceeded error", async () => {
+  it("returns a generic error even when Anthropic simulates a quota-exceeded error", async () => {
     seedProfile();
     h.anthropicBehaviour.errorMessage = "429 Too Many Requests: quota exceeded";
 
@@ -258,10 +274,12 @@ describe("POST /chat — Anthropic API error handling", () => {
 
     expect(res.status).toBe(500);
     expect(res.body).toHaveProperty("error");
-    expect(res.body.error).toContain("quota exceeded");
+    // Quota details must not leak to the client
+    expect(res.body.error).not.toContain("quota exceeded");
+    expect(res.body.error).not.toContain("429");
   });
 
-  it("returns 500 when Anthropic simulates an invalid API key error", async () => {
+  it("returns a generic error even when Anthropic simulates an invalid API key error", async () => {
     seedProfile();
     h.anthropicBehaviour.errorMessage = "401 Unauthorized: invalid API key";
 
@@ -272,7 +290,9 @@ describe("POST /chat — Anthropic API error handling", () => {
 
     expect(res.status).toBe(500);
     expect(res.body).toHaveProperty("error");
-    expect(res.body.error).toContain("invalid API key");
+    // Auth/key details must not leak to the client
+    expect(res.body.error).not.toContain("invalid API key");
+    expect(res.body.error).not.toContain("401");
   });
 
   it("still returns 200 when Anthropic is healthy (control case)", async () => {

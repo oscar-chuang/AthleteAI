@@ -355,7 +355,8 @@ describe("PATCH /analyses/:id — title and sport length limits", () => {
       .send({ title: "a".repeat(MAX_TITLE_LENGTH + 1), sport: "running" });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/title must be/);
+    // Zod validation now returns "Invalid request body" with a details object
+    expect(res.body.error).toMatch(/Invalid request body/);
   });
 
   it("accepts a title exactly at MAX_TITLE_LENGTH", async () => {
@@ -374,7 +375,8 @@ describe("PATCH /analyses/:id — title and sport length limits", () => {
       .send({ sport: "b".repeat(MAX_SPORT_LENGTH + 1) });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/sport must be/);
+    // Zod validation now returns "Invalid request body" with a details object
+    expect(res.body.error).toMatch(/Invalid request body/);
   });
 
   it("accepts a sport exactly at MAX_SPORT_LENGTH", async () => {

@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 
 const _base =
   process.env.EXPO_PUBLIC_API_URL ??
@@ -10,15 +10,15 @@ const API_URL = `${_base}/api`;
 const TOKEN_KEY = "auth_token";
 
 export async function getToken(): Promise<string | null> {
-  return AsyncStorage.getItem(TOKEN_KEY);
+  return SecureStore.getItemAsync(TOKEN_KEY);
 }
 
 export async function setToken(token: string): Promise<void> {
-  await AsyncStorage.setItem(TOKEN_KEY, token);
+  await SecureStore.setItemAsync(TOKEN_KEY, token);
 }
 
 export async function clearToken(): Promise<void> {
-  await AsyncStorage.removeItem(TOKEN_KEY);
+  await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
 
 // Global 401 handler — registered by AuthProvider so any expired token
@@ -539,5 +539,15 @@ export const subscriptions = {
     request<{ subscription: SubscriptionRecord }>("/subscriptions/update", {
       method: "POST",
       body: JSON.stringify({ tier, revenueCatCustomerId }),
+    }),
+};
+
+// ─── Notifications ─────────────────────────────────────────────────────────────
+
+export const notifications = {
+  updateCheckInHour: (hour: number) =>
+    request<{ success: boolean }>("/profile/check-in-hour", {
+      method: "PATCH",
+      body: JSON.stringify({ checkInHour: hour }),
     }),
 };

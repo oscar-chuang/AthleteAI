@@ -387,10 +387,9 @@ describe("HomeScreen — share card receives correct props from analysis record"
   let MockShareCard: jest.Mock;
 
   beforeEach(() => {
-    // index.tsx now uses the home-specific ShareCard (default export from
-    // @/components/ShareCard) with props: sessions, weeklyGoal, streakDays,
-    // sport, topTip — not the analysis-specific card.
-    MockShareCard = jest.requireMock("@/components/ShareCard").default as jest.Mock;
+    // index.tsx imports { ShareCard } from "@/components/analysis/ShareCard"
+    // and passes: analysis, topTip, weeklyStats: { sessions, weeklyGoal, streakDays }
+    MockShareCard = jest.requireMock("@/components/analysis/ShareCard").ShareCard as jest.Mock;
     MockShareCard.mockClear();
 
     mockProfile = {
@@ -426,9 +425,10 @@ describe("HomeScreen — share card receives correct props from analysis record"
 
     // ShareCard is rendered in both the off-screen capture view and the modal
     // preview — at least one call must carry the correct stat props.
-    const calls = MockShareCard.mock.calls as Array<[{ sessions: number; weeklyGoal: number; streakDays: number; sport: string; topTip?: string }]>;
+    // Props shape: { analysis: { sport }, topTip, weeklyStats: { sessions, weeklyGoal, streakDays } }
+    const calls = MockShareCard.mock.calls as Array<[{ analysis: { sport: string }; weeklyStats: { sessions: number; weeklyGoal: number; streakDays: number }; topTip?: string }]>;
     const propsList = calls.map(([props]) => props);
-    expect(propsList.some(p => p?.sessions === 3 && p?.sport === "running")).toBe(true);
+    expect(propsList.some(p => p?.weeklyStats?.sessions === 3 && p?.analysis?.sport === "running")).toBe(true);
   });
 
   // ── Scenario 5: topTip wired through ───────────────────────────────────────

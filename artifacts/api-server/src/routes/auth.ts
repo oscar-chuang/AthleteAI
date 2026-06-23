@@ -37,7 +37,7 @@ async function createAndReturnUser(email: string, password: string, res: Respons
     .returning({ id: usersTable.id, email: usersTable.email, createdAt: usersTable.createdAt });
 
   const token = jwt.sign({ userId: user!.id, email: user!.email }, JWT_SECRET!, {
-    expiresIn: "30d",
+    expiresIn: "7d",
   });
 
   res.status(statusCode).json({ token, user });
@@ -98,7 +98,7 @@ router.post("/auth/login", async (req: Request, res: Response) => {
   }
 
   const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET!, {
-    expiresIn: "30d",
+    expiresIn: "7d",
   });
 
   res.json({

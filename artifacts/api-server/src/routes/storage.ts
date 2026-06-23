@@ -39,7 +39,11 @@ router.post("/storage/uploads/request-url", requireAuth, async (req: Request, re
 
 /**
  * GET /storage/public-objects/*
- * Unconditionally public — serves files stored under the `public/` prefix in R2.
+ * Intentionally unauthenticated — serves files stored under the `public/` prefix in R2.
+ * This is correct by design: public objects are avatar thumbnails that must be reachable
+ * without a JWT (e.g. from img src tags before the user is authenticated). It is NOT
+ * a security gap. Private uploaded files (training videos) are served by the auth-protected
+ * route below and are strictly ownership-checked.
  */
 router.get("/storage/public-objects/*filePath", async (req: Request, res: Response) => {
   try {

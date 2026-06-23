@@ -144,17 +144,21 @@ jest.mock("../../../utils/scheduleUtils", () => ({
 }));
 
 // ShareCard mock — captures every set of props it receives so we can assert
-// which values the home screen passes.  The mock still renders a lightweight
-// <View> to keep the test fast.
-jest.mock("@/components/ShareCard", () => {
-  const { forwardRef } = jest.requireActual("react");
-  const { View }       = jest.requireActual("react-native");
-  const MockCard = forwardRef((props: any, _ref: any) => {
+// which values the home screen passes.  index.tsx uses the named export from
+// @/components/analysis/ShareCard with props: { analysis, topTip, weeklyStats }
+jest.mock("@/components/analysis/ShareCard", () => {
+  const { View } = jest.requireActual("react-native");
+  const MockCard = (props: any) => {
     // Store latest props at module scope so the test can read them.
     capturedShareCardProps = { ...props };
     return <View testID="share-card-preview" />;
-  });
-  return { __esModule: true, default: MockCard };
+  };
+  return {
+    __esModule: true,
+    ShareCard:        MockCard,
+    SHARE_CARD_DARK:  {},
+    SHARE_CARD_LIGHT: {},
+  };
 });
 
 jest.mock("expo-sharing", () => ({
@@ -250,12 +254,11 @@ describe("HomeScreen — ShareCard receives correct stat props when preview open
     // Modal is open
     expect(getByText("Share your achievement")).toBeTruthy();
 
-    // ShareCard must have been rendered with the expected stat props
+    // ShareCard must have been rendered with the expected stat props.
+    // Props shape: { analysis, topTip, weeklyStats: { sessions, weeklyGoal, streakDays } }
     expect(capturedShareCardProps).not.toBeNull();
     expect(capturedShareCardProps).toMatchObject({
-      sessions:   3,
-      weeklyGoal: 3,
-      streakDays: 5,
+      weeklyStats: { sessions: 3, weeklyGoal: 3, streakDays: 5 },
     });
   });
 });

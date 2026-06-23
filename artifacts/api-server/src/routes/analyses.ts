@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, analysesTable, profilesTable, completedDrillsTable } from "@workspace/db";
 import { eq, and, desc, ne } from "drizzle-orm";
+import { z } from "zod";
 import { requireAuth, type AuthedRequest } from "./auth";
 import { analyzeAthletePerformance, detectSportFromFrame, generateCoachingMoments, generateMovementSummary, type AIAnalysisResult, type FlaggedMoment, type JointAngles, type JointRisks } from "../lib/anthropic";
 import { resizeThumbnail } from "../lib/resize-thumbnail";
@@ -381,10 +382,29 @@ router.get("/analyses/:id", requireAuth, async (req: Request, res: Response) => 
   res.json({ analysis: formatAnalysis(row), tips, injuryRisks });
 });
 
+// Zod schema for PATCH /analyses/:id — enforces types and length bounds before
+// the existing sanitizers run. Unknown extra fields are stripped silently.
+const patchAnalysisBodySchema = z.object({
+  jointAngles:   z.record(z.string(), z.unknown()).optional(),
+  jointRisks:    z.record(z.string(), z.unknown()).optional(),
+  frameBase64:   z.string().max(MAX_FRAME_CHARS).optional(),
+  title:         z.string().max(MAX_TITLE_LENGTH).optional(),
+  sport:         z.string().max(MAX_SPORT_LENGTH).optional(),
+  movementType:  z.string().max(80).optional(),
+  videoUrl:      z.string().optional(),
+});
+
 router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) => {
   const userId = (req as AuthedRequest).userId;
   const id = parseInt(String(req.params.id ?? ""), 10);
   if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
+
+  const parseResult = patchAnalysisBodySchema.safeParse(req.body);
+  if (!parseResult.success) {
+    res.status(400).json({ error: "Invalid request body", details: parseResult.error.flatten() });
+    return;
+  }
+  const body = parseResult.data;
 
   const [row] = await db
     .select()
@@ -393,44 +413,15 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
 
   if (!row) { res.status(404).json({ error: "Analysis not found" }); return; }
 
-  const body = req.body as {
-    jointAngles?: Record<string, unknown>;
-    jointRisks?: Record<string, unknown>;
-    frameBase64?: unknown;
-    title?: unknown;
-    sport?: unknown;
-    movementType?: unknown;
-    videoUrl?: unknown;
-  };
-
-  if (typeof body.title === "string" && body.title.length > MAX_TITLE_LENGTH) {
-    res.status(400).json({ error: `title must be ${MAX_TITLE_LENGTH} characters or fewer` });
-    return;
-  }
-
-  if (typeof body.sport === "string" && body.sport.trim().length > MAX_SPORT_LENGTH) {
-    res.status(400).json({ error: `sport must be ${MAX_SPORT_LENGTH} characters or fewer` });
-    return;
-  }
-
   // Validate the measured payload before trusting it. Only the six tracked joints
   // are accepted; angles are clamped to a sane range and risks to {0,1,2}.
   const jointAngles = sanitizeJointAngles(body.jointAngles);
   const jointRisks = sanitizeJointRisks(body.jointRisks);
-  const frameBase64 =
-    typeof body.frameBase64 === "string" && body.frameBase64.length <= MAX_FRAME_CHARS
-      ? body.frameBase64
-      : undefined;
-  const newSport =
-    typeof body.sport === "string" && body.sport.trim().length > 0
-      ? body.sport.trim().toLowerCase()
-      : null;
-  const newMovementType =
-    typeof body.movementType === "string" && body.movementType.trim().length > 0 && body.movementType.trim().length <= 80
-      ? body.movementType.trim()
-      : null;
+  const frameBase64 = body.frameBase64 ?? undefined;
+  const newSport = body.sport?.trim() ? body.sport.trim().toLowerCase() : null;
+  const newMovementType = body.movementType?.trim() ? body.movementType.trim() : null;
 
-  if (typeof body.videoUrl === "string") {
+  if (body.videoUrl) {
     const videoUrlError = validateVideoUrl(body.videoUrl);
     if (videoUrlError) {
       res.status(400).json({ error: videoUrlError });
