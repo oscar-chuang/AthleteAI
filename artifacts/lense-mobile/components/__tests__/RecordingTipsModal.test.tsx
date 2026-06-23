@@ -20,8 +20,10 @@ jest.mock("@/hooks/useColors", () => ({
     background: "#000",
     foreground: "#fff",
     primary: "#2F7BFF",
+    primaryForeground: "#ffffff",
     border: "#333",
     card: "#111",
+    muted: "#1a1a1a",
     mutedForeground: "#888",
     success: "#22C55E",
     destructive: "#EF4444",
@@ -36,7 +38,7 @@ const noop = () => {};
 describe("RecordingTipsModal — upload gate", () => {
   it("Continue button is disabled before the checkbox is ticked", () => {
     const { getByRole } = render(
-      <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
+      <RecordingTipsModal visible onContinue={noop} />
     );
     const btn = getByRole("button", { name: "Continue" });
     expect(btn.props.accessibilityState?.disabled).toBe(true);
@@ -44,7 +46,7 @@ describe("RecordingTipsModal — upload gate", () => {
 
   it("Continue button becomes enabled after ticking the acknowledgement checkbox", () => {
     const { getByRole } = render(
-      <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
+      <RecordingTipsModal visible onContinue={noop} />
     );
 
     fireEvent.press(getByRole("checkbox"));
@@ -56,7 +58,7 @@ describe("RecordingTipsModal — upload gate", () => {
   it("onContinue is NOT called when Continue is pressed without ticking the checkbox", () => {
     const onContinue = jest.fn();
     const { getByRole } = render(
-      <RecordingTipsModal visible onClose={noop} onContinue={onContinue} />,
+      <RecordingTipsModal visible onContinue={onContinue} />,
     );
 
     fireEvent.press(getByRole("button", { name: "Continue" }));
@@ -66,7 +68,7 @@ describe("RecordingTipsModal — upload gate", () => {
   it("onContinue IS called after the checkbox is ticked and Continue is pressed", async () => {
     const onContinue = jest.fn();
     const { getByRole } = render(
-      <RecordingTipsModal visible onClose={noop} onContinue={onContinue} />,
+      <RecordingTipsModal visible onContinue={onContinue} />,
     );
 
     fireEvent.press(getByRole("checkbox"));
@@ -75,26 +77,27 @@ describe("RecordingTipsModal — upload gate", () => {
     expect(onContinue).toHaveBeenCalledTimes(1);
   });
 
-  it("resets acknowledged when the modal is closed", () => {
-    const onClose = jest.fn();
-    const { getByRole } = render(
-      <RecordingTipsModal visible onClose={onClose} onContinue={noop} />,
+  it("there is no close / X button on the guidance screen", () => {
+    const { queryByRole } = render(
+      <RecordingTipsModal visible onContinue={noop} />,
     );
+    expect(queryByRole("button", { name: "Close" })).toBeNull();
+  });
 
-    fireEvent.press(getByRole("checkbox"));
-
-    expect(getByRole("button", { name: "Continue" }).props.accessibilityState?.disabled).toBe(false);
-
-    act(() => { fireEvent.press(getByRole("button", { name: "Close" })); });
-
-    expect(onClose).toHaveBeenCalledTimes(1);
+  it("scrolling alone does not enable the Continue button", () => {
+    const { getByRole, UNSAFE_getByType } = render(
+      <RecordingTipsModal visible onContinue={noop} />,
+    );
+    const { ScrollView } = require("react-native");
+    fireEvent.scroll(UNSAFE_getByType(ScrollView), {
+      nativeEvent: { contentOffset: { y: 400 }, contentSize: { height: 1000 }, layoutMeasurement: { height: 600 } },
+    });
     expect(getByRole("button", { name: "Continue" }).props.accessibilityState?.disabled).toBe(true);
-    expect(getByRole("checkbox").props.accessibilityState?.checked).toBe(false);
   });
 
   it("does not render a 'Don't show again' toggle", () => {
     const { UNSAFE_queryAllByType } = render(
-      <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
+      <RecordingTipsModal visible onContinue={noop} />,
     );
     const { Switch } = require("react-native");
     expect(UNSAFE_queryAllByType(Switch)).toHaveLength(0);
@@ -104,14 +107,14 @@ describe("RecordingTipsModal — upload gate", () => {
 describe("RecordingTipsModal — example images", () => {
   it("renders exactly four accessible image components", () => {
     const { getAllByRole } = render(
-      <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
+      <RecordingTipsModal visible onContinue={noop} />,
     );
     expect(getAllByRole("image")).toHaveLength(4);
   });
 
   it("the 'Full body in frame' image loads good.png", () => {
     const { getByLabelText } = render(
-      <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
+      <RecordingTipsModal visible onContinue={noop} />,
     );
     const img = getByLabelText("Full body in frame");
     expect(img.props.source).toEqual(GOOD_IMG);
@@ -119,7 +122,7 @@ describe("RecordingTipsModal — example images", () => {
 
   it("the 'Too far away' image loads too-far.png", () => {
     const { getByLabelText } = render(
-      <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
+      <RecordingTipsModal visible onContinue={noop} />,
     );
     const img = getByLabelText("Too far away");
     expect(img.props.source).toEqual(TOO_FAR_IMG);
@@ -127,7 +130,7 @@ describe("RecordingTipsModal — example images", () => {
 
   it("the 'Limbs cropped' image loads cropped.png", () => {
     const { getByLabelText } = render(
-      <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
+      <RecordingTipsModal visible onContinue={noop} />,
     );
     const img = getByLabelText("Limbs cropped");
     expect(img.props.source).toEqual(CROPPED_IMG);
@@ -135,7 +138,7 @@ describe("RecordingTipsModal — example images", () => {
 
   it("the 'Poor lighting' image loads dark.png", () => {
     const { getByLabelText } = render(
-      <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
+      <RecordingTipsModal visible onContinue={noop} />,
     );
     const img = getByLabelText("Poor lighting");
     expect(img.props.source).toEqual(DARK_IMG);
@@ -143,14 +146,14 @@ describe("RecordingTipsModal — example images", () => {
 
   it("exactly one card carries the 'Do this' badge (good.png card)", () => {
     const { getAllByText } = render(
-      <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
+      <RecordingTipsModal visible onContinue={noop} />,
     );
     expect(getAllByText("Do this")).toHaveLength(1);
   });
 
   it("exactly three cards carry the 'Avoid' badge (the non-good cards)", () => {
     const { getAllByText } = render(
-      <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
+      <RecordingTipsModal visible onContinue={noop} />,
     );
     expect(getAllByText("Avoid")).toHaveLength(3);
   });

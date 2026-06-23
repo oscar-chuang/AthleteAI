@@ -4,11 +4,13 @@ import { Text, StyleSheet } from "react-native";
 interface Props {
   label: string;
   color: string;
+  testID?: string;
 }
 
-export default function GuidanceSectionHeader({ label, color }: Props) {
+export default function GuidanceSectionHeader({ label, color, testID }: Props) {
   return (
     <Text
+      testID={testID}
       style={[s.label, { color }]}
       accessibilityRole="header"
     >

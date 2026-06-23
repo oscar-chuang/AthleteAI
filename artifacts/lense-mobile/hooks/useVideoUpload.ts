@@ -5,7 +5,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Router } from "expo-router";
 import { analyses as analysesApi, ApiError } from "@/lib/api";
 import type { Profile } from "@/lib/api";
-import { RECORDING_TIPS_KEY } from "@/components/RecordingTipsModal";
 
 function getWeekKey(): string {
   const d = new Date();
@@ -133,13 +132,8 @@ export function useVideoUpload(
 
   const handleUpload = useCallback(async () => {
     if (!requireSport()) return;
-    const dismissed = await AsyncStorage.getItem(RECORDING_TIPS_KEY);
-    if (dismissed) {
-      await doUpload();
-    } else {
-      setPendingAction("upload");
-      setShowRecordingTips(true);
-    }
+    setPendingAction("upload");
+    setShowRecordingTips(true);
   }, [profile]);
 
   const handleRecord = useCallback(async () => {
@@ -148,13 +142,8 @@ export function useVideoUpload(
       Alert.alert("Not available", "Video recording is only available on the mobile app.");
       return;
     }
-    const dismissed = await AsyncStorage.getItem(RECORDING_TIPS_KEY);
-    if (dismissed) {
-      await doRecord();
-    } else {
-      setPendingAction("record");
-      setShowRecordingTips(true);
-    }
+    setPendingAction("record");
+    setShowRecordingTips(true);
   }, [profile]);
 
   const handleRecordingTipsContinue = useCallback(async () => {

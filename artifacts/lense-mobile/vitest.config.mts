@@ -10,6 +10,6 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["**/__tests__/**/*.test.ts"],
-    exclude: ["node_modules/**", "dist/**", "app/**"],
+    exclude: ["node_modules/**", "dist/**", "app/**", "hooks/**"],
   },
 });

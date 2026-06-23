@@ -7,13 +7,15 @@ interface Props {
   checked: boolean;
   onToggle: () => void;
   label: string;
+  testID?: string;
 }
 
-export default function AcknowledgeCheckbox({ checked, onToggle, label }: Props) {
+export default function AcknowledgeCheckbox({ checked, onToggle, label, testID }: Props) {
   const colors = useColors();
 
   return (
     <TouchableOpacity
+      testID={testID}
       style={s.row}
       onPress={onToggle}
       activeOpacity={0.8}
@@ -31,7 +33,7 @@ export default function AcknowledgeCheckbox({ checked, onToggle, label }: Props)
           },
         ]}
       >
-        {checked && <Feather name="check" size={14} color="#fff" />}
+        {checked && <Feather name="check" size={14} color={colors.primaryForeground} />}
       </View>
       <Text style={[s.label, { color: colors.foreground }]}>{label}</Text>
     </TouchableOpacity>

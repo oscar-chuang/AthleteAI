@@ -7,13 +7,14 @@ interface Props {
   title: string;
   subtitle: string;
   iconName: React.ComponentProps<typeof Feather>["name"];
+  testID?: string;
 }
 
-export default function GuidanceHeroBlock({ title, subtitle, iconName }: Props) {
+export default function GuidanceHeroBlock({ title, subtitle, iconName, testID }: Props) {
   const colors = useColors();
 
   return (
-    <View style={s.block} accessibilityRole="header">
+    <View testID={testID} style={s.block} accessibilityRole="header">
       <View style={[s.iconWrap, { backgroundColor: colors.primary + "22" }]}>
         <Feather name={iconName} size={28} color={colors.primary} />
       </View>

@@ -7,14 +7,16 @@ import type { GuidanceTip } from "./config";
 interface Props {
   tip: GuidanceTip;
   variant: "good" | "bad";
+  testID?: string;
 }
 
-export default function GuidanceTipRow({ tip, variant }: Props) {
+export default function GuidanceTipRow({ tip, variant, testID }: Props) {
   const colors = useColors();
   const color = variant === "good" ? colors.success : colors.destructive;
 
   return (
     <View
+      testID={testID}
       style={s.row}
       accessible
       accessibilityRole="text"

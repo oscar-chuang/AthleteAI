@@ -284,10 +284,9 @@ export default function AnalyzeScreen() {
         />
       )}
 
-      {/* Recording tips gate */}
+      {/* Recording tips gate — mandatory, no close/dismiss shortcut */}
       <RecordingTipsModal
         visible={showRecordingTips}
-        onClose={() => { setShowRecordingTips(false); }}
         onContinue={handleRecordingTipsContinue}
       />
 

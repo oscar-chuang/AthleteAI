@@ -6,14 +6,16 @@ import type { ExampleCardData } from "./config";
 
 interface Props {
   card: ExampleCardData;
+  testID?: string;
 }
 
-export default function ExampleCard({ card }: Props) {
+export default function ExampleCard({ card, testID }: Props) {
   const colors = useColors();
   const accent = card.good ? colors.success : colors.destructive;
 
   return (
     <View
+      testID={testID}
       style={[
         s.card,
         {
