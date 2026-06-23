@@ -150,16 +150,27 @@ const METRICS: { key: keyof AnalysisRecord; label: string }[] = [
 
 // ─── ShareCard ────────────────────────────────────────────────────────────────
 
+export interface WeeklyStats {
+  /** Sessions completed so far this week. */
+  sessions:   number;
+  /** The user's configured weekly session goal. */
+  weeklyGoal: number;
+  /** Current training-day streak length (0 = no streak). */
+  streakDays: number;
+}
+
 export interface ShareCardProps {
-  analysis:    AnalysisRecord;
-  topTip?:     string;
+  analysis:     AnalysisRecord;
+  topTip?:      string;
+  /** When provided, a weekly-goal summary strip is shown at the top of the card body. */
+  weeklyStats?: WeeklyStats;
   /** @default "dark" */
   colorScheme?: "dark" | "light";
   /** Override the palette accent with the user's chosen theme colour. */
   accent?:      string;
 }
 
-export function ShareCard({ analysis, topTip, colorScheme = "dark", accent }: ShareCardProps) {
+export function ShareCard({ analysis, topTip, weeklyStats, colorScheme = "dark", accent }: ShareCardProps) {
   const base         = colorScheme === "light" ? SHARE_CARD_LIGHT : SHARE_CARD_DARK;
   const palette      = accent ? { ...base, accent } : base;
   const overallScore = analysis.overallScore ?? 0;
@@ -201,6 +212,26 @@ export function ShareCard({ analysis, topTip, colorScheme = "dark", accent }: Sh
       <View style={s.body}>
         <Text style={s.title} numberOfLines={1}>{analysis.title}</Text>
         <Text style={s.date}>{formatDate(analysis.uploadedAt)}</Text>
+
+        {/* Weekly goal summary strip */}
+        {!!weeklyStats && (
+          <View style={s.weeklyStrip} testID="weekly-stats-strip">
+            <View style={s.weeklyPill}>
+              <Feather name="calendar" size={10} color={palette.accent} />
+              <Text style={s.weeklyPillText}>
+                {weeklyStats.sessions} / {weeklyStats.weeklyGoal} sessions this week
+              </Text>
+            </View>
+            {weeklyStats.streakDays > 0 && (
+              <View style={s.weeklyPill}>
+                <Feather name="zap" size={10} color="#ff6b35" />
+                <Text style={[s.weeklyPillText, { color: "#ff6b35" }]}>
+                  {weeklyStats.streakDays}d streak
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Score ring + metrics grid */}
         <View style={s.scoreRow}>
@@ -360,6 +391,30 @@ function makeStyles(p: ShareCardPalette) {
       height:          1,
       backgroundColor: p.cardBorder,
       marginBottom:    12,
+    },
+
+    // Weekly stats strip
+    weeklyStrip: {
+      flexDirection:  "row",
+      flexWrap:       "wrap",
+      gap:            6,
+      marginBottom:   12,
+    },
+    weeklyPill: {
+      flexDirection:     "row",
+      alignItems:        "center",
+      gap:               4,
+      backgroundColor:   p.accent + "18",
+      borderRadius:      20,
+      paddingHorizontal: 8,
+      paddingVertical:   3,
+      borderWidth:       1,
+      borderColor:       p.accent + "30",
+    },
+    weeklyPillText: {
+      fontSize:   10,
+      fontFamily: "Inter_600SemiBold",
+      color:      p.accent,
     },
 
     // Tip strip
