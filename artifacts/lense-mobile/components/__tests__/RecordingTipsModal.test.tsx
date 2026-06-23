@@ -1,6 +1,5 @@
 import React from "react";
 import { render, fireEvent, act } from "@testing-library/react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const GOOD_IMG    = require("@/assets/recording-tips/good.png");
 const TOO_FAR_IMG = require("@/assets/recording-tips/too-far.png");
@@ -13,31 +12,28 @@ jest.mock("react-native-safe-area-context", () => ({
 
 jest.mock("@expo/vector-icons", () => {
   const { View } = require("react-native");
-  return { Feather: View };
+  return { Feather: (props: object) => <View {...props} /> };
 });
 
 jest.mock("@/hooks/useColors", () => ({
   useColors: () => ({
     background: "#000",
     foreground: "#fff",
-    primary: "#6c63ff",
+    primary: "#2F7BFF",
     border: "#333",
     card: "#111",
     mutedForeground: "#888",
-    success: "#22c55e",
-    destructive: "#ef4444",
+    success: "#22C55E",
+    destructive: "#EF4444",
+    surface3: "#171A1F",
   }),
 }));
 
-import RecordingTipsModal, { RECORDING_TIPS_KEY } from "@/components/RecordingTipsModal";
+import RecordingTipsModal from "@/components/RecordingTipsModal";
 
 const noop = () => {};
 
 describe("RecordingTipsModal — upload gate", () => {
-  beforeEach(() => {
-    (AsyncStorage.setItem as jest.Mock).mockClear();
-  });
-
   it("Continue button is disabled before the checkbox is ticked", () => {
     const { getByRole } = render(
       <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
@@ -79,50 +75,29 @@ describe("RecordingTipsModal — upload gate", () => {
     expect(onContinue).toHaveBeenCalledTimes(1);
   });
 
-  it("does NOT write to AsyncStorage when 'Don't show again' toggle is off", async () => {
-    const { getByRole } = render(
-      <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
-    );
-
-    fireEvent.press(getByRole("checkbox"));
-    await act(async () => { fireEvent.press(getByRole("button", { name: "Continue" })); });
-
-    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
-  });
-
-  it("writes recording_tips_dismissed to AsyncStorage when 'Don't show again' is enabled and Continue is pressed", async () => {
-    const { getByRole } = render(
-      <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
-    );
-
-    fireEvent.press(getByRole("checkbox"));
-
-    const toggle = getByRole("switch");
-    fireEvent(toggle, "valueChange", true);
-
-    await act(async () => { fireEvent.press(getByRole("button", { name: "Continue" })); });
-
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith(RECORDING_TIPS_KEY, "true");
-  });
-
-  it("resets acknowledged and dontShowAgain when the modal is closed and reopened", () => {
+  it("resets acknowledged when the modal is closed", () => {
     const onClose = jest.fn();
     const { getByRole } = render(
       <RecordingTipsModal visible onClose={onClose} onContinue={noop} />,
     );
 
     fireEvent.press(getByRole("checkbox"));
-    fireEvent(getByRole("switch"), "valueChange", true);
 
     expect(getByRole("button", { name: "Continue" }).props.accessibilityState?.disabled).toBe(false);
-    expect(getByRole("switch").props.value).toBe(true);
 
     act(() => { fireEvent.press(getByRole("button", { name: "Close" })); });
 
     expect(onClose).toHaveBeenCalledTimes(1);
-
     expect(getByRole("button", { name: "Continue" }).props.accessibilityState?.disabled).toBe(true);
-    expect(getByRole("switch").props.value).toBe(false);
+    expect(getByRole("checkbox").props.accessibilityState?.checked).toBe(false);
+  });
+
+  it("does not render a 'Don't show again' toggle", () => {
+    const { UNSAFE_queryAllByType } = render(
+      <RecordingTipsModal visible onClose={noop} onContinue={noop} />,
+    );
+    const { Switch } = require("react-native");
+    expect(UNSAFE_queryAllByType(Switch)).toHaveLength(0);
   });
 });
 

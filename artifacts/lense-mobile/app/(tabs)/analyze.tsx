@@ -33,7 +33,7 @@ import { SkeletonCard } from "@/components/ui/SkeletonLoader";
 import { analyses as analysesApi, jointTrends, type AnalysisRecord, type JointTrendsResponse, ApiError } from "@/lib/api";
 import { useAuth, useCanAccessFeature } from "@/lib/authContext";
 import { buildDeltaMap } from "@/lib/sessionDelta";
-import RecordingTipsModal, { RECORDING_TIPS_KEY } from "@/components/RecordingTipsModal";
+import RecordingTipsModal from "@/components/RecordingTipsModal";
 import JointHistorySheet from "@/components/JointHistorySheet";
 
 const SPORTS = [
@@ -210,39 +210,35 @@ export default function AnalyzeScreen() {
     return true;
   }
 
-  async function handleUpload() {
+  function handleUpload() {
     if (!requireSport()) return;
-    const dismissed = await AsyncStorage.getItem(RECORDING_TIPS_KEY);
-    if (dismissed) {
-      await doUpload();
-    } else {
-      setPendingAction("upload");
-      setShowRecordingTips(true);
-    }
+    setPendingAction("upload");
+    setShowRecordingTips(true);
   }
 
-  async function handleRecord() {
+  function handleRecord() {
     if (!requireSport()) return;
     if (Platform.OS === "web") {
       Alert.alert("Not available", "Video recording is only available on the mobile app.");
       return;
     }
-    const dismissed = await AsyncStorage.getItem(RECORDING_TIPS_KEY);
-    if (dismissed) {
-      await doRecord();
-    } else {
-      setPendingAction("record");
-      setShowRecordingTips(true);
-    }
+    setPendingAction("record");
+    setShowRecordingTips(true);
   }
 
   async function handleRecordingTipsContinue() {
     setShowRecordingTips(false);
-    if (pendingAction === "upload") {
+    const action = pendingAction;
+    setPendingAction(null);
+    if (action === "upload") {
       await doUpload();
-    } else if (pendingAction === "record") {
+    } else if (action === "record") {
       await doRecord();
     }
+  }
+
+  function handleRecordingTipsClose() {
+    setShowRecordingTips(false);
     setPendingAction(null);
   }
 
@@ -572,7 +568,7 @@ export default function AnalyzeScreen() {
       {/* Recording tips gate */}
       <RecordingTipsModal
         visible={showRecordingTips}
-        onClose={() => { setShowRecordingTips(false); setPendingAction(null); }}
+        onClose={handleRecordingTipsClose}
         onContinue={handleRecordingTipsContinue}
       />
 
