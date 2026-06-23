@@ -465,7 +465,16 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
     // Calling jest.setTimeout() inside a test body only affects *subsequent*
     // tests, not the one currently running — a common Jest footgun.
     jest.setTimeout(60_000);
-    jest.useFakeTimers({ doNotFake: ["MessageChannel" as "nextTick"] });
+    // "MessageChannel" — keeps React 19's scheduler running on real macrotasks.
+    // "setImmediate"   — React 19's async act() defers its internal flush via
+    //                    setImmediate. If setImmediate is faked, await act(async()=>{})
+    //                    stalls indefinitely waiting for a callback that never fires,
+    //                    causing intermittent 30–60 s hangs in CI. Keeping it real
+    //                    lets async act() complete normally. The dismiss timer and
+    //                    poll interval both use setTimeout/setInterval which remain
+    //                    faked so jest.advanceTimersByTime() still controls them.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    jest.useFakeTimers({ doNotFake: ["MessageChannel", "setImmediate", "clearImmediate"] as any });
 
     // Root-cause fix for the intermittent act(async) hang
     // ─────────────────────────────────────────────────────
@@ -515,7 +524,7 @@ describe("AnalysisDetailScreen — toast dismiss behaviours (fake timers)", () =
     await simulateFocus();
     expect(queryByText("Weekly goal reached!")).toBeNull();
 
-    // Advance one poll interval.  The setInterval fires load() → COMPLETE_ANALYSIS.
+    // Advance one poll interval — the setInterval fires load() → COMPLETE_ANALYSIS.
     // prevStatusRef was "processing" → checkGoalToast() runs → setGoalToast() →
     // show animation starts.  Because startAnimatingNode now fires synchronously,
     // no 16 ms fake timer is registered and act(async) inside flush() never hangs.

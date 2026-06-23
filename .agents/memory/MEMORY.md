@@ -8,3 +8,4 @@
 - [Theme system & AsyncStorage Jest mock](theme-system.md) — ThemeProvider in lib/themeContext.tsx; AsyncStorage requires moduleNameMapper in jest.config.js pointing to the library's own jest mock.
 - [Color token migration](color-token-migration.md) — #00C2FF→#2F7BFF, #1DB954→#22C55E; #FF6B35 is intentional (semantic energy); preset keys and test mocks must use new values.
 - [Expandable sections and test accessibility](expandable-sections-and-tests.md) — collapsed sections hide testIDs from jest; "movement" and "joints" start expanded in analysis/[id].tsx initial state.
+- [Fake-timer + async act() hang (React 19)](fake-timer-async-act.md) — setImmediate must be in doNotFake or await act(async()=>{}) stalls forever under jest.useFakeTimers().
