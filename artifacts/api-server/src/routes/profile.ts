@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { db, profilesTable, analysesTable, completedDrillsTable } from "@workspace/db";
 import { requireAuth } from "./auth";
 import { computeProfileStats } from "../lib/stats";
+import { cache } from "../lib/redis";
 
 const AVATAR_MAX_PX = 64;
 const AVATAR_MAX_BYTES = 20 * 1024;
@@ -179,12 +180,19 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
     userId,
     result.trainingDays ?? undefined
   );
+
+  await cache.invalidate(`stats:${userId}`);
+
   res.json({ profile: formatProfile(result, streak, weeklyProgress) });
 });
 
 router.get("/profile/stats", requireAuth, async (req: Request, res: Response) => {
   const userId = req.userId!;
 
+  const { value: statsPayload, hit } = await cache.getOrSet(
+    `stats:${userId}`,
+    60,
+    async () => {
   const [profileRow, rows, drillsMasteredResult] = await Promise.all([
     db
       .select({ trainingDays: profilesTable.trainingDays })
@@ -263,7 +271,12 @@ router.get("/profile/stats", requireAuth, async (req: Request, res: Response) =>
   const scoreDelta   = latestScore != null && prevScore != null
     ? Math.round(latestScore - prevScore) : null;
 
-  res.json({ streak, totalAnalyses: rows.length, thisWeekCount, lastWeekCount, personalBests, latestScore, scoreDelta, drillsMastered: drillsMasteredResult });
+  return { streak, totalAnalyses: rows.length, thisWeekCount, lastWeekCount, personalBests, latestScore, scoreDelta, drillsMastered: drillsMasteredResult };
+    }
+  );
+
+  res.set("X-Cache", hit ? "HIT" : "MISS");
+  res.json(statsPayload);
 });
 
 export default router;

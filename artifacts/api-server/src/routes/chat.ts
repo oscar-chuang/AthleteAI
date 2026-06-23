@@ -3,6 +3,8 @@ import { eq, desc, and } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { db, chatMessagesTable, analysesTable, profilesTable, completedDrillsTable } from "@workspace/db";
 import { requireAuth } from "./auth";
+import { cache } from "../lib/redis";
+import { aiRateLimit } from "../middleware/rateLimit";
 
 type TipDrill = {
   name: string;
@@ -169,38 +171,47 @@ function getWorstMetric(a: typeof analysesTable.$inferSelect): string {
 router.get("/chat/suggestions", requireAuth, async (req: Request, res: Response) => {
   const userId = req.userId!;
 
-  const [latest] = await db
-    .select()
-    .from(analysesTable)
-    .where(and(eq(analysesTable.userId, userId), eq(analysesTable.status, "complete")))
-    .orderBy(desc(analysesTable.uploadedAt))
-    .limit(1);
+  const { value: payload, hit } = await cache.getOrSet(
+    `suggestions:${userId}`,
+    120,
+    async () => {
+      const [latest] = await db
+        .select()
+        .from(analysesTable)
+        .where(and(eq(analysesTable.userId, userId), eq(analysesTable.status, "complete")))
+        .orderBy(desc(analysesTable.uploadedAt))
+        .limit(1);
 
-  const sport = latest?.sport ?? "general";
-  const worst = latest ? getWorstMetric(latest) : null;
+      const sport = latest?.sport ?? "general";
+      const worst = latest ? getWorstMetric(latest) : null;
 
-  const scoreMap: Record<string, number | null | undefined> = {
-    technique: latest?.techniqueScore,
-    power: latest?.powerScore,
-    balance: latest?.balanceScore,
-    consistency: latest?.consistencyScore,
-    mobility: latest?.mobilityScore,
-    speed: latest?.speedScore,
-  };
-  const worstKey = worst ?? "technique";
-  const suggestions = latest ? [
-    `How do I improve my ${worstKey} score from ${Math.round(scoreMap[worstKey] ?? 0)}?`,
-    `Give me a weekly drill plan for my ${sport} training`,
-    "What are my biggest injury risks right now?",
-    "How can I make my next session more effective?",
-  ] : [
-    "How do I start improving my athletic performance?",
-    "What should a beginner focus on first?",
-    "How often should I record and analyze my sessions?",
-    "What are the most impactful drills for any sport?",
-  ];
+      const scoreMap: Record<string, number | null | undefined> = {
+        technique: latest?.techniqueScore,
+        power: latest?.powerScore,
+        balance: latest?.balanceScore,
+        consistency: latest?.consistencyScore,
+        mobility: latest?.mobilityScore,
+        speed: latest?.speedScore,
+      };
+      const worstKey = worst ?? "technique";
+      const suggestions = latest ? [
+        `How do I improve my ${worstKey} score from ${Math.round(scoreMap[worstKey] ?? 0)}?`,
+        `Give me a weekly drill plan for my ${sport} training`,
+        "What are my biggest injury risks right now?",
+        "How can I make my next session more effective?",
+      ] : [
+        "How do I start improving my athletic performance?",
+        "What should a beginner focus on first?",
+        "How often should I record and analyze my sessions?",
+        "What are the most impactful drills for any sport?",
+      ];
 
-  res.json({ suggestions, hasCompletedAnalyses: !!latest });
+      return { suggestions, hasCompletedAnalyses: !!latest };
+    }
+  );
+
+  res.set("X-Cache", hit ? "HIT" : "MISS");
+  res.json(payload);
 });
 
 router.get("/chat", requireAuth, async (req: Request, res: Response) => {
@@ -216,7 +227,7 @@ router.get("/chat", requireAuth, async (req: Request, res: Response) => {
   res.json({ messages: rows.map(formatMessage) });
 });
 
-router.post("/chat", requireAuth, async (req: Request, res: Response) => {
+router.post("/chat", requireAuth, aiRateLimit, async (req: Request, res: Response) => {
   const userId = req.userId!;
   const { content, referencedAnalysisId } = req.body as {
     content?: string;
@@ -301,6 +312,8 @@ router.post("/chat", requireAuth, async (req: Request, res: Response) => {
       content: assistantContent,
     })
     .returning();
+
+  await cache.invalidate(`suggestions:${userId}`);
 
   res.json({
     userMessage: formatMessage(userMsg!),

@@ -1,8 +1,27 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import jwt from "jsonwebtoken";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { globalRateLimit } from "./middleware/rateLimit";
+
+const JWT_SECRET = process.env["JWT_SECRET"];
+
+function softAuth(req: Request, _res: Response, next: NextFunction): void {
+  try {
+    const authHeader = req.headers["authorization"];
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.slice(7);
+      const payload = jwt.verify(token, JWT_SECRET ?? "") as { userId?: number };
+      if (typeof payload.userId === "number") {
+        (req as Request & { userId?: number }).userId = payload.userId;
+      }
+    }
+  } catch {
+  }
+  next();
+}
 
 const app: Express = express();
 
@@ -26,6 +45,8 @@ app.use(
   }),
 );
 app.use(cors());
+app.use(softAuth);
+app.use(globalRateLimit);
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 

@@ -4,6 +4,9 @@ import { eq, and, desc, ne } from "drizzle-orm";
 import { requireAuth, type AuthedRequest } from "./auth";
 import { analyzeAthletePerformance, detectSportFromFrame, generateCoachingMoments, generateMovementSummary, type AIAnalysisResult, type FlaggedMoment, type JointAngles, type JointRisks } from "../lib/anthropic";
 import { resizeThumbnail } from "../lib/resize-thumbnail";
+import { cache } from "../lib/redis";
+import { enqueueBiomechanicsJob } from "../lib/queue";
+import { aiRateLimit } from "../middleware/rateLimit";
 
 const router: IRouter = Router();
 
@@ -95,7 +98,7 @@ router.get("/analyses", requireAuth, async (req: Request, res: Response) => {
   res.json({ analyses: rows.map(formatAnalysis) });
 });
 
-router.post("/analyses", requireAuth, async (req: Request, res: Response) => {
+router.post("/analyses", requireAuth, aiRateLimit, async (req: Request, res: Response) => {
   const userId = (req as AuthedRequest).userId;
   const { title, sport, videoUrl, duration, movementType } = req.body as {
     title?: string; sport?: string; videoUrl?: string; duration?: number; movementType?: string;
@@ -204,7 +207,7 @@ async function runAIAnalysis(
   console.log(`AI analysis complete for id=${id} (${sport}: ${title})${isBiomechanics ? " [biomechanics]" : ""}`);
 }
 
-router.post("/analyses/detect-sport", requireAuth, async (req: Request, res: Response) => {
+router.post("/analyses/detect-sport", requireAuth, aiRateLimit, async (req: Request, res: Response) => {
   const { imageBase64 } = req.body as { imageBase64?: string };
   if (!imageBase64) { res.status(400).json({ error: "imageBase64 required" }); return; }
   try {
@@ -497,6 +500,16 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
     return;
   }
 
+  // Acquire a distributed lock so two simultaneous PATCH calls cannot both trigger
+  // a biomechanics run on the same analysis. If the lock is already held (another
+  // request is already queued or in-flight) return 409 immediately.
+  const lockKey = `lock:analysis:${id}`;
+  const lockAcquired = await cache.acquireLock(lockKey, 30_000);
+  if (!lockAcquired) {
+    res.status(409).json({ error: "Analysis is already being processed" });
+    return;
+  }
+
   // Stale completed-drill records (tipIds from the previous scan) are now orphaned
   // because the re-scan will regenerate tips with new IDs. Delete them before
   // responding so the client can rely on PATCH success meaning drills are cleared.
@@ -504,15 +517,9 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
     .where(eq(completedDrillsTable.analysisId, row.id))
     .catch((err) => { console.error(`Failed to clear completed drills for id=${id}:`, err); });
 
-  res.json({ success: true, improvements });
-
-  // Mark as processing so the detail screen's poll resumes and picks up the
-  // grounded results once the re-analysis finishes. Persist a corrected sport too
-  // when one was sent alongside the measured data. Snapshot the worst-frame JPEG
-  // as the thumbnail immediately so the list shows it without waiting for the AI run.
-  // Down-sample the frame to ≤160 px wide before storing to keep the DB lean.
-  // Also persist the raw measured joint angles/risks so the trends endpoint can
-  // return per-joint history across sessions.
+  // Snapshot the worst-frame JPEG as the thumbnail immediately so the list shows
+  // it without waiting for the AI run. Down-sample to ≤160 px wide to keep DB lean.
+  // Persist measured joint angles/risks so the trends endpoint has per-joint history.
   const thumbnailUrl = frameBase64 ? await resizeThumbnail(frameBase64) : undefined;
   await db.update(analysesTable)
     .set({
@@ -525,17 +532,25 @@ router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) =
     .where(eq(analysesTable.id, row.id))
     .catch(() => {});
 
-  // Re-run AI with actual measured joint angles + video frame — this grounded run
-  // overrides the initial estimate and is protected from create-time overwrites.
-  const effectiveSport = newSport ?? row.sport;
-  runAIAnalysis(row.id, userId, effectiveSport, row.title, row.videoUrl ?? undefined, jointAngles, jointRisks, frameBase64, true)
-    .catch((err) => {
-      console.error(`AI re-analysis failed for id=${id}:`, err);
-      db.update(analysesTable)
-        .set({ status: "complete" })
-        .where(eq(analysesTable.id, row.id))
-        .catch(() => {});
-    });
+  // Return 202 immediately — the mobile polling loop will pick up status: 'complete'
+  // once the worker finishes. Include improvements so the client can schedule
+  // local notifications without waiting for the full result.
+  res.status(202).json({ status: "processing", improvements });
+
+  // Enqueue the grounded biomechanics AI run. The worker holds the lock and
+  // releases it after writing biomechanicsApplied=true.
+  await enqueueBiomechanicsJob({
+    analysisId: row.id,
+    userId,
+    frameBase64: frameBase64 ?? null,
+  }).catch((err) => {
+    console.error(`Failed to enqueue biomechanics job for id=${id}:`, err);
+    cache.releaseLock(lockKey).catch(() => {});
+    db.update(analysesTable)
+      .set({ status: "failed" })
+      .where(and(eq(analysesTable.id, row.id), eq(analysesTable.biomechanicsApplied, false)))
+      .catch(() => {});
+  });
 });
 
 router.post("/analyses/:id/coaching-moments", requireAuth, async (req: Request, res: Response) => {

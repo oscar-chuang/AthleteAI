@@ -13,7 +13,12 @@ if (!connectionString) {
   );
 }
 
-export const pool = new Pool({ connectionString });
+export const pool = new Pool({
+  connectionString,
+  max: parseInt(process.env["DB_POOL_MAX"] ?? "10", 10),
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
+});
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";

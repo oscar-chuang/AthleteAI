@@ -143,6 +143,22 @@ vi.mock("drizzle-orm", () => ({
 
 vi.mock("@workspace/db", () => ({ db: h.fakeDb, analysesTable: h.analysesTable, profilesTable: h.profilesTable, completedDrillsTable: h.completedDrillsTable }));
 
+vi.mock("../lib/redis", () => ({
+  cache: {
+    acquireLock: vi.fn(async () => true),
+    releaseLock: vi.fn(async () => {}),
+    invalidate: vi.fn(async () => {}),
+    invalidatePrefix: vi.fn(async () => {}),
+    getOrSet: vi.fn(async (_key: string, _ttl: number, fn: () => Promise<unknown>) => ({ value: await fn(), hit: false })),
+  },
+  isRedisAvailable: vi.fn(() => false),
+}));
+
+vi.mock("../middleware/rateLimit", () => ({
+  aiRateLimit: (_req: any, _res: any, next: any) => next(),
+  globalRateLimit: (_req: any, _res: any, next: any) => next(),
+}));
+
 // Imports that depend on the mocks must come after the vi.mock calls.
 import express from "express";
 import request from "supertest";
@@ -185,7 +201,7 @@ describe("analyses route — biomechanics grounding contract", () => {
     const patched = await request(app)
       .patch(`/analyses/${id}`)
       .send({ jointAngles: { leftKnee: 90, rightKnee: 92 }, jointRisks: { leftKnee: 2, rightKnee: 1 } });
-    expect(patched.status).toBe(200);
+    expect(patched.status).toBe(202);
     await flush();
     expect(h.aiCalls.biomech.length).toBe(1);
 
@@ -509,7 +525,7 @@ describe("analyses route — improvement notifications", () => {
       .patch(`/analyses/${id}`)
       .send({ jointAngles: { leftKnee: 90 }, jointRisks: { leftKnee: 1, rightKnee: 2 } });
 
-    expect(patched.status).toBe(200);
+    expect(patched.status).toBe(202);
     expect(patched.body.improvements).toEqual([
       { joint: "leftKnee", oldRisk: 2, newRisk: 1 },
     ]);
@@ -529,7 +545,7 @@ describe("analyses route — improvement notifications", () => {
       .patch(`/analyses/${id}`)
       .send({ jointAngles: { leftKnee: 90 }, jointRisks: { leftKnee: 1, rightKnee: 2 } });
 
-    expect(patched.status).toBe(200);
+    expect(patched.status).toBe(202);
     expect(patched.body.improvements).toEqual([]);
   });
 
@@ -550,7 +566,7 @@ describe("analyses route — improvement notifications", () => {
       .patch(`/analyses/${id}`)
       .send({ jointAngles: { leftKnee: 90 }, jointRisks: { leftKnee: 1, rightKnee: 2 } });
 
-    expect(patched.status).toBe(200);
+    expect(patched.status).toBe(202);
     expect(patched.body.improvements).toEqual([]);
   });
 });
@@ -583,7 +599,7 @@ describe("analyses route — completed drills cleared on re-scan", () => {
     const patched = await request(app)
       .patch(`/analyses/${id}`)
       .send({ jointAngles: { leftKnee: 88 }, jointRisks: { leftKnee: 2 } });
-    expect(patched.status).toBe(200);
+    expect(patched.status).toBe(202);
     await flush();
 
     // Rows for this analysis must be gone; the other analysis' row must survive.

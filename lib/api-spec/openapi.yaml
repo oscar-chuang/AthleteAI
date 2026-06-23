@@ -11,6 +11,59 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /analyses/{id}:
+    patch:
+      operationId: patchAnalysis
+      summary: Update analysis with biomechanics data or sport correction
+      description: |
+        When joint angles/risks are provided (biomechanics scan), enqueues an AI
+        analysis job and returns 202. The mobile polling loop continues to GET
+        /analyses/:id until status is 'complete'. For sport-only corrections
+        (no measured data) returns 200 immediately.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Biomechanics job accepted and queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [processing]
+                  improvements:
+                    type: array
+                    items:
+                      type: object
+                required: [status]
+        "200":
+          description: Sport/movement correction applied immediately
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                required: [success]
+        "409":
+          description: Analysis is already being processed (lock held)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required: [error]
+        "429":
+          description: Rate limit exceeded
   /healthz:
     get:
       operationId: healthCheck

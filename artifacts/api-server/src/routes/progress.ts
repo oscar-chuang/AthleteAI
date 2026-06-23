@@ -3,6 +3,7 @@ import { db, analysesTable } from "@workspace/db";
 import { eq, asc, and, type SQL } from "drizzle-orm";
 import { requireAuth } from "./auth";
 import { generateProgressSummary } from "../lib/anthropic";
+import { cache } from "../lib/redis";
 
 const router: IRouter = Router();
 
@@ -182,38 +183,49 @@ router.get("/progress", requireAuth, async (req: Request, res: Response) => {
   const sport = typeof req.query["sport"] === "string" ? req.query["sport"].toLowerCase() : null;
   const movementType = typeof req.query["movementType"] === "string" ? req.query["movementType"] : null;
 
-  const conditions: SQL<unknown>[] = [
-    eq(analysesTable.userId, userId),
-    ...(sport ? [eq(analysesTable.sport, sport)] : []),
-  ];
+  const cacheKey = `progress:${userId}:${sport ?? ""}:${movementType ?? ""}`;
 
-  const rows = await db
-    .select()
-    .from(analysesTable)
-    .where(and(...conditions))
-    .orderBy(asc(analysesTable.uploadedAt));
+  const { value: payload, hit } = await cache.getOrSet(
+    cacheKey,
+    30,
+    async () => {
+      const conditions: SQL<unknown>[] = [
+        eq(analysesTable.userId, userId),
+        ...(sport ? [eq(analysesTable.sport, sport)] : []),
+      ];
 
-  let scored = rows.filter((r) => r.overallScore != null);
-  if (movementType) {
-    scored = scored.filter((r) => r.movementType === movementType);
-  }
+      const rows = await db
+        .select()
+        .from(analysesTable)
+        .where(and(...conditions))
+        .orderBy(asc(analysesTable.uploadedAt));
 
-  const entries = scored.map((r) => ({
-    id: String(r.id),
-    title: r.title,
-    sport: r.sport,
-    movementType: r.movementType ?? null,
-    date: r.uploadedAt.toISOString(),
-    overallScore: r.overallScore!,
-    techniqueScore: r.techniqueScore ?? undefined,
-    powerScore: r.powerScore ?? undefined,
-    balanceScore: r.balanceScore ?? undefined,
-    consistencyScore: r.consistencyScore ?? undefined,
-    mobilityScore: r.mobilityScore ?? undefined,
-    speedScore: r.speedScore ?? undefined,
-  }));
+      let scored = rows.filter((r) => r.overallScore != null);
+      if (movementType) {
+        scored = scored.filter((r) => r.movementType === movementType);
+      }
 
-  res.json({ entries });
+      return {
+        entries: scored.map((r) => ({
+          id: String(r.id),
+          title: r.title,
+          sport: r.sport,
+          movementType: r.movementType ?? null,
+          date: r.uploadedAt.toISOString(),
+          overallScore: r.overallScore!,
+          techniqueScore: r.techniqueScore ?? undefined,
+          powerScore: r.powerScore ?? undefined,
+          balanceScore: r.balanceScore ?? undefined,
+          consistencyScore: r.consistencyScore ?? undefined,
+          mobilityScore: r.mobilityScore ?? undefined,
+          speedScore: r.speedScore ?? undefined,
+        })),
+      };
+    }
+  );
+
+  res.set("X-Cache", hit ? "HIT" : "MISS");
+  res.json(payload);
 });
 
 export default router;

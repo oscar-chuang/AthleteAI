@@ -1,5 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { startWorker } from "./lib/queue";
+import { isRedisAvailable } from "./lib/redis";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +24,7 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  logger.info({ redisEnabled: isRedisAvailable() }, "Redis status");
+
+  startWorker().catch((e) => logger.error({ err: e }, "Worker startup failed"));
 });
