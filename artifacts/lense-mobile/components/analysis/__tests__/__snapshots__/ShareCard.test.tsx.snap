@@ -2089,7 +2089,7 @@ exports[`ShareCard — snapshots matches snapshot: light scheme, no tip, no thum
         style={
           {
             "alignItems": "center",
-            "backgroundColor": "#00C2FF22",
+            "backgroundColor": "#2F7BFF22",
             "borderRadius": 36,
             "height": 72,
             "justifyContent": "center",
@@ -2130,7 +2130,7 @@ exports[`ShareCard — snapshots matches snapshot: light scheme, no tip, no thum
       style={
         {
           "alignItems": "center",
-          "backgroundColor": "#00C2FFcc",
+          "backgroundColor": "#2F7BFFcc",
           "borderRadius": 20,
           "flexDirection": "row",
           "gap": 5,
@@ -2224,7 +2224,7 @@ exports[`ShareCard — snapshots matches snapshot: light scheme, no tip, no thum
           <Text
             style={
               {
-                "color": "#00C2FF",
+                "color": "#2F7BFF",
                 "fontFamily": "Inter_700Bold",
                 "fontSize": 22,
                 "lineHeight": 26,
@@ -2236,7 +2236,7 @@ exports[`ShareCard — snapshots matches snapshot: light scheme, no tip, no thum
           <Text
             style={
               {
-                "color": "#00C2FFaa",
+                "color": "#2F7BFFaa",
                 "fontFamily": "Inter_400Regular",
                 "fontSize": 9,
                 "marginTop": 1,
@@ -2275,7 +2275,7 @@ exports[`ShareCard — snapshots matches snapshot: light scheme, no tip, no thum
                   "lineHeight": 19,
                 },
                 {
-                  "color": "#1DB954",
+                  "color": "#22C55E",
                 },
               ]
             }
@@ -2313,7 +2313,7 @@ exports[`ShareCard — snapshots matches snapshot: light scheme, no tip, no thum
                   "lineHeight": 19,
                 },
                 {
-                  "color": "#00C2FF",
+                  "color": "#2F7BFF",
                 },
               ]
             }
@@ -2351,7 +2351,7 @@ exports[`ShareCard — snapshots matches snapshot: light scheme, no tip, no thum
                   "lineHeight": 19,
                 },
                 {
-                  "color": "#00C2FF",
+                  "color": "#2F7BFF",
                 },
               ]
             }
@@ -2389,7 +2389,7 @@ exports[`ShareCard — snapshots matches snapshot: light scheme, no tip, no thum
                   "lineHeight": 19,
                 },
                 {
-                  "color": "#1DB954",
+                  "color": "#22C55E",
                 },
               ]
             }
@@ -2427,7 +2427,7 @@ exports[`ShareCard — snapshots matches snapshot: light scheme, no tip, no thum
                   "lineHeight": 19,
                 },
                 {
-                  "color": "#00C2FF",
+                  "color": "#2F7BFF",
                 },
               ]
             }
@@ -2465,7 +2465,7 @@ exports[`ShareCard — snapshots matches snapshot: light scheme, no tip, no thum
                   "lineHeight": 19,
                 },
                 {
-                  "color": "#1DB954",
+                  "color": "#22C55E",
                 },
               ]
             }
@@ -2509,7 +2509,7 @@ exports[`ShareCard — snapshots matches snapshot: light scheme, no tip, no thum
         style={
           {
             "alignItems": "center",
-            "backgroundColor": "#00C2FF22",
+            "backgroundColor": "#2F7BFF22",
             "borderRadius": 6,
             "height": 20,
             "justifyContent": "center",
