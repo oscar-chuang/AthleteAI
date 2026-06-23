@@ -1,10 +1,13 @@
 import { db, analysesTable } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, gte, lt, sql } from "drizzle-orm";
 
 /**
  * Computes real-time streak and weekly progress for a user from their
  * completed analyses.  Used by both GET /profile and GET /auth/me so that
  * weeklyProgress and streakDays are never hard-coded to 0.
+ *
+ * Only uploadedAt is fetched (not all columns) to keep the query lightweight
+ * even for users with hundreds of sessions.
  *
  * @param trainingDays - Array of day-of-week integers (0=Sun…6=Sat) that the
  *   user has designated as training days.  When provided, weeklyProgress only
@@ -15,14 +18,22 @@ export async function computeProfileStats(
   userId: number,
   trainingDays?: number[]
 ): Promise<{ streak: number; weeklyProgress: number; lastWeekCount: number }> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay());
+  const lastWeekStart = new Date(weekStart.getTime() - 7 * 86_400_000);
+
+  const trainingDaySet =
+    trainingDays && trainingDays.length > 0 ? new Set(trainingDays) : null;
+
+  // Fetch only uploadedAt — not all columns — to minimise data transfer.
   const rows = await db
     .select({ uploadedAt: analysesTable.uploadedAt })
     .from(analysesTable)
     .where(and(eq(analysesTable.userId, userId), eq(analysesTable.status, "complete")))
     .orderBy(desc(analysesTable.uploadedAt));
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
   const dayKeys = new Set(
     rows.map((r) => {
@@ -32,6 +43,7 @@ export async function computeProfileStats(
     })
   );
 
+  // Streak: consecutive calendar days ending today (or yesterday if today has no session).
   let streak = 0;
   for (let i = 0; i < 365; i++) {
     const check = new Date(today.getTime() - i * 86_400_000);
@@ -41,13 +53,6 @@ export async function computeProfileStats(
       break;
     }
   }
-
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - today.getDay());
-  const lastWeekStart = new Date(weekStart.getTime() - 7 * 86_400_000);
-
-  const trainingDaySet =
-    trainingDays && trainingDays.length > 0 ? new Set(trainingDays) : null;
 
   const weeklyProgress = rows.filter((r) => {
     const d = new Date(r.uploadedAt);

@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   Platform,
   Dimensions,
@@ -57,56 +58,66 @@ const JOINT_SPARKLINE_W = 64;
 const JOINT_SPARKLINE_H = 28;
 
 function ScoreSparkline({ scores, color }: { scores: number[]; color: string }) {
-  if (scores.length < 2) {
+  const path = useMemo(() => {
+    if (scores.length < 2) return null;
+    const min = Math.max(0, Math.min(...scores) - 5);
+    const max = Math.min(100, Math.max(...scores) + 5);
+    const range = max - min || 1;
+    const step = JOINT_SPARKLINE_W / (scores.length - 1);
+    const pts = scores.map((v, i) => {
+      const x = i * step;
+      const y = JOINT_SPARKLINE_H - ((v - min) / range) * JOINT_SPARKLINE_H;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    const lastX = (scores.length - 1) * step;
+    const lastY = JOINT_SPARKLINE_H - ((scores[scores.length - 1]! - min) / range) * JOINT_SPARKLINE_H;
+    return { pts, lastX, lastY };
+  }, [scores]);
+
+  if (!path) {
     return (
       <View style={{ width: JOINT_SPARKLINE_W, height: JOINT_SPARKLINE_H, alignItems: "center", justifyContent: "center" }}>
         <Text style={{ fontSize: 9, color }}>—</Text>
       </View>
     );
   }
-  const min = Math.max(0, Math.min(...scores) - 5);
-  const max = Math.min(100, Math.max(...scores) + 5);
-  const range = max - min || 1;
-  const step = JOINT_SPARKLINE_W / (scores.length - 1);
-  const pts = scores.map((v, i) => {
-    const x = i * step;
-    const y = JOINT_SPARKLINE_H - ((v - min) / range) * JOINT_SPARKLINE_H;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-  const lastX = (scores.length - 1) * step;
-  const lastY = JOINT_SPARKLINE_H - ((scores[scores.length - 1]! - min) / range) * JOINT_SPARKLINE_H;
   return (
     <Svg width={JOINT_SPARKLINE_W} height={JOINT_SPARKLINE_H} style={{ overflow: "visible" }}>
-      <Polyline points={pts} fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-      <Circle cx={lastX} cy={lastY} r={3} fill={color} />
+      <Polyline points={path.pts} fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx={path.lastX} cy={path.lastY} r={3} fill={color} />
     </Svg>
   );
 }
 
 function JointSparkline({ data, color }: { data: JointDataPoint[]; color: string }) {
-  if (data.length < 2) {
+  const path = useMemo(() => {
+    if (data.length < 2) return null;
+    const angles = data.map((d) => d.angle);
+    const min = Math.min(...angles);
+    const max = Math.max(...angles);
+    const range = max - min || 1;
+    const step = JOINT_SPARKLINE_W / (data.length - 1);
+    const pts = data.map((d, i) => {
+      const x = i * step;
+      const y = JOINT_SPARKLINE_H - ((d.angle - min) / range) * JOINT_SPARKLINE_H;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    const lastX = (data.length - 1) * step;
+    const lastY = JOINT_SPARKLINE_H - ((data[data.length - 1]!.angle - min) / range) * JOINT_SPARKLINE_H;
+    return { pts, lastX, lastY };
+  }, [data]);
+
+  if (!path) {
     return (
       <View style={{ width: JOINT_SPARKLINE_W, height: JOINT_SPARKLINE_H, alignItems: "center", justifyContent: "center" }}>
         <Text style={{ fontSize: 9, color }}>—</Text>
       </View>
     );
   }
-  const angles = data.map((d) => d.angle);
-  const min = Math.min(...angles);
-  const max = Math.max(...angles);
-  const range = max - min || 1;
-  const step = JOINT_SPARKLINE_W / (data.length - 1);
-  const pts = data.map((d, i) => {
-    const x = i * step;
-    const y = JOINT_SPARKLINE_H - ((d.angle - min) / range) * JOINT_SPARKLINE_H;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-  const lastX = (data.length - 1) * step;
-  const lastY = JOINT_SPARKLINE_H - ((data[data.length - 1]!.angle - min) / range) * JOINT_SPARKLINE_H;
   return (
     <Svg width={JOINT_SPARKLINE_W} height={JOINT_SPARKLINE_H} style={{ overflow: "visible" }}>
-      <Polyline points={pts} fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-      <Circle cx={lastX} cy={lastY} r={3} fill={color} />
+      <Polyline points={path.pts} fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx={path.lastX} cy={path.lastY} r={3} fill={color} />
     </Svg>
   );
 }
@@ -168,7 +179,7 @@ export default function ProgressScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { scrollTo } = useLocalSearchParams<{ scrollTo?: string }>();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<FlatList<ProgressRecord>>(null);
   const trendsYRef = useRef<number>(0);
 
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
@@ -397,7 +408,7 @@ export default function ProgressScreen() {
     const y = trendsYRef.current;
     if (y > 0) {
       setTimeout(() => {
-        scrollViewRef.current?.scrollTo({ y, animated: true });
+        scrollViewRef.current?.scrollToOffset({ offset: y, animated: true });
       }, 150);
     }
   }, [scrollTo, loading]);
@@ -502,6 +513,16 @@ export default function ProgressScreen() {
   const gainPct = firstScore > 0 ? Math.round((gained / firstScore) * 100) : 0;
   const sessionLog = [...filteredEntries].reverse();
 
+  // Data for the session-log FlatList. Empty when compare mode / empty state
+  // is active — those cases are rendered inside ListHeaderComponent.
+  const flatListData = useMemo(
+    () =>
+      !compareMode && allEntries.length > 0 && filteredEntries.length > 0
+        ? sessionLog
+        : [],
+    [compareMode, allEntries.length, filteredEntries.length, sessionLog],
+  );
+
   const mostImproved = computeMostImproved(filteredTrends?.improvements);
 
   // ── Achievements grouped by sport ────────────────────────────────────────────
@@ -599,6 +620,51 @@ export default function ProgressScreen() {
       ? `${allEntries.length} session${allEntries.length === 1 ? "" : "s"} logged`
       : "Track your improvement over time";
 
+  const renderSessionCard = ({ item: entry }: { item: ProgressRecord }) => {
+    const score = entry.overallScore;
+    const scoreColor = getScoreColor(score, colors);
+    const iconName = (SPORT_ICONS[entry.sport] ?? SPORT_ICONS.default) as any;
+    const subMetrics: { key: string; val?: number }[] = [
+      { key: "T", val: entry.techniqueScore },
+      { key: "P", val: entry.powerScore },
+      { key: "B", val: entry.balanceScore },
+      { key: "M", val: entry.mobilityScore },
+    ].filter((m) => m.val != null);
+    return (
+      <TouchableOpacity
+        style={[s.logCard, { marginHorizontal: 20 }]}
+        onPress={() => router.push(`/analysis/${entry.id}` as any)}
+        activeOpacity={0.82}
+      >
+        <View style={[s.logIconBg, { backgroundColor: scoreColor + "20" }]}>
+          <Feather name={iconName} size={20} color={scoreColor} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={s.logTitle} numberOfLines={1}>{entry.title}</Text>
+          <Text style={s.logMeta}>{entry.sport} · {formatDateLong(entry.date)}</Text>
+          {entry.movementType && (
+            <Text style={s.logMovement} numberOfLines={1}>{entry.movementType}</Text>
+          )}
+          {subMetrics.length > 0 && (
+            <View style={s.logMetrics}>
+              {subMetrics.map((m) => {
+                const c = getScoreColor(m.val!, colors);
+                return (
+                  <View key={m.key} style={[s.logMetricPill, { backgroundColor: c + "18" }]}>
+                    <Text style={[s.logMetricText, { color: c }]}>{m.key} {Math.round(m.val!)}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+        <View style={[s.scoreCircle, { borderColor: scoreColor }]}>
+          <Text style={[s.scoreText, { color: scoreColor }]}>{Math.round(score)}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={s.container}>
       {/* Joint history bottom sheet — opened from the Joint Angle Trends section */}
@@ -625,8 +691,11 @@ export default function ProgressScreen() {
         />
       )}
 
-      <ScrollView
+      <FlatList
         ref={scrollViewRef}
+        data={flatListData}
+        keyExtractor={(item) => item.id}
+        renderItem={renderSessionCard}
         contentContainerStyle={{ paddingBottom: bottomPad }}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -636,7 +705,8 @@ export default function ProgressScreen() {
             tintColor={colors.primary}
           />
         }
-      >
+        ListHeaderComponent={() => (
+          <>
         {/* ── Header ── */}
         <View style={s.header}>
           <Text style={s.title}>Progress</Text>
@@ -1063,7 +1133,7 @@ export default function ProgressScreen() {
               const y = trendsYRef.current;
               if (y > 0) {
                 setTimeout(() => {
-                  scrollViewRef.current?.scrollTo({ y, animated: true });
+                  scrollViewRef.current?.scrollToOffset({ offset: y, animated: true });
                 }, 100);
               }
             }}
@@ -1746,56 +1816,12 @@ export default function ProgressScreen() {
                 </TouchableOpacity>
               ) : null}
             </View>
-          ) : (
-            sessionLog.map((entry) => {
-              const score = entry.overallScore;
-              const scoreColor = getScoreColor(score, colors);
-              const iconName = (SPORT_ICONS[entry.sport] ?? SPORT_ICONS.default) as any;
-              const subMetrics: { key: string; val?: number }[] = [
-                { key: "T", val: entry.techniqueScore },
-                { key: "P", val: entry.powerScore },
-                { key: "B", val: entry.balanceScore },
-                { key: "M", val: entry.mobilityScore },
-              ].filter((m) => m.val != null);
-
-              return (
-                <TouchableOpacity
-                  key={entry.id}
-                  style={s.logCard}
-                  onPress={() => router.push(`/analysis/${entry.id}` as any)}
-                  activeOpacity={0.82}
-                >
-                  <View style={[s.logIconBg, { backgroundColor: scoreColor + "20" }]}>
-                    <Feather name={iconName} size={20} color={scoreColor} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.logTitle} numberOfLines={1}>{entry.title}</Text>
-                    <Text style={s.logMeta}>{entry.sport} · {formatDateLong(entry.date)}</Text>
-                    {entry.movementType && (
-                      <Text style={s.logMovement} numberOfLines={1}>{entry.movementType}</Text>
-                    )}
-                    {subMetrics.length > 0 && (
-                      <View style={s.logMetrics}>
-                        {subMetrics.map((m) => {
-                          const c = getScoreColor(m.val!, colors);
-                          return (
-                            <View key={m.key} style={[s.logMetricPill, { backgroundColor: c + "18" }]}>
-                              <Text style={[s.logMetricText, { color: c }]}>{m.key} {Math.round(m.val!)}</Text>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    )}
-                  </View>
-                  <View style={[s.scoreCircle, { borderColor: scoreColor }]}>
-                    <Text style={[s.scoreText, { color: scoreColor }]}>{Math.round(score)}</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })
-          )}
+          ) : null}
         </View>
-
+          </>
+        )}
+        ListFooterComponent={() => (
+          <>
         {/* ── Achievements (grouped by sport) ── */}
         {groupedAchievements.length > 0 && (
           <View style={s.section}>
@@ -1837,7 +1863,9 @@ export default function ProgressScreen() {
             ))}
           </View>
         )}
-      </ScrollView>
+          </>
+        )}
+      />
     </View>
   );
 }

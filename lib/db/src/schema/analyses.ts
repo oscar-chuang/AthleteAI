@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, real, jsonb, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, real, jsonb, boolean, index } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
 export const analysesTable = pgTable("analyses", {
@@ -29,7 +29,10 @@ export const analysesTable = pgTable("analyses", {
   movementSummaryAt: timestamp("movement_summary_at"),
   movementType: text("movement_type"),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
-});
+}, (t) => [
+  index("analyses_user_id_idx").on(t.userId),
+  index("analyses_uploaded_at_idx").on(t.uploadedAt),
+]);
 
 export type Analysis = typeof analysesTable.$inferSelect;
 export type InsertAnalysis = typeof analysesTable.$inferInsert;

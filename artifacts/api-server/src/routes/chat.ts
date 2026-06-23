@@ -50,13 +50,14 @@ function formatMessage(m: typeof chatMessagesTable.$inferSelect) {
 }
 
 export async function buildSystemPrompt(userId: number): Promise<string> {
-  const [profile] = await db
-    .select()
-    .from(profilesTable)
-    .where(eq(profilesTable.userId, userId))
-    .limit(1);
-
-  const [recentAnalyses, allCompletedDrills] = await Promise.all([
+  // Batch all three DB reads into a single parallel Promise.all so the
+  // 2–3 sequential round-trips collapse to one network round-trip budget.
+  const [profileRows, recentAnalyses, allCompletedDrills] = await Promise.all([
+    db
+      .select()
+      .from(profilesTable)
+      .where(eq(profilesTable.userId, userId))
+      .limit(1),
     db
       .select()
       .from(analysesTable)
@@ -69,6 +70,7 @@ export async function buildSystemPrompt(userId: number): Promise<string> {
       .where(eq(completedDrillsTable.userId, userId))
       .orderBy(desc(completedDrillsTable.completedAt)),
   ]);
+  const profile = profileRows[0];
 
   const recentAnalysisIds = new Set(recentAnalyses.map((a) => a.id));
 
