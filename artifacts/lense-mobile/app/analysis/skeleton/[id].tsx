@@ -1496,6 +1496,122 @@ export default function SkeletonScreen() {
   const heroPrimary = hero?.capture.joints[0];
   const heroScanQuality = hero ? computeScanQuality(hero.capture) : null;
 
+  // ── CoachView helpers ────────────────────────────────────────────────────
+
+  function renderScoreRing() {
+    const score = scanDone
+      ? Math.max(20, Math.min(98,
+          100 - flaggedJoints.length * 10 - (worstLvl === 2 ? 22 : worstLvl === 1 ? 8 : 0)
+        ))
+      : null;
+    const R = 34, cx = 42, cy = 42, sw = 8;
+    const circ = 2 * Math.PI * R;
+    const pct = score !== null ? Math.min(100, Math.max(0, score)) / 100 : 0;
+    const arcColor =
+      score === null  ? "#2F7BFF"
+      : score >= 75   ? "#22C55E"
+      : score >= 50   ? "#FF6B35"
+                      : "#EF4444";
+    return (
+      <View style={{ alignItems: "center" }}>
+        <Svg width={84} height={84}>
+          <Circle cx={cx} cy={cy} r={R} fill="none" stroke="#1c1c30" strokeWidth={sw} />
+          {score !== null && (
+            <Circle
+              cx={cx} cy={cy} r={R}
+              fill="none"
+              stroke={arcColor}
+              strokeWidth={sw}
+              strokeDasharray={`${circ * pct} ${circ}`}
+              strokeLinecap="round"
+              transform={`rotate(-90 ${cx} ${cy})`}
+            />
+          )}
+          {score !== null ? (
+            <SvgText x={cx} y={cy + 6} textAnchor="middle" fontSize={20} fill={arcColor} fontWeight="700">{score}</SvgText>
+          ) : (
+            <SvgText x={cx} y={cy + 5} textAnchor="middle" fontSize={14} fill="#444466">—</SvgText>
+          )}
+        </Svg>
+        {refining && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: -6 }}>
+            <ActivityIndicator size="small" color={colors.primary} style={{ transform: [{ scale: 0.55 }] }} />
+            <Text style={{ fontSize: 9, color: colors.textTertiary, fontFamily: "Inter_400Regular" }}>updating…</Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  function renderMuscleMap() {
+    const risk: Record<string, number> = {};
+    const add = (key: string, j: JointKey) => {
+      const lvl = scanResult?.risks?.[j] ?? 1;
+      risk[key] = Math.max(risk[key] ?? 0, lvl);
+    };
+    if (flaggedJoints.includes("leftKnee"  as JointKey)) { add("qL",  "leftKnee"  as JointKey); add("hmL", "leftKnee"  as JointKey); }
+    if (flaggedJoints.includes("rightKnee" as JointKey)) { add("qR",  "rightKnee" as JointKey); add("hmR", "rightKnee" as JointKey); }
+    if (flaggedJoints.includes("leftHip"   as JointKey)) { add("hfL", "leftHip"   as JointKey); add("gL",  "leftHip"   as JointKey); }
+    if (flaggedJoints.includes("rightHip"  as JointKey)) { add("hfR", "rightHip"  as JointKey); add("gR",  "rightHip"  as JointKey); }
+    if (flaggedJoints.includes("leftElbow" as JointKey)) { add("bL",  "leftElbow" as JointKey); add("tL",  "leftElbow" as JointKey); }
+    if (flaggedJoints.includes("rightElbow"as JointKey)) { add("bR",  "rightElbow"as JointKey); add("tR",  "rightElbow"as JointKey); }
+    const mf = (k: string) => risk[k] !== undefined ? RISK_COLORS[risk[k]] + "55" : "#1c1c30";
+    const ms = (k: string) => risk[k] !== undefined ? RISK_COLORS[risk[k]] : "#2a2a45";
+    const mw = (k: string) => risk[k] !== undefined ? 1.5 : 1;
+    return (
+      <Svg width={120} height={156}>
+        {/* ── FRONT ── */}
+        <Circle cx={25} cy={11} r={9} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        <Rect x={22} y={20} width={7} height={7} rx={2} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        {/* biceps L/R */}
+        <Rect x={5}  y={27} width={8} height={27} rx={3} fill={mf("bL")} stroke={ms("bL")} strokeWidth={mw("bL")} />
+        <Rect x={38} y={27} width={8} height={27} rx={3} fill={mf("bR")} stroke={ms("bR")} strokeWidth={mw("bR")} />
+        {/* chest/torso */}
+        <Rect x={14} y={27} width={23} height={30} rx={4} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        {/* forearms */}
+        <Rect x={3}  y={56} width={7} height={22} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        <Rect x={41} y={56} width={7} height={22} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        {/* abs */}
+        <Rect x={14} y={58} width={23} height={18} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        {/* hip flexors */}
+        <Rect x={9}  y={77} width={13} height={17} rx={3} fill={mf("hfL")} stroke={ms("hfL")} strokeWidth={mw("hfL")} />
+        <Rect x={29} y={77} width={13} height={17} rx={3} fill={mf("hfR")} stroke={ms("hfR")} strokeWidth={mw("hfR")} />
+        {/* quads */}
+        <Rect x={9}  y={95} width={12} height={38} rx={4} fill={mf("qL")} stroke={ms("qL")} strokeWidth={mw("qL")} />
+        <Rect x={30} y={95} width={12} height={38} rx={4} fill={mf("qR")} stroke={ms("qR")} strokeWidth={mw("qR")} />
+        {/* shins */}
+        <Rect x={10} y={134} width={10} height={21} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        <Rect x={31} y={134} width={10} height={21} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        <SvgText x={25} y={154} fontSize={7} fill="#44445a" textAnchor="middle">FRONT</SvgText>
+        {/* divider */}
+        <Line x1={60} y1={4} x2={60} y2={148} stroke="#2a2a45" strokeWidth={0.5} strokeDasharray="2 3" />
+        {/* ── BACK ── */}
+        <Circle cx={95} cy={11} r={9} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        <Rect x={92} y={20} width={7} height={7} rx={2} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        {/* triceps */}
+        <Rect x={75}  y={27} width={8} height={27} rx={3} fill={mf("tL")} stroke={ms("tL")} strokeWidth={mw("tL")} />
+        <Rect x={108} y={27} width={8} height={27} rx={3} fill={mf("tR")} stroke={ms("tR")} strokeWidth={mw("tR")} />
+        {/* back/traps */}
+        <Rect x={84} y={27} width={23} height={30} rx={4} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        {/* forearms */}
+        <Rect x={73}  y={56} width={7} height={22} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        <Rect x={111} y={56} width={7} height={22} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        {/* lower back */}
+        <Rect x={84} y={58} width={23} height={18} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        {/* glutes */}
+        <Rect x={79} y={77} width={13} height={17} rx={3} fill={mf("gL")} stroke={ms("gL")} strokeWidth={mw("gL")} />
+        <Rect x={99} y={77} width={13} height={17} rx={3} fill={mf("gR")} stroke={ms("gR")} strokeWidth={mw("gR")} />
+        {/* hamstrings */}
+        <Rect x={79}  y={95} width={12} height={38} rx={4} fill={mf("hmL")} stroke={ms("hmL")} strokeWidth={mw("hmL")} />
+        <Rect x={100} y={95} width={12} height={38} rx={4} fill={mf("hmR")} stroke={ms("hmR")} strokeWidth={mw("hmR")} />
+        {/* calves */}
+        <Rect x={80}  y={134} width={10} height={21} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        <Rect x={101} y={134} width={10} height={21} rx={3} fill="#1c1c30" stroke="#2a2a45" strokeWidth={1} />
+        <SvgText x={95} y={154} fontSize={7} fill="#44445a" textAnchor="middle">BACK</SvgText>
+      </Svg>
+    );
+  }
+
   // scanner is embedded in heroBlock below; this is kept as null to avoid
   // accidentally mounting a second WebView instance.
   const scanner = null;
@@ -1849,6 +1965,27 @@ export default function SkeletonScreen() {
         showsVerticalScrollIndicator={false}
       >
         {heroBlock}
+
+        {/* ── CoachView: AI Analysis score + Muscle Focus ── */}
+        {scanDone && (
+          <View style={ss.cvRow}>
+            <View style={ss.cvScoreCard}>
+              <Text style={ss.cvCardLabel}>AI ANALYSIS</Text>
+              {renderScoreRing()}
+              <Text style={ss.cvScoreSport} numberOfLines={1}>{sport || "Sport"}</Text>
+            </View>
+            <View style={ss.cvMuscleCard}>
+              <Text style={ss.cvCardLabel}>MUSCLE FOCUS</Text>
+              {renderMuscleMap()}
+              {flaggedJoints.length === 0 && (
+                <View style={ss.cvMuscleOk}>
+                  <Feather name="check-circle" size={11} color="#22C55E" />
+                  <Text style={ss.cvMuscleOkText}>All clear</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Hero joint chips + hint */}
         {scanDone && hero && flaggedJoints.length > 0 && (
@@ -2381,5 +2518,13 @@ function makeStyles(c: ReturnType<typeof useColors>) {
     scrubberNavBtn:   { width: 24, height: 24, borderRadius: 12, backgroundColor: "rgba(0,194,255,0.12)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(0,194,255,0.25)" },
     scrubFloatingLabel:     { position: "absolute", left: 0, bottom: 26, minWidth: 36, alignItems: "center", backgroundColor: "rgba(108,99,255,0.95)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 } as any,
     scrubFloatingLabelText: { fontSize: 10, color: "#fff", fontFamily: "Inter_600SemiBold", textAlign: "center" },
+
+    cvRow:          { flexDirection: "row", paddingHorizontal: 18, paddingTop: 14, gap: 12 },
+    cvScoreCard:    { flex: 1, backgroundColor: c.surface2, borderRadius: 14, borderWidth: 1, borderColor: c.border, alignItems: "center", paddingVertical: 14, paddingHorizontal: 8, gap: 6 },
+    cvMuscleCard:   { flex: 1.2, backgroundColor: c.surface2, borderRadius: 14, borderWidth: 1, borderColor: c.border, alignItems: "center", paddingVertical: 10, paddingHorizontal: 6, gap: 4 },
+    cvCardLabel:    { fontSize: 9, color: c.textTertiary, fontFamily: "Inter_700Bold", letterSpacing: 1.2 },
+    cvScoreSport:   { fontSize: 10, color: c.textTertiary, fontFamily: "Inter_400Regular", textTransform: "capitalize", textAlign: "center" },
+    cvMuscleOk:     { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
+    cvMuscleOkText: { fontSize: 10, color: "#22C55E", fontFamily: "Inter_600SemiBold" },
   });
 }
