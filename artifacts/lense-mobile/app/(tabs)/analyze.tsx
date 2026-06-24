@@ -69,7 +69,7 @@ export default function AnalyzeScreen() {
     showSportPicker, setShowSportPicker, pendingTitle, setPendingTitle,
     selectedSport, setSelectedSport, analyzing, analysisStep,
     showRecordingTips, setShowRecordingTips, pendingAction,
-    handleUpload, handleRecord, handleRecordingTipsContinue, submitAnalysis,
+    handleUpload, handleRecord, handleRecordingTipsContinue, handleWebFileUri, submitAnalysis,
   } = useVideoUpload(profile, headerStats, loadAnalyses, router);
 
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
@@ -203,9 +203,24 @@ export default function AnalyzeScreen() {
       {/* Upload CTA — dominant primary button + icon-only record */}
       {!searchQuery && (
         <View style={s.actionRow}>
-          <TouchableOpacity style={s.uploadBtn} onPress={handleUpload} activeOpacity={0.85}>
+          <TouchableOpacity style={s.uploadBtn} onPress={Platform.OS !== "web" ? handleUpload : undefined} activeOpacity={0.85}>
             <Feather name="upload" size={16} color="#fff" />
             <Text style={s.uploadBtnText}>Upload Video</Text>
+            {Platform.OS === "web" && (
+              // Transparent overlay input — user clicks it directly.
+              // Sandboxed iframes block programmatic .click() on hidden inputs,
+              // but a real <input> clicked by the user always opens the file picker.
+              <input
+                type="file"
+                accept="video/*"
+                onChange={(e: any) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleWebFileUri(URL.createObjectURL(file));
+                  e.target.value = "";
+                }}
+                style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" } as any}
+              />
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={s.recordBtn}
@@ -428,8 +443,20 @@ export default function AnalyzeScreen() {
               <Text style={s.emptyText}>
                 Upload or record a training video and get AI-powered biomechanics coaching in seconds.
               </Text>
-              <TouchableOpacity style={s.emptyBtn} onPress={handleUpload} activeOpacity={0.85}>
+              <TouchableOpacity style={s.emptyBtn} onPress={Platform.OS !== "web" ? handleUpload : undefined} activeOpacity={0.85}>
                 <Text style={s.emptyBtnText}>Upload Your First Video</Text>
+                {Platform.OS === "web" && (
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={(e: any) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleWebFileUri(URL.createObjectURL(file));
+                      e.target.value = "";
+                    }}
+                    style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" } as any}
+                  />
+                )}
               </TouchableOpacity>
             </View>
           )

@@ -39,6 +39,7 @@ export interface UseVideoUploadResult {
   handleUpload: () => Promise<void>;
   handleRecord: () => Promise<void>;
   handleRecordingTipsContinue: () => Promise<void>;
+  handleWebFileUri: (uri: string) => void;
   submitAnalysis: () => Promise<void>;
 }
 
@@ -220,10 +221,22 @@ export function useVideoUpload(
     }
   }, [selectedSport, pendingUri, pendingTitle, profile, headerStats, loadAnalyses, router]);
 
+  // Web-specific: called after the user picks a file via a real <input type="file">.
+  // Bypasses expo-image-picker entirely — sandboxed iframes (e.g. Replit preview)
+  // block programmatic .click() on hidden inputs, but a direct user click on a
+  // visible <input> always works.
+  const handleWebFileUri = useCallback((uri: string) => {
+    if (!requireSport()) return;
+    setPendingUri(uri);
+    setPendingTitle("");
+    setSelectedSport(profile?.sport ?? "");
+    setShowSportPicker(true);
+  }, [profile]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return {
     showSportPicker, setShowSportPicker, pendingUri, pendingTitle, setPendingTitle,
     selectedSport, setSelectedSport, analyzing, analysisStep,
     showRecordingTips, setShowRecordingTips, pendingAction,
-    handleUpload, handleRecord, handleRecordingTipsContinue, submitAnalysis,
+    handleUpload, handleRecord, handleRecordingTipsContinue, handleWebFileUri, submitAnalysis,
   };
 }
