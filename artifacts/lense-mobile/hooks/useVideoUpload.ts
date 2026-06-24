@@ -148,6 +148,11 @@ export function useVideoUpload(
 
   const handleRecordingTipsContinue = useCallback(async () => {
     setShowRecordingTips(false);
+    // Wait for the modal dismiss animation to fully complete before opening
+    // the system image picker / camera. On iOS the slide animation takes ~300ms;
+    // launching a native picker while the modal is still animating silently drops
+    // the picker sheet.
+    await new Promise<void>((r) => setTimeout(r, 350));
     if (pendingAction === "upload") {
       await doUpload();
     } else if (pendingAction === "record") {
