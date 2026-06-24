@@ -121,7 +121,7 @@ export default function RecordingTipsModal({
     <Modal
       visible={visible}
       animationType={reduceMotion ? "none" : "slide"}
-      presentationStyle="pageSheet"
+      onRequestClose={() => {/* mandatory — back button does nothing */}}
       testID={testID}
     >
       <View style={s.modal}>
