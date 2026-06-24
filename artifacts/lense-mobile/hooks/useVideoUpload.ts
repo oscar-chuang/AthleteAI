@@ -132,6 +132,14 @@ export function useVideoUpload(
 
   const handleUpload = useCallback(async () => {
     if (!requireSport()) return;
+    if (Platform.OS === "web") {
+      // On web the file picker must be triggered synchronously inside the
+      // button-press gesture. Any async gap (setState, setTimeout, modal
+      // animation) causes the browser to discard the activation and silently
+      // block the picker. Skip the modal and go straight to the picker.
+      await doUpload();
+      return;
+    }
     setPendingAction("upload");
     setShowRecordingTips(true);
   }, [profile]);
@@ -149,9 +157,9 @@ export function useVideoUpload(
   const handleRecordingTipsContinue = useCallback(async () => {
     setShowRecordingTips(false);
     // Wait for the modal dismiss animation to fully complete before opening
-    // the system image picker / camera. On iOS the slide animation takes ~300ms;
-    // launching a native picker while the modal is still animating silently drops
-    // the picker sheet.
+    // the native picker. On iOS the slide animation takes ~300ms; launching
+    // a picker while the modal is still animating silently drops the sheet.
+    // (This path is never reached on web — handleUpload bypasses the modal.)
     await new Promise<void>((r) => setTimeout(r, 350));
     if (pendingAction === "upload") {
       await doUpload();
