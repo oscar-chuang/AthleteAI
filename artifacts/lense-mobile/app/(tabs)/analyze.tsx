@@ -203,13 +203,16 @@ export default function AnalyzeScreen() {
       {/* Upload CTA — dominant primary button + icon-only record */}
       {!searchQuery && (
         <View style={s.actionRow}>
-          <TouchableOpacity style={s.uploadBtn} onPress={Platform.OS !== "web" ? handleUpload : undefined} activeOpacity={0.85}>
-            <Feather name="upload" size={16} color="#fff" />
-            <Text style={s.uploadBtnText}>Upload Video</Text>
-            {Platform.OS === "web" && (
-              // Transparent overlay input — user clicks it directly.
-              // Sandboxed iframes block programmatic .click() on hidden inputs,
-              // but a real <input> clicked by the user always opens the file picker.
+          {Platform.OS === "web" ? (
+            // On web: plain View (renders as a <div>) so the child <input> actually
+            // receives clicks. TouchableOpacity sets pointer-events:box-only on its
+            // wrapper which silently swallows all child pointer events.
+            // The absolutely-positioned <input> covers the whole button so the user's
+            // click goes straight to the native file-picker — works even in sandboxed
+            // Replit iframes where programmatic .click() is blocked.
+            <View style={[s.uploadBtn, { position: "relative" } as any]}>
+              <Feather name="upload" size={16} color="#fff" />
+              <Text style={s.uploadBtnText}>Upload Video</Text>
               <input
                 type="file"
                 accept="video/*"
@@ -218,10 +221,15 @@ export default function AnalyzeScreen() {
                   if (file) handleWebFileUri(URL.createObjectURL(file));
                   e.target.value = "";
                 }}
-                style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" } as any}
+                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" } as any}
               />
-            )}
-          </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity style={s.uploadBtn} onPress={handleUpload} activeOpacity={0.85}>
+              <Feather name="upload" size={16} color="#fff" />
+              <Text style={s.uploadBtnText}>Upload Video</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={s.recordBtn}
             onPress={handleRecord}
@@ -443,9 +451,9 @@ export default function AnalyzeScreen() {
               <Text style={s.emptyText}>
                 Upload or record a training video and get AI-powered biomechanics coaching in seconds.
               </Text>
-              <TouchableOpacity style={s.emptyBtn} onPress={Platform.OS !== "web" ? handleUpload : undefined} activeOpacity={0.85}>
-                <Text style={s.emptyBtnText}>Upload Your First Video</Text>
-                {Platform.OS === "web" && (
+              {Platform.OS === "web" ? (
+                <View style={[s.emptyBtn, { position: "relative" } as any]}>
+                  <Text style={s.emptyBtnText}>Upload Your First Video</Text>
                   <input
                     type="file"
                     accept="video/*"
@@ -454,10 +462,14 @@ export default function AnalyzeScreen() {
                       if (file) handleWebFileUri(URL.createObjectURL(file));
                       e.target.value = "";
                     }}
-                    style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" } as any}
+                    style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" } as any}
                   />
-                )}
-              </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity style={s.emptyBtn} onPress={handleUpload} activeOpacity={0.85}>
+                  <Text style={s.emptyBtnText}>Upload Your First Video</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )
         }
