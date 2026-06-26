@@ -158,10 +158,7 @@ export function useTier() {
   return subscription?.tier ?? "free";
 }
 
-export function useCanAccessFeature(feature: "aiChat" | "proComparisons" | "unlimitedAnalyses") {
-  const tier = useTier();
-  if (feature === "aiChat") return tier === "pro" || tier === "elite";
-  if (feature === "proComparisons") return tier === "elite";
-  if (feature === "unlimitedAnalyses") return tier === "pro" || tier === "elite";
-  return false;
+export function useCanAccessFeature(_feature: "aiChat" | "proComparisons" | "unlimitedAnalyses") {
+  // All features unlocked for testing — remove this override to re-enable tier gating.
+  return true;
 }

@@ -133,16 +133,9 @@ export function useVideoUpload(
 
   const handleUpload = useCallback(async () => {
     if (!requireSport()) return;
-    if (Platform.OS === "web") {
-      // On web the file picker must be triggered synchronously inside the
-      // button-press gesture. Any async gap (setState, setTimeout, modal
-      // animation) causes the browser to discard the activation and silently
-      // block the picker. Skip the modal and go straight to the picker.
-      await doUpload();
-      return;
-    }
-    setPendingAction("upload");
-    setShowRecordingTips(true);
+    // Skip the recording-tips modal on all platforms — go straight to the
+    // native/web picker so nothing blocks the file-selection gesture.
+    await doUpload();
   }, [profile]);
 
   const handleRecord = useCallback(async () => {
