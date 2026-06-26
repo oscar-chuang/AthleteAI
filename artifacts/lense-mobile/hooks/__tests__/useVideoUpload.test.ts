@@ -1,5 +1,6 @@
 import { renderHook, act } from "@testing-library/react-native";
-import { Alert, Platform } from "react-native";
+import { Platform } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 
 jest.mock("expo-image-picker", () => ({
   requestMediaLibraryPermissionsAsync: jest.fn().mockResolvedValue({ status: "granted" }),
@@ -34,13 +35,13 @@ const mockProfile = { sport: "Running", weeklyGoal: 3 } as any;
 const mockHeaderStats = { thisWeek: 0 };
 const mockLoadAnalyses = jest.fn().mockResolvedValue(undefined);
 
-describe("useVideoUpload — mandatory guidance gate", () => {
+describe("useVideoUpload — upload flow", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (AsyncStorage.getItem as jest.Mock).mockResolvedValue("seen");
   });
 
-  it("shows recording tips modal on handleUpload even when AsyncStorage has a 'seen' value", async () => {
+  it("goes directly to the image picker without showing the recording tips modal", async () => {
     const router = makeRouter();
     const { result } = renderHook(() =>
       useVideoUpload(mockProfile, mockHeaderStats, mockLoadAnalyses, router)
@@ -52,11 +53,12 @@ describe("useVideoUpload — mandatory guidance gate", () => {
       await result.current.handleUpload();
     });
 
-    expect(result.current.showRecordingTips).toBe(true);
-    expect(result.current.pendingAction).toBe("upload");
+    // Modal must NOT appear — picker is opened directly
+    expect(result.current.showRecordingTips).toBe(false);
+    expect(ImagePicker.requestMediaLibraryPermissionsAsync).toHaveBeenCalled();
   });
 
-  it("shows recording tips modal on handleRecord even when AsyncStorage has a 'seen' value", async () => {
+  it("shows recording tips modal on handleRecord on native", async () => {
     const originalOS = Platform.OS;
     Object.defineProperty(Platform, "OS", { get: () => "ios", configurable: true });
 
@@ -77,7 +79,7 @@ describe("useVideoUpload — mandatory guidance gate", () => {
     Object.defineProperty(Platform, "OS", { get: () => originalOS, configurable: true });
   });
 
-  it("shows recording tips modal on handleUpload when AsyncStorage returns null", async () => {
+  it("goes directly to the picker regardless of AsyncStorage state", async () => {
     (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
 
     const router = makeRouter();
@@ -89,7 +91,8 @@ describe("useVideoUpload — mandatory guidance gate", () => {
       await result.current.handleUpload();
     });
 
-    expect(result.current.showRecordingTips).toBe(true);
+    expect(result.current.showRecordingTips).toBe(false);
+    expect(ImagePicker.requestMediaLibraryPermissionsAsync).toHaveBeenCalled();
   });
 
   it("does not read AsyncStorage for RECORDING_TIPS_KEY during handleUpload", async () => {
