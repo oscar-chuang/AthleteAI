@@ -1785,7 +1785,7 @@ export default function SkeletonScreen() {
     <View>
       {/* Static freeze frame with optional scrub overlay */}
       <View style={{ width: heroBoxW, height: heroBoxH }}>
-        <FrozenSkeleton capture={hero.capture} width={heroBoxW} height={heroBoxH} emphasize={scrubTick ? [] : hero.emphasize} />
+        <FrozenSkeleton capture={hero.capture} width={heroBoxW} height={heroBoxH} emphasize={scrubTick ? [] : hero.emphasize} hidePhoto={!!scrubTick} />
         {scrubTick && scrubTick.lm.length > 0 && (() => {
           const rect = containRect(heroBoxW, heroBoxH, heroAspect);
           const proj = (idx: number) => {

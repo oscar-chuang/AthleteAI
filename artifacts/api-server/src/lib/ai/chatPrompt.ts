@@ -86,6 +86,17 @@ export async function buildSystemPrompt(userId: number): Promise<string> {
       if (a.strengths?.length) systemPrompt += `\n  Strengths: ${a.strengths.slice(0, 2).join("; ")}`;
       if (a.improvements?.length) systemPrompt += `\n  Needs work: ${a.improvements.slice(0, 2).join("; ")}`;
 
+      // Include measured joint angles and risks so Claude can quote exact readings
+      const ja = a.jointAngles as Record<string, number> | null;
+      const jr = a.jointRisks as Record<string, number> | null;
+      if (ja && Object.keys(ja).length > 0) {
+        const riskLabel = (lvl: number) => lvl >= 2 ? " [HIGH RISK]" : lvl >= 1 ? " [NEEDS WORK]" : "";
+        const jointLines = Object.entries(ja)
+          .map(([joint, deg]) => `${joint}: ${Math.round(deg)}°${riskLabel(jr?.[joint] ?? 0)}`)
+          .join(", ");
+        systemPrompt += `\n  Joint angles measured: ${jointLines}`;
+      }
+
       const tips = (a.tips ?? []) as Tip[];
       const doneTipIds = new Set((completedByAnalysis.get(a.id) ?? []).map((c) => c.tipId));
       if (tips.length > 0) {
@@ -128,7 +139,8 @@ export async function buildSystemPrompt(userId: number): Promise<string> {
 - Reference their actual data when it's relevant ("your balance score is X, so...")
 - Give specific, actionable advice — drills, cues, sets/reps when relevant
 - Keep answers focused and practical; athletes want direction, not essays
-- If they ask about something outside sport/fitness, politely redirect to training`;
+- If they ask about something outside sport/fitness, politely redirect to training
+- IMPORTANT: When quoting any score or angle, use ONLY the exact numbers listed above. Never invent, estimate, or round to different numbers than what is provided.`;
 
   return systemPrompt;
 }

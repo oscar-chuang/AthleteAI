@@ -43,6 +43,10 @@ type Props = {
   height: number;
   emphasize?: JointKey[];
   showAngles?: boolean;
+  /** When true, shows a dark background instead of the freeze-frame photo.
+   *  Use this during scrubbing so the static photo doesn't misalign with the
+   *  animated skeleton overlay. */
+  hidePhoto?: boolean;
 };
 
 function lvlForIndex(capture: Capture, idx: number): number {
@@ -64,6 +68,7 @@ export default function FrozenSkeleton({
   height,
   emphasize = [],
   showAngles = true,
+  hidePhoto = false,
 }: Props) {
   const pulse = useSharedValue(0);
   const emphasizeKey = emphasize.join(",");
@@ -116,13 +121,17 @@ export default function FrozenSkeleton({
 
   return (
     <View style={[styles.wrap, { width, height }]}>
-      <Image
-        source={{ uri: capture.frame }}
-        style={StyleSheet.absoluteFill}
-        contentFit="contain"
-        transition={120}
-        cachePolicy="memory"
-      />
+      {hidePhoto ? (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: "#07070f" }]} />
+      ) : (
+        <Image
+          source={{ uri: capture.frame }}
+          style={StyleSheet.absoluteFill}
+          contentFit="contain"
+          transition={120}
+          cachePolicy="memory"
+        />
+      )}
       <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
         {/* Bones */}
         <G>

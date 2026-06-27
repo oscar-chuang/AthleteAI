@@ -391,7 +391,7 @@ export default function AnalysisDetailScreen() {
   // back pre-selected next time.  Falls back to "dark" for first-time users.
   const [shareScheme, setShareScheme] = useState<"dark" | "light">("dark");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["coaching-tips", "movement", "joints"])
+    new Set(["scores", "win", "fix"])
   );
   const toggleSection = (key: string) =>
     setExpandedSections((prev) => {
@@ -1409,21 +1409,17 @@ export default function AnalysisDetailScreen() {
           }
         }}
       >
-        {/* ── Hero thumbnail — fills top of screen ── */}
-        {analysis.thumbnailUrl ? (
-          <View style={{ width: "100%", height: 220, backgroundColor: "#000" }}>
-            <Image
-              source={{ uri: analysis.thumbnailUrl }}
-              style={{ width: "100%", height: "100%" }}
-              contentFit="cover"
-            />
-            <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.2)" }} />
+        {/* ── Sport / date pill header (replaces full-bleed thumbnail) ── */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 2, flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <View style={{ backgroundColor: colors.primary + "18", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: colors.primary + "33" }}>
+            <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.primary }}>
+              {analysis.sport ? analysis.sport.charAt(0).toUpperCase() + analysis.sport.slice(1) : "Analysis"}
+            </Text>
           </View>
-        ) : (
-          <View style={{ width: "100%", height: 160, backgroundColor: colors.card, alignItems: "center", justifyContent: "center" }}>
-            <Feather name="activity" size={40} color={colors.primary + "66"} />
-          </View>
-        )}
+          <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>
+            {new Date(analysis.uploadedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+          </Text>
+        </View>
 
         {/* ── Focal composition: score ring + strength/opportunity + CTA ── */}
         <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4, gap: 10 }}>
