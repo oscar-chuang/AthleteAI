@@ -1,0 +1,21 @@
+
+> @workspace/lense-mobile@0.0.0 dev /home/runner/workspace/artifacts/lense-mobile
+> expo start
+
+Starting project at /home/runner/workspace/artifacts/lense-mobile
+React Compiler enabled
+Starting Metro Bundler
+Error: listen EADDRINUSE: address already in use 0.0.0.0:8081
+Error: listen EADDRINUSE: address already in use 0.0.0.0:8081
+    at Server.setupListenHandle [as _listen2] (node:net:1940:16)
+    at listenInCluster (node:net:1997:12)
+    at Server.listen (node:net:2102:7)
+    at /home/runner/workspace/node_modules/.pnpm/@expo+cli@54.0.25_expo-router@6.0.24_expo@54.0.35_react-native@0.81.5_@babel+core@7.29._d2692a18a3c9d9eb24f2d1bd1f7e96db/node_modules/@expo/cli/src/start/server/metro/runServer-fork.ts:135:16
+    at new Promise (<anonymous>)
+    at runServer (/home/runner/workspace/node_modules/.pnpm/@expo+cli@54.0.25_expo-router@6.0.24_expo@54.0.35_react-native@0.81.5_@babel+core@7.29._d2692a18a3c9d9eb24f2d1bd1f7e96db/node_modules/@expo/cli/src/start/server/metro/runServer-fork.ts:126:10)
+    at instantiateMetroAsync (/home/runner/workspace/node_modules/.pnpm/@expo+cli@54.0.25_expo-router@6.0.24_expo@54.0.35_react-native@0.81.5_@babel+core@7.29._d2692a18a3c9d9eb24f2d1bd1f7e96db/node_modules/@expo/cli/src/start/server/metro/instantiateMetro.ts:290:40)
+    at MetroBundlerDevServer.startImplementationAsync (/home/runner/workspace/node_modules/.pnpm/@expo+cli@54.0.25_expo-router@6.0.24_expo@54.0.35_react-native@0.81.5_@babel+core@7.29._d2692a18a3c9d9eb24f2d1bd1f7e96db/node_modules/@expo/cli/src/start/server/metro/MetroBundlerDevServer.ts:1062:69)
+    at MetroBundlerDevServer.startAsync (/home/runner/workspace/node_modules/.pnpm/@expo+cli@54.0.25_expo-router@6.0.24_expo@54.0.35_react-native@0.81.5_@babel+core@7.29._d2692a18a3c9d9eb24f2d1bd1f7e96db/node_modules/@expo/cli/src/start/server/BundlerDevServer.ts:171:18)
+    at DevServerManager.startAsync (/home/runner/workspace/node_modules/.pnpm/@expo+cli@54.0.25_expo-router@6.0.24_expo@54.0.35_react-native@0.81.5_@babel+core@7.29._d2692a18a3c9d9eb24f2d1bd1f7e96db/node_modules/@expo/cli/src/start/server/DevServerManager.ts:184:7)
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/lense-mobile@0.0.0 dev: `expo start`
+Exit status 1

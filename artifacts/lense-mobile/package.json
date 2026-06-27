@@ -4,7 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "dev": "expo start",
+    "dev": "expo start --port ${PORT:-8081}",
     "dev:tunnel": "expo start --tunnel",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
