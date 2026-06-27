@@ -14,7 +14,6 @@ export type Sport =
   | "boxing"
   | "rowing"
   | "crossfit"
-  | "yoga"
   | "other";
 
 export type SubscriptionTier = "free" | "pro" | "elite";
@@ -122,35 +121,27 @@ export interface ChatMessage {
   referencedAnalysis?: string;
 }
 
-export interface ProAthleteBenchmarks {
-  technique: number;
-  power: number;
-  balance: number;
-  consistency: number;
-  mobility: number;
-  speed: number;
-}
-
-export interface ProAthleteSource {
-  label: string;
-  url: string;
-}
-
 export interface ProAthlete {
   id: string;
   name: string;
-  /** Free-form string so compare works for any sport */
-  sport: string;
-  country: string;
-  countryFlag: string;
-  born: number;
+  sport: Sport;
   specialty: string;
   imageUrl: string;
   keyAttributes: string[];
-  benchmarks: ProAthleteBenchmarks;
-  careerHighlights: string[];
-  trainingPhilosophy: string;
-  sources: ProAthleteSource[];
-  trainTips: string[];
-  signature: string;
+  country?: string;
+  countryFlag?: string;
+  born?: number;
+  benchmarks?: {
+    technique?: number;
+    power?: number;
+    balance?: number;
+    consistency?: number;
+    mobility?: number;
+    speed?: number;
+    [key: string]: number | undefined;
+  };
+  careerHighlights?: string[];
+  trainingPhilosophy?: string;
+  signature?: string;
+  [key: string]: unknown;
 }

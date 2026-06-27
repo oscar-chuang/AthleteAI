@@ -5,28 +5,4 @@ outputs = []
 id = "f_vwJYVBGU7iOwO1LsIDr"
 uri = "file://artifacts/lense-mobile/assets/images/icon.png"
 type = "image"
-title = "athleteai app icon lightning bolt"
-
-[[generated]]
-id = "FbJlpGMB4SriKDnk5z0Vh"
-uri = "file://artifacts/lense-mobile/assets/recording-tips/good.png"
-type = "image"
-title = "good recording example"
-
-[[generated]]
-id = "XozwvBbBjoezZ7ef1TA0s"
-uri = "file://artifacts/lense-mobile/assets/recording-tips/too-far.png"
-type = "image"
-title = "too far away example"
-
-[[generated]]
-id = "3i6uDXyehj9mm_QJFeUnB"
-uri = "file://artifacts/lense-mobile/assets/recording-tips/cropped.png"
-type = "image"
-title = "limbs cropped example"
-
-[[generated]]
-id = "p5pq2QL2L79Y0wUUVl0Bt"
-uri = "file://artifacts/lense-mobile/assets/recording-tips/dark.png"
-type = "image"
-title = "poor lighting example"
+title = "athleteai mobile icon"

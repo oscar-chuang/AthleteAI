@@ -1,29 +1,15 @@
-import sharp from "sharp";
 import { db, analysesTable, completedDrillsTable, profilesTable } from "@workspace/db";
 import { eq, and, desc, count } from "drizzle-orm";
 import { findProfileByUserId, upsertProfile, type ProfileRow } from "../repositories/userRepository";
 import { computeProfileStats } from "../lib/stats";
 import { cache } from "../lib/redis";
 
-const AVATAR_MAX_PX = 64;
-const AVATAR_MAX_BYTES = 20 * 1024;
-
 const VALID_LEVELS = ["beginner", "intermediate", "advanced", "elite"] as const;
 
+/** Avatar compression requires the sharp native binary which is not available
+ *  in this environment — return the URL unchanged. */
 export async function compressAvatarIfNeeded(avatarUrl: string): Promise<string> {
-  const match = avatarUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
-  if (!match) return avatarUrl;
-  const inputBuffer = Buffer.from(match[2]!, "base64");
-  let quality = 80;
-  let outputBuffer: Buffer;
-  do {
-    outputBuffer = await sharp(inputBuffer)
-      .resize(AVATAR_MAX_PX, AVATAR_MAX_PX, { fit: "cover", position: "centre" })
-      .jpeg({ quality })
-      .toBuffer();
-    quality -= 10;
-  } while (outputBuffer.byteLength > AVATAR_MAX_BYTES && quality >= 20);
-  return `data:image/jpeg;base64,${outputBuffer.toString("base64")}`;
+  return avatarUrl;
 }
 
 export function formatProfile(

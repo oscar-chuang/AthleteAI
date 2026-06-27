@@ -1,43 +1,58 @@
-import { Router, type IRouter, type Request, type Response } from "express";
-import { requireAuth } from "./auth";
-import {
-  getProfile,
-  patchProfile,
-  getProfileStats,
-  compressAvatarIfNeeded,
-  type PatchProfileBody,
-} from "../services/profileService";
+import { Router } from "express";
+import { z } from "zod";
+import { db } from "@workspace/db";
+import { athleteProfilesTable, subscriptionsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { authenticate, type AuthRequest } from "../middlewares/authenticate.js";
 
-// Re-export for tests that import compressAvatarIfNeeded directly from this module.
-export { compressAvatarIfNeeded };
+const router = Router();
 
-const router: IRouter = Router();
-
-router.get("/profile", requireAuth, async (req: Request, res: Response) => {
-  const userId = req.userId!;
-  const { profile } = await getProfile(userId);
-  res.json({
-    profile: profile ?? null,
-    subscription: { id: "free", userId: String(userId), tier: "free", status: "active" },
-  });
+const updateProfileSchema = z.object({
+  name: z.string().min(1).optional(),
+  sport: z.string().optional(),
+  level: z.enum(["beginner", "intermediate", "advanced", "elite"]).optional(),
+  goals: z.array(z.string()).optional(),
+  injuryConcerns: z.array(z.string()).optional(),
+  weeklyGoal: z.number().int().min(1).max(14).optional(),
 });
 
-router.patch("/profile", requireAuth, async (req: Request, res: Response) => {
-  const userId = req.userId!;
-  const body = req.body as PatchProfileBody;
+// GET /api/profile
+router.get("/profile", authenticate, async (req: AuthRequest, res) => {
+  const [profile] = await db
+    .select()
+    .from(athleteProfilesTable)
+    .where(eq(athleteProfilesTable.userId, req.userId!))
+    .limit(1);
 
-  const result = await patchProfile(userId, body);
-  if ("error" in result) {
-    res.status(result.status).json({ error: result.error });
+  if (!profile) {
+    res.status(404).json({ error: "Profile not found" });
     return;
   }
-  res.json({ profile: result.profile });
+
+  const [subscription] = await db
+    .select()
+    .from(subscriptionsTable)
+    .where(eq(subscriptionsTable.userId, req.userId!))
+    .limit(1);
+
+  res.json({ profile, subscription });
 });
 
-router.get("/profile/stats", requireAuth, async (req: Request, res: Response) => {
-  const userId = req.userId!;
-  const result = await getProfileStats(userId);
-  res.json(result);
+// PATCH /api/profile
+router.patch("/profile", authenticate, async (req: AuthRequest, res) => {
+  const parsed = updateProfileSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(athleteProfilesTable)
+    .set({ ...parsed.data, updatedAt: new Date() })
+    .where(eq(athleteProfilesTable.userId, req.userId!))
+    .returning();
+
+  res.json({ profile: updated });
 });
 
 export default router;

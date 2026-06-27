@@ -1,9 +1,11 @@
-import Redis from "ioredis";
-
-let _client: Redis | null = null;
+// ioredis is loaded at runtime via require() so that a missing binary does not
+// cause a static import error.  When unavailable, the module falls back to
+// no-op stubs (caching, rate-limiting and distributed locks are disabled).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _client: any = null;
 let _disabled = false;
 
-function getClient(): Redis | null {
+function getClient(): any {
   if (_disabled) return null;
   if (_client) return _client;
 
@@ -14,29 +16,37 @@ function getClient(): Redis | null {
     return null;
   }
 
-  _client = new Redis(url, {
-    lazyConnect: true,
-    enableOfflineQueue: false,
-    maxRetriesPerRequest: 1,
-    retryStrategy: (times) => {
-      if (times > 3) {
-        console.warn(`[redis] Connection failed after ${times} attempts — disabling Redis features`);
-        _disabled = true;
-        _client = null;
-        return null;
-      }
-      return Math.min(times * 500, 2000);
-    },
-  });
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const RedisClass = require("ioredis");
+    _client = new RedisClass(url, {
+      lazyConnect: true,
+      enableOfflineQueue: false,
+      maxRetriesPerRequest: 1,
+      retryStrategy: (times: number) => {
+        if (times > 3) {
+          console.warn(`[redis] Connection failed after ${times} attempts — disabling Redis features`);
+          _disabled = true;
+          _client = null;
+          return null;
+        }
+        return Math.min(times * 500, 2000);
+      },
+    });
 
-  _client.on("error", (err: Error) => {
-    console.warn("[redis] Connection error:", err.message);
-  });
+    _client.on("error", (err: Error) => {
+      console.warn("[redis] Connection error:", err.message);
+    });
+  } catch {
+    console.warn("[redis] ioredis not available — Redis features disabled");
+    _disabled = true;
+    return null;
+  }
 
   return _client;
 }
 
-export function redisClient(): Redis | null {
+export function redisClient(): any {
   return getClient();
 }
 

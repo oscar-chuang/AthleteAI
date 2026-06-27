@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "AthleteAI",
-    "slug": "athleteai",
+    "slug": "lense-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "athleteai",
+    "scheme": "lense-mobile",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
@@ -15,59 +15,22 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.athleteai.app",
-      "buildNumber": "1",
-      "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "AthleteAI needs access to your photo library to select training videos for analysis.",
-        "NSCameraUsageDescription": "AthleteAI needs camera access to record your training sessions.",
-        "NSMicrophoneUsageDescription": "AthleteAI needs microphone access when recording training videos."
-      }
+      "bundleIdentifier": "com.athleteai.lensemobile"
     },
     "android": {
-      "package": "com.athleteai.app",
-      "versionCode": 1,
-      "permissions": [
-        "READ_MEDIA_IMAGES",
-        "READ_MEDIA_VIDEO",
-        "CAMERA",
-        "RECORD_AUDIO"
-      ]
+      "package": "com.athleteai.lensemobile"
     },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
     "plugins": [
-      [
-        "expo-router",
-        {
-          "origin": "https://replit.com/"
-        }
-      ],
+      "expo-router",
       "expo-font",
-      "expo-web-browser",
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "AthleteAI needs access to your photo library to select training videos.",
-          "cameraPermission": "AthleteAI needs camera access to record training sessions."
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/icon.png",
-          "color": "#6c63ff"
-        }
-      ]
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    },
-    "extra": {
-      "eas": {
-        "projectId": ""
-      }
     }
   }
 }

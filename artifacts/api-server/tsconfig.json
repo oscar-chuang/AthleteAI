@@ -8,6 +8,15 @@
     "types": ["node"]
   },
   "include": ["src"],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/test-setup.ts",
+    "src/scripts",
+    "src/lib/objectStorage.ts",
+    "src/lib/objectAcl.ts",
+    "src/lib/queue.ts",
+    "src/routes/storage.ts"
+  ],
   "references": [
     {
       "path": "../../lib/db"

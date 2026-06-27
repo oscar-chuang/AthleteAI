@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,775 +7,45 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
-  Alert,
-  TextInput,
-  Animated,
-  Modal,
-  PanResponder,
-  Dimensions,
-  Share,
 } from "react-native";
-import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { captureRef } from "react-native-view-shot";
-import * as Sharing from "expo-sharing";
-import * as IntentLauncher from "expo-intent-launcher";
-import * as FileSystem from "expo-file-system";
-import { useSharePreview } from "@/hooks/useSharePreview";
-import { useCardStagger } from "@/hooks/useCardStagger";
-
-import * as MediaLibrary from "@/utils/mediaLibrary";
 
 import { useColors } from "@/hooks/useColors";
-import { formatBiomechanicsText } from "@/utils/formatBiomechanics";
-import {
-  SWIPE_THRESHOLD,
-  SWIPE_VELOCITY_THRESHOLD,
-  resolveAdjacentIds,
-  shouldActivateSwipe,
-  resolveSwipeDirection,
-  resolveSwipeTranslation,
-} from "@/utils/swipeNavigation";
-import {
-  analyses as analysesApi,
-  profile as profileApi,
-  jointTrends as jointTrendsApi,
-  movementSummaryHistory as movementSummaryHistoryApi,
-  type AnalysisRecord,
-  type TipRecord,
-  type RiskRecord,
-  type JointTrendsResponse,
-  type MovementSummaryDataPoint,
-} from "@/lib/api";
-import { useAuth } from "@/lib/authContext";
-import JointHistorySheet from "@/components/JointHistorySheet";
-import MovementDimensionHistorySheet from "@/components/MovementDimensionHistorySheet";
-import { ScoreRing } from "@/components/ScoreRing";
-import { ScoreCard, getScoreBand } from "@/components/analysis/ScoreCard";
-import { SectionHeader } from "@/components/analysis/SectionHeader";
-import { NextFocusCard } from "@/components/analysis/NextFocusCard";
-import { AnimatedLoadingState } from "@/components/analysis/AnimatedLoadingState";
-import { EmptyState } from "@/components/ui";
-import { SPACING, RADIUS } from "@/constants/spacing";
-import { TYPE } from "@/constants/typography";
-import { ShareCard, SHARE_CARD_DARK, SHARE_CARD_LIGHT } from "@/components/analysis/ShareCard";
-import { ConfettiBurst } from "@/components/ConfettiBurst";
-import {
-  SHARE_CARD_CAPTURE_OPTIONS,
-  HIDDEN_SHARE_CARD_STYLE,
-} from "@/utils/shareCardCapture";
-import { buildSessionSharePayload } from "@/utils/shareUtils";
-import { toTitleCase } from "@/utils/formatDisplay";
-import { SCORE_KEYS, SCORE_META, scoreForKey } from "@/utils/scoreGrid";
+import { analyses as analysesApi, type AnalysisRecord, type TipRecord, type RiskRecord } from "@/lib/api";
 
-const PENDING_CHAT_KEY = "pendingChatMessage";
-const SWIPE_HINT_SEEN_KEY = "swipe_hint_seen";
-const LAST_SHARE_ACTION_KEY = "lastShareAction";
-const SHARE_CARD_SCHEME_KEY = "shareCardScheme";
-const SHARE_TIP_KEY_PREFIX = "shareTip_";
-
-// Module-level: tracks which analysis IDs have already completed their first ring animation.
-// Persists across component re-mounts (session navigation), so switching sessions and coming
-// back never replays the stagger — and re-focusing the tab never re-fires it either.
-const ringAnimationDone = new Set<string>();
-
-// Module-level: tracks which risk bar keys have already completed their first fill animation.
-// Key format: `${analysisId}:${joint}` — persists across unmounts so tab-switching never
-// replays the bar fill for bars that have already animated.
-const riskBarAnimationDone = new Set<string>();
-
-function getWeekKey(): string {
-  const d = new Date();
-  const sunday = new Date(d);
-  sunday.setDate(d.getDate() - d.getDay());
-  return sunday.toISOString().split("T")[0]!;
-}
+const SCORE_KEYS = ["technique", "power", "balance", "consistency", "mobility", "speed"] as const;
 
 const SEVERITY_CONFIG = {
-  info: { color: "#2F7BFF", icon: "info" as const, label: "Info" },
-  warning: {
-    color: "#F59E0B",
-    icon: "alert-triangle" as const,
-    label: "Warning",
-  },
-  critical: {
-    color: "#EF4444",
-    icon: "alert-circle" as const,
-    label: "Critical",
-  },
-};
-
-const RISK_LABEL: Record<string, { label: string; color: string }> = {
-  low:      { label: "Low Risk",      color: "#22C55E" },
-  moderate: { label: "Moderate Risk", color: "#F59E0B" },
-  high:     { label: "High Risk",     color: "#EF4444" },
-};
-
-const JOINT_LABEL: Record<string, string> = {
-  leftKnee:   "Left Knee",
-  rightKnee:  "Right Knee",
-  leftHip:    "Left Hip",
-  rightHip:   "Right Hip",
-  leftElbow:  "Left Elbow",
-  rightElbow: "Right Elbow",
+  info:     { color: "#38bdf8", icon: "info"          as const, label: "Info"     },
+  warning:  { color: "#f59e0b", icon: "alert-triangle" as const, label: "Warning"  },
+  critical: { color: "#ef4444", icon: "alert-circle"  as const, label: "Critical" },
 };
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  return new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
-function getRiskLabel(pct: number) {
-  if (pct >= 50) return RISK_LABEL.high;
-  if (pct >= 30) return RISK_LABEL.moderate;
-  return RISK_LABEL.low;
+function scoreForKey(analysis: AnalysisRecord, key: typeof SCORE_KEYS[number]): number {
+  return (analysis as any)[`${key}Score`] ?? 0;
 }
 
-// ── Animated risk bar ──────────────────────────────────────────────────────────
-// animKey — a stable, unique string (e.g. `${analysisId}:${joint}`) used to
-// gate re-animation via the module-level riskBarAnimationDone Set. When the key
-// is already in the Set the bar starts at its final value and no animation runs,
-// preventing the fill from replaying when the user switches tabs and returns.
-function AnimatedRiskBar({
-  pct,
-  color,
-  delay = 0,
-  animKey,
-}: {
-  pct: number;
-  color: string;
-  delay?: number;
-  animKey: string;
-}) {
-  const alreadyDone = riskBarAnimationDone.has(animKey);
-  const widthAnim = useRef(new Animated.Value(alreadyDone ? pct : 0)).current;
-
-  useEffect(() => {
-    if (riskBarAnimationDone.has(animKey)) return;
-    Animated.timing(widthAnim, {
-      toValue: pct,
-      duration: 600,
-      delay,
-      useNativeDriver: false,
-    }).start(({ finished }) => {
-      if (finished) riskBarAnimationDone.add(animKey);
-    });
-  }, [pct, animKey]);
-
-  return (
-    <View style={{ height: 7, backgroundColor: color + "22", borderRadius: 4, marginVertical: 8 }}>
-      <Animated.View
-        style={{
-          height: 7,
-          borderRadius: 4,
-          backgroundColor: color,
-          width: widthAnim.interpolate({
-            inputRange: [0, 100],
-            outputRange: ["0%", "100%"],
-          }),
-        }}
-      />
-    </View>
-  );
-}
-
-// ── Press-scale button wrapper ─────────────────────────────────────────────────
-function ScaleButton({
-  onPress,
-  style,
-  children,
-  activeOpacity = 0.75,
-}: {
-  onPress: () => void;
-  style?: object;
-  children: React.ReactNode;
-  activeOpacity?: number;
-}) {
-  const scale = useRef(new Animated.Value(1)).current;
-
-  const onPressIn = () =>
-    Animated.spring(scale, {
-      toValue: 0.96,
-      useNativeDriver: true,
-      speed: 30,
-    }).start();
-
-  const onPressOut = () =>
-    Animated.spring(scale, {
-      toValue: 1,
-      useNativeDriver: true,
-      speed: 30,
-    }).start();
-
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
-      activeOpacity={activeOpacity}
-    >
-      <Animated.View style={[{ transform: [{ scale }] }, style]}>
-        {children}
-      </Animated.View>
-    </TouchableOpacity>
-  );
-}
-
-// ── Error / state screens ──────────────────────────────────────────────────────
-function StateScreen({
-  icon,
-  iconColor,
-  heading,
-  body,
-  primaryLabel,
-  onPrimary,
-  secondaryLabel,
-  onSecondary,
-}: {
-  icon: React.ComponentProps<typeof Feather>["name"];
-  iconColor: string;
-  heading: string;
-  body: string;
-  primaryLabel: string;
-  onPrimary: () => void;
-  secondaryLabel?: string;
-  onSecondary?: () => void;
-}) {
-  const colors = useColors();
-  return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: colors.background,
-        alignItems: "center",
-        justifyContent: "center",
-        paddingHorizontal: 36,
-        gap: 0,
-      }}
-    >
-      <View
-        style={{
-          width: 68,
-          height: 68,
-          borderRadius: 34,
-          backgroundColor: iconColor + "18",
-          alignItems: "center",
-          justifyContent: "center",
-          marginBottom: 20,
-        }}
-      >
-        <Feather name={icon} size={30} color={iconColor} />
-      </View>
-      <Text
-        style={{
-          fontSize: 19,
-          fontFamily: "Inter_700Bold",
-          color: colors.foreground,
-          textAlign: "center",
-          marginBottom: 10,
-        }}
-      >
-        {heading}
-      </Text>
-      <Text
-        style={{
-          fontSize: 14,
-          color: colors.mutedForeground,
-          fontFamily: "Inter_400Regular",
-          textAlign: "center",
-          lineHeight: 21,
-          marginBottom: 28,
-        }}
-      >
-        {body}
-      </Text>
-      <ScaleButton
-        onPress={onPrimary}
-        style={{
-          flexDirection: "row" as const,
-          alignItems: "center" as const,
-          gap: 7,
-          backgroundColor: colors.primary,
-          borderRadius: 14,
-          paddingVertical: 13,
-          paddingHorizontal: 26,
-          marginBottom: 14,
-        }}
-      >
-        <Text
-          style={{
-            color: "#fff",
-            fontSize: 15,
-            fontFamily: "Inter_600SemiBold",
-          }}
-        >
-          {primaryLabel}
-        </Text>
-      </ScaleButton>
-      {secondaryLabel && onSecondary && (
-        <TouchableOpacity onPress={onSecondary} activeOpacity={0.7}>
-          <Text
-            style={{
-              color: colors.mutedForeground,
-              fontFamily: "Inter_500Medium",
-              fontSize: 13,
-            }}
-          >
-            {secondaryLabel}
-          </Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
-
-// ── Tab constants & seed helper ────────────────────────────────────────────────
-export const VALID_TABS = ["scores", "tips", "risks", "notes"] as const;
-export type AnalysisTab = (typeof VALID_TABS)[number];
-
-/**
- * Derives the initial active tab from the raw `tab` query-param value.
- * Falls back to "scores" when the param is absent or not one of the valid tabs.
- * Exported so unit tests can exercise it without rendering the full screen.
- */
-export function seedActiveTab(param: string | string[] | undefined): AnalysisTab {
-  const raw = Array.isArray(param) ? param[0] : param;
-  return (VALID_TABS as readonly string[]).includes(raw ?? "")
-    ? (raw as AnalysisTab)
-    : "scores";
-}
-
-// ── Main screen ────────────────────────────────────────────────────────────────
 export default function AnalysisDetailScreen() {
-  const { id, tab: rawTab } = useLocalSearchParams<{ id: string; tab?: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const { profile } = useAuth();
+  const [analysis, setAnalysis]     = useState<AnalysisRecord | null>(null);
+  const [tips, setTips]             = useState<TipRecord[]>([]);
+  const [risks, setRisks]           = useState<RiskRecord[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(false);
+  const [expandedTip, setExpanded]  = useState<string | null>(null);
+  const [activeTab, setActiveTab]   = useState<"scores" | "tips" | "risks" | "ai">("scores");
 
-  // Active tab — seeded from the ?tab= query param so it survives rotation /
-  // backgrounding (expo-router re-reads params on remount).
-  const [activeTab, setActiveTab] = useState<AnalysisTab>(() => seedActiveTab(rawTab));
-
-  const [analysis, setAnalysis] = useState<AnalysisRecord | null>(null);
-  const [tips, setTips] = useState<TipRecord[]>([]);
-  const [risks, setRisks] = useState<RiskRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [expandedTip, setExpanded] = useState<string | null>(null);
-  const [note, setNote] = useState("");
-  const [deleting, setDeleting] = useState(false);
-  const [pollExhausted, setPollExhausted] = useState(false);
-  const [historyJoint, setHistoryJoint] = useState<string | null>(null);
-  const [jointTrendsData, setJointTrendsData] = useState<JointTrendsResponse | null>(null);
-  const [movementHistory, setMovementHistory] = useState<MovementSummaryDataPoint[]>([]);
-  const [selectedMovementDim, setSelectedMovementDim] = useState<{
-    key: keyof MovementSummaryDataPoint;
-    label: string;
-    color: string;
-  } | null>(null);
-  const [sharing, setSharing] = useState(false);
-  const [sharingUnavailable, setSharingUnavailable] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [lastShareAction, setLastShareAction] = useState<"save" | "share">("share");
-  const [selectedShareTipId, setSelectedShareTipId] = useState<string | null>(null);
-  // Persisted across modal opens: the last scheme the user picked in the share
-  // preview is saved to AsyncStorage under SHARE_CARD_SCHEME_KEY so it comes
-  // back pre-selected next time.  Falls back to "dark" for first-time users.
-  const [shareScheme, setShareScheme] = useState<"dark" | "light">("dark");
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["scores", "win", "fix"])
-  );
-  const toggleSection = (key: string) =>
-    setExpandedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) { next.delete(key); } else { next.add(key); }
-      return next;
-    });
-
-  useEffect(() => {
-    AsyncStorage.getItem(SHARE_CARD_SCHEME_KEY)
-      .then((saved) => {
-        if (saved === "dark" || saved === "light") setShareScheme(saved);
-      })
-      .catch(() => {});
-  }, []);
-  const shareCardRef = useRef<View>(null);
-  // Remembers the last tip the user picked on the share sheet, keyed by analysis ID.
-  // Survives modal close/reopen within the same screen session; also persisted to AsyncStorage
-  // (key: "shareTip_<id>") so the choice is restored after app restarts.
-  const shareTipMemoryRef = useRef<Record<string, string | null>>({});
-  const {
-    showSharePreview,
-    handleShare: _openSharePreview,
-    handleCancelShare: _handleCancelShare,
-  } = useSharePreview();
-
-  function handleCancelShare() {
-    setSharingUnavailable(false);
-    _handleCancelShare();
-  }
-
-  // Goal reached toast
-  const [goalToast, setGoalToast] = useState<{ count: number; goal: number } | null>(null);
-  const [showConfetti, setShowConfetti] = useState(false);
-  const toastOpacity = useRef(new Animated.Value(0)).current;
-  const toastTranslate = useRef(new Animated.Value(60)).current;
-  const prevStatusRef = useRef<string | null>(null);
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Sub-score ring scroll-in animation state
-  const [cardsVisible, setCardsVisible] = useState(false);
-  const cardAnimated = useCardStagger(
-    cardsVisible,
-    SCORE_KEYS.length,
-    !!(analysis?.id && ringAnimationDone.has(analysis.id)),
-  );
-  const scoreGridY = useRef<number | null>(null);
-  // Height of the ScrollView's visible area — used to auto-trigger rings when
-  // the grid is already within the initial viewport at scroll y=0.
-  const scrollViewHeight = useRef<number>(0);
-
-  // Sibling session IDs for prev/next navigation — sorted newest-first
-  const [siblingIds, setSiblingIds] = useState<string[]>([]);
-
-  // ── Swipe hint (one-time discovability) ──
-  const swipeHintOpacity = useRef(new Animated.Value(0)).current;
-  const swipeHintVisible = useRef(false);
-  const dismissHintRef = useRef<() => void>(() => {});
-  const showHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autoHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const scrollRef = useRef<ScrollView>(null);
-
-  // When cardsVisible fires for the first time for this analysis, register it
-  // in ringAnimationDone so return visits show all rings instantly (the
-  // instant=true path in useCardStagger) without replaying the stagger.
-  useEffect(() => {
-    if (!cardsVisible || !analysis?.id || ringAnimationDone.has(analysis.id)) return;
-    ringAnimationDone.add(analysis.id);
-  }, [cardsVisible, analysis?.id]);
-
-  // Load persisted note
-  useEffect(() => {
-    if (!id) return;
-    AsyncStorage.getItem(`note_${id}`).then((saved) => {
-      if (saved) setNote(saved);
-    });
-  }, [id]);
-
-  // Load last-used share action preference
-  useEffect(() => {
-    AsyncStorage.getItem(LAST_SHARE_ACTION_KEY).then((saved) => {
-      if (saved === "save" || saved === "share") setLastShareAction(saved);
-    }).catch(() => {});
-  }, []);
-
-  // Load sibling IDs for prev/next navigation (newest first, complete only)
-  useEffect(() => {
-    analysesApi.list().then(({ analyses: all }) => {
-      const ordered = [...all]
-        .filter((a) => a.status === "complete")
-        .sort(
-          (a, b) =>
-            new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-        )
-        .map((a) => a.id);
-      setSiblingIds(ordered);
-    }).catch(() => {});
-  }, []);
-
-  // Fetch movement quality history scoped to this session's sport once the
-  // analysis is known, so multi-sport athletes only see same-sport trends.
-  useEffect(() => {
-    if (!analysis) return;
-    movementSummaryHistoryApi.get(analysis.sport).then(({ history }) => {
-      setMovementHistory(history);
-    }).catch(() => {});
-  }, [analysis?.sport]);
-
-  const { currIndex, prevId, nextId } = resolveAdjacentIds(siblingIds, id);
-
-  function navigateTo(targetId: string) {
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
-    router.replace(`/analysis/${targetId}?tab=${activeTab}` as any);
-  }
-
-  // ── Swipe gesture for session navigation ──────────────────────────────────
-  const SCREEN_WIDTH = Dimensions.get("window").width;
-
-  const swipeAnim = useRef(new Animated.Value(0)).current;
-
-  // ── Swipe hint logic ──────────────────────────────────────────────────────
-  function dismissSwipeHint() {
-    // Cancel any pending show / auto-dismiss timers so a swipe that happens
-    // before the 700 ms delay or during the 2 s window never shows the hint.
-    if (showHintTimerRef.current !== null) {
-      clearTimeout(showHintTimerRef.current);
-      showHintTimerRef.current = null;
-    }
-    if (autoHintTimerRef.current !== null) {
-      clearTimeout(autoHintTimerRef.current);
-      autoHintTimerRef.current = null;
-    }
-    if (!swipeHintVisible.current) return;
-    swipeHintVisible.current = false;
-    Animated.timing(swipeHintOpacity, {
-      toValue: 0,
-      duration: 350,
-      useNativeDriver: true,
-    }).start();
-    AsyncStorage.setItem(SWIPE_HINT_SEEN_KEY, "true").catch(() => {});
-  }
-
-  // Register dismiss so the PanResponder (created once) can call it via ref.
-  dismissHintRef.current = dismissSwipeHint;
-
-  // Show the hint once siblings are known and hint has not been seen.
-  useEffect(() => {
-    if (siblingIds.length < 2) return;
-    const myIndex = siblingIds.indexOf(id ?? "");
-    const hasNeighbour =
-      myIndex > 0 || (myIndex >= 0 && myIndex < siblingIds.length - 1);
-    if (!hasNeighbour) return;
-
-    // cancelled guards against the async storage read completing after the
-    // effect has been cleaned up (e.g. component unmounts mid-flight).
-    let cancelled = false;
-
-    AsyncStorage.getItem(SWIPE_HINT_SEEN_KEY).then((seen) => {
-      if (seen || cancelled) return;
-      swipeHintVisible.current = true;
-      showHintTimerRef.current = setTimeout(() => {
-        showHintTimerRef.current = null;
-        if (cancelled || !swipeHintVisible.current) return;
-        Animated.timing(swipeHintOpacity, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }).start(() => {
-          if (cancelled || !swipeHintVisible.current) return;
-          autoHintTimerRef.current = setTimeout(() => {
-            autoHintTimerRef.current = null;
-            dismissHintRef.current();
-          }, 2000);
-        });
-      }, 700);
-    }).catch(() => {});
-
-    return () => {
-      cancelled = true;
-      if (showHintTimerRef.current !== null) {
-        clearTimeout(showHintTimerRef.current);
-        showHintTimerRef.current = null;
-      }
-      if (autoHintTimerRef.current !== null) {
-        clearTimeout(autoHintTimerRef.current);
-        autoHintTimerRef.current = null;
-      }
-    };
-  }, [siblingIds]);
-
-  // Keep a mutable ref so the PanResponder closure (created once) always sees
-  // the latest prevId / nextId without needing to be recreated.
-  const activeTabRef = useRef<AnalysisTab>(activeTab);
-  useEffect(() => {
-    activeTabRef.current = activeTab;
-  }, [activeTab]);
-
-  const navRef = useRef<{ prevId: string | null; nextId: string | null }>({
-    prevId: null,
-    nextId: null,
-  });
-  useEffect(() => {
-    navRef.current = { prevId, nextId };
-  }, [prevId, nextId]);
-
-  // Keep router in a ref for the same reason.
-  const routerRef = useRef(router);
-  useEffect(() => {
-    routerRef.current = router;
-  }, [router]);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      // Only capture when horizontal movement clearly dominates vertical.
-      onMoveShouldSetPanResponder: (_, { dx, dy }) =>
-        shouldActivateSwipe(dx, dy),
-      onPanResponderMove: (_, { dx }) => {
-        const { prevId: pId, nextId: nId } = navRef.current;
-        swipeAnim.setValue(resolveSwipeTranslation(dx, pId, nId));
-      },
-      onPanResponderRelease: (_, { dx, vx }) => {
-        const { prevId: pId, nextId: nId } = navRef.current;
-        const direction = resolveSwipeDirection(dx, vx, pId, nId);
-        const goNext = direction === "next";
-        const goPrev = direction === "prev";
-
-        if (goNext) {
-          dismissHintRef.current();
-          Animated.timing(swipeAnim, {
-            toValue: -SCREEN_WIDTH,
-            duration: 220,
-            useNativeDriver: true,
-          }).start(() => {
-            swipeAnim.setValue(0);
-            routerRef.current.replace(`/analysis/${nId}?tab=${activeTabRef.current}` as any);
-          });
-        } else if (goPrev) {
-          dismissHintRef.current();
-          Animated.timing(swipeAnim, {
-            toValue: SCREEN_WIDTH,
-            duration: 220,
-            useNativeDriver: true,
-          }).start(() => {
-            swipeAnim.setValue(0);
-            routerRef.current.replace(`/analysis/${pId}?tab=${activeTabRef.current}` as any);
-          });
-        } else {
-          Animated.spring(swipeAnim, {
-            toValue: 0,
-            useNativeDriver: true,
-            speed: 25,
-            bounciness: 4,
-          }).start();
-        }
-      },
-      onPanResponderTerminate: () => {
-        Animated.spring(swipeAnim, {
-          toValue: 0,
-          useNativeDriver: true,
-          speed: 25,
-          bounciness: 4,
-        }).start();
-      },
-    })
-  ).current;
-
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 20;
-
-  async function handleAskCoach() {
-    if (!analysis) return;
-    const worst = SCORE_KEYS.map((k) => ({
-      key: k,
-      score: scoreForKey(analysis, k),
-    })).sort((a, b) => a.score - b.score)[0];
-    const msg = `I just reviewed my "${analysis.title}" (${analysis.sport}) session. My overall score was ${Math.round(analysis.overallScore ?? 0)}/100. My weakest area is ${worst?.key ?? "technique"} (${Math.round(worst?.score ?? 0)}). What's the single most impactful thing I can do to improve?`;
-    await AsyncStorage.setItem(PENDING_CHAT_KEY, msg);
-    router.push("/(tabs)/chat" as any);
-  }
-
-  async function handleShare() {
-    if (!analysis) return;
-    // Prefer the AsyncStorage-persisted tip for this analysis (survives restarts);
-    // fall back to the in-session memory ref, then to the highest-severity tip.
-    let initialTip: string | null;
-    try {
-      const stored = await AsyncStorage.getItem(`${SHARE_TIP_KEY_PREFIX}${analysis.id}`);
-      initialTip = stored ?? shareTipMemoryRef.current[analysis.id] ?? (topTip?.id ?? null);
-    } catch {
-      initialTip = shareTipMemoryRef.current[analysis.id] ?? (topTip?.id ?? null);
-    }
-    setSelectedShareTipId(initialTip);
-    setSharingUnavailable(false);
-    _openSharePreview();
-  }
-
-  async function handleDoShare() {
-    if (!analysis || sharing) return;
-    setSharing(true);
-    try {
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (!isAvailable) {
-        setSharingUnavailable(true);
-        return;
-      }
-      const uri = await captureRef(shareCardRef, SHARE_CARD_CAPTURE_OPTIONS);
-      handleCancelShare();
-
-      const payload = buildSessionSharePayload(id ?? "", analysis.sport ?? "", uri);
-
-      if (Platform.OS === "ios") {
-        await Share.share({ url: payload.url, message: payload.message });
-      } else {
-        const contentUri = await FileSystem.getContentUriAsync(uri);
-        await IntentLauncher.startActivityAsync("android.intent.action.SEND", {
-          type: "image/png",
-          extra: {
-            "android.intent.extra.STREAM": contentUri,
-            "android.intent.extra.TEXT": payload.message,
-            "android.intent.extra.SUBJECT": `My ${analysis.sport} session on AthleteAI`,
-          },
-          flags: 1,
-        });
-      }
-      setLastShareAction("share");
-      AsyncStorage.setItem(LAST_SHARE_ACTION_KEY, "share").catch(() => {});
-    } catch {
-      Alert.alert("Couldn't share", "Something went wrong. Please try again.");
-    } finally {
-      setSharing(false);
-    }
-  }
-
-  async function handleSaveToPhotos() {
-    if (!analysis || saving) return;
-    if (Platform.OS === "web") return;
-    setSaving(true);
-    try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission required",
-          "Please allow photo library access in your device settings to save images."
-        );
-        return;
-      }
-      const uri = await captureRef(shareCardRef, SHARE_CARD_CAPTURE_OPTIONS);
-      await MediaLibrary.saveToLibraryAsync(uri);
-      setLastShareAction("save");
-      AsyncStorage.setItem(LAST_SHARE_ACTION_KEY, "save").catch(() => {});
-      Alert.alert("Saved!", "Your share card has been saved to your camera roll.");
-    } catch {
-      Alert.alert("Couldn't save", "Something went wrong. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDelete() {
-    Alert.alert(
-      "Delete Analysis",
-      "This will permanently remove this session and all its data.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            if (deleting) return;
-            setDeleting(true);
-            try {
-              await analysesApi.delete(id!);
-              await AsyncStorage.removeItem(`frameTicks_${id!}`).catch(() => {});
-              router.back();
-            } catch {
-              setDeleting(false);
-              Alert.alert("Error", "Failed to delete. Please try again.");
-            }
-          },
-        },
-      ]
-    );
-  }
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -792,112 +62,14 @@ export default function AnalysisDetailScreen() {
     }
   }, [id]);
 
-  useEffect(() => {
-    jointTrendsApi.get().then(setJointTrendsData).catch(() => {});
-  }, []);
-
-  function dismissToast() {
-    if (toastTimerRef.current) {
-      clearTimeout(toastTimerRef.current);
-      toastTimerRef.current = null;
-    }
-    Animated.parallel([
-      Animated.timing(toastOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
-      Animated.timing(toastTranslate, { toValue: 60, duration: 250, useNativeDriver: true }),
-    ]).start(() => setGoalToast(null));
-  }
-
-  // Clean up auto-dismiss timer if component unmounts while toast is visible
-  useEffect(() => {
-    return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    };
-  }, []);
-
-  async function checkGoalToast() {
-    // Uses the same AsyncStorage keys and "just crossed" detection as the Home confetti
-    const weekKey      = getWeekKey();
-    const celebratedKey = `confetti_celebrated_${weekKey}`;
-    const pendingKey    = `confetti_pending_${weekKey}`;
-    const prevCountKey  = `confetti_prev_count_${weekKey}`;
-    try {
-      const [statsResult, profileResult] = await Promise.all([
-        profileApi.stats(),
-        profileApi.get(),
-      ]);
-      const currentCount = statsResult.thisWeekCount ?? 0;
-      // Always use the freshest weeklyGoal from the server — the cached context
-      // value may be stale if the user changed their goal mid-week in Settings.
-      const weeklyGoal = profileResult.profile.weeklyGoal ?? profile?.weeklyGoal ?? 3;
-
-      const [celebrated, pending, prevCountStr] = await Promise.all([
-        AsyncStorage.getItem(celebratedKey),
-        AsyncStorage.getItem(pendingKey),
-        AsyncStorage.getItem(prevCountKey),
-      ]);
-      const prevCount = prevCountStr !== null ? parseInt(prevCountStr, 10) : null;
-
-      // Mirror the Home screen's "just crossed" condition exactly:
-      //   - an explicit pending flag written by analyze.tsx on upload, OR
-      //   - the stored prev-count snapshot was below the goal
-      const justCrossed =
-        pending !== null ||
-        (prevCount !== null && prevCount < weeklyGoal);
-
-      if (!celebrated && weeklyGoal > 0 && currentCount >= weeklyGoal && justCrossed) {
-        await Promise.all([
-          AsyncStorage.setItem(celebratedKey, "true"),
-          AsyncStorage.removeItem(pendingKey),
-          AsyncStorage.setItem(prevCountKey, String(currentCount)),
-        ]);
-        setGoalToast({ count: currentCount, goal: weeklyGoal });
-        setShowConfetti(true);
-        Animated.parallel([
-          Animated.timing(toastOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-          Animated.spring(toastTranslate, { toValue: 0, useNativeDriver: true, speed: 14, bounciness: 6 }),
-        ]).start();
-        toastTimerRef.current = setTimeout(() => dismissToast(), 3500);
-      }
-    } catch {
-      // toast is non-critical — swallow errors silently
-    }
-  }
-
-  // Detect the exact moment status transitions to 'complete' to fire the toast
-  useEffect(() => {
-    if (!analysis) return;
-    const prev = prevStatusRef.current;
-    prevStatusRef.current = analysis.status;
-    if (analysis.status === "complete" && prev !== null && prev !== "complete") {
-      checkGoalToast();
-    }
-  }, [analysis?.status]);
-
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
+  useEffect(() => { load(); }, [load]);
 
   // Poll while processing
-  const isProcessing =
-    !!analysis &&
-    analysis.status !== "complete" &&
-    analysis.status !== "failed";
   useEffect(() => {
-    if (!isProcessing || pollExhausted) return;
-    let count = 0;
-    const timer = setInterval(() => {
-      count += 1;
-      if (count > 45) {
-        clearInterval(timer);
-        setPollExhausted(true);
-        return;
-      }
-      load();
-    }, 4000);
+    if (!analysis || analysis.status === "complete" || analysis.status === "failed") return;
+    const timer = setInterval(load, 4000);
     return () => clearInterval(timer);
-  }, [isProcessing, pollExhausted, load]);
+  }, [analysis, load]);
 
   function getScoreColor(score: number) {
     if (score >= 80) return colors.success;
@@ -905,978 +77,240 @@ export default function AnalysisDetailScreen() {
     return colors.warning;
   }
 
-  // ── Loading ──
+  function getRiskColor(pct: number) {
+    if (pct >= 50) return colors.destructive;
+    if (pct >= 30) return colors.warning;
+    return colors.success;
+  }
+
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <AnimatedLoadingState />
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
   }
 
-  // ── Error ──
   if (error || !analysis) {
     return (
-      <StateScreen
-        icon="wifi-off"
-        iconColor={colors.destructive}
-        heading="Couldn't load analysis"
-        body="We couldn't fetch this session. Check your connection and try again."
-        primaryLabel="Try again"
-        onPrimary={() => { setLoading(true); setError(false); load(); }}
-        secondaryLabel="Go back"
-        onSecondary={() => router.back()}
-      />
-    );
-  }
-
-  // ── Processing / pending ──
-  if (analysis.status === "processing" || analysis.status === "pending") {
-    if (pollExhausted) {
-      return (
-        <StateScreen
-          icon="clock"
-          iconColor={colors.warning}
-          heading="Taking longer than usual"
-          body="Your analysis is still processing in the background. You can check again or come back in a moment."
-          primaryLabel="Check again"
-          onPrimary={() => { setPollExhausted(false); load(); }}
-          secondaryLabel="Go back"
-          onSecondary={() => router.back()}
-        />
-      );
-    }
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <AnimatedLoadingState />
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 12 }}>
+        <Feather name="alert-circle" size={32} color={colors.destructive} />
+        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Analysis not found</Text>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={{ color: colors.primary, fontFamily: "Inter_500Medium" }}>Go back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
-  // ── Failed ──
+  // Still processing — show a waiting screen
+  if (analysis.status === "processing" || analysis.status === "pending") {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 16, paddingHorizontal: 32 }}>
+        <ActivityIndicator color={colors.primary} size="large" />
+        <Text style={{ fontSize: 17, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
+          Analyzing your video…
+        </Text>
+        <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }}>
+          Our AI is reviewing your movement. This usually takes 10–30 seconds.
+        </Text>
+      </View>
+    );
+  }
+
   if (analysis.status === "failed") {
     return (
-      <StateScreen
-        icon="video-off"
-        iconColor={colors.warning}
-        heading="We couldn't process this video"
-        body={"Try uploading a clearer clip — good lighting, a steady camera, and keeping the action within frame all help. Shorter clips (under 60 s) also work best."}
-        primaryLabel="Try again"
-        onPrimary={() => router.push("/(tabs)/analyze" as any)}
-        secondaryLabel="Go back"
-        onSecondary={() => router.back()}
-      />
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 32 }}>
+        <Feather name="x-circle" size={32} color={colors.destructive} />
+        <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>Analysis failed</Text>
+        <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }}>
+          Something went wrong processing your video. Please try uploading again.
+        </Text>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={{ color: colors.primary, fontFamily: "Inter_500Medium" }}>Go back</Text>
+        </TouchableOpacity>
+      </View>
     );
   }
 
-  // ── Derived values ──
   const overallScore = analysis.overallScore ?? 0;
 
-  const rankedScores = SCORE_KEYS.map((k) => ({
-    key: k,
-    score: scoreForKey(analysis, k),
-  })).sort((a, b) => a.score - b.score);
-
-  const worstMetric = rankedScores[0];
-  const bestMetric = rankedScores[rankedScores.length - 1];
-
-  const sortedTips = [...tips].sort((a, b) => {
-    const order: Record<string, number> = { critical: 0, warning: 1, info: 2 };
-    return (order[a.severity] ?? 2) - (order[b.severity] ?? 2);
+  const s = StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    heroCard: {
+      margin: 20,
+      backgroundColor: colors.card,
+      borderRadius: colors.radius,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    heroTitle: { fontSize: 22, fontFamily: "Archivo_800ExtraBold", color: colors.foreground, letterSpacing: -0.4 },
+    heroMeta:  { fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 4, textTransform: "capitalize" },
+    scoreRow:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 16 },
+    overallCircle: {
+      width: 72, height: 72, borderRadius: 36,
+      borderWidth: 3, borderColor: colors.primary,
+      backgroundColor: colors.primary + "20",
+      alignItems: "center", justifyContent: "center",
+    },
+    overallNum:   { fontSize: 26, fontFamily: "Archivo_800ExtraBold", color: colors.primary, letterSpacing: -0.5 },
+    overallLabel: { fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
+    scoresMini:   { flex: 1, marginLeft: 16, gap: 6 },
+    scoreMiniRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+    scoreMiniLabel: { fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular", width: 78, textTransform: "capitalize" },
+    scoreMiniBarBg: { flex: 1, height: 5, backgroundColor: colors.border, borderRadius: 2.5 },
+    scoreMiniBarFill: { height: 5, borderRadius: 2.5 },
+    scoreMiniNum: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: colors.foreground, width: 28, textAlign: "right" },
+    tabRow: {
+      flexDirection: "row", marginHorizontal: 20, marginBottom: 16,
+      backgroundColor: colors.card, borderRadius: 10, padding: 4,
+    },
+    tab:     { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 8 },
+    tabText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+    section: { paddingHorizontal: 20, marginBottom: 16 },
+    listItem: { flexDirection: "row", gap: 10, marginBottom: 10, alignItems: "flex-start" },
+    dot:      { width: 6, height: 6, borderRadius: 3, marginTop: 7 },
+    listText: { fontSize: 14, color: colors.foreground, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 20 },
+    tipCard:   { backgroundColor: colors.card, borderRadius: colors.radius, marginBottom: 10, borderWidth: 1, overflow: "hidden" },
+    tipHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
+    tipTitle:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground, flex: 1 },
+    tipBody:   { paddingHorizontal: 14, paddingBottom: 14 },
+    tipDesc:   { fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", lineHeight: 19 },
+    drillBox:  { marginTop: 10, backgroundColor: colors.muted, borderRadius: 8, padding: 10 },
+    drillLabel:{ fontSize: 11, color: colors.primary, fontFamily: "Inter_600SemiBold", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },
+    drillText: { fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular", lineHeight: 17 },
+    riskCard:  { backgroundColor: colors.card, borderRadius: colors.radius, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border },
+    riskRow:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+    riskJoint: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground },
+    riskPct:   { fontSize: 16, fontFamily: "Inter_700Bold" },
+    riskBarBg: { height: 6, backgroundColor: colors.border, borderRadius: 3, marginBottom: 8 },
+    riskBarFill:{ height: 6, borderRadius: 3 },
+    riskDesc:  { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginBottom: 4 },
+    riskPrev:  { fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular" },
+    prevLabel: { color: colors.primary, fontFamily: "Inter_500Medium" },
   });
 
-  const topTip = sortedTips[0];
-
-  // The tip shown on the share card — defaults to topTip, can be overridden by picker
-  const selectedShareTip =
-    sortedTips.find((t) => t.id === selectedShareTipId) ?? topTip;
-
-  // Auto-expand top tip (critical/warning)
-  const defaultExpandedId =
-    expandedTip === null
-      ? (sortedTips.find((t) => t.severity === "critical" || t.severity === "warning")?.id ?? sortedTips[0]?.id ?? null)
-      : expandedTip;
-
-  const firstDrill = tips.find((t) => t.drill)?.drill;
-
-  // Summary: first 1–2 sentences from the first tip description
-  const summaryText = (() => {
-    if (!topTip) return null;
-    const sentences = topTip.description.split(/(?<=\.)\s+/);
-    return sentences.slice(0, 2).join(" ");
-  })();
-
-  const sportLabel = toTitleCase(analysis.sport);
-
-  const overallBand = getScoreBand(overallScore);
-
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* ── Navigation header ── */}
-      <View
-        style={[
-          styles.navBar,
-          {
-            paddingTop: topPad + 4,
-            borderBottomColor: colors.border,
-            backgroundColor: colors.background,
-          },
-        ]}
-      >
-        <TouchableOpacity
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-          style={styles.navBtn}
-        >
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
-          <Text
-            style={[styles.navBtnText, { color: colors.foreground }]}
-          >
-            Back
+    <View style={s.container}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomPad }}>
+        <View style={s.heroCard}>
+          <Text style={s.heroTitle}>{analysis.title}</Text>
+          <Text style={s.heroMeta}>
+            {analysis.sport}
+            {analysis.duration ? ` · ${analysis.duration}s` : ""}
+            {" · "}{formatDate(analysis.uploadedAt)}
           </Text>
-        </TouchableOpacity>
 
-        <View style={styles.navCenter}>
-          {/* ← prev */}
-          <TouchableOpacity
-            onPress={() => prevId && navigateTo(prevId)}
-            disabled={!prevId}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Previous session"
-            style={[
-              styles.sessionNavBtn,
-              { opacity: prevId ? 1 : 0.25 },
-            ]}
-          >
-            <Feather name="chevron-left" size={18} color={colors.foreground} />
-          </TouchableOpacity>
-
-          <View style={styles.navCenterBadgeCol}>
-            <View
-              style={[
-                styles.sportBadge,
-                { backgroundColor: colors.primary + "18", borderColor: colors.primary + "44" },
-              ]}
-            >
-              <Text style={[styles.sportBadgeText, { color: colors.primary }]}>
-                {sportLabel}
-              </Text>
+          <View style={s.scoreRow}>
+            <View style={s.overallCircle}>
+              <Text style={s.overallNum}>{Math.round(overallScore)}</Text>
+              <Text style={s.overallLabel}>SCORE</Text>
             </View>
-            {siblingIds.length > 1 && currIndex >= 0 && (
-              <Text
-                style={[styles.sessionCounter, { color: colors.mutedForeground }]}
-                accessibilityLabel={`Session ${currIndex + 1} of ${siblingIds.length}`}
-              >
-                {currIndex + 1} of {siblingIds.length}
-              </Text>
-            )}
-          </View>
-
-          {/* next → */}
-          <TouchableOpacity
-            onPress={() => nextId && navigateTo(nextId)}
-            disabled={!nextId}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Next session"
-            style={[
-              styles.sessionNavBtn,
-              { opacity: nextId ? 1 : 0.25 },
-            ]}
-          >
-            <Feather name="chevron-right" size={18} color={colors.foreground} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          <TouchableOpacity
-            onPress={() => { if (analysis) handleShare(); }}
-            activeOpacity={0.7}
-            disabled={sharing}
-            accessibilityRole="button"
-            accessibilityLabel="Share analysis"
-            style={{ padding: 6 }}
-          >
-            {sharing ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <Feather name="share-2" size={18} color={colors.primary} />
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleDelete}
-            activeOpacity={0.7}
-            disabled={deleting}
-            accessibilityRole="button"
-            accessibilityLabel="Delete analysis"
-            style={{ padding: 6 }}
-          >
-            {deleting ? (
-              <ActivityIndicator size="small" color={colors.destructive} />
-            ) : (
-              <Feather name="trash-2" size={18} color={colors.destructive} />
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Hidden share card — captured by react-native-view-shot.
-          Style comes from HIDDEN_SHARE_CARD_STYLE (utils/shareCardCapture.ts).
-          DO NOT swap back to top/left:-9999 — Android composits only on-screen
-          views; off-screen placement produces a blank PNG. */}
-      <View
-        ref={shareCardRef}
-        testID="share-card-wrapper"
-        collapsable={false}
-        pointerEvents="none"
-        style={HIDDEN_SHARE_CARD_STYLE}
-      >
-        <ShareCard analysis={analysis} topTip={selectedShareTip?.title} colorScheme={shareScheme} accent={colors.primary} />
-      </View>
-
-      {/* ── Share preview modal ── */}
-      <Modal
-        visible={showSharePreview}
-        animationType="slide"
-        transparent
-        onRequestClose={handleCancelShare}
-      >
-        <View style={styles.shareModalBackdrop}>
-          <View
-            style={[
-              styles.shareModalSheet,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
-            {/* Handle bar */}
-            <View
-              style={[styles.sheetHandle, { backgroundColor: colors.border }]}
-            />
-
-            <Text
-              style={[styles.sheetTitle, { color: colors.foreground }]}
-            >
-              Share your session
-            </Text>
-            <Text
-              style={[styles.sheetSubtitle, { color: colors.mutedForeground }]}
-            >
-              Here's what others will see
-            </Text>
-
-            {/* Sharing unavailable notice */}
-            {sharingUnavailable && (
-              <View
-                style={[
-                  styles.sharingUnavailableBanner,
-                  { backgroundColor: colors.muted, borderColor: colors.border },
-                ]}
-              >
-                <Feather name="alert-circle" size={14} color={colors.mutedForeground} />
-                <Text style={[styles.sharingUnavailableText, { color: colors.mutedForeground }]}>
-                  Sharing isn't supported on this device. Save to photos instead.
-                </Text>
-              </View>
-            )}
-
-            {/* Scheme picker — dark / light thumbnails */}
-            <View style={styles.schemePicker}>
-              {(["dark", "light"] as const).map((scheme) => {
-                const pal      = scheme === "dark" ? SHARE_CARD_DARK : SHARE_CARD_LIGHT;
-                const selected = shareScheme === scheme;
+            <View style={s.scoresMini}>
+              {SCORE_KEYS.map((key) => {
+                const score = scoreForKey(analysis, key);
+                const clr = getScoreColor(score);
                 return (
-                  <TouchableOpacity
-                    key={scheme}
-                    onPress={() => {
-                      setShareScheme(scheme);
-                      AsyncStorage.setItem(SHARE_CARD_SCHEME_KEY, scheme).catch(() => {});
-                    }}
-                    activeOpacity={0.75}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected }}
-                    accessibilityLabel={scheme === "dark" ? "Dark" : "Light"}
-                    style={[
-                      styles.schemePill,
-                      selected && { borderColor: colors.primary },
-                    ]}
-                  >
-                    {/* Mini card */}
-                    <View
-                      style={[
-                        styles.miniCard,
-                        { backgroundColor: pal.cardBg, borderColor: pal.cardBorder },
-                      ]}
-                    >
-                      <View
-                        style={[styles.miniCardBar, { backgroundColor: colors.primary }]}
-                      />
-                      <View style={styles.miniCardLines}>
-                        <View
-                          style={[styles.miniCardLine, { backgroundColor: pal.textPrimary, width: "75%" }]}
-                        />
-                        <View
-                          style={[styles.miniCardLine, { backgroundColor: pal.textMuted, width: "50%", marginTop: 4 }]}
-                        />
-                        <View
-                          style={[styles.miniCardLine, { backgroundColor: pal.textMuted, width: "60%", marginTop: 4 }]}
-                        />
-                      </View>
+                  <View key={key} style={s.scoreMiniRow}>
+                    <Text style={s.scoreMiniLabel}>{key}</Text>
+                    <View style={s.scoreMiniBarBg}>
+                      <View style={[s.scoreMiniBarFill, { width: `${score}%` as any, backgroundColor: clr }]} />
                     </View>
-                    {/* Label */}
-                    <View style={styles.schemePillLabel}>
-                      {selected && (
-                        <Feather name="check-circle" size={11} color={colors.primary} />
-                      )}
-                      <Text
-                        style={[
-                          styles.schemePillText,
-                          { color: selected ? colors.primary : colors.mutedForeground },
-                        ]}
-                      >
-                        {scheme === "dark" ? "Dark" : "Light"}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
+                    <Text style={s.scoreMiniNum}>{Math.round(score)}</Text>
+                  </View>
                 );
               })}
             </View>
-
-            {/* Card preview */}
-            <View style={styles.shareCardPreviewWrap}>
-              <ShareCard analysis={analysis} topTip={selectedShareTip?.title} colorScheme={shareScheme} accent={colors.primary} />
-            </View>
-
-            {/* Tip picker — only shown when there are multiple tips */}
-            {sortedTips.length > 1 && (
-              <View style={styles.tipPickerWrap}>
-                <Text style={[styles.tipPickerLabel, { color: colors.mutedForeground }]}>
-                  Choose which tip to feature
-                </Text>
-                <ScrollView
-                  horizontal={false}
-                  style={styles.tipPickerList}
-                  showsVerticalScrollIndicator={false}
-                  nestedScrollEnabled
-                >
-                  {sortedTips.map((tip) => {
-                    const isSelected = tip.id === (selectedShareTipId ?? topTip?.id);
-                    return (
-                      <TouchableOpacity
-                        key={tip.id}
-                        testID={`tip-picker-${tip.id}`}
-                        onPress={() => {
-                          setSelectedShareTipId(tip.id);
-                          if (analysis) {
-                            shareTipMemoryRef.current[analysis.id] = tip.id;
-                            AsyncStorage.setItem(`${SHARE_TIP_KEY_PREFIX}${analysis.id}`, tip.id).catch(() => {});
-                          }
-                        }}
-                        activeOpacity={0.7}
-                        style={[
-                          styles.tipPickerItem,
-                          {
-                            borderColor: isSelected ? colors.primary : colors.border,
-                            backgroundColor: isSelected
-                              ? colors.primary + "14"
-                              : colors.background,
-                          },
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.tipPickerDot,
-                            {
-                              backgroundColor: isSelected
-                                ? colors.primary
-                                : colors.border,
-                            },
-                          ]}
-                        />
-                        <Text
-                          style={[
-                            styles.tipPickerItemText,
-                            {
-                              color: isSelected
-                                ? colors.foreground
-                                : colors.mutedForeground,
-                              fontFamily: isSelected
-                                ? "Inter_600SemiBold"
-                                : "Inter_400Regular",
-                            },
-                          ]}
-                          numberOfLines={2}
-                        >
-                          {tip.title}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            )}
-
-            {/* Actions */}
-            <TouchableOpacity
-              onPress={handleSaveToPhotos}
-              activeOpacity={0.7}
-              disabled={saving || sharing}
-              style={[
-                styles.sheetBtn,
-                styles.sheetBtnSave,
-                lastShareAction === "save"
-                  ? { backgroundColor: colors.primary, marginBottom: 10, width: "100%" }
-                  : { borderColor: colors.border, backgroundColor: colors.background, marginBottom: 10, width: "100%" },
-              ]}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color={lastShareAction === "save" ? "#fff" : colors.foreground} />
-              ) : (
-                <>
-                  <Feather name="download" size={15} color={lastShareAction === "save" ? "#fff" : colors.foreground} />
-                  <Text style={[styles.sheetBtnText, { color: lastShareAction === "save" ? "#fff" : colors.foreground }]}>
-                    Save to photos
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <View style={styles.sheetActions}>
-              <TouchableOpacity
-                onPress={handleCancelShare}
-                activeOpacity={0.7}
-                style={[
-                  styles.sheetBtn,
-                  styles.sheetBtnCancel,
-                  { borderColor: colors.border, backgroundColor: colors.background },
-                ]}
-              >
-                <Text
-                  style={[styles.sheetBtnText, { color: colors.foreground }]}
-                >
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                testID="share-cta-btn"
-                onPress={handleDoShare}
-                activeOpacity={0.7}
-                disabled={sharing || saving}
-                style={[
-                  styles.sheetBtn,
-                  styles.sheetBtnShare,
-                  lastShareAction === "share"
-                    ? { backgroundColor: colors.primary }
-                    : { borderColor: colors.border, backgroundColor: colors.background, borderWidth: 1 },
-                ]}
-              >
-                {sharing ? (
-                  <ActivityIndicator size="small" color={lastShareAction === "share" ? "#fff" : colors.foreground} />
-                ) : (
-                  <>
-                    <Feather name="share-2" size={15} color={lastShareAction === "share" ? "#fff" : colors.foreground} />
-                    <Text style={[styles.sheetBtnText, { color: lastShareAction === "share" ? "#fff" : colors.foreground }]}>
-                      Share
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
           </View>
-        </View>
-      </Modal>
 
-      <Animated.View
-        testID="swipe-container"
-        style={{ flex: 1, transform: [{ translateX: swipeAnim }] }}
-        {...panResponder.panHandlers}
-      >
-      <ScrollView
-        ref={scrollRef}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: bottomPad }}
-        scrollEventThrottle={16}
-        onLayout={(e) => {
-          scrollViewHeight.current = e.nativeEvent.layout.height;
-        }}
-        onScroll={({ nativeEvent }) => {
-          if (cardsVisible || scoreGridY.current === null) return;
-          const { contentOffset, layoutMeasurement } = nativeEvent;
-          if (scoreGridY.current < contentOffset.y + layoutMeasurement.height) {
-            setCardsVisible(true);
-          }
-        }}
-      >
-        {/* ── Sport / date pill header (replaces full-bleed thumbnail) ── */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 2, flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <View style={{ backgroundColor: colors.primary + "18", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: colors.primary + "33" }}>
-            <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.primary }}>
-              {analysis.sport ? analysis.sport.charAt(0).toUpperCase() + analysis.sport.slice(1) : "Analysis"}
+          <TouchableOpacity
+            style={{
+              flexDirection: "row", alignItems: "center", justifyContent: "center",
+              gap: 8, marginTop: 16, backgroundColor: "rgba(255,255,255,0.06)",
+              borderRadius: 12, borderWidth: 1, borderColor: colors.primary + "55", paddingVertical: 12,
+            }}
+            activeOpacity={0.75}
+            onPress={() => router.push(`/analysis/skeleton/${id}`)}
+          >
+            <Feather name="user" size={16} color={colors.primary} />
+            <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.primary }}>
+              View Skeleton Overlay
             </Text>
-          </View>
-          <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>
-            {new Date(analysis.uploadedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-          </Text>
+            <Feather name="chevron-right" size={14} color={colors.primary} />
+          </TouchableOpacity>
         </View>
 
-        {/* ── Focal composition: score ring + strength/opportunity + CTA ── */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4, gap: 10 }}>
+        <View style={s.tabRow}>
+          {(["scores", "tips", "risks", "ai"] as const).map((tab) => {
+            const active = activeTab === tab;
+            const label = tab === "scores" ? "Highlights" : tab === "risks" ? "Injury" : tab === "tips" ? "Tips" : "AI";
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[s.tab, active && { backgroundColor: colors.primary }]}
+                onPress={() => setActiveTab(tab)}
+                activeOpacity={0.7}
+              >
+                <Text style={[s.tabText, { color: active ? colors.primaryForeground : colors.mutedForeground }]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-          {/* Row 1: Score ring (large) + strength/opportunity columns */}
-          <View style={{
-            flexDirection: "row",
-            gap: 10,
-          }}>
-            {/* Score ring module */}
-            <View style={{
-              flex: 1.2,
-              paddingVertical: 14, paddingHorizontal: 12,
-              alignItems: "center", justifyContent: "center",
-            }}>
-              <ScoreRing
-                score={overallScore}
-                size={88}
-                strokeWidth={7}
-                color={overallBand.color}
-                label="OVERALL"
-                animate={!ringAnimationDone.has(analysis.id)}
-                onAnimationComplete={() => ringAnimationDone.add(analysis.id)}
-              />
-              <Text style={[TYPE.caption, { color: overallBand.color, marginTop: 6, textAlign: "center" }]}>
-                {overallBand.label}
+        {activeTab === "scores" && (
+          <View style={s.section}>
+            <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.success, marginBottom: 10 }}>
+              Strengths
+            </Text>
+            {(analysis.strengths ?? []).map((str, i) => (
+              <View key={i} style={s.listItem}>
+                <View style={[s.dot, { backgroundColor: colors.success }]} />
+                <Text style={s.listText}>{str}</Text>
+              </View>
+            ))}
+            <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.warning, marginBottom: 10, marginTop: 8 }}>
+              Areas to Improve
+            </Text>
+            {(analysis.improvements ?? []).map((imp, i) => (
+              <View key={i} style={s.listItem}>
+                <View style={[s.dot, { backgroundColor: colors.warning }]} />
+                <Text style={s.listText}>{imp}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {activeTab === "tips" && (
+          <View style={s.section}>
+            {tips.length === 0 ? (
+              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 24 }}>
+                No coaching tips available
               </Text>
-            </View>
-
-            {/* Strength + opportunity stacked */}
-            <View style={{ flex: 1, gap: 10 }}>
-              <View style={{
-                flex: 1,
-                padding: 12, alignItems: "center",
-                borderBottomWidth: 1, borderBottomColor: colors.border,
-              }}>
-                <Text style={[TYPE.captionMed, { color: colors.success, marginBottom: 4 }]}>
-                  Top Strength
-                </Text>
-                <Text style={[TYPE.title, { color: colors.success }]}>
-                  {Math.round(bestMetric.score)}
-                </Text>
-                <Text style={[TYPE.caption, { color: colors.mutedForeground, marginTop: 2, textTransform: "capitalize" }]}>
-                  {bestMetric.key}
-                </Text>
-              </View>
-
-              <View style={{
-                flex: 1,
-                padding: 12, alignItems: "center",
-              }}>
-                <Text style={[TYPE.captionMed, { color: colors.warning, marginBottom: 4 }]}>
-                  To Improve
-                </Text>
-                <Text style={[TYPE.title, { color: colors.warning }]}>
-                  {Math.round(worstMetric.score)}
-                </Text>
-                <Text style={[TYPE.caption, { color: colors.mutedForeground, marginTop: 2, textTransform: "capitalize" }]}>
-                  {worstMetric.key}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Row 2: View Movement + Ask Coach CTAs */}
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <TouchableOpacity
-              onPress={() => router.push(`/analysis/skeleton/${id}?tab=${activeTab}` as any)}
-              activeOpacity={0.85}
-              style={{
-                flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-                gap: 8, backgroundColor: colors.primary, borderRadius: colors.radius, paddingVertical: 14,
-              }}
-            >
-              <Feather name="play-circle" size={16} color="#fff" />
-              <Text style={[TYPE.bodySemi, { color: "#fff" }]}>Movement</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleAskCoach}
-              activeOpacity={0.85}
-              style={{
-                flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-                gap: 8, backgroundColor: colors.success + "18", borderRadius: colors.radius,
-                paddingVertical: 14, borderWidth: 1, borderColor: colors.success + "55",
-              }}
-            >
-              <Feather name="message-circle" size={16} color={colors.success} />
-              <Text style={[TYPE.bodySemi, { color: colors.success }]}>Ask Coach</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Row 3: Next action strip */}
-          {topTip && (
-            <View style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-              backgroundColor: colors.card,
-              borderRadius: colors.radius,
-              borderWidth: 1, borderColor: colors.border,
-              borderLeftWidth: 3, borderLeftColor: colors.primary,
-              paddingHorizontal: 14, paddingVertical: 12,
-            }}>
-              <Feather name="arrow-right-circle" size={16} color={colors.primary} />
-              <View style={{ flex: 1 }}>
-                <Text style={[TYPE.captionMed, { color: colors.primary, marginBottom: 2 }]}>
-                  Next Action
-                </Text>
-                <Text style={[TYPE.label, { color: colors.foreground }]} numberOfLines={2}>
-                  {topTip.title}
-                </Text>
-              </View>
-            </View>
-          )}
-        </View>
-
-
-        {/* ── Expandable: Your Scores ── */}
-        <View
-          style={styles.sectionWrap}
-          onLayout={(e) => {
-            const y = e.nativeEvent.layout.y;
-            scoreGridY.current = y;
-            if (!cardsVisible && scrollViewHeight.current > 0 && y < scrollViewHeight.current) {
-              setCardsVisible(true);
-            }
-          }}
-        >
-          <TouchableOpacity onPress={() => toggleSection("scores")} activeOpacity={0.7}
-            style={{ flexDirection: "row", alignItems: "center" }}>
-            <View style={{ flex: 1 }}>
-              <SectionHeader title="Your Scores" icon="bar-chart-2" accentColor={colors.primary} />
-            </View>
-            <Feather name={expandedSections.has("scores") ? "chevron-up" : "chevron-down"}
-              size={16} color={colors.mutedForeground} style={{ marginBottom: 14 }} />
-          </TouchableOpacity>
-          {expandedSections.has("scores") && (
-            <View style={styles.scoreGrid}>
-              {SCORE_KEYS.map((key, i) => (
-                <View key={key} style={styles.scoreGridCell}>
-                  <ScoreCard
-                    label={key}
-                    score={scoreForKey(analysis, key)}
-                    icon={SCORE_META[key].icon}
-                    desc={SCORE_META[key].desc}
-                    delay={i * 60}
-                    animate={cardAnimated[i]}
-                  />
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* ── Expandable: Movement Quality ── */}
-        {analysis.movementSummary && (
-          <View style={styles.sectionWrap}>
-            <TouchableOpacity onPress={() => toggleSection("movement")} activeOpacity={0.7}
-              style={{ flexDirection: "row", alignItems: "center" }}>
-              <View style={{ flex: 1 }}>
-                <SectionHeader title="Movement Quality" icon="activity" accentColor={colors.primary} />
-              </View>
-              <Feather name={expandedSections.has("movement") ? "chevron-up" : "chevron-down"}
-                size={16} color={colors.mutedForeground} style={{ marginBottom: 14 }} />
-            </TouchableOpacity>
-            {expandedSections.has("movement") && (
-              <View style={styles.movementQualityRow}>
-                {([
-                  { label: "Flow",        key: "flowScore" as keyof MovementSummaryDataPoint,        score: analysis.movementSummary.flowScore,        color: colors.primary },
-                  { label: "Efficiency",  key: "efficiencyScore" as keyof MovementSummaryDataPoint,  score: analysis.movementSummary.efficiencyScore,  color: colors.success },
-                  { label: "Control",     key: "bodyControlScore" as keyof MovementSummaryDataPoint, score: analysis.movementSummary.bodyControlScore, color: colors.warning },
-                  { label: "Consistency", key: "consistencyScore" as keyof MovementSummaryDataPoint, score: analysis.movementSummary.consistencyScore, color: colors.primary },
-                  { label: "Rhythm",      key: "rhythmScore" as keyof MovementSummaryDataPoint,      score: analysis.movementSummary.rhythmScore,      color: colors.destructive },
-                ]).map(({ label, key, score, color }) => (
-                  <TouchableOpacity
-                    key={label}
-                    style={styles.movementQualityCell}
-                    onPress={() => setSelectedMovementDim({ key, label, color })}
-                    activeOpacity={0.75}
-                    testID={`movement-dim-${label.toLowerCase()}`}
-                  >
-                    <ScoreRing score={score} size={64} strokeWidth={6} color={color} />
-                    <Text style={[styles.movementQualityLabel, { color: colors.mutedForeground }]}>
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* ── Expandable: Your Biggest Win ── */}
-        {(analysis.strengths ?? []).length > 0 && (
-          <View style={styles.sectionWrap}>
-            <TouchableOpacity onPress={() => toggleSection("win")} activeOpacity={0.7}
-              style={{ flexDirection: "row", alignItems: "center" }}>
-              <View style={{ flex: 1 }}>
-                <SectionHeader title="Your Biggest Win" icon="check-circle" accentColor={colors.success} />
-              </View>
-              <Feather name={expandedSections.has("win") ? "chevron-up" : "chevron-down"}
-                size={16} color={colors.mutedForeground} style={{ marginBottom: 14 }} />
-            </TouchableOpacity>
-            {expandedSections.has("win") && (
-              <View style={[styles.infoCard, { backgroundColor: colors.success + "0e", borderColor: colors.success + "33" }]}>
-                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-                  <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: colors.success + "22", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
-                    <Feather name="trending-up" size={15} color={colors.success} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground, lineHeight: 24 }}>
-                      {formatBiomechanicsText((analysis.strengths ?? [])[0] ?? "")}
-                    </Text>
-                    {(analysis.strengths ?? []).slice(1).map((s, i) => (
-                      <Text key={i} style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 20, marginTop: 8 }}>
-                        • {formatBiomechanicsText(s)}
-                      </Text>
-                    ))}
-                  </View>
-                </View>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* ── Expandable: Biggest Fix ── */}
-        <View style={styles.sectionWrap}>
-          <TouchableOpacity onPress={() => toggleSection("fix")} activeOpacity={0.7}
-            style={{ flexDirection: "row", alignItems: "center" }}>
-            <View style={{ flex: 1 }}>
-              <SectionHeader title="Biggest Fix" icon="alert-circle" accentColor={colors.warning} />
-            </View>
-            <Feather name={expandedSections.has("fix") ? "chevron-up" : "chevron-down"}
-              size={16} color={colors.mutedForeground} style={{ marginBottom: 14 }} />
-          </TouchableOpacity>
-          {expandedSections.has("fix") && (
-            <View style={[styles.infoCard, { backgroundColor: colors.warning + "0e", borderColor: colors.warning + "33" }]}>
-              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-                <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: colors.warning + "22", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
-                  <Feather name="arrow-up-circle" size={15} color={colors.warning} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  {(analysis.improvements ?? []).length > 0 ? (
-                    <>
-                      <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground, lineHeight: 24 }}>
-                        {formatBiomechanicsText((analysis.improvements ?? [])[0] ?? "")}
-                      </Text>
-                      {(analysis.improvements ?? []).slice(1, 3).map((imp, i) => (
-                        <Text key={i} style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 20, marginTop: 8 }}>
-                          • {formatBiomechanicsText(imp)}
-                        </Text>
-                      ))}
-                    </>
-                  ) : (
-                    <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground, lineHeight: 24 }}>
-                      Your {worstMetric.key} score of {Math.round(worstMetric.score)}/100 is your top focus area.
-                    </Text>
-                  )}
-                </View>
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* ── Expandable: Why It Matters ── */}
-        {(topTip?.whyItMatters || topTip?.description) && (
-          <View style={styles.sectionWrap}>
-            <TouchableOpacity onPress={() => toggleSection("why")} activeOpacity={0.7}
-              style={{ flexDirection: "row", alignItems: "center" }}>
-              <View style={{ flex: 1 }}>
-                <SectionHeader title="Why It Matters" icon="info" accentColor={colors.primary} />
-              </View>
-              <Feather name={expandedSections.has("why") ? "chevron-up" : "chevron-down"}
-                size={16} color={colors.mutedForeground} style={{ marginBottom: 14 }} />
-            </TouchableOpacity>
-            {expandedSections.has("why") && (
-              <View style={[styles.infoCard, { backgroundColor: colors.primary + "0a", borderColor: colors.primary + "28" }]}>
-                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-                  <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
-                    <Feather name="message-circle" size={15} color={colors.primary} />
-                  </View>
-                  <Text style={{ flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: colors.foreground, lineHeight: 22 }}>
-                    {formatBiomechanicsText(topTip.whyItMatters ?? topTip.description)}
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* ── Expandable: Try This Drill ── */}
-        {firstDrill && (
-          <View style={styles.sectionWrap}>
-            <TouchableOpacity onPress={() => toggleSection("drill")} activeOpacity={0.7}
-              style={{ flexDirection: "row", alignItems: "center" }}>
-              <View style={{ flex: 1 }}>
-                <SectionHeader title="Try This Drill" icon="activity" accentColor={colors.success} />
-              </View>
-              <Feather name={expandedSections.has("drill") ? "chevron-up" : "chevron-down"}
-                size={16} color={colors.mutedForeground} style={{ marginBottom: 14 }} />
-            </TouchableOpacity>
-            {expandedSections.has("drill") && (
-              <View style={[styles.infoCard, { backgroundColor: colors.success + "0e", borderColor: colors.success + "33" }]}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                  <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: colors.success + "22", alignItems: "center", justifyContent: "center" }}>
-                    <Feather name="activity" size={15} color={colors.success} />
-                  </View>
-                  <Text style={{ flex: 1, fontSize: 16, fontFamily: "Inter_700Bold", color: colors.foreground }}>{firstDrill.name}</Text>
-                </View>
-                <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.success, marginBottom: 8 }}>
-                  {firstDrill.sets} · {firstDrill.reps}
-                </Text>
-                {firstDrill.cue ? (
-                  <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 20, fontStyle: "italic" }}>
-                    "{firstDrill.cue}"
-                  </Text>
-                ) : null}
-                {firstDrill.drillFeelCue ? (
-                  <View testID="drill-feel-cue-row" style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 8 }}>
-                    <Feather name="zap" size={11} color={colors.success} style={{ marginTop: 2 }} />
-                    <Text style={{ flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: colors.success, lineHeight: 16, fontStyle: "italic" }}>
-                      <Text style={{ fontFamily: "Inter_600SemiBold", fontStyle: "normal" }}>{"Feel: "}</Text>
-                      {firstDrill.drillFeelCue}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* ── Expandable: Next Workout Goal ── */}
-        <View style={styles.sectionWrap}>
-          <TouchableOpacity onPress={() => toggleSection("goal")} activeOpacity={0.7}
-            style={{ flexDirection: "row", alignItems: "center" }}>
-            <View style={{ flex: 1 }}>
-              <SectionHeader title="Next Workout Goal" icon="target" accentColor={colors.warning} />
-            </View>
-            <Feather name={expandedSections.has("goal") ? "chevron-up" : "chevron-down"}
-              size={16} color={colors.mutedForeground} style={{ marginBottom: 14 }} />
-          </TouchableOpacity>
-          {expandedSections.has("goal") && (
-            <NextFocusCard
-              focusCue={`Focus on your ${worstMetric.key} — ${SCORE_META[worstMetric.key].desc.toLowerCase()}`}
-              drill={firstDrill}
-              goal={`Raise your ${worstMetric.key} score from ${Math.round(worstMetric.score)} to ${Math.min(100, Math.round(worstMetric.score) + 10)} next session`}
-            />
-          )}
-        </View>
-
-        {/* ── Expandable: Coaching Tips ── */}
-        {sortedTips.length > 0 && (
-          <View style={styles.sectionWrap}>
-            <TouchableOpacity onPress={() => toggleSection("coaching-tips")} activeOpacity={0.7}
-              style={{ flexDirection: "row", alignItems: "center" }}>
-              <View style={{ flex: 1 }}>
-                <SectionHeader
-                  title="Coaching Tips"
-                  icon="zap"
-                  accentColor={colors.primary}
-                  subtitle={`${sortedTips.length} tip${sortedTips.length !== 1 ? "s" : ""} from your session`}
-                />
-              </View>
-              <Feather name={expandedSections.has("coaching-tips") ? "chevron-up" : "chevron-down"}
-                size={16} color={colors.mutedForeground} style={{ marginBottom: 14 }} />
-            </TouchableOpacity>
-            {expandedSections.has("coaching-tips") && sortedTips.map((tip, idx) => {
+            ) : tips.map((tip) => {
               const cfg = SEVERITY_CONFIG[tip.severity as keyof typeof SEVERITY_CONFIG] ?? SEVERITY_CONFIG.info;
-              const expanded = expandedTip === null ? idx === 0 : expandedTip === tip.id;
-              const whyText = tip.whyItMatters ?? "";
+              const expanded = expandedTip === tip.id;
               return (
                 <TouchableOpacity
                   key={tip.id}
-                  style={[styles.tipCard, { backgroundColor: colors.card, borderColor: cfg.color + "44" }]}
-                  activeOpacity={0.85}
-                  onPress={() => setExpanded(expanded ? `__none_${tip.id}` : tip.id)}
+                  style={[s.tipCard, { borderColor: cfg.color + "44" }]}
+                  activeOpacity={0.8}
+                  onPress={() => setExpanded(expanded ? null : tip.id)}
                 >
-                  <View style={styles.tipHeader}>
-                    <View style={[styles.tipIconWrap, { backgroundColor: cfg.color + "18" }]}>
-                      <Feather name={cfg.icon} size={14} color={cfg.color} />
-                    </View>
-                    <View style={styles.tipTitleBlock}>
-                      <Text style={[styles.tipTitle, { color: colors.foreground }]}>{tip.title}</Text>
-                      <View style={styles.tipBadgeRow}>
-                        <View style={[styles.severityBadge, { backgroundColor: cfg.color + "18" }]}>
-                          <Text style={[styles.severityBadgeText, { color: cfg.color }]}>{cfg.label}</Text>
-                        </View>
-                        <Text style={[styles.tipCategory, { color: colors.mutedForeground }]}>{tip.category}</Text>
-                      </View>
-                    </View>
+                  <View style={s.tipHeader}>
+                    <Feather name={cfg.icon} size={16} color={cfg.color} />
+                    <Text style={s.tipTitle}>{tip.title}</Text>
                     <Feather name={expanded ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
                   </View>
                   {expanded && (
-                    <View style={styles.tipBody}>
-                      {tip.videoObservation && (
-                        <View style={[styles.observationBox, { backgroundColor: colors.primary + "12", borderColor: colors.primary + "33" }]}>
-                          <Feather name="eye" size={13} color={colors.primary} style={{ marginTop: 1 }} />
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.observationLabel, { color: colors.primary }]}>Observed in your video</Text>
-                            <Text style={[styles.observationText, { color: colors.foreground }]}>{formatBiomechanicsText(tip.videoObservation)}</Text>
-                          </View>
-                        </View>
-                      )}
-                      {whyText.length > 0 && (
-                        <View style={[styles.whyBox, { backgroundColor: cfg.color + "0a", borderLeftColor: cfg.color }]}>
-                          <Text style={[styles.whyLabel, { color: cfg.color }]}>WHY IT MATTERS</Text>
-                          <Text style={[styles.whyText, { color: colors.foreground }]}>{formatBiomechanicsText(whyText)}</Text>
-                        </View>
-                      )}
-                      <Text style={[styles.tipDesc, { color: colors.mutedForeground }]}>{formatBiomechanicsText(tip.description)}</Text>
-                      {(tip.joints?.length ?? 0) > 0 && (
-                        <View style={styles.chipRow}>
-                          {tip.joints!.map((j) => (
-                            <TouchableOpacity
-                              key={j}
-                              style={[styles.chip, { borderColor: cfg.color + "55", backgroundColor: cfg.color + "12" }]}
-                              onPress={() => router.push({ pathname: "/analysis/skeleton/[id]", params: { id: id!, highlightJoint: j } } as any)}
-                              activeOpacity={0.7}
-                            >
-                              <View style={[styles.chipDot, { backgroundColor: cfg.color }]} />
-                              <Text style={[styles.chipText, { color: cfg.color }]}>{JOINT_LABEL[j] ?? j}</Text>
-                              <Feather name="crosshair" size={9} color={cfg.color} style={{ opacity: 0.6 }} />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
+                    <View style={s.tipBody}>
+                      <Text style={s.tipDesc}>{tip.description}</Text>
                       {tip.drill && (
-                        <View style={[styles.drillBox, { backgroundColor: colors.success + "0e", borderColor: colors.success + "33" }]}>
-                          <View style={styles.drillHeaderRow}>
-                            <Feather name="activity" size={12} color={colors.success} />
-                            <Text style={[styles.drillLabel, { color: colors.success }]}>HOW TO FIX IT — DRILL</Text>
-                          </View>
-                          <Text style={[styles.drillName, { color: colors.foreground }]}>
-                            {typeof tip.drill === "string" ? tip.drill : tip.drill.name}
-                          </Text>
-                          {typeof tip.drill !== "string" && (
-                            <>
-                              <Text style={[styles.drillMeta, { color: colors.mutedForeground }]}>
-                                {tip.drill.sets} · {tip.drill.reps}{tip.drill.cue ? ` — ${tip.drill.cue}` : ""}
-                              </Text>
-                              {tip.drill.drillFeelCue ? (
-                                <View style={styles.drillFeelRow}>
-                                  <Feather name="zap" size={10} color={colors.success} style={{ marginTop: 1 }} />
-                                  <Text style={[styles.drillFeelCue, { color: colors.success }]}>
-                                    <Text style={{ fontFamily: "Inter_600SemiBold", fontStyle: "normal" }}>{"Feel: "}</Text>
-                                    {tip.drill.drillFeelCue}
-                                  </Text>
-                                </View>
-                              ) : null}
-                            </>
-                          )}
-                        </View>
-                      )}
-                      {tip.source && (
-                        <View style={[styles.sourceRow, { borderTopColor: colors.border }]}>
-                          <Feather name="book-open" size={10} color={colors.mutedForeground} style={{ marginTop: 2 }} />
-                          <Text style={[styles.sourceText, { color: colors.mutedForeground }]}>{tip.source}</Text>
+                        <View style={s.drillBox}>
+                          <Text style={s.drillLabel}>Drill</Text>
+                          <Text style={s.drillText}>{tip.drill}</Text>
                         </View>
                       )}
                     </View>
@@ -1887,831 +321,96 @@ export default function AnalysisDetailScreen() {
           </View>
         )}
 
+        {activeTab === "ai" && (
+          <View style={s.section}>
+            {/* AI-generated performance narrative */}
+            <View style={{ backgroundColor: colors.card, borderRadius: colors.radius, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.primary + "22", alignItems: "center", justifyContent: "center" }}>
+                  <Feather name="cpu" size={14} color={colors.primary} />
+                </View>
+                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>Atlas AI Analysis</Text>
+                <View style={{ marginLeft: "auto" as any, backgroundColor: colors.primary + "22", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 }}>
+                  <Text style={{ fontSize: 10, fontFamily: "Inter_600SemiBold", color: colors.primary, textTransform: "uppercase", letterSpacing: 0.5 }}>Claude AI</Text>
+                </View>
+              </View>
+              <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", lineHeight: 20, marginBottom: 10 }}>
+                {"Your "}{analysis.sport}{" session scored "}{Math.round(overallScore)}{"/100 overall. "}
+                {overallScore >= 80
+                  ? "This is an excellent performance — you're demonstrating strong athletic competency in most areas."
+                  : overallScore >= 65
+                  ? "This is a solid session with clear room to grow in targeted areas."
+                  : "There are meaningful areas to address that will significantly improve your performance and safety."}
+              </Text>
+              <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: "Inter_400Regular", lineHeight: 20 }}>
+                {"Your strongest dimension is "}{
+                  SCORE_KEYS.reduce((best, k) => scoreForKey(analysis, k) > scoreForKey(analysis, best) ? k : best, SCORE_KEYS[0])
+                }{" and the area with the most improvement potential is "}{
+                  SCORE_KEYS.reduce((worst, k) => scoreForKey(analysis, k) < scoreForKey(analysis, worst) ? k : worst, SCORE_KEYS[0])
+                }{". "}
+                {tips.length > 0 && `Atlas has identified ${tips.length} coaching tip${tips.length > 1 ? "s" : ""} and ${risks.length} injury risk factor${risks.length !== 1 ? "s" : ""} to address in your training.`}
+              </Text>
+            </View>
 
-        {/* ── No tips empty state ── */}
-        {sortedTips.length === 0 && !loading && !!analysis && (
-          <View style={styles.sectionWrap}>
-            <EmptyState
-              icon="zap"
-              headline="No coaching tips yet"
-              body="Scan your video on the Skeleton screen to generate AI coaching tips grounded in your biomechanics."
-              compact
-            />
+            {/* Key insight cards */}
+            {tips.slice(0, 2).map((tip) => {
+              const cfg = SEVERITY_CONFIG[tip.severity as keyof typeof SEVERITY_CONFIG] ?? SEVERITY_CONFIG.info;
+              return (
+                <View key={tip.id} style={[s.tipCard, { borderColor: cfg.color + "44" }]}>
+                  <View style={s.tipHeader}>
+                    <Feather name={cfg.icon} size={14} color={cfg.color} />
+                    <Text style={s.tipTitle}>{tip.title}</Text>
+                    <Text style={{ fontSize: 10, color: cfg.color, fontFamily: "Inter_600SemiBold", textTransform: "uppercase" }}>{cfg.label}</Text>
+                  </View>
+                  <View style={s.tipBody}>
+                    <Text style={s.tipDesc}>{tip.description}</Text>
+                    {tip.drill && (
+                      <View style={s.drillBox}>
+                        <Text style={s.drillLabel}>Drill</Text>
+                        <Text style={s.drillText}>{tip.drill}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+
+            <TouchableOpacity
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 12, marginTop: 4 }}
+              activeOpacity={0.8}
+              onPress={() => setActiveTab("tips")}
+            >
+              <Feather name="list" size={14} color={colors.primaryForeground} />
+              <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.primaryForeground }}>See All {tips.length} Tips</Text>
+            </TouchableOpacity>
           </View>
         )}
 
-        {/* ── Expandable: Joint Health (Injury Risks) ── */}
-        <View style={styles.sectionWrap}>
-          <TouchableOpacity onPress={() => toggleSection("joints")} activeOpacity={0.7}
-            style={{ flexDirection: "row", alignItems: "center" }}>
-            <View style={{ flex: 1 }}>
-              <SectionHeader title="Joint Health" icon="shield" accentColor={colors.destructive} subtitle="Injury risk levels from this session" />
-            </View>
-            <Feather name={expandedSections.has("joints") ? "chevron-up" : "chevron-down"}
-              size={16} color={colors.mutedForeground} style={{ marginBottom: 14 }} />
-          </TouchableOpacity>
-          {expandedSections.has("joints") && (
-            risks.length === 0 ? (
-              <View style={styles.noRiskWrap}>
-                <View style={[styles.noRiskIcon, { backgroundColor: colors.success + "18" }]}>
-                  <Feather name="shield" size={24} color={colors.success} />
+        {activeTab === "risks" && (
+          <View style={s.section}>
+            {risks.length === 0 ? (
+              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 24 }}>
+                No injury risks detected
+              </Text>
+            ) : risks.map((risk) => {
+              const clr = getRiskColor(risk.riskPercent);
+              return (
+                <View key={risk.id} style={s.riskCard}>
+                  <View style={s.riskRow}>
+                    <Text style={s.riskJoint}>{risk.joint}</Text>
+                    <Text style={[s.riskPct, { color: clr }]}>{risk.riskPercent}%</Text>
+                  </View>
+                  <View style={s.riskBarBg}>
+                    <View style={[s.riskBarFill, { width: `${risk.riskPercent}%` as any, backgroundColor: clr }]} />
+                  </View>
+                  <Text style={s.riskDesc}>{risk.description}</Text>
+                  <Text style={s.riskPrev}><Text style={s.prevLabel}>Prevention: </Text>{risk.prevention}</Text>
                 </View>
-                <Text style={[styles.noRiskHeading, { color: colors.foreground }]}>All clear</Text>
-                <Text style={[styles.noRiskSub, { color: colors.mutedForeground }]}>No significant injury risks detected. Keep moving well!</Text>
-              </View>
-            ) : (
-              <>
-                {risks.map((risk, idx) => {
-                  const clr = risk.riskPercent >= 50 ? colors.destructive : risk.riskPercent >= 30 ? colors.warning : colors.success;
-                  const rl = getRiskLabel(risk.riskPercent);
-                  const hasHistory = !!(jointTrendsData?.joints[risk.joint]?.length);
-                  return (
-                    <TouchableOpacity
-                      key={risk.id}
-                      testID={`joint-risk-row-${risk.joint}`}
-                      activeOpacity={hasHistory ? 0.75 : 1}
-                      onPress={() => { if (hasHistory) setHistoryJoint(risk.joint); }}
-                      style={[styles.riskCard, { backgroundColor: colors.card, borderColor: clr + "33" }]}
-                    >
-                      <View style={styles.riskHeaderRow}>
-                        <Text style={[styles.riskJoint, { color: colors.foreground }]}>{JOINT_LABEL[risk.joint] ?? risk.joint}</Text>
-                        <View style={styles.riskRightCol}>
-                          {hasHistory && (
-                            <Feather name="bar-chart-2" size={12} color={colors.primary} style={{ marginRight: 4 }} />
-                          )}
-                          <View style={[styles.riskBadge, { backgroundColor: clr + "18" }]}>
-                            <Text style={[styles.riskBadgeText, { color: clr }]}>{rl.label}</Text>
-                          </View>
-                          <Text style={[styles.riskPct, { color: clr }]}>{risk.riskPercent}%</Text>
-                        </View>
-                      </View>
-                      <AnimatedRiskBar pct={risk.riskPercent} color={clr} delay={idx * 80} animKey={`${analysis.id}:${risk.joint}`} />
-                      <View style={[styles.whatThisMeansBox, { backgroundColor: clr + "08", borderColor: clr + "22" }]}>
-                        <Text style={[styles.whatThisMeansLabel, { color: clr }]}>WHAT THIS MEANS</Text>
-                        <Text style={[styles.riskDesc, { color: colors.foreground }]}>{formatBiomechanicsText(risk.description)}</Text>
-                      </View>
-                      <Text style={[styles.riskPrev, { color: colors.mutedForeground }]}>
-                        <Text style={[styles.prevLabel, { color: colors.primary }]}>Prevention: </Text>
-                        {risk.prevention}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </>
-            )
-          )}
-        </View>
-
-        {/* ── Session Notes ── */}
-        <View style={[styles.sectionWrap, { marginTop: 8, marginBottom: 32 }]}>
-          <View style={styles.noteHeaderRow}>
-            <Feather name="edit-3" size={15} color={colors.mutedForeground} />
-            <Text style={[styles.noteTitle, { color: colors.foreground }]}>
-              Session Notes
-            </Text>
+              );
+            })}
           </View>
-          <TextInput
-            style={[
-              styles.noteInput,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-                color: colors.foreground,
-              },
-            ]}
-            value={note}
-            onChangeText={setNote}
-            onBlur={() => id && AsyncStorage.setItem(`note_${id}`, note)}
-            placeholder="Add personal notes — how you felt, what to focus on next time, any context about the session…"
-            placeholderTextColor={colors.mutedForeground}
-            multiline
-            textAlignVertical="top"
-          />
-          {note.length > 0 && (
-            <Text style={[styles.noteFooter, { color: colors.mutedForeground }]}>
-              {note.length} chars · saved locally
-            </Text>
-          )}
-        </View>
+        )}
       </ScrollView>
-      </Animated.View>
-
-      {/* ── Swipe hint pill ── */}
-      <Animated.View
-        testID="swipe-hint-pill"
-        style={[
-          styles.swipeHint,
-          {
-            backgroundColor: colors.foreground + "CC",
-            bottom: bottomPad + 72,
-            opacity: swipeHintOpacity,
-          },
-        ]}
-        pointerEvents="box-none"
-      >
-        <TouchableOpacity
-          testID="swipe-hint-button"
-          activeOpacity={0.8}
-          onPress={() => {
-            if (!swipeHintVisible.current) return;
-            const target = nextId ?? prevId;
-            if (!target) return;
-            dismissSwipeHint();
-            navigateTo(target);
-          }}
-          style={styles.swipeHintTouchable}
-        >
-          {nextId ? (
-            <>
-              <Feather name="chevron-left" size={14} color={colors.background} />
-              <Text style={[styles.swipeHintText, { color: colors.background }]}>
-                Swipe to navigate
-              </Text>
-              <Feather name="chevron-right" size={14} color={colors.background} />
-            </>
-          ) : (
-            <Feather name="chevron-left" size={14} color={colors.background} />
-          )}
-        </TouchableOpacity>
-      </Animated.View>
-
-      {/* ── Joint History Sheet ── */}
-      {historyJoint && jointTrendsData?.joints[historyJoint] && id && (
-        <JointHistorySheet
-          joint={historyJoint}
-          data={[...(jointTrendsData.joints[historyJoint] ?? [])].sort(
-            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-          )}
-          currentAnalysisId={id}
-          onClose={() => setHistoryJoint(null)}
-        />
-      )}
-
-      {/* ── Movement Dimension History Sheet ── */}
-      {selectedMovementDim && analysis && (() => {
-        const sortedHistory = [...movementHistory].sort(
-          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-        );
-        // Anchor the trend window to the current analysis so viewing an older
-        // session shows that session's score vs its own prior 2 sessions, not
-        // unrelated newer sessions.
-        const currentIdx = id ? sortedHistory.findIndex((p) => p.analysisId === id) : -1;
-        let windowHistory: MovementSummaryDataPoint[];
-        if (currentIdx >= 0) {
-          windowHistory = sortedHistory.slice(Math.max(0, currentIdx - 2), currentIdx + 1);
-        } else if (analysis.movementSummary && id) {
-          // Current session not yet in history (e.g. movementSummary just generated):
-          // inject it as a synthetic tail point so the sheet always reflects the viewed session.
-          const syntheticPoint: MovementSummaryDataPoint = {
-            analysisId: id,
-            date: analysis.uploadedAt,
-            sport: analysis.sport ?? "",
-            flowScore:        analysis.movementSummary.flowScore,
-            efficiencyScore:  analysis.movementSummary.efficiencyScore,
-            bodyControlScore: analysis.movementSummary.bodyControlScore,
-            consistencyScore: analysis.movementSummary.consistencyScore,
-            rhythmScore:      analysis.movementSummary.rhythmScore,
-            overallScore:     analysis.movementSummary.overallScore,
-          };
-          windowHistory = [...sortedHistory.slice(-2), syntheticPoint];
-        } else {
-          windowHistory = sortedHistory.slice(-3);
-        }
-        return (
-          <MovementDimensionHistorySheet
-            dimensionKey={selectedMovementDim.key}
-            label={selectedMovementDim.label}
-            color={selectedMovementDim.color}
-            data={windowHistory}
-            onClose={() => setSelectedMovementDim(null)}
-          />
-        );
-      })()}
-
-      {/* ── Goal reached confetti burst ── */}
-      {showConfetti && (
-        <ConfettiBurst onComplete={() => setShowConfetti(false)} />
-      )}
-
-      {/* ── Goal reached toast ── */}
-      {goalToast && (
-        <Animated.View
-          style={[
-            styles.goalToast,
-            {
-              backgroundColor: colors.card,
-              borderColor: "#FF6B3555",
-              bottom: bottomPad + 16,
-              opacity: toastOpacity,
-              transform: [{ translateY: toastTranslate }],
-            },
-          ]}
-          pointerEvents="box-none"
-        >
-          <TouchableOpacity
-            style={styles.goalToastInner}
-            onPress={dismissToast}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.goalToastEmoji}>🎉</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.goalToastTitle, { color: colors.foreground }]}>
-                Weekly goal reached!
-              </Text>
-              <Text style={[styles.goalToastSub, { color: colors.mutedForeground }]}>
-                {goalToast.count} of {goalToast.goal} sessions done this week
-              </Text>
-            </View>
-            <Feather name="x" size={16} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        </Animated.View>
-      )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-
-  // Nav
-  navBar: {
-    paddingBottom: 10,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderBottomWidth: 1,
-  },
-  navBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    padding: 6,
-  },
-  navBtnText: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  navCenter: { flexDirection: "row", alignItems: "center", gap: 4 },
-  sessionNavBtn: {
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 8,
-  },
-  sportBadge: {
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderWidth: 1,
-  },
-  sportBadgeText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  navCenterBadgeCol: { alignItems: "center", gap: 2 },
-  sessionCounter: { fontSize: 10, fontFamily: "Inter_400Regular" },
-
-  // Hero
-  heroCard: {
-    margin: SPACING.md,
-    borderRadius: RADIUS.lg + 2,
-    padding: SPACING.md + 4,
-    borderWidth: 1,
-  },
-  heroThumbnail: {
-    height: 160,
-    marginHorizontal: -20,
-    marginTop: -20,
-    marginBottom: 14,
-    borderTopLeftRadius: 17,
-    borderTopRightRadius: 17,
-  },
-  heroTitle: { ...TYPE.title, fontSize: 20 },
-  heroMeta: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    marginTop: 3,
-  },
-  heroScoreRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 16,
-    marginTop: 18,
-  },
-  ringWrap: { alignItems: "center" },
-  heroStats: { flex: 1, gap: 8 },
-  statChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  statChipLabel: { fontSize: 10, fontFamily: "Inter_400Regular" },
-  statChipValue: { fontSize: 12, fontFamily: "Inter_600SemiBold", flex: 1 },
-  summaryBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    padding: 8,
-  },
-  summaryText: {
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 16,
-    flex: 1,
-  },
-  guideToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginTop: 14,
-    alignSelf: "flex-end",
-  },
-  guideToggleText: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  guideBox: { borderRadius: 12, padding: 14, marginTop: 10, gap: 8 },
-  guideBoxLabel: {
-    fontSize: 10,
-    fontFamily: "Inter_600SemiBold",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  guideBandRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  guideDot: { width: 8, height: 8, borderRadius: 4 },
-  guideBandLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", width: 74 },
-  guideBandRange: { fontSize: 11, fontFamily: "Inter_400Regular", flex: 1 },
-  ctaRow: { flexDirection: "row", gap: 10, marginTop: 18 },
-  ctaBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingVertical: 12,
-  },
-  ctaBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-
-  // Score grid
-  sectionWrap: { paddingHorizontal: 16, marginBottom: 16 },
-  scoreGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  scoreGridCell: { width: "48%", flexShrink: 1 },
-
-  movementQualityRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingHorizontal: 4,
-  },
-  movementQualityCell: {
-    alignItems: "center",
-    gap: 6,
-  },
-  movementQualityLabel: {
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-    textAlign: "center",
-  },
-
-  // Info card (used by Biggest Win, Biggest Fix, Why It Matters, Try This Drill)
-  infoCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 2,
-  },
-
-  // Tabs
-  tabRow: {
-    flexDirection: "row",
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 12,
-    padding: 4,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 9,
-    alignItems: "center",
-    borderRadius: 8,
-  },
-  tabText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-
-  // Highlights
-  sectionGap: { height: 16 },
-  emptyText: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  drillHighlight: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 4,
-  },
-  drillHighlightName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  drillHighlightMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 3 },
-  drillHighlightCue: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    fontStyle: "italic",
-    marginTop: 6,
-    lineHeight: 18,
-  },
-
-  // Tips
-  tipCard: {
-    borderRadius: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  tipHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 14,
-  },
-  tipIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tipTitleBlock: { flex: 1 },
-  tipTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  tipBadgeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 3,
-  },
-  severityBadge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
-  severityBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  tipCategory: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  tipBody: { paddingHorizontal: 14, paddingBottom: 14 },
-  observationBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 10,
-    borderWidth: 1,
-  },
-  observationLabel: {
-    fontSize: 9,
-    fontFamily: "Inter_700Bold",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 2,
-  },
-  observationText: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
-  whyBox: {
-    borderLeftWidth: 3,
-    borderRadius: 4,
-    paddingVertical: 8,
-    paddingLeft: 10,
-    paddingRight: 8,
-    marginBottom: 10,
-  },
-  whyLabel: {
-    fontSize: 9,
-    fontFamily: "Inter_700Bold",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 3,
-  },
-  whyText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
-  tipDesc: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-  },
-  chipDot: { width: 6, height: 6, borderRadius: 3 },
-  chipText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  drillBox: {
-    borderRadius: 10,
-    borderWidth: 1,
-    padding: 12,
-    marginTop: 10,
-  },
-  drillHeaderRow: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 6 },
-  drillLabel: {
-    fontSize: 9,
-    fontFamily: "Inter_700Bold",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  drillName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  drillMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 3 },
-  drillFeelRow: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 5, marginTop: 5 },
-  drillFeelCue: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", fontStyle: "italic" as const, lineHeight: 16 },
-  sourceRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 5,
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-  },
-  sourceText: {
-    fontSize: 10,
-    fontFamily: "Inter_400Regular",
-    flex: 1,
-    fontStyle: "italic",
-    lineHeight: 14,
-  },
-
-  // Risks
-  noRiskWrap: { alignItems: "center", paddingVertical: 32, gap: 10 },
-  noRiskIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  noRiskHeading: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
-  noRiskSub: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-    lineHeight: 19,
-  },
-  riskCard: {
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-  },
-  riskHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  riskJoint: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  riskRightCol: { alignItems: "flex-end", gap: 4 },
-  riskBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
-  riskBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  riskPct: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  whatThisMeansBox: {
-    borderRadius: 8,
-    borderWidth: 1,
-    padding: 10,
-    marginBottom: 8,
-  },
-  whatThisMeansLabel: {
-    fontSize: 9,
-    fontFamily: "Inter_700Bold",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 4,
-  },
-  riskDesc: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
-  riskPrev: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  prevLabel: { fontFamily: "Inter_500Medium" },
-
-  // Notes
-  noteHeaderRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
-  noteTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  noteInput: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 21,
-    minHeight: 110,
-  },
-  noteFooter: {
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    marginTop: 6,
-    textAlign: "right",
-  },
-
-  // Swipe hint
-  swipeHint: {
-    position: "absolute",
-    alignSelf: "center",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  swipeHintText: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-    letterSpacing: 0.2,
-  },
-  swipeHintTouchable: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-
-  // Goal reached toast
-  goalToast: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 6,
-    overflow: "hidden",
-  },
-  goalToastInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  goalToastEmoji: { fontSize: 20 },
-  goalToastTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  goalToastSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
-
-  // Share preview modal
-  shareModalBackdrop: {
-    flex: 1,
-    backgroundColor: "#00000088",
-    justifyContent: "flex-end",
-  },
-  shareModalSheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderWidth: 1,
-    paddingTop: 10,
-    paddingBottom: 36,
-    paddingHorizontal: 20,
-    alignItems: "center",
-  },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    marginBottom: 18,
-  },
-  sheetTitle: {
-    fontSize: 17,
-    fontFamily: "Inter_700Bold",
-    marginBottom: 4,
-    textAlign: "center",
-  },
-  sheetSubtitle: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  shareCardPreviewWrap: {
-    alignSelf: "center",
-    marginBottom: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 14,
-    elevation: 8,
-    borderRadius: 20,
-    overflow: "hidden",
-  },
-  sheetActions: {
-    flexDirection: "row",
-    gap: 12,
-    width: "100%",
-  },
-  sheetBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    borderRadius: 14,
-    paddingVertical: 14,
-  },
-  sheetBtnCancel: {
-    borderWidth: 1,
-  },
-  sheetBtnSave: {
-    borderWidth: 1,
-  },
-  sheetBtnShare: {},
-  sheetBtnText: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-  },
-  sharingUnavailableBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: 16,
-    width: "100%",
-  },
-  sharingUnavailableText: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 18,
-  },
-
-  // Scheme picker
-  schemePicker: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 20,
-  },
-  schemePill: {
-    alignItems: "center",
-    gap: 8,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "transparent",
-    padding: 8,
-  },
-  miniCard: {
-    width: 72,
-    height: 90,
-    borderRadius: 8,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  miniCardBar: {
-    height: 22,
-    width: "100%",
-    opacity: 0.75,
-  },
-  miniCardLines: {
-    padding: 8,
-  },
-  miniCardLine: {
-    height: 5,
-    borderRadius: 3,
-  },
-  schemePillLabel: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  schemePillText: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-  },
-
-  // Tip picker
-  tipPickerWrap: {
-    width: "100%",
-    marginBottom: 20,
-  },
-  tipPickerLabel: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginBottom: 10,
-  },
-  tipPickerList: {
-    maxHeight: 160,
-  },
-  tipPickerItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 6,
-  },
-  tipPickerDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    flexShrink: 0,
-  },
-  tipPickerItemText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-});

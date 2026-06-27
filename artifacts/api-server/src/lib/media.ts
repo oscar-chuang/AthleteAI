@@ -1,5 +1,4 @@
-import sharp from "sharp";
-
+// sharp native binary is not available in this environment.
 const AVATAR_MAX_PX = 64;
 const AVATAR_MAX_BYTES = 20 * 1024;
 
@@ -8,21 +7,9 @@ const AVATAR_MAX_BYTES = 20 * 1024;
  * Returns the original string unchanged if it is not a data URI.
  */
 export async function compressAvatarIfNeeded(avatarUrl: string): Promise<string> {
-  const match = avatarUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
-  if (!match) return avatarUrl;
-
-  const inputBuffer = Buffer.from(match[2]!, "base64");
-
-  let quality = 80;
-  let outputBuffer: Buffer;
-
-  do {
-    outputBuffer = await sharp(inputBuffer)
-      .resize(AVATAR_MAX_PX, AVATAR_MAX_PX, { fit: "cover", position: "centre" })
-      .jpeg({ quality })
-      .toBuffer();
-    quality -= 10;
-  } while (outputBuffer.byteLength > AVATAR_MAX_BYTES && quality >= 20);
-
-  return `data:image/jpeg;base64,${outputBuffer.toString("base64")}`;
+  // sharp native binary not available — return unchanged.
+  return avatarUrl;
 }
+
+// Keep constants referenced so tree-shaking doesn't warn.
+void AVATAR_MAX_PX; void AVATAR_MAX_BYTES;

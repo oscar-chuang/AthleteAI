@@ -1,37 +1,26 @@
-import * as SecureStore from "expo-secure-store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const _base =
-  process.env.EXPO_PUBLIC_API_URL ??
-  (process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : "http://localhost:8080");
-const API_URL = `${_base}/api`;
+const API_URL =
+  (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001") + "/api";
 
 const TOKEN_KEY = "auth_token";
 
 export async function getToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(TOKEN_KEY);
+  return AsyncStorage.getItem(TOKEN_KEY);
 }
 
 export async function setToken(token: string): Promise<void> {
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
+  await AsyncStorage.setItem(TOKEN_KEY, token);
 }
 
 export async function clearToken(): Promise<void> {
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
-}
-
-// Global 401 handler — registered by AuthProvider so any expired token
-// anywhere in the app triggers an automatic logout.
-let _onUnauthorized: (() => void) | null = null;
-export function registerUnauthorizedHandler(fn: () => void) {
-  _onUnauthorized = fn;
+  await AsyncStorage.removeItem(TOKEN_KEY);
 }
 
 async function request<T>(
   path: string,
   options: RequestInit = {},
-  timeoutMs = 8000
+  timeoutMs = 15000
 ): Promise<T> {
   const token = await getToken();
   const headers: Record<string, string> = {
@@ -52,11 +41,6 @@ async function request<T>(
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({ error: "Request failed" }));
-      // If the token is rejected on a protected route, auto-logout everywhere.
-      if (res.status === 401 && !path.startsWith("/auth/")) {
-        await clearToken();
-        _onUnauthorized?.();
-      }
       throw new ApiError(body.error ?? "Request failed", res.status, body.code);
     }
 
@@ -111,23 +95,11 @@ export interface Profile {
   goals: string[];
   injuryConcerns: string[];
   weeklyGoal: number;
-  trainingDays: number[];
-  checkInHour: number;
   weeklyProgress: number;
   streakDays: number;
+  trainingDays?: number[];
+  checkInHour?: number;
   avatarUrl?: string | null;
-  weeklyGoalCelebratedAt?: string | null;
-}
-
-export interface ProfileStats {
-  streak: number;
-  totalAnalyses: number;
-  thisWeekCount: number;
-  lastWeekCount: number;
-  personalBests: Record<string, number>;
-  latestScore: number | null;
-  scoreDelta: number | null;
-  drillsMastered: number;
 }
 
 export interface SubscriptionRecord {
@@ -159,7 +131,6 @@ export interface AnalysisRecord {
   userId: string;
   title: string;
   sport: string;
-  movementType?: string;
   status: "pending" | "processing" | "complete" | "failed";
   videoUrl?: string;
   thumbnailUrl?: string;
@@ -173,45 +144,26 @@ export interface AnalysisRecord {
   speedScore?: number;
   strengths: string[];
   improvements: string[];
+  uploadedAt: string;
   jointAngles?: Record<string, number>;
   jointRisks?: Record<string, number>;
-  biomechanicsApplied?: boolean;
-  movementSummary?: MovementSummary;
-  movementSummaryAt?: string;
-  uploadedAt: string;
 }
 
-// The six joints the on-screen pose skeleton tracks. A tip's `joints` reference
-// these keys so the mobile app can highlight the exact joints a tip is about.
-export type JointKey =
-  | "leftKnee" | "rightKnee"
-  | "leftHip" | "rightHip"
-  | "leftElbow" | "rightElbow";
-
-export const JOINT_KEYS: JointKey[] = [
-  "leftKnee", "rightKnee", "leftHip", "rightHip", "leftElbow", "rightElbow",
-];
-
-export interface DrillRecord {
-  name: string;
-  sets: string;
-  reps: string;
-  cue: string;
-  drillFeelCue?: string;
+/** Per-joint improvement delta between two analyses. */
+export interface JointImprovement {
+  joint: string;
+  deltaDeg: number;
+  improved: boolean;
 }
 
 export interface TipRecord {
   id: string;
-  tipType: "injury" | "performance";
   category: string;
   severity: string;
   title: string;
-  videoObservation?: string;
   description: string;
-  whyItMatters?: string;
-  drill?: DrillRecord;
-  source?: string;
-  joints?: JointKey[];
+  drill?: string;
+  tipType?: "injury" | "performance";
 }
 
 export interface RiskRecord {
@@ -222,36 +174,29 @@ export interface RiskRecord {
   prevention: string;
 }
 
-export interface JointAngles {
-  leftKnee?: number;
-  rightKnee?: number;
-  leftHip?: number;
-  rightHip?: number;
-  leftElbow?: number;
-  rightElbow?: number;
-}
+// ─── Live analysis types ───────────────────────────────────────────────────────
 
-export interface JointRisks {
-  leftKnee?: number;
-  rightKnee?: number;
-  leftHip?: number;
-  rightHip?: number;
-  leftElbow?: number;
-  rightElbow?: number;
-}
+export type JointKey = string;
 
-export interface FrameTickJR {
-  deg: number;
-  lvl: number;
-}
-
+/** One captured pose frame from the skeleton overlay. */
 export interface FrameTick {
   t: number;
-  lm: { x: number; y: number; v: number }[];
-  angles: Partial<Record<JointKey, number>>;
-  jr: Partial<Record<JointKey, FrameTickJR>>;
+  /** Mediapipe landmark array — x/y in [0,1] normalised coords, v = visibility. */
+  lm: Array<{ x: number; y: number; v: number }>;
+  /** Per-joint angle in degrees, keyed by joint name. */
+  angles: Record<JointKey, number>;
+  /** Per-joint risk data: deg = angle, lvl = risk level (0/1/2). */
+  jr: Record<JointKey, { deg: number; lvl: number; risk?: number }>;
 }
 
+/** Aggregated stats across all FrameTicks for an analysis session. */
+export interface TickStats {
+  joints: Record<string, { avgAngle: number; maxRisk: number; timesFlag: number }>;
+  totalTicks: number;
+  duration: number;
+}
+
+/** A timestamped pose risk event surfaced to the coaching-moments endpoint. */
 export interface FlaggedMoment {
   t: number;
   joints: JointKey[];
@@ -259,36 +204,103 @@ export interface FlaggedMoment {
   risks: Partial<Record<JointKey, number>>;
 }
 
+/** A coaching cue generated by the AI for a specific moment in the analysis. */
 export interface CoachingMoment {
-  id: string;
   timestamp: number;
-  joints: JointKey[];
-  whatWeNoticed: string;
-  whyItMatters: string;
-  suggestedFix: string;
+  /** Joint names (plain strings) associated with this coaching moment. */
+  joints: string[];
+  whatWeNoticed?: string;
+  whyItMatters?: string;
+  suggestedFix?: string;
+  /** AI confidence score in [0, 1]. */
   confidence: number;
   confidenceNote?: string;
+  /** Supporting evidence for the coaching observation. */
   evidence: { joint?: string; angle?: number; timestamp?: number };
-  riskLevel: number;
+  message?: string;
 }
 
+/** High-level AI movement summary returned after a live session. */
 export interface MovementSummary {
+  overallScore: number;
   flowScore: number;
   efficiencyScore: number;
   bodyControlScore: number;
   consistencyScore: number;
   rhythmScore: number;
-  overallScore: number;
+  coachSummary: string;
+  mostImportantFix: string;
   topStrengths: string[];
   topImprovements: string[];
-  mostImportantFix: string;
-  coachSummary: string;
 }
 
-export interface TickStats {
-  joints: Record<string, { avgAngle: number; maxRisk: number; timesFlag: number }>;
-  totalTicks: number;
-  duration: number;
+/** Historical joint angle data point for the JointHistorySheet chart. */
+export interface JointDataPoint {
+  date: string;
+  angle: number;
+  risk: number;
+  sport: string;
+  analysisId?: string;
+}
+
+/** Historical movement dimension data point for MovementDimensionHistorySheet. */
+export interface MovementSummaryDataPoint {
+  date: string;
+  sport: string;
+  analysisId?: string;
+  flowScore?: number;
+  efficiencyScore?: number;
+  bodyControlScore?: number;
+  consistencyScore?: number;
+  rhythmScore?: number;
+  overallScore?: number;
+}
+
+/** A structured drill recommendation associated with a coaching tip. */
+export interface DrillRecord {
+  id?: string;
+  name: string;
+  sets: string | number;
+  reps: string | number;
+  cue?: string;
+  description?: string;
+}
+
+/** Per-joint trend data returned by the joint-trends endpoint. */
+export interface JointTrendPoint {
+  date: string;
+  angle: number;
+  risk: number;
+  sport: string;
+  analysisId?: string;
+}
+
+export interface JointTrendsResponse {
+  joints: Record<string, JointTrendPoint[]>;
+}
+
+/** Aggregated profile stats returned by the /profile/stats endpoint. */
+export interface ProfileStats {
+  thisWeekCount: number;
+  totalCount: number;
+  avgScore: number;
+  streak?: number;
+  weeklyGoal?: number;
+  [key: string]: unknown;
+}
+
+/** A sport entry returned by /progress/sports. */
+export interface SportEntry {
+  sport: string;
+  count: number;
+}
+
+/** A personal record entry for a specific metric. */
+export interface PersonalRecordEntry {
+  value: number;
+  date: string;
+  analysisId?: string;
+  [key: string]: unknown;
 }
 
 export const analyses = {
@@ -298,7 +310,6 @@ export const analyses = {
   create: (data: {
     title: string;
     sport: string;
-    movementType?: string;
     videoUrl?: string;
     duration?: number;
     jointAngles?: Record<string, number>;
@@ -313,49 +324,31 @@ export const analyses = {
       `/analyses/${id}`
     ),
 
-  update: (id: string, data: { jointAngles?: JointAngles; jointRisks?: JointRisks; frameBase64?: string; sport?: string; movementType?: string }) =>
-    request<{ success: boolean; improvements?: Array<{ joint: string; oldRisk: number; newRisk: number }> }>(`/analyses/${id}`, {
+  delete: (id: string) =>
+    request<{ success: boolean }>(`/analyses/${id}`, { method: "DELETE" }),
+
+  update: (id: string, data: { sport?: string; movementType?: string; [key: string]: unknown }) =>
+    request<{ analysis: AnalysisRecord }>(`/analyses/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
-
-  delete: (id: string) =>
-    request<{ success: boolean }>(`/analyses/${id}`, { method: "DELETE" }),
 
   detectSport: (imageBase64: string) =>
     request<{ sport: string; movementType: string }>("/analyses/detect-sport", {
       method: "POST",
       body: JSON.stringify({ imageBase64 }),
-    }, 25000),
+    }),
 
-  coachingMoments: (id: string, flaggedMoments?: FlaggedMoment[]) =>
+  coachingMoments: (id: string, flagged: FlaggedMoment[]) =>
     request<{ moments: CoachingMoment[] }>(`/analyses/${id}/coaching-moments`, {
       method: "POST",
-      body: JSON.stringify({ flaggedMoments: flaggedMoments ?? [] }),
-    }, 45000),
+      body: JSON.stringify({ flagged }),
+    }),
 
   movementSummary: (id: string, tickStats?: TickStats) =>
     request<{ summary: MovementSummary }>(`/analyses/${id}/movement-summary`, {
       method: "POST",
-      body: JSON.stringify({ tickStats: tickStats ?? null }),
-    }, 45000),
-};
-
-// ─── Completed Drills ─────────────────────────────────────────────────────────
-
-export const drills = {
-  getCompleted: (analysisId: string) =>
-    request<{ completedTipIds: string[] }>(`/analyses/${analysisId}/drills/completed`),
-
-  markDone: (analysisId: string, tipId: string, drillName?: string) =>
-    request<{ success: boolean }>(`/analyses/${analysisId}/drills/${encodeURIComponent(tipId)}/complete`, {
-      method: "POST",
-      body: JSON.stringify({ drillName }),
-    }),
-
-  markUndone: (analysisId: string, tipId: string) =>
-    request<{ success: boolean }>(`/analyses/${analysisId}/drills/${encodeURIComponent(tipId)}/complete`, {
-      method: "DELETE",
+      body: JSON.stringify({ tickStats }),
     }),
 };
 
@@ -377,71 +370,15 @@ export const chat = {
     request<{ userMessage: ChatRecord; assistantMessage: ChatRecord }>("/chat", {
       method: "POST",
       body: JSON.stringify({ content, referencedAnalysisId }),
-    }, 30000),
+    }),
 
   clear: () => request<{ success: boolean }>("/chat", { method: "DELETE" }),
-
-  suggestions: () =>
-    request<{ suggestions: string[]; hasCompletedAnalyses: boolean }>("/chat/suggestions"),
-};
-
-// ─── Joint Trends ─────────────────────────────────────────────────────────────
-
-export interface JointDataPoint {
-  analysisId: string;
-  date: string;
-  sport: string;
-  angle: number;
-  risk: number;
-}
-
-export interface JointImprovement {
-  joint: string;
-  deltaDeg: number;
-  sessions: number;
-  improved: boolean;
-}
-
-export interface JointTrendsResponse {
-  joints: Record<string, JointDataPoint[]>;
-  improvements: JointImprovement[];
-}
-
-export const jointTrends = {
-  get: (sport?: string) =>
-    request<JointTrendsResponse>(`/analyses/joint-trends${sport ? `?sport=${encodeURIComponent(sport)}` : ""}`),
-};
-
-// ─── Movement Summary History ──────────────────────────────────────────────────
-
-export interface MovementSummaryDataPoint {
-  analysisId: string;
-  date: string;
-  sport: string;
-  flowScore: number;
-  efficiencyScore: number;
-  bodyControlScore: number;
-  consistencyScore: number;
-  rhythmScore: number;
-  overallScore: number;
-}
-
-export interface MovementSummaryHistoryResponse {
-  history: MovementSummaryDataPoint[];
-}
-
-export const movementSummaryHistory = {
-  get: (sport?: string) =>
-    request<MovementSummaryHistoryResponse>(`/analyses/movement-summary-history${sport ? `?sport=${encodeURIComponent(sport)}` : ""}`),
 };
 
 // ─── Progress ─────────────────────────────────────────────────────────────────
 
 export interface ProgressRecord {
   id: string;
-  title: string;
-  sport: string;
-  movementType: string | null;
   date: string;
   overallScore: number;
   techniqueScore?: number;
@@ -452,40 +389,35 @@ export interface ProgressRecord {
   speedScore?: number;
 }
 
-export interface SportEntry {
-  sport: string;
-  count: number;
-  movementTypes: string[];
-}
-
-export interface PersonalRecordEntry {
-  value: number;
-  date: string;
-  movementType: string | null;
-}
-
 export const progress = {
-  list: (sport?: string, movementType?: string) => {
-    const params = new URLSearchParams();
-    if (sport) params.set("sport", sport);
-    if (movementType) params.set("movementType", movementType);
-    const qs = params.toString();
-    return request<{ entries: ProgressRecord[] }>(`/progress${qs ? `?${qs}` : ""}`);
-  },
+  list: () =>
+    request<{ entries: ProgressRecord[] }>("/progress"),
 
   sports: () =>
     request<{ sports: SportEntry[] }>("/progress/sports"),
 
-  personalRecords: (sport?: string) =>
-    request<{ records: Record<string, PersonalRecordEntry> }>(
-      `/progress/personal-records${sport ? `?sport=${encodeURIComponent(sport)}` : ""}`
-    ),
+  personalRecords: (sport: string) =>
+    request<{ records: Record<string, PersonalRecordEntry> }>(`/progress/personal-records?sport=${encodeURIComponent(sport)}`),
 
-  summary: (sport: string, movementType?: string) => {
-    const params = new URLSearchParams({ sport });
-    if (movementType) params.set("movementType", movementType);
-    return request<{ summary: string; cached: boolean }>(`/progress/summary?${params.toString()}`);
-  },
+  summary: (sport: string, movementType?: string) =>
+    request<{ summary: string }>("/progress/summary", {
+      method: "POST",
+      body: JSON.stringify({ sport, movementType }),
+    }),
+};
+
+// ─── Joint Trends ─────────────────────────────────────────────────────────────
+
+export const jointTrends = {
+  get: () =>
+    request<JointTrendsResponse>("/joint-trends"),
+};
+
+// ─── Movement Summary History ──────────────────────────────────────────────────
+
+export const movementSummaryHistory = {
+  get: () =>
+    request<{ history: MovementSummaryDataPoint[] }>("/movement-summary-history"),
 };
 
 // ─── Achievements ──────────────────────────────────────────────────────────────
@@ -495,11 +427,9 @@ export interface AchievementRecord {
   title: string;
   description: string;
   icon: string;
-  category: string;
   progress: number;
   total: number;
   unlocked: boolean;
-  sport: string | null;
   unlockedAt?: string;
 }
 
@@ -539,15 +469,5 @@ export const subscriptions = {
     request<{ subscription: SubscriptionRecord }>("/subscriptions/update", {
       method: "POST",
       body: JSON.stringify({ tier, revenueCatCustomerId }),
-    }),
-};
-
-// ─── Notifications ─────────────────────────────────────────────────────────────
-
-export const notifications = {
-  updateCheckInHour: (hour: number) =>
-    request<{ success: boolean }>("/profile/check-in-hour", {
-      method: "PATCH",
-      body: JSON.stringify({ checkInHour: hour }),
     }),
 };

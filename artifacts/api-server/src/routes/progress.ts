@@ -1,48 +1,21 @@
-import { Router, type IRouter, type Request, type Response } from "express";
-import { requireAuth } from "./auth";
-import {
-  getSportDistribution,
-  getPersonalRecords,
-  getProgressSummary,
-  getProgressEntries,
-} from "../services/progressService";
+import { Router } from "express";
+import { db } from "@workspace/db";
+import { progressEntriesTable } from "@workspace/db";
+import { eq, desc } from "drizzle-orm";
+import { authenticate, type AuthRequest } from "../middlewares/authenticate.js";
 
-const router: IRouter = Router();
+const router = Router();
 
-router.get("/progress/sports", requireAuth, async (req: Request, res: Response) => {
-  const userId = req.userId!;
-  const result = await getSportDistribution(userId);
-  res.json(result);
-});
+// GET /api/progress
+router.get("/progress", authenticate, async (req: AuthRequest, res) => {
+  const entries = await db
+    .select()
+    .from(progressEntriesTable)
+    .where(eq(progressEntriesTable.userId, req.userId!))
+    .orderBy(desc(progressEntriesTable.date))
+    .limit(90);
 
-router.get("/progress/personal-records", requireAuth, async (req: Request, res: Response) => {
-  const userId = req.userId!;
-  const sport = typeof req.query["sport"] === "string" ? req.query["sport"].toLowerCase() : null;
-  const result = await getPersonalRecords(userId, sport);
-  res.json(result);
-});
-
-router.get("/progress/summary", requireAuth, async (req: Request, res: Response) => {
-  const userId = req.userId!;
-  const sport = typeof req.query["sport"] === "string" ? req.query["sport"].toLowerCase() : null;
-  const movementType = typeof req.query["movementType"] === "string" ? req.query["movementType"] : null;
-
-  if (!sport) {
-    res.status(400).json({ error: "sport query parameter is required" });
-    return;
-  }
-
-  const result = await getProgressSummary(userId, sport, movementType);
-  res.json(result);
-});
-
-router.get("/progress", requireAuth, async (req: Request, res: Response) => {
-  const userId = req.userId!;
-  const sport = typeof req.query["sport"] === "string" ? req.query["sport"].toLowerCase() : null;
-  const movementType = typeof req.query["movementType"] === "string" ? req.query["movementType"] : null;
-
-  const result = await getProgressEntries(userId, sport, movementType);
-  res.json(result);
+  res.json({ entries: entries.reverse() });
 });
 
 export default router;

@@ -39,4 +39,3 @@ yarn-error.*
 .vercel
 
 .env
-static-build/

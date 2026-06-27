@@ -1,69 +1,134 @@
-import { Router, type IRouter, type Request, type Response } from "express";
+import { Router } from "express";
 import { z } from "zod";
-import { requireAuth } from "./auth";
-import { cache } from "../lib/redis";
-import { aiRateLimit } from "../middleware/rateLimit";
-import { logger } from "../lib/logger";
-import { stripUserInputDelimiters } from "../lib/anthropic";
+import { db } from "@workspace/db";
 import {
-  getChatHistory,
-  getChatSuggestions,
-  sendChatMessage,
-  clearChatHistory,
-} from "../services/chatService";
+  chatMessagesTable,
+  analysesTable,
+  athleteProfilesTable,
+  subscriptionsTable,
+} from "@workspace/db";
+import { eq, desc } from "drizzle-orm";
+import { authenticate, type AuthRequest } from "../middlewares/authenticate.js";
+import { chatWithCoach } from "../lib/claude.js";
 
-// Re-export for tests that import buildSystemPrompt directly from this module.
-export { buildSystemPrompt } from "../lib/ai/chatPrompt";
+const router = Router();
 
-const chatPostSchema = z.object({
-  content: z.string().trim().min(1, "content is required").max(
-    4000,
-    "Message must be 4000 characters or fewer"
-  ),
-  referencedAnalysisId: z.string().optional(),
+const sendMessageSchema = z.object({
+  content: z.string().min(1).max(2000),
+  referencedAnalysisId: z.number().int().positive().optional(),
 });
 
-const router: IRouter = Router();
+// GET /api/chat — last 50 messages
+router.get("/chat", authenticate, async (req: AuthRequest, res) => {
+  const messages = await db
+    .select()
+    .from(chatMessagesTable)
+    .where(eq(chatMessagesTable.userId, req.userId!))
+    .orderBy(desc(chatMessagesTable.createdAt))
+    .limit(50);
 
-router.get("/chat/suggestions", requireAuth, async (req: Request, res: Response) => {
-  const userId = req.userId!;
-  const result = await getChatSuggestions(userId);
-  res.json(result);
+  res.json({ messages: messages.reverse() });
 });
 
-router.get("/chat", requireAuth, async (req: Request, res: Response) => {
-  const userId = req.userId!;
-  const result = await getChatHistory(userId);
-  res.json(result);
-});
-
-router.post("/chat", requireAuth, aiRateLimit, async (req: Request, res: Response) => {
-  const userId = req.userId!;
-
-  const parsed = chatPostSchema.safeParse(req.body);
+// POST /api/chat
+router.post("/chat", authenticate, async (req: AuthRequest, res) => {
+  const parsed = sendMessageSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
     return;
   }
 
-  const { content, referencedAnalysisId } = parsed.data;
-  const result = await sendChatMessage(userId, content, referencedAnalysisId);
+  const [subscription] = await db
+    .select()
+    .from(subscriptionsTable)
+    .where(eq(subscriptionsTable.userId, req.userId!))
+    .limit(1);
 
-  if ("error" in result) {
-    res.status(result.status).json({ error: result.error });
+  if (subscription?.tier === "free") {
+    res.status(403).json({
+      error: "AI Coach requires Pro plan",
+      code: "UPGRADE_REQUIRED",
+      message: "Upgrade to Pro to chat with your AI coach.",
+    });
     return;
   }
 
-  res.json({
-    userMessage: result.userMessage,
-    assistantMessage: result.assistantMessage,
+  // Save user message
+  const [userMsg] = await db
+    .insert(chatMessagesTable)
+    .values({
+      userId: req.userId!,
+      role: "user",
+      content: parsed.data.content,
+      referencedAnalysisId: parsed.data.referencedAnalysisId,
+    })
+    .returning();
+
+  // Gather context
+  const [profile] = await db
+    .select()
+    .from(athleteProfilesTable)
+    .where(eq(athleteProfilesTable.userId, req.userId!))
+    .limit(1);
+
+  const [recentAnalysis] = await db
+    .select()
+    .from(analysesTable)
+    .where(eq(analysesTable.userId, req.userId!))
+    .orderBy(desc(analysesTable.uploadedAt))
+    .limit(1);
+
+  // Fetch last 10 chat messages for context
+  const history = await db
+    .select()
+    .from(chatMessagesTable)
+    .where(eq(chatMessagesTable.userId, req.userId!))
+    .orderBy(desc(chatMessagesTable.createdAt))
+    .limit(10);
+
+  const conversationHistory = history
+    .reverse()
+    .filter((m) => m.id !== userMsg!.id)
+    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+  conversationHistory.push({ role: "user", content: parsed.data.content });
+
+  const replyText = await chatWithCoach(conversationHistory, {
+    sport: profile?.sport,
+    level: profile?.level,
+    recentAnalysis: recentAnalysis?.status === "complete"
+      ? {
+          title: recentAnalysis.title,
+          scores: {
+            overall: recentAnalysis.overallScore ?? 0,
+            technique: recentAnalysis.techniqueScore ?? 0,
+            power: recentAnalysis.powerScore ?? 0,
+            balance: recentAnalysis.balanceScore ?? 0,
+          },
+          improvements: (recentAnalysis.improvements as string[]) ?? [],
+        }
+      : undefined,
   });
+
+  const [assistantMsg] = await db
+    .insert(chatMessagesTable)
+    .values({
+      userId: req.userId!,
+      role: "assistant",
+      content: replyText,
+    })
+    .returning();
+
+  res.json({ userMessage: userMsg, assistantMessage: assistantMsg });
 });
 
-router.delete("/chat", requireAuth, async (req: Request, res: Response) => {
-  const userId = req.userId!;
-  const result = await clearChatHistory(userId);
-  res.json(result);
+// DELETE /api/chat — clear history
+router.delete("/chat", authenticate, async (req: AuthRequest, res) => {
+  await db
+    .delete(chatMessagesTable)
+    .where(eq(chatMessagesTable.userId, req.userId!));
+
+  res.json({ success: true });
 });
 
 export default router;

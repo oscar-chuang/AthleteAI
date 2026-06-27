@@ -5,8 +5,7 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import { auth, profile as profileApi, setToken, clearToken, getToken, ApiError, registerUnauthorizedHandler, type Profile, type SubscriptionRecord } from "./api";
-import { clearPersistedCheckInHour } from "@/utils/notifications";
+import { auth, profile as profileApi, setToken, clearToken, getToken, ApiError, type Profile, type SubscriptionRecord } from "./api";
 
 interface AuthUser {
   id: string;
@@ -54,13 +53,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     restoreSession();
-    // Auto-logout when any API call gets a 401 (expired/invalid token)
-    registerUnauthorizedHandler(() => {
-      setHasStoredToken(false);
-      setUser(null);
-      setUserProfile(null);
-      setSubscription(null);
-    });
   }, []);
 
   async function restoreSession() {
@@ -106,7 +98,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function logout() {
     await clearToken();
-    clearPersistedCheckInHour().catch(() => {});
     setHasStoredToken(false);
     setUser(null);
     setUserProfile(null);
@@ -158,7 +149,10 @@ export function useTier() {
   return subscription?.tier ?? "free";
 }
 
-export function useCanAccessFeature(_feature: "aiChat" | "proComparisons" | "unlimitedAnalyses") {
-  // All features unlocked for testing — remove this override to re-enable tier gating.
-  return true;
+export function useCanAccessFeature(feature: "aiChat" | "proComparisons" | "unlimitedAnalyses") {
+  const tier = useTier();
+  if (feature === "aiChat") return tier === "pro" || tier === "elite";
+  if (feature === "proComparisons") return tier === "elite";
+  if (feature === "unlimitedAnalyses") return tier === "pro" || tier === "elite";
+  return false;
 }

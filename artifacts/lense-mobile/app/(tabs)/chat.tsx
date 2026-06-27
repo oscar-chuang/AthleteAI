@@ -9,149 +9,60 @@ import {
   Platform,
   KeyboardAvoidingView,
   ActivityIndicator,
-  ScrollView,
-  Animated,
-  Easing,
-  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { useColors } from "@/hooks/useColors";
-import { SkeletonBox } from "@/components/ui/SkeletonLoader";
 import { chat as chatApi, type ChatRecord, ApiError } from "@/lib/api";
-import { useAuth, useCanAccessFeature } from "@/lib/authContext";
-import { MarkdownText } from "@/components/MarkdownText";
-import { AvatarDisplay } from "@/app/profile-settings";
-import { formatBiomechanicsTextSafe } from "@/utils/formatBiomechanics";
-import { toTitleCase } from "@/utils/formatDisplay";
+import { useCanAccessFeature } from "@/lib/authContext";
+import colors from "@/constants/colors";
 
-const PENDING_KEY = "pendingChatMessage";
-
-function TypingIndicator({ color }: { color: string }) {
-  const dots = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
-  useEffect(() => {
-    const anims = dots.map((d, i) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(i * 160),
-          Animated.timing(d, { toValue: 1, duration: 280, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-          Animated.timing(d, { toValue: 0, duration: 280, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-          Animated.delay(480 - i * 160),
-        ])
-      )
-    );
-    Animated.parallel(anims).start();
-    return () => anims.forEach(a => a.stop());
-  }, []);
-  return (
-    <View style={{ flexDirection: "row", gap: 5, alignItems: "center", paddingHorizontal: 4, paddingVertical: 2 }}>
-      {dots.map((d, i) => (
-        <Animated.View
-          key={i}
-          style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: color, opacity: d, transform: [{ scale: d.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.1] }) }] }}
-        />
-      ))}
-    </View>
-  );
-}
-
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
+const C = colors.light;
 
 export default function ChatScreen() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const canChat = useCanAccessFeature("aiChat");
-  const { profile, refreshProfile } = useAuth();
 
   const [messages, setMessages] = useState<ChatRecord[]>([]);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [hasCompletedAnalyses, setHasCompletedAnalyses] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
-  const [historyError, setHistoryError] = useState(false);
   const [sending, setSending] = useState(false);
   const flatListRef = useRef<FlatList>(null);
-  // Track whether the initial load has completed so profile-change effects
-  // don't double-fire on first mount (loadHistory already covers that).
-  const initialLoadDone = useRef(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const loadSuggestions = useCallback(async () => {
-    if (!canChat) return;
+  const loadHistory = useCallback(async () => {
+    if (!canChat) { setLoading(false); return; }
     try {
-      const { suggestions: suggs, hasCompletedAnalyses: hasAnalyses } =
-        await chatApi.suggestions().catch(() => ({ suggestions: [] as string[], hasCompletedAnalyses: false }));
-      setSuggestions(suggs);
-      setHasCompletedAnalyses(hasAnalyses);
+      const { messages: msgs } = await chatApi.history();
+      setMessages(msgs);
     } catch {
       // ignore
-    }
-  }, [canChat]);
-
-  const loadHistory = useCallback(async () => {
-    if (!canChat) { setLoading(false); initialLoadDone.current = true; return; }
-    try {
-      const [{ messages: msgs }, { suggestions: suggs, hasCompletedAnalyses: hasAnalyses }] = await Promise.all([
-        chatApi.history(),
-        chatApi.suggestions().catch(() => ({ suggestions: [] as string[], hasCompletedAnalyses: false })),
-      ]);
-      setMessages(msgs);
-      setSuggestions(suggs);
-      setHasCompletedAnalyses(hasAnalyses);
-      setHistoryError(false);
-    } catch {
-      setHistoryError(true);
     } finally {
       setLoading(false);
-      initialLoadDone.current = true;
     }
   }, [canChat]);
 
-  // Refresh the profile from the server whenever this tab gains focus so the
-  // context passed to Claude always reflects the latest sport / level.
-  useFocusEffect(useCallback(() => {
-    refreshProfile();
-    loadHistory();
-    AsyncStorage.getItem(PENDING_KEY).then(async (pending) => {
-      if (!pending || !canChat) return;
-      await AsyncStorage.removeItem(PENDING_KEY);
-      // Auto-send after history has had time to load
-      setTimeout(() => sendMessage(pending), 800);
-    });
-  }, [canChat, loadHistory, refreshProfile]));
+  useEffect(() => { loadHistory(); }, [loadHistory]);
 
-  // When sport or level changes mid-session (e.g. user edits profile and comes
-  // back to Coach), reload suggestions so the chips reflect the new sport.
-  const profileSport = profile?.sport;
-  const profileLevel = profile?.level;
-  useEffect(() => {
-    if (!initialLoadDone.current) return; // skip initial render; loadHistory covers it
-    loadSuggestions();
-  }, [profileSport, profileLevel, loadSuggestions]);
-
-  async function sendMessage(content?: string) {
-    const text = (content ?? input).trim();
-    if (!text || sending) return;
+  async function sendMessage() {
+    if (!input.trim() || sending) return;
+    const content = input.trim();
     setInput("");
 
     const optimistic: ChatRecord = {
       id: `tmp-${Date.now()}`,
       role: "user",
-      content: text,
+      content,
       createdAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, optimistic]);
     setSending(true);
 
     try {
-      const { userMessage, assistantMessage } = await chatApi.send(text);
+      const { userMessage, assistantMessage } = await chatApi.send(content);
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== optimistic.id),
         userMessage,
@@ -161,114 +72,36 @@ export default function ChatScreen() {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
       if (e instanceof ApiError && e.code === "UPGRADE_REQUIRED") {
         router.push("/pricing");
-      } else {
-        Alert.alert("Message failed", "Couldn't reach your AI coach. Check your connection and try again.");
       }
     } finally {
       setSending(false);
     }
   }
 
-  const s = StyleSheet.create({
-    container:        { flex: 1, backgroundColor: colors.background },
-    header:           { paddingTop: topPad + 12, paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-    headerLeft:       { flexDirection: "row", alignItems: "center", gap: 12 },
-    coachAvatar:      { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary + "30", alignItems: "center", justifyContent: "center" },
-    onlineDot:        { width: 9, height: 9, borderRadius: 4.5, backgroundColor: colors.success, position: "absolute", bottom: 0, right: 0, borderWidth: 2, borderColor: colors.background },
-    headerTitle:      { fontSize: 17, fontFamily: "Inter_700Bold", color: colors.foreground, letterSpacing: -0.2 },
-    headerSub:        { fontSize: 12, color: colors.success, fontFamily: "Inter_500Medium" },
-    clearBtn:         { padding: 6 },
-    paywall:          { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
-    paywallIcon:      { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.primary + "20", alignItems: "center", justifyContent: "center", marginBottom: 24, borderWidth: 1, borderColor: colors.primary + "30" },
-    paywallTitle:     { fontSize: 24, fontFamily: "Inter_700Bold", color: colors.foreground, textAlign: "center", marginBottom: 10, letterSpacing: -0.3 },
-    paywallSub:       { fontSize: 15, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22, marginBottom: 32 },
-    upgradeBtn:       { backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 32, flexDirection: "row", alignItems: "center", gap: 8 },
-    upgradeBtnText:   { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
-    msgRow:           { paddingHorizontal: 14, paddingVertical: 5 },
-    msgMeta:          { fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 5 },
-    userMsgMeta:      { textAlign: "right" },
-    bubble:           { maxWidth: "86%", borderRadius: 18, paddingHorizontal: 15, paddingVertical: 11 },
-    userBubble:       { alignSelf: "flex-end", backgroundColor: colors.primary, borderBottomRightRadius: 4 },
-    assistantBubble:  { alignSelf: "flex-start", backgroundColor: colors.surface3, borderBottomLeftRadius: 4, borderLeftWidth: 3, borderLeftColor: colors.primary, paddingLeft: 12 },
-    userText:         { color: "#fff", fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
-    typingRow:        { paddingHorizontal: 14, paddingVertical: 6 },
-    typingBubble:     { alignSelf: "flex-start", backgroundColor: colors.surface3, borderRadius: 18, borderBottomLeftRadius: 4, borderLeftWidth: 3, borderLeftColor: colors.primary, paddingHorizontal: 15, paddingVertical: 12 },
-    emptyState:       { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 28, paddingVertical: 32 },
-    emptyIcon:        { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center", marginBottom: 18, borderWidth: 1, borderColor: colors.primary + "30" },
-    emptyTitle:       { fontSize: 22, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 8, textAlign: "center", letterSpacing: -0.3 },
-    emptySub:         { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 21, marginBottom: 28 },
-    suggestionsWrap:  { width: "100%" },
-    suggestionChip:   { backgroundColor: colors.surface3, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: colors.borderStrong, flexDirection: "row", alignItems: "center", gap: 12 },
-    suggestionText:   { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: colors.foreground, lineHeight: 20 },
-    chipsScroll:      { paddingHorizontal: 14, paddingBottom: 8, paddingTop: 4 },
-    inlineChip:       { backgroundColor: colors.surface3, borderRadius: 20, paddingVertical: 8, paddingHorizontal: 14, marginRight: 8, borderWidth: 1, borderColor: colors.borderStrong },
-    inlineChipText:   { fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground },
-    inputRow:         { flexDirection: "row", alignItems: "flex-end", gap: 10, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderStrong, backgroundColor: colors.surface2 },
-    textInput:        { flex: 1, backgroundColor: colors.surface3, borderRadius: 22, paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11, color: colors.foreground, fontSize: 15, fontFamily: "Inter_400Regular", borderWidth: 1, borderColor: colors.borderStrong, maxHeight: 120 },
-    sendBtn:          { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-    sendBtnDisabled:  { backgroundColor: colors.surface4 },
-  });
-
   if (!canChat) {
     return (
       <View style={s.container}>
-        <View style={s.header}>
+        <View style={[s.header, { paddingTop: topPad + 16 }]}>
           <View style={s.headerLeft}>
             <View style={s.coachAvatar}>
-              <Feather name="cpu" size={20} color={colors.primary} />
+              <Feather name="cpu" size={20} color={C.volt} />
             </View>
             <View>
-              <Text style={s.headerTitle}>AI Coach</Text>
-              <TouchableOpacity
-                onPress={() => router.push("/profile-settings")}
-                activeOpacity={0.7}
-                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-              >
-                <Text style={[s.headerSub, { color: colors.mutedForeground }]}>
-                  {profile?.sport && profile?.level
-                    ? `${toTitleCase(profile.sport)} · ${toTitleCase(profile.level)}`
-                    : "Set sport & level →"}
-                </Text>
-                <Feather name="edit-2" size={10} color={colors.mutedForeground} />
-              </TouchableOpacity>
+              <Text style={s.headerTitle}>Atlas AI Coach</Text>
+              <Text style={[s.headerSub, { color: C.textSecondary }]}>Pro feature</Text>
             </View>
           </View>
-          {profile && (
-            <TouchableOpacity onPress={() => router.push("/profile-settings")} activeOpacity={0.75}>
-              <AvatarDisplay
-                avatarUrl={profile.avatarUrl}
-                name={profile.name ?? "Athlete"}
-                size={36}
-                colors={colors}
-              />
-            </TouchableOpacity>
-          )}
         </View>
         <View style={s.paywall}>
           <View style={s.paywallIcon}>
-            <Feather name="lock" size={32} color={colors.primary} />
+            <Feather name="lock" size={32} color={C.volt} />
           </View>
           <Text style={s.paywallTitle}>Unlock Your AI Coach</Text>
           <Text style={s.paywallSub}>
             Get personalized coaching powered by Claude AI. Discuss your form, get drill recommendations, and improve faster.
           </Text>
-          {(() => {
-            const concerns = (profile?.injuryConcerns ?? []).filter(
-              (c) => c !== "No current injuries"
-            );
-            if (concerns.length === 0) return null;
-            return (
-              <Text
-                testID="paywall-injury-concerns"
-                style={[s.paywallSub, { marginBottom: 16, marginTop: -16 }]}
-              >
-                {"Injury concerns on file: "}
-                {concerns.join(", ")}
-              </Text>
-            );
-          })()}
           <TouchableOpacity style={s.upgradeBtn} onPress={() => router.push("/pricing")} activeOpacity={0.85}>
-            <Feather name="zap" size={16} color="#fff" />
+            <Feather name="zap" size={16} color={C.ink} />
             <Text style={s.upgradeBtnText}>Upgrade to Pro</Text>
           </TouchableOpacity>
         </View>
@@ -277,228 +110,172 @@ export default function ChatScreen() {
   }
 
   const canSend = input.trim().length > 0 && !sending;
-  const showEmptyState = !loading && messages.length === 0;
 
   return (
-    <KeyboardAvoidingView
-      style={s.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={0}
-    >
-      <View style={s.header}>
+    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={0}>
+      <View style={[s.header, { paddingTop: topPad + 16 }]}>
         <View style={s.headerLeft}>
           <View style={s.coachAvatar}>
-            <Feather name="cpu" size={20} color={colors.primary} />
-            <View style={s.onlineDot} />
+            <Feather name="cpu" size={20} color={C.volt} />
           </View>
           <View>
-            <Text style={s.headerTitle}>AI Coach</Text>
-            <TouchableOpacity
-              onPress={() => router.push("/profile-settings")}
-              activeOpacity={0.7}
-              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-            >
-              <Text style={s.headerSub}>
-                {profile?.sport && profile?.level
-                  ? `${toTitleCase(profile.sport)} · ${toTitleCase(profile.level)}`
-                  : "Set sport & level →"}
-              </Text>
-              {profile?.sport && profile?.level && (
-                <Feather name="edit-2" size={10} color={colors.mutedForeground} />
-              )}
-            </TouchableOpacity>
+            <Text style={s.headerTitle}>Atlas AI Coach</Text>
+            <Text style={s.headerSub}>● Online</Text>
           </View>
         </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          {profile && (
-            <TouchableOpacity onPress={() => router.push("/profile-settings")} activeOpacity={0.75}>
-              <AvatarDisplay
-                avatarUrl={profile.avatarUrl}
-                name={profile.name ?? "Athlete"}
-                size={36}
-                colors={colors}
-              />
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={s.clearBtn}
-            onPress={() => {
-            Alert.alert(
-              "Clear conversation",
-              "This will permanently delete your entire chat history with the AI coach. This can't be undone.",
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Clear",
-                  style: "destructive",
-                  onPress: async () => {
-                    await chatApi.clear();
-                    setMessages([]);
-                  },
-                },
-              ]
-            );
-          }}
-          activeOpacity={0.7}
-        >
-          <Feather name="trash-2" size={18} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={s.clearBtn} onPress={async () => { await chatApi.clear(); setMessages([]); }}>
+          <Feather name="trash-2" size={18} color={C.textSecondary} />
+        </TouchableOpacity>
       </View>
 
-      {historyError && !loading && (
-        <TouchableOpacity
-          style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.warning + "18", borderBottomWidth: 1, borderBottomColor: colors.warning + "33", paddingVertical: 10, paddingHorizontal: 16 }}
-          onPress={loadHistory}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Retry loading chat history"
-        >
-          <Feather name="alert-circle" size={15} color={colors.warning} />
-          <Text style={{ flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: colors.warning }}>
-            Couldn't load history — new messages still work.{" "}
-            <Text style={{ fontFamily: "Inter_600SemiBold" }}>Tap to retry.</Text>
-          </Text>
-        </TouchableOpacity>
-      )}
-
       {loading ? (
-        <View style={{ flex: 1, padding: 20, gap: 16 }}>
-          <SkeletonBox height={56} radius={12} />
-          <SkeletonBox height={56} radius={12} />
-          <SkeletonBox height={80} radius={12} />
-          <SkeletonBox height={56} radius={12} />
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator color={C.volt} />
         </View>
-      ) : showEmptyState ? (
-        <ScrollView
-          contentContainerStyle={[s.emptyState, { flexGrow: 1 }]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={s.emptyIcon}>
-            <Feather name="message-circle" size={28} color={colors.primary} />
-          </View>
-          <Text style={s.emptyTitle}>Your AI Coach</Text>
-          <Text style={s.emptySub}>
-            {hasCompletedAnalyses
-              ? "Ask anything about your training, form, or recovery. I have your recent session data ready."
-              : "Analyze a training video first, then come back here to discuss your results with your AI coach."}
-          </Text>
-          {!hasCompletedAnalyses && (
-            <TouchableOpacity
-              style={{ backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 24, flexDirection: "row", alignItems: "center", gap: 8 }}
-              onPress={() => router.push("/(tabs)/analyze" as any)}
-              activeOpacity={0.85}
-            >
-              <Feather name="upload" size={15} color="#fff" />
-              <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" }}>Analyze a Video</Text>
-            </TouchableOpacity>
-          )}
-          {suggestions.length > 0 && (
-            <View style={s.suggestionsWrap}>
-              {suggestions.map((s_text, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={s.suggestionChip}
-                  onPress={() => sendMessage(s_text)}
-                  activeOpacity={0.75}
-                >
-                  <Feather name="message-square" size={14} color={colors.primary} />
-                  <Text style={s.suggestionText}>{s_text}</Text>
-                  <Feather name="arrow-up-right" size={14} color={colors.mutedForeground} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </ScrollView>
       ) : (
         <FlatList
           ref={flatListRef}
           data={messages}
           keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => {
+          renderItem={({ item }) => {
             const isUser = item.role === "user";
-            const isLast = index === messages.length - 1;
             return (
               <View style={s.msgRow}>
-                <View style={{ alignItems: isUser ? "flex-end" : "flex-start" }}>
-                  <View style={[s.bubble, isUser ? s.userBubble : s.assistantBubble]}>
-                    {isUser ? (
-                      <Text style={s.userText}>{item.content}</Text>
-                    ) : (
-                      <MarkdownText text={formatBiomechanicsTextSafe(item.content)} baseSize={14} />
-                    )}
-                  </View>
-                  {isLast && (
-                    <Text style={[s.msgMeta, isUser && s.userMsgMeta]}>
-                      {formatTime(item.createdAt)}
-                    </Text>
-                  )}
+                <View style={[s.bubble, isUser ? s.userBubble : s.assistantBubble]}>
+                  <Text style={isUser ? s.userText : s.assistantText}>{item.content}</Text>
                 </View>
               </View>
             );
           }}
+          ListEmptyComponent={
+            <View style={{ padding: 32, alignItems: "center", gap: 12 }}>
+              <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: "rgba(198,255,58,0.1)", alignItems: "center", justifyContent: "center" }}>
+                <Feather name="message-circle" size={28} color={C.volt} />
+              </View>
+              <Text style={{ fontFamily: "Archivo_800ExtraBold", fontSize: 20, color: C.textPrimary, textAlign: "center" }}>Ask Atlas anything</Text>
+              <Text style={{ color: C.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center", lineHeight: 20 }}>
+                Form feedback, drill recommendations, recovery tips — your AI coach is here.
+              </Text>
+            </View>
+          }
           ListFooterComponent={sending ? (
-            <View style={s.typingRow}>
+            <View style={s.msgRow}>
               <View style={s.typingBubble}>
-                <TypingIndicator color={colors.mutedForeground} />
+                <View style={s.typingDot} />
+                <View style={s.typingDot} />
+                <View style={s.typingDot} />
               </View>
             </View>
           ) : null}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingTop: 12, paddingBottom: 8, flexGrow: 1 }}
+          contentContainerStyle={{ paddingTop: 12, paddingBottom: 12, flexGrow: 1 }}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         />
       )}
 
-      {/* Suggestion chips above input when there are some messages */}
-      {!showEmptyState && messages.length > 0 && suggestions.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.chipsScroll}
-          style={{ maxHeight: 44, borderTopWidth: 1, borderTopColor: colors.border + "44" }}
-          keyboardShouldPersistTaps="always"
-        >
-          {suggestions.map((s_text, i) => (
-            <TouchableOpacity
-              key={i}
-              style={s.inlineChip}
-              onPress={() => sendMessage(s_text)}
-              activeOpacity={0.75}
-            >
-              <Text style={s.inlineChipText} numberOfLines={1}>{s_text}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
-
-      <View style={[s.inputRow, { paddingBottom: 10 + (Platform.OS === "web" ? 84 + 34 : insets.bottom + 4) }]}>
+      <View style={[s.inputRow, { paddingBottom: 10 + (Platform.OS === "web" ? 84 + 34 : insets.bottom + 84 + 4) }]}>
         <TextInput
           style={s.textInput}
           value={input}
           onChangeText={setInput}
           placeholder="Ask your AI coach..."
-          placeholderTextColor={colors.mutedForeground}
+          placeholderTextColor={C.textTertiary}
           multiline
           returnKeyType="send"
-          onSubmitEditing={() => sendMessage()}
+          onSubmitEditing={sendMessage}
           blurOnSubmit={false}
           editable={!sending}
         />
         <TouchableOpacity
           style={[s.sendBtn, !canSend && s.sendBtnDisabled]}
-          onPress={() => sendMessage()}
+          onPress={sendMessage}
           disabled={!canSend}
           activeOpacity={0.8}
         >
           {sending ? (
-            <ActivityIndicator color="#fff" size="small" />
+            <ActivityIndicator color={C.ink} size="small" />
           ) : (
-            <Feather name="send" size={16} color="#fff" />
+            <Feather name="send" size={16} color={C.ink} />
           )}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
 }
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.background },
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  coachAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(198,255,58,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: C.textPrimary },
+  headerSub: { fontSize: 12, color: C.success, fontFamily: "Inter_400Regular" },
+  clearBtn: { padding: 4 },
+  paywall: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
+  paywallIcon: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: "rgba(198,255,58,0.12)",
+    alignItems: "center", justifyContent: "center", marginBottom: 20,
+  },
+  paywallTitle: { fontSize: 22, fontFamily: "Archivo_800ExtraBold", color: C.textPrimary, textAlign: "center", marginBottom: 10 },
+  paywallSub: { fontSize: 14, color: C.textSecondary, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20, marginBottom: 28 },
+  upgradeBtn: {
+    backgroundColor: C.volt, borderRadius: 14,
+    paddingVertical: 14, paddingHorizontal: 32,
+    flexDirection: "row", alignItems: "center", gap: 8,
+  },
+  upgradeBtnText: { color: C.ink, fontSize: 15, fontFamily: "Inter_700Bold" },
+  msgRow: { paddingHorizontal: 16, paddingVertical: 6 },
+  bubble: { maxWidth: "80%", borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
+  userBubble: { alignSelf: "flex-end", backgroundColor: C.volt, borderBottomRightRadius: 4 },
+  assistantBubble: {
+    alignSelf: "flex-start",
+    backgroundColor: C.surface2,
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  userText: { color: C.ink, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  assistantText: { color: C.textPrimary, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  typingBubble: {
+    alignSelf: "flex-start", backgroundColor: C.surface2,
+    borderRadius: 18, borderBottomLeftRadius: 4,
+    borderWidth: 1, borderColor: C.border,
+    paddingHorizontal: 16, paddingVertical: 12,
+    flexDirection: "row", alignItems: "center", gap: 4,
+  },
+  typingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.textSecondary },
+  inputRow: {
+    flexDirection: "row", alignItems: "flex-end", gap: 10,
+    paddingHorizontal: 16, paddingTop: 10,
+    borderTopWidth: 1, borderTopColor: C.border,
+    backgroundColor: C.background,
+  },
+  textInput: {
+    flex: 1, backgroundColor: C.surface2,
+    borderRadius: 22, paddingHorizontal: 16,
+    paddingTop: 10, paddingBottom: 10,
+    color: C.textPrimary, fontSize: 14, fontFamily: "Inter_400Regular",
+    borderWidth: 1, borderColor: C.border, maxHeight: 100,
+  },
+  sendBtn: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: C.volt, alignItems: "center", justifyContent: "center",
+  },
+  sendBtnDisabled: { backgroundColor: C.surface3 },
+});

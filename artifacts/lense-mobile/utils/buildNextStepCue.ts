@@ -69,7 +69,7 @@ export function buildNextStepCue(
   }
 
   if (typeof drill === "object" && drill !== null) {
-    const setsNum = parseInt((drill as DrillRecord).sets, 10);
+    const setsNum = parseInt(String((drill as DrillRecord).sets), 10);
     if (!isNaN(setsNum)) {
       return kind === "performance"
         ? `Try ${setsNum + 1} sets next session, or cut rest to 45 s between rounds.`

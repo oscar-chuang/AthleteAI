@@ -1,106 +1,105 @@
 import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, View } from "react-native";
-import { BlurView } from "expo-blur";
+import { Platform, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useColors } from "@/hooks/useColors";
-import { useTheme } from "@/lib/themeContext";
-import { useAuth } from "@/lib/authContext";
-import { useRouter } from "expo-router";
+import colors from "@/constants/colors";
 
-const TAB_HEIGHT = Platform.OS === "web" ? 72 : 58;
+const C = colors.light;
+const isIOS = Platform.OS === "ios";
 
-function TabIcon({
-  name,
-  color,
-  focused,
-}: {
-  name: React.ComponentProps<typeof Feather>["name"];
-  color: string;
-  focused: boolean;
-}) {
-  const colors = useColors();
+function VoltFAB({ focused }: { focused: boolean }) {
   return (
-    <View style={styles.iconWrap}>
-      {focused && (
-        <View style={[styles.activeBar, { backgroundColor: colors.primary }]} />
-      )}
-      <Feather name={name} size={23} color={color} />
+    <View
+      style={{
+        width: 60,
+        height: 60,
+        borderRadius: 20,
+        backgroundColor: focused ? "#aee62e" : C.volt,
+        alignItems: "center",
+        justifyContent: "center",
+        marginTop: -22,
+        shadowColor: C.volt,
+        shadowOpacity: 0.55,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 10,
+      }}
+    >
+      <Feather name="plus" size={28} color={C.ink} />
     </View>
   );
 }
 
 export default function TabLayout() {
-  const colors = useColors();
-  const { isDark } = useTheme();
-  const { isAuthenticated, isLoading } = useAuth();
-  const router = useRouter();
-
-  React.useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/");
-    }
-  }, [isLoading, isAuthenticated]);
-
-  const isIOS = Platform.OS === "ios";
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
-      initialRouteName="analyze"
       screenOptions={{
-        headerShown:             false,
-        tabBarActiveTintColor:   colors.primary,
-        tabBarInactiveTintColor: colors.textTertiary,
-        tabBarShowLabel:         false,
+        headerShown: false,
+        tabBarActiveTintColor: C.volt,
+        tabBarInactiveTintColor: "#5b6472",
         tabBarStyle: {
-          position:        "absolute",
-          backgroundColor: isIOS ? "transparent" : colors.surface2,
-          borderTopWidth:  0,
-          borderTopColor:  "transparent",
-          elevation:       0,
-          zIndex:          100,
-          height:          TAB_HEIGHT,
+          height: 84 + (isIOS ? insets.bottom : 0),
+          backgroundColor: "#0C0F12",
+          borderTopWidth: 1,
+          borderTopColor: "rgba(255,255,255,0.07)",
+          elevation: 0,
+          position: "absolute",
+          overflow: "visible",
         },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView
-              intensity={90}
-              tint={isDark ? "dark" : "light"}
-              style={[
-                StyleSheet.absoluteFill,
-                {
-                  backgroundColor: isDark ? "rgba(11,13,15,0.92)" : "rgba(245,247,250,0.92)",
-                  borderTopWidth: StyleSheet.hairlineWidth,
-                  borderTopColor: colors.borderStrong,
-                },
-              ]}
-            />
-          ) : (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                {
-                  backgroundColor: colors.surface2,
-                  borderTopWidth: StyleSheet.hairlineWidth,
-                  borderTopColor: colors.borderStrong,
-                },
-              ]}
-            />
-          ),
-        tabBarItemStyle: {
-          paddingVertical: 0,
-          height: TAB_HEIGHT,
-          justifyContent: "center",
-          alignItems: "center",
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontFamily: "Inter_600SemiBold",
+          marginBottom: isIOS ? 0 : 6,
         },
+        tabBarIconStyle: { marginTop: 4 },
       }}
     >
-      {/* Hidden tabs — routes still work, not shown in tab bar */}
       <Tabs.Screen
         name="index"
         options={{
-          href: null,
+          title: "Home",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="home" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="progress"
+        options={{
+          title: "Progress",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="trending-up" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="analyze"
+        options={{
+          title: "",
+          tabBarIcon: ({ focused }) => <VoltFAB focused={focused} />,
+          tabBarLabel: () => null,
+        }}
+      />
+      <Tabs.Screen
+        name="chat"
+        options={{
+          title: "Coach",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="message-circle" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="user" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -109,61 +108,6 @@ export default function TabLayout() {
           href: null,
         }}
       />
-
-      {/* Visible tabs — Analyze · Progress · Coach · Profile */}
-      <Tabs.Screen
-        name="analyze"
-        options={{
-          title: "Analyze",
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="activity" color={color} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="progress"
-        options={{
-          title: "Progress",
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="trending-up" color={color} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="chat"
-        options={{
-          title: "Coach",
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="message-circle" color={color} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="user" color={color} focused={focused} />
-          ),
-        }}
-      />
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  iconWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-    width: 48,
-    height: "100%",
-    paddingTop: 6,
-  },
-  activeBar: {
-    position: "absolute",
-    top: 0,
-    width: 28,
-    height: 2,
-    borderRadius: 2,
-  },
-});

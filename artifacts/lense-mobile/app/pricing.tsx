@@ -115,7 +115,7 @@ export default function PricingScreen() {
       paddingVertical: 4,
     },
     popularBadgeText: {
-      color: "#fff",
+      color: colors.primaryForeground,
       fontSize: 10,
       fontFamily: "Inter_700Bold",
       letterSpacing: 0.5,
@@ -163,7 +163,7 @@ export default function PricingScreen() {
     selectBtnOutline: { borderWidth: 1.5, borderColor: colors.border },
     selectBtnCurrent: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.success },
     selectBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-    selectBtnTextPrimary: { color: "#fff" },
+    selectBtnTextPrimary: { color: colors.primaryForeground },
     selectBtnTextOutline: { color: colors.foreground },
     selectBtnTextCurrent: { color: colors.success },
     faq: {
@@ -248,7 +248,7 @@ export default function PricingScreen() {
                 activeOpacity={0.85}
               >
                 {isUpgrading ? (
-                  <ActivityIndicator color={isPopular ? "#fff" : colors.primary} size="small" />
+                  <ActivityIndicator color={isPopular ? colors.primaryForeground : colors.primary} size="small" />
                 ) : (
                   <>
                     {isCurrent && <Feather name="check" size={16} color={colors.success} />}

@@ -1,334 +1,234 @@
-import { Router, type IRouter, type Request, type Response } from "express";
-import { db, analysesTable, completedDrillsTable } from "@workspace/db";
-import { eq, and, desc, ne } from "drizzle-orm";
+import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, type AuthedRequest } from "./auth";
-import { cache } from "../lib/redis";
-import { enqueueBiomechanicsJob } from "../lib/queue";
-import { aiRateLimit } from "../middleware/rateLimit";
-import { resizeThumbnail } from "../lib/resize-thumbnail";
+import { db } from "@workspace/db";
 import {
-  listAnalyses,
-  createAnalysisEntry,
-  detectSport,
-  getJointTrends,
-  getMovementSummaryHistory,
-  getAnalysis,
-  generateCoachingMomentsForAnalysis,
-  generateMovementSummaryForAnalysis,
-  getCompletedDrills,
-  completeDrill,
-  uncompleteDrill,
-  deleteAnalysisEntry,
-  validateVideoUrl,
-  sanitizeJointAngles,
-  sanitizeJointRisks,
-  MAX_FRAME_CHARS,
-  MAX_TITLE_LENGTH,
-  MAX_SPORT_LENGTH,
-  type CreateAnalysisBody,
-} from "../services/analysisService";
-import type { FlaggedMoment } from "../lib/anthropic";
+  analysesTable,
+  coachingTipsTable,
+  injuryRisksTable,
+  progressEntriesTable,
+  athleteProfilesTable,
+  subscriptionsTable,
+} from "@workspace/db";
+import { eq, and, desc, count } from "drizzle-orm";
+import { authenticate, type AuthRequest } from "../middlewares/authenticate.js";
+import { generateAnalysis } from "../lib/claude.js";
 
-// Re-export constants and helpers consumed by tests that import from this module.
-export {
-  validateVideoUrl,
-  MAX_TITLE_LENGTH,
-  MAX_SPORT_LENGTH,
-  MAX_VIDEO_URL_BYTES,
-} from "../services/analysisService";
+const router = Router();
 
-const router: IRouter = Router();
-
-router.get("/analyses", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  const result = await listAnalyses(userId);
-  res.json(result);
+const createAnalysisSchema = z.object({
+  title: z.string().min(1),
+  sport: z.string().min(1),
+  videoUrl: z.string().optional(),
+  duration: z.number().positive().optional(),
+  jointAngles: z.record(z.number()).optional(),
 });
 
-router.post("/analyses", requireAuth, aiRateLimit, async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  const body = req.body as CreateAnalysisBody;
-  const result = await createAnalysisEntry(userId, body);
-  if ("error" in result) {
-    res.status(result.status).json({ error: result.error });
-    return;
-  }
-  res.status(result.status).json({ analysis: result.analysis });
-});
+const FREE_TIER_LIMIT = 3;
 
-router.post("/analyses/detect-sport", requireAuth, aiRateLimit, async (req: Request, res: Response) => {
-  const { imageBase64 } = req.body as { imageBase64?: string };
-  if (!imageBase64) { res.status(400).json({ error: "imageBase64 required" }); return; }
-  try {
-    const result = await detectSport(imageBase64);
-    res.json({ sport: result.sport, movementType: result.movementType });
-  } catch (err) {
-    console.error("Sport detection failed:", err);
-    res.json({ sport: "unknown", movementType: "General" });
-  }
-});
-
-// Must be declared before GET /analyses/:id so Express does not match "joint-trends" as :id.
-router.get("/analyses/joint-trends", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  const result = await getJointTrends(userId);
-  res.json(result);
-});
-
-// Must be declared before GET /analyses/:id for the same reason.
-router.get("/analyses/movement-summary-history", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  const sport = typeof req.query["sport"] === "string" ? req.query["sport"].toLowerCase() : undefined;
-  const result = await getMovementSummaryHistory(userId, sport);
-  res.json(result);
-});
-
-router.get("/analyses/:id", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  const id = parseInt(String(req.params["id"] ?? ""), 10);
-  if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
-  const result = await getAnalysis(id, userId);
-  if (!result) { res.status(404).json({ error: "Analysis not found" }); return; }
-  res.json(result);
-});
-
-// Zod schema for PATCH /analyses/:id — enforces types and length bounds before
-// the existing sanitizers run. Unknown extra fields are stripped silently.
-const patchAnalysisBodySchema = z.object({
-  jointAngles:   z.record(z.string(), z.unknown()).optional(),
-  jointRisks:    z.record(z.string(), z.unknown()).optional(),
-  frameBase64:   z.string().max(MAX_FRAME_CHARS).optional(),
-  title:         z.string().max(MAX_TITLE_LENGTH).optional(),
-  sport:         z.string().max(MAX_SPORT_LENGTH).optional(),
-  movementType:  z.string().max(80).optional(),
-  videoUrl:      z.string().optional(),
-});
-
-router.patch("/analyses/:id", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  const id = parseInt(String(req.params["id"] ?? ""), 10);
-  if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
-
-  const parseResult = patchAnalysisBodySchema.safeParse(req.body);
-  if (!parseResult.success) {
-    res.status(400).json({ error: "Invalid request body", details: parseResult.error.flatten() });
-    return;
-  }
-  const body = parseResult.data;
-
-  const [row] = await db
+// GET /api/analyses
+router.get("/analyses", authenticate, async (req: AuthRequest, res) => {
+  const rows = await db
     .select()
     .from(analysesTable)
-    .where(and(eq(analysesTable.id, id), eq(analysesTable.userId, userId)));
+    .where(eq(analysesTable.userId, req.userId!))
+    .orderBy(desc(analysesTable.uploadedAt));
 
-  if (!row) { res.status(404).json({ error: "Analysis not found" }); return; }
+  res.json({ analyses: rows });
+});
 
-  // Validate the measured payload before trusting it. Only the six tracked joints
-  // are accepted; angles are clamped to a sane range and risks to {0,1,2}.
-  const jointAngles = sanitizeJointAngles(body.jointAngles);
-  const jointRisks = sanitizeJointRisks(body.jointRisks);
-  const frameBase64 = body.frameBase64 ?? undefined;
-  const newSport = body.sport?.trim() ? body.sport.trim().toLowerCase() : null;
-  const newMovementType = body.movementType?.trim() ? body.movementType.trim() : null;
-
-  if (body.videoUrl) {
-    const videoUrlError = validateVideoUrl(body.videoUrl);
-    if (videoUrlError) {
-      res.status(400).json({ error: videoUrlError });
-      return;
-    }
+// POST /api/analyses
+router.post("/analyses", authenticate, async (req: AuthRequest, res) => {
+  const parsed = createAnalysisSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+    return;
   }
 
-  const hasMeasuredData = !!jointAngles || !!jointRisks || !!frameBase64;
+  const [subscription] = await db
+    .select()
+    .from(subscriptionsTable)
+    .where(eq(subscriptionsTable.userId, req.userId!))
+    .limit(1);
 
-  // Detect joint risk improvements vs the most recent prior biomechanics scan.
-  // Must run before res.json() so the PATCH response carries the improvement list
-  // for the mobile client to schedule a local notification.
-  const improvements: Array<{ joint: string; oldRisk: number; newRisk: number }> = [];
-  if (jointRisks) {
-    const [prevScan] = await db
-      .select({ jointRisks: analysesTable.jointRisks })
+  if (subscription?.tier === "free") {
+    const [{ total }] = await db
+      .select({ total: count() })
       .from(analysesTable)
-      .where(
-        and(
-          eq(analysesTable.userId, userId),
-          eq(analysesTable.biomechanicsApplied, true),
-          ne(analysesTable.id, id),
-        )
-      )
-      .orderBy(desc(analysesTable.uploadedAt))
-      .limit(1);
+      .where(eq(analysesTable.userId, req.userId!));
 
-    if (prevScan?.jointRisks) {
-      const prevRisks = prevScan.jointRisks as Record<string, number>;
-      for (const [joint, newRisk] of Object.entries(jointRisks)) {
-        const oldRisk = prevRisks[joint];
-        if (typeof oldRisk === "number" && newRisk < oldRisk) {
-          improvements.push({ joint, oldRisk, newRisk });
-        }
-      }
-    }
-  }
-
-  // Sport-only correction (no measured data): persist the corrected sport and/or
-  // movement type without re-running AI. The authoritative grounded run happens when
-  // the skeleton scan later PATCHes joint angles, and it will use this corrected sport.
-  if ((newSport || newMovementType) && !hasMeasuredData) {
-    try {
-      await db.update(analysesTable)
-        .set({
-          ...(newSport ? { sport: newSport } : {}),
-          ...(newMovementType ? { movementType: newMovementType } : {}),
-        })
-        .where(eq(analysesTable.id, row.id));
-    } catch (err) {
-      console.error(`Sport/movement correction failed for id=${id}:`, err);
-      res.status(500).json({ error: "Failed to update sport" });
+    if (Number(total) >= FREE_TIER_LIMIT) {
+      res.status(403).json({
+        error: "Free plan limit reached",
+        code: "UPGRADE_REQUIRED",
+        message: `Free plan allows ${FREE_TIER_LIMIT} analyses. Upgrade to Pro for unlimited analyses.`,
+      });
       return;
     }
-    res.json({ success: true });
-    return;
   }
 
-  // Nothing actionable: no measured scan data and no sport/movement correction.
-  if (!hasMeasuredData) {
-    res.status(400).json({ error: "No measured data or sport correction provided" });
-    return;
-  }
+  const [profile] = await db
+    .select()
+    .from(athleteProfilesTable)
+    .where(eq(athleteProfilesTable.userId, req.userId!))
+    .limit(1);
 
-  // Acquire a distributed lock so two simultaneous PATCH calls cannot both trigger
-  // a biomechanics run on the same analysis. If the lock is already held return 409.
-  const lockKey = `lock:analysis:${id}`;
-  const lockAcquired = await cache.acquireLock(lockKey, 30_000);
-  if (!lockAcquired) {
-    res.status(409).json({ error: "Analysis is already being processed" });
-    return;
-  }
-
-  // Stale completed-drill records are orphaned by the re-scan. Delete them so the
-  // client can rely on PATCH success meaning drills are cleared.
-  await db.delete(completedDrillsTable)
-    .where(eq(completedDrillsTable.analysisId, row.id))
-    .catch((err) => { console.error(`Failed to clear completed drills for id=${id}:`, err); });
-
-  // Snapshot the worst-frame JPEG as the thumbnail and persist measured joint data.
-  const thumbnailUrl = frameBase64 ? await resizeThumbnail(frameBase64) : undefined;
-  await db.update(analysesTable)
-    .set({
+  const [analysis] = await db
+    .insert(analysesTable)
+    .values({
+      userId: req.userId!,
+      title: parsed.data.title,
+      sport: parsed.data.sport,
+      videoUrl: parsed.data.videoUrl,
+      duration: parsed.data.duration,
       status: "processing",
-      ...(newSport ? { sport: newSport } : {}),
-      ...(thumbnailUrl ? { thumbnailUrl } : {}),
-      ...(jointAngles ? { jointAngles } : {}),
-      ...(jointRisks ? { jointRisks } : {}),
     })
-    .where(eq(analysesTable.id, row.id))
-    .catch(() => {});
+    .returning();
 
-  // Return 202 immediately — the mobile polling loop picks up status: 'complete'
-  // once the worker finishes. Include improvements so the client can schedule
-  // local notifications without waiting for the full result.
-  res.status(202).json({ status: "processing", improvements });
-
-  // Enqueue the grounded biomechanics AI run. The worker holds the lock and
-  // releases it after writing biomechanicsApplied=true.
-  await enqueueBiomechanicsJob({
-    analysisId: row.id,
-    userId,
-    frameBase64: frameBase64 ?? null,
-  }).catch((err) => {
-    console.error(`Failed to enqueue biomechanics job for id=${id}:`, err);
-    cache.releaseLock(lockKey).catch(() => {});
+  // Run AI analysis async - don't block the response
+  runAnalysis(analysis.id, parsed.data, profile).catch((err) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`Analysis ${analysis.id} failed:`, msg);
     db.update(analysesTable)
       .set({ status: "failed" })
-      .where(and(eq(analysesTable.id, row.id), eq(analysesTable.biomechanicsApplied, false)))
-      .catch(() => {});
+      .where(eq(analysesTable.id, analysis.id))
+      .execute()
+      .catch((dbErr: unknown) => console.error("Failed to mark analysis as failed:", dbErr));
   });
+
+  res.status(202).json({ analysis });
 });
 
-router.post("/analyses/:id/coaching-moments", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  const id = parseInt(String(req.params["id"] ?? ""), 10);
-  if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
-  const rawFlaggedMoments: FlaggedMoment[] = Array.isArray(req.body?.flaggedMoments)
-    ? (req.body.flaggedMoments as FlaggedMoment[])
-    : [];
-  try {
-    const result = await generateCoachingMomentsForAnalysis(id, userId, rawFlaggedMoments);
-    if ("error" in result) {
-      res.status(result.status).json({ error: result.error });
-      return;
-    }
-    res.json({ moments: result.moments });
-  } catch (err) {
-    console.error("generateCoachingMoments failed:", err);
-    res.status(500).json({ error: "Failed to generate coaching moments" });
-  }
-});
+// GET /api/analyses/:id
+router.get("/analyses/:id", authenticate, async (req: AuthRequest, res) => {
+  const [analysis] = await db
+    .select()
+    .from(analysesTable)
+    .where(
+      and(
+        eq(analysesTable.id, Number(req.params.id)),
+        eq(analysesTable.userId, req.userId!)
+      )
+    )
+    .limit(1);
 
-router.post("/analyses/:id/movement-summary", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  const id = parseInt(String(req.params["id"] ?? ""), 10);
-  if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
-  const tickStats = req.body?.tickStats as { joints?: Record<string, { avgAngle: number; maxRisk: number; timesFlag: number }> } | null;
-  try {
-    const result = await generateMovementSummaryForAnalysis(id, userId, tickStats);
-    if ("error" in result) {
-      res.status(result.status).json({ error: result.error });
-      return;
-    }
-    res.json({ summary: result.summary });
-  } catch (err) {
-    console.error("generateMovementSummary failed:", err);
-    res.status(500).json({ error: "Failed to generate movement summary" });
-  }
-});
-
-router.get("/analyses/:id/drills/completed", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  const id = parseInt(String(req.params["id"] ?? ""), 10);
-  if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
-  const result = await getCompletedDrills(id, userId);
-  if ("error" in result) {
-    res.status(result.status).json({ error: result.error });
+  if (!analysis) {
+    res.status(404).json({ error: "Analysis not found" });
     return;
   }
-  res.json({ completedTipIds: result.completedTipIds });
+
+  const [tips, risks] = await Promise.all([
+    db
+      .select()
+      .from(coachingTipsTable)
+      .where(eq(coachingTipsTable.analysisId, analysis.id)),
+    db
+      .select()
+      .from(injuryRisksTable)
+      .where(eq(injuryRisksTable.analysisId, analysis.id)),
+  ]);
+
+  res.json({ analysis, tips, injuryRisks: risks });
 });
 
-router.post("/analyses/:id/drills/:tipId/complete", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  const id = parseInt(String(req.params["id"] ?? ""), 10);
-  const tipId = String(req.params["tipId"] ?? "").trim();
-  if (isNaN(id) || !tipId) { res.status(400).json({ error: "Invalid request" }); return; }
-  const drillName = typeof req.body?.drillName === "string" ? req.body.drillName.slice(0, 200) : null;
-  const result = await completeDrill(id, userId, tipId, drillName);
-  if ("error" in result) {
-    res.status(result.status).json({ error: result.error });
+// DELETE /api/analyses/:id
+router.delete("/analyses/:id", authenticate, async (req: AuthRequest, res) => {
+  const [deleted] = await db
+    .delete(analysesTable)
+    .where(
+      and(
+        eq(analysesTable.id, Number(req.params.id)),
+        eq(analysesTable.userId, req.userId!)
+      )
+    )
+    .returning({ id: analysesTable.id });
+
+  if (!deleted) {
+    res.status(404).json({ error: "Analysis not found" });
     return;
   }
+
   res.json({ success: true });
 });
 
-router.delete("/analyses/:id/drills/:tipId/complete", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  const id = parseInt(String(req.params["id"] ?? ""), 10);
-  const tipId = String(req.params["tipId"] ?? "").trim();
-  if (isNaN(id) || !tipId) { res.status(400).json({ error: "Invalid request" }); return; }
-  const result = await uncompleteDrill(id, userId, tipId);
-  res.json({ success: result.success });
-});
+async function runAnalysis(
+  analysisId: number,
+  input: {
+    title: string;
+    sport: string;
+    duration?: number;
+    jointAngles?: Record<string, number>;
+  },
+  profile: { level: string; goals: string[]; injuryConcerns: string[] } | undefined
+) {
+  const result = await generateAnalysis({
+    sport: input.sport,
+    title: input.title,
+    level: profile?.level ?? "intermediate",
+    duration: input.duration ?? 30,
+    jointAngles: input.jointAngles,
+    goals: profile?.goals,
+    injuryConcerns: profile?.injuryConcerns,
+  });
 
-router.delete("/analyses/:id", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  const id = parseInt(String(req.params["id"] ?? ""), 10);
-  if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
-  const result = await deleteAnalysisEntry(id, userId);
-  if ("error" in result) {
-    res.status(result.status).json({ error: result.error });
-    return;
+  await db
+    .update(analysesTable)
+    .set({
+      status: "complete",
+      overallScore: result.scores.overall,
+      techniqueScore: result.scores.technique,
+      powerScore: result.scores.power,
+      balanceScore: result.scores.balance,
+      consistencyScore: result.scores.consistency,
+      mobilityScore: result.scores.mobility,
+      speedScore: result.scores.speed,
+      strengths: result.strengths,
+      improvements: result.improvements,
+    })
+    .where(eq(analysesTable.id, analysisId));
+
+  if (result.tips.length > 0) {
+    await db.insert(coachingTipsTable).values(
+      result.tips.map((t) => ({
+        analysisId,
+        category: t.category as any,
+        severity: t.severity as any,
+        title: t.title,
+        description: t.description,
+        drill: t.drill,
+      }))
+    );
   }
-  res.json({ success: true });
-});
+
+  if (result.injuryRisks.length > 0) {
+    await db.insert(injuryRisksTable).values(
+      result.injuryRisks.map((r) => ({
+        analysisId,
+        joint: r.joint,
+        riskPercent: r.riskPercent,
+        description: r.description,
+        prevention: r.prevention,
+      }))
+    );
+  }
+
+  // Record progress entry
+  await db.insert(progressEntriesTable).values({
+    userId: (
+      await db
+        .select({ userId: analysesTable.userId })
+        .from(analysesTable)
+        .where(eq(analysesTable.id, analysisId))
+        .limit(1)
+    )[0]!.userId,
+    date: new Date().toISOString().split("T")[0]!,
+    overallScore: result.scores.overall,
+    techniqueScore: result.scores.technique,
+    powerScore: result.scores.power,
+    balanceScore: result.scores.balance,
+    consistencyScore: result.scores.consistency,
+    mobilityScore: result.scores.mobility,
+    speedScore: result.scores.speed,
+  });
+}
 
 export default router;

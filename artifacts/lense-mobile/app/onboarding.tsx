@@ -11,11 +11,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/lib/authContext";
-import { requestNotificationPermission } from "@/utils/notifications";
 
 const SPORTS = [
   "Powerlifting", "Olympic Weightlifting", "Running", "Swimming",
@@ -41,16 +38,13 @@ const INJURIES = [
   "Hip", "Ankle", "Elbow", "Neck",
 ];
 
-const TOTAL_STEPS = 6;
-
-const WEEKLY_GOAL_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
+const TOTAL_STEPS = 5;
 
 interface OnboardingState {
   sport: string;
   level: string;
   goals: string[];
   injuries: string[];
-  weeklyGoal: number;
 }
 
 export default function OnboardingScreen() {
@@ -64,7 +58,6 @@ export default function OnboardingScreen() {
     level: "",
     goals: [],
     injuries: [],
-    weeklyGoal: 3,
   });
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -88,18 +81,9 @@ export default function OnboardingScreen() {
           level: (state.level.toLowerCase() as any) || "beginner",
           goals: state.goals,
           injuryConcerns: state.injuries,
-          weeklyGoal: state.weeklyGoal,
         });
       } catch {
         // non-critical — continue anyway
-      }
-      const notifGranted = await requestNotificationPermission();
-      if (!notifGranted) {
-        try {
-          await AsyncStorage.setItem("notif_denied_nudge", "pending");
-        } catch {
-          // non-fatal
-        }
       }
       router.replace("/(tabs)" as any);
     }
@@ -161,8 +145,9 @@ export default function OnboardingScreen() {
     },
     stepTitle: {
       fontSize: 28,
-      fontFamily: "Inter_700Bold",
+      fontFamily: "Archivo_800ExtraBold",
       color: colors.foreground,
+      letterSpacing: -0.5,
       marginBottom: 6,
     },
     stepSub: {
@@ -251,7 +236,6 @@ export default function OnboardingScreen() {
       justifyContent: "center",
     },
     continueBtnText: {
-      color: "#fff",
       fontSize: 16,
       fontFamily: "Inter_700Bold",
     },
@@ -337,7 +321,7 @@ export default function OnboardingScreen() {
                   </View>
                   {active && (
                     <View style={[s.checkCircle, { backgroundColor: colors.primary }]}>
-                      <Feather name="check" size={14} color="#fff" />
+                      <Feather name="check" size={14} color={colors.primaryForeground} />
                     </View>
                   )}
                 </TouchableOpacity>
@@ -398,7 +382,7 @@ export default function OnboardingScreen() {
                   <Text style={[s.levelLabel, { color: colors.foreground }]}>{inj}</Text>
                   {active && (
                     <View style={[s.checkCircle, { backgroundColor: colors.primary }]}>
-                      <Feather name="check" size={14} color="#fff" />
+                      <Feather name="check" size={14} color={colors.primaryForeground} />
                     </View>
                   )}
                 </TouchableOpacity>
@@ -409,74 +393,13 @@ export default function OnboardingScreen() {
 
         {step === 5 && (
           <>
-            <Text style={s.stepTitle}>Weekly training goal</Text>
-            <Text style={s.stepSub}>How many sessions per week do you aim for? You can change this any time.</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 32 }}>
-              {WEEKLY_GOAL_OPTIONS.map((n) => {
-                const active = state.weeklyGoal === n;
-                return (
-                  <TouchableOpacity
-                    key={n}
-                    style={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: 16,
-                      borderWidth: 2,
-                      borderColor: active ? colors.primary : colors.border,
-                      backgroundColor: active ? colors.primary + "18" : colors.card,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                    onPress={() => setState((p) => ({ ...p, weeklyGoal: n }))}
-                    activeOpacity={0.75}
-                  >
-                    <Text style={{ fontSize: 28, fontFamily: "Inter_700Bold", color: active ? colors.primary : colors.foreground }}>
-                      {n}
-                    </Text>
-                    <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: active ? colors.primary : colors.mutedForeground, marginTop: 1 }}>
-                      {n === 1 ? "session" : "sessions"}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <View style={{ backgroundColor: colors.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <Feather name="target" size={18} color={colors.primary} />
-              <Text style={{ flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 18 }}>
-                Your weekly progress bar and session counter on the Home tab will track you against this goal.
-              </Text>
-            </View>
-          </>
-        )}
-
-        {step === 6 && (
-          <>
             <Text style={s.stepTitle}>You're all set!</Text>
             <Text style={s.stepSub}>Your personalized coaching profile is ready.</Text>
-
-            <View style={{
-              backgroundColor: colors.primary + "14",
-              borderRadius: 14,
-              padding: 16,
-              borderWidth: 1,
-              borderColor: colors.primary + "33",
-              flexDirection: "row",
-              alignItems: "flex-start",
-              gap: 12,
-              marginBottom: 24,
-            }}>
-              <Feather name="bell" size={18} color={colors.primary} style={{ marginTop: 1 }} />
-              <Text style={{ flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: colors.foreground, lineHeight: 19 }}>
-                We'll ask for notification permission so we can celebrate your progress — like when a joint risk drops after a scan.
-              </Text>
-            </View>
-
             {[
               { label: "Sport", value: state.sport || "—" },
               { label: "Level", value: state.level || "—" },
               { label: "Goals", value: state.goals.join(", ") || "—" },
               { label: "Injury concerns", value: state.injuries.join(", ") || "—" },
-              { label: "Weekly goal", value: `${state.weeklyGoal} session${state.weeklyGoal === 1 ? "" : "s"} / week` },
             ].map((row) => (
               <View key={row.label} style={s.summaryRow}>
                 <Text style={s.summaryKey}>{row.label}</Text>
@@ -497,7 +420,7 @@ export default function OnboardingScreen() {
           disabled={!canContinue()}
           activeOpacity={0.85}
         >
-          <Text style={[s.continueBtnText, { color: canContinue() ? "#fff" : colors.mutedForeground }]}>
+          <Text style={[s.continueBtnText, { color: canContinue() ? colors.primaryForeground : colors.mutedForeground }]}>
             {step === TOTAL_STEPS ? "Go to Dashboard →" : "Continue"}
           </Text>
         </TouchableOpacity>

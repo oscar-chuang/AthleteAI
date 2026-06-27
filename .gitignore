@@ -27,6 +27,11 @@ node_modules
 !.vscode/launch.json
 !.vscode/extensions.json
 
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
 # misc
 /.sass-cache
 /connect.lock
@@ -47,4 +52,3 @@ Thumbs.db
 # Replit
 .cache/
 .local/
-artifacts/lense-mobile/static-build/

@@ -1,259 +1,151 @@
-import React, { useCallback } from "react";
+import React from "react";
 import {
   View,
   Text,
-  StyleSheet,
-  ScrollView,
   TouchableOpacity,
+  ScrollView,
   Platform,
+  StyleSheet,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
-import { useColors } from "@/hooks/useColors";
 import { useAuth, useTier } from "@/lib/authContext";
-import { AvatarDisplay } from "@/app/profile-settings";
-import { SPACING } from "@/constants/spacing";
-import { TYPE } from "@/constants/typography";
-import { toTitleCase } from "@/utils/formatDisplay";
+import colors from "@/constants/colors";
 
-function ProfileRow({
-  icon,
-  label,
-  value,
-  onPress,
-  colors,
-}: {
-  icon: React.ComponentProps<typeof Feather>["name"];
-  label: string;
-  value?: string;
-  onPress?: () => void;
-  colors: ReturnType<typeof useColors>;
-}) {
-  const inner = (
-    <View style={[rowStyles.row, { borderBottomColor: colors.border }]}>
-      <View style={[rowStyles.iconWrap, { backgroundColor: colors.surface3 }]}>
-        <Feather name={icon} size={16} color={colors.mutedForeground} />
-      </View>
-      <View style={rowStyles.labelWrap}>
-        <Text style={[rowStyles.label, { color: colors.mutedForeground }]}>{label}</Text>
-        {value ? (
-          <Text style={[rowStyles.value, { color: colors.foreground }]}>{value}</Text>
-        ) : null}
-      </View>
-      {onPress && (
-        <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-      )}
-    </View>
-  );
-  if (onPress) {
-    return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
-        {inner}
-      </TouchableOpacity>
-    );
-  }
-  return inner;
-}
+const C = colors.light;
 
-const rowStyles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: SPACING.lg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 14,
-  },
-  iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  labelWrap: {
-    flex: 1,
-    gap: 1,
-  },
-  label: {
-    ...TYPE.caption,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  value: {
-    ...TYPE.body,
-    fontSize: 15,
-  },
-});
+const SETTINGS_ROWS = [
+  { icon: "bell" as const, label: "Notifications" },
+  { icon: "shield" as const, label: "Privacy" },
+  { icon: "help-circle" as const, label: "Help & Support" },
+  { icon: "info" as const, label: "About AthleteAI" },
+];
 
-export default function ProfileTab() {
-  const colors = useColors();
+export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { profile, logout } = useAuth();
+  const { user, profile, logout } = useAuth();
   const tier = useTier();
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
+  const topPad = Platform.OS === "web" ? 24 : insets.top + 8;
+  const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 84 + 16;
 
-  const s = StyleSheet.create({
-    container:    { flex: 1, backgroundColor: colors.background },
-    header:       { paddingTop: topPad + SPACING.lg, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.lg },
-    title:        { ...TYPE.title, color: colors.foreground },
-    heroCard:     {
-      marginHorizontal: SPACING.lg,
-      marginBottom: SPACING.xl,
-      padding: SPACING.lg,
-      borderRadius: 20,
-      backgroundColor: colors.surface2,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: SPACING.md,
-    },
-    nameBlock:    { flex: 1, gap: 4 },
-    name:         { ...TYPE.title, fontSize: 20, color: colors.foreground },
-    sport:        { ...TYPE.caption, color: colors.mutedForeground, textTransform: "capitalize" as const },
-    tierBadge:    {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 20,
-      backgroundColor: colors.primary + "22",
-      alignSelf: "flex-start",
-    },
-    tierText:     { fontSize: 11, fontFamily: "Inter_700Bold", color: colors.primary, textTransform: "uppercase" as const, letterSpacing: 0.5 },
-    editBtn:      {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.surface3,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    section:      { marginBottom: SPACING.xl },
-    sectionLabel: {
-      ...TYPE.captionMed,
-      color: colors.mutedForeground,
-      paddingHorizontal: SPACING.lg,
-      marginBottom: SPACING.sm,
-    },
-    sectionCard:  {
-      backgroundColor: colors.surface2,
-      marginHorizontal: SPACING.lg,
-      borderRadius: 16,
-      overflow: "hidden" as const,
-    },
-    logoutBtn:    {
-      marginHorizontal: SPACING.lg,
-      marginTop: SPACING.sm,
-      borderRadius: 14,
-      paddingVertical: 14,
-      alignItems: "center" as const,
-      backgroundColor: colors.surface2,
-    },
-    logoutText:   { ...TYPE.bodySemi, color: colors.destructive, fontSize: 15 },
-  });
-
-  const sportLabel = profile?.sport && profile?.level
-    ? `${toTitleCase(profile.sport)} · ${toTitleCase(profile.level)}`
-    : profile?.sport
-    ? toTitleCase(profile.sport)
-    : "No sport set";
+  const firstName = (profile?.name ?? user?.name ?? "Athlete");
+  const initials = firstName.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
 
   return (
     <View style={s.container}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: bottomPad }}
-      >
-        <View style={s.header}>
-          <Text style={s.title}>Profile</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomPad }}>
+        {/* Header */}
+        <View style={[s.header, { paddingTop: topPad }]}>
+          <Text style={s.pageTitle}>Profile</Text>
         </View>
 
-        {/* Hero card */}
-        <View style={s.heroCard}>
-          <AvatarDisplay
-            avatarUrl={profile?.avatarUrl}
-            name={profile?.name ?? "Athlete"}
-            size={56}
-            colors={colors}
-          />
-          <View style={s.nameBlock}>
-            <Text style={s.name}>{profile?.name ?? "Athlete"}</Text>
-            <Text style={s.sport}>{sportLabel}</Text>
-            {tier !== "free" && (
-              <View style={s.tierBadge}>
-                <Text style={s.tierText}>{tier}</Text>
-              </View>
-            )}
+        {/* Identity card */}
+        <View style={s.identityCard}>
+          <View style={s.avatar}>
+            <Text style={s.avatarText}>{initials}</Text>
           </View>
-          <TouchableOpacity
-            style={s.editBtn}
-            onPress={() => router.push("/profile-settings")}
-            activeOpacity={0.75}
-          >
-            <Feather name="edit-2" size={16} color={colors.mutedForeground} />
+          <View style={{ flex: 1 }}>
+            <Text style={s.nameText}>{firstName}</Text>
+            <Text style={s.emailText}>{user?.email ?? ""}</Text>
+            <View style={s.tierBadge}>
+              <Text style={s.tierText}>{tier === "pro" ? "⚡ Pro" : "Free"}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Stats */}
+        <View style={s.statsRow}>
+          <View style={s.statCard}>
+            <Text style={s.statValue}>{profile?.streakDays ?? 0}</Text>
+            <Text style={s.statLabel}>DAY STREAK</Text>
+          </View>
+          <View style={s.statCard}>
+            <Text style={s.statValue}>{profile?.weeklyProgress ?? 0}</Text>
+            <Text style={s.statLabel}>THIS WEEK</Text>
+          </View>
+          <View style={s.statCard}>
+            <Text style={s.statValue}>{profile?.weeklyGoal ?? 3}</Text>
+            <Text style={s.statLabel}>WEEKLY GOAL</Text>
+          </View>
+        </View>
+
+        {/* Upgrade */}
+        {tier === "free" && (
+          <TouchableOpacity style={s.upgradeCard} onPress={() => router.push("/pricing")} activeOpacity={0.88}>
+            <Feather name="zap" size={22} color={C.ink} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.upgradeTitle}>Upgrade to Pro</Text>
+              <Text style={s.upgradeSub}>AI Coach · Unlimited analyses · Priority support</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={C.ink} />
           </TouchableOpacity>
-        </View>
+        )}
 
-        {/* Account section */}
+        {/* Settings */}
         <View style={s.section}>
-          <Text style={s.sectionLabel}>Account</Text>
-          <View style={s.sectionCard}>
-            <ProfileRow
-              icon="user"
-              label="Profile & Settings"
-              value="Edit sport, level, goals"
-              onPress={() => router.push("/profile-settings")}
-              colors={colors}
-            />
-            {tier === "free" && (
-              <ProfileRow
-                icon="zap"
-                label="Upgrade to Pro"
-                value="Unlock AI coach & unlimited analyses"
-                onPress={() => router.push("/pricing")}
-                colors={colors}
-              />
-            )}
-          </View>
-        </View>
-
-        {/* Activity section */}
-        <View style={s.section}>
-          <Text style={s.sectionLabel}>Activity</Text>
-          <View style={s.sectionCard}>
-            <ProfileRow
-              icon="activity"
-              label="My Analyses"
-              onPress={() => router.push("/(tabs)/analyze")}
-              colors={colors}
-            />
-            <ProfileRow
-              icon="trending-up"
-              label="Progress & Stats"
-              onPress={() => router.push("/(tabs)/progress")}
-              colors={colors}
-            />
-            <ProfileRow
-              icon="message-circle"
-              label="AI Coach"
-              onPress={() => router.push("/(tabs)/chat")}
-              colors={colors}
-            />
+          <Text style={s.sectionLabel}>SETTINGS</Text>
+          <View style={s.settingsCard}>
+            {SETTINGS_ROWS.map((row, i) => (
+              <TouchableOpacity key={row.label} style={[s.settingsRow, i < SETTINGS_ROWS.length - 1 && s.settingsRowBorder]} activeOpacity={0.7}>
+                <View style={s.settingsIcon}>
+                  <Feather name={row.icon} size={18} color={C.textSecondary} />
+                </View>
+                <Text style={s.settingsLabel}>{row.label}</Text>
+                <Feather name="chevron-right" size={16} color={C.textTertiary} />
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
         {/* Sign out */}
-        <TouchableOpacity
-          style={s.logoutBtn}
-          activeOpacity={0.8}
-          onPress={() => logout()}
-        >
-          <Text style={s.logoutText}>Sign Out</Text>
-        </TouchableOpacity>
+        <View style={s.section}>
+          <TouchableOpacity
+            style={s.signOutBtn}
+            onPress={() => Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+              { text: "Cancel", style: "cancel" },
+              { text: "Sign Out", style: "destructive", onPress: logout },
+            ])}
+            activeOpacity={0.8}
+          >
+            <Feather name="log-out" size={18} color={C.destructive} />
+            <Text style={s.signOutText}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
 }
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.background },
+  header: { paddingHorizontal: 20, paddingBottom: 16 },
+  pageTitle: { fontFamily: "Archivo_800ExtraBold", fontSize: 28, color: C.textPrimary, letterSpacing: -0.5 },
+  identityCard: { flexDirection: "row", alignItems: "center", gap: 16, marginHorizontal: 20, marginBottom: 16, backgroundColor: C.surface2, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.07)" },
+  avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: "rgba(198,255,58,0.15)", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: C.volt },
+  avatarText: { fontFamily: "Archivo_800ExtraBold", fontSize: 22, color: C.volt },
+  nameText: { fontFamily: "Inter_700Bold", fontSize: 18, color: C.textPrimary },
+  emailText: { fontFamily: "Inter_400Regular", fontSize: 13, color: C.textSecondary, marginTop: 2 },
+  tierBadge: { alignSelf: "flex-start", backgroundColor: "rgba(198,255,58,0.14)", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginTop: 6 },
+  tierText: { fontFamily: "SpaceMono_700Bold", fontSize: 10, letterSpacing: 1, color: C.volt },
+  statsRow: { flexDirection: "row", gap: 10, paddingHorizontal: 20, marginBottom: 16 },
+  statCard: { flex: 1, backgroundColor: C.surface2, borderRadius: 16, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.07)" },
+  statValue: { fontFamily: "Archivo_800ExtraBold", fontSize: 22, color: C.textPrimary, letterSpacing: -0.5 },
+  statLabel: { fontFamily: "SpaceMono_700Bold", fontSize: 9, letterSpacing: 1, color: C.textSecondary, marginTop: 4, textAlign: "center" },
+  upgradeCard: { marginHorizontal: 20, marginBottom: 20, backgroundColor: C.volt, borderRadius: 18, padding: 16, flexDirection: "row", alignItems: "center", gap: 12 },
+  upgradeTitle: { fontFamily: "Inter_700Bold", fontSize: 14, color: C.ink },
+  upgradeSub: { fontFamily: "Inter_400Regular", fontSize: 12, color: "rgba(7,9,11,0.7)", marginTop: 1 },
+  section: { paddingHorizontal: 20, marginBottom: 16 },
+  sectionLabel: { fontFamily: "SpaceMono_700Bold", fontSize: 10, letterSpacing: 1.5, color: C.textTertiary, marginBottom: 10 },
+  settingsCard: { backgroundColor: C.surface2, borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.07)", overflow: "hidden" },
+  settingsRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 15 },
+  settingsRowBorder: { borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
+  settingsIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: C.surface3, alignItems: "center", justifyContent: "center" },
+  settingsLabel: { flex: 1, fontFamily: "Inter_500Medium", fontSize: 15, color: C.textPrimary },
+  signOutBtn: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.surface2, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.07)" },
+  signOutText: { fontFamily: "Inter_600SemiBold", fontSize: 15, color: C.destructive },
+});

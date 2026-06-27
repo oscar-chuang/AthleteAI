@@ -1,4 +1,4 @@
-modules = ["nodejs-24", "python-3.11", "postgresql-16"]
+modules = ["nodejs-24", "python-3.11"]
 
 [deployment]
 router = "application"
@@ -11,168 +11,13 @@ env = { "CI" = "true" }
 [workflows]
 runButton = "Project"
 
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "test-api-biomechanics"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "typecheck"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "test-mobile-utils"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Build All Safe Follow-Ups"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Add Pending Task"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "test-api"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "test-mobile"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "test-scripts"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "build"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "lint"
-
-[[workflows.workflow]]
-name = "test-api-biomechanics"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/api-server run test"
-
-[workflows.workflow.metadata]
-isValidation = true
-
-[[workflows.workflow]]
-name = "typecheck"
-author = "agent"
-
-[workflows.workflow.metadata]
-isValidation = true
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm run typecheck"
-
-[[workflows.workflow]]
-name = "test-mobile-utils"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/athlete-mobile run test"
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow]]
-name = "Build All Safe Follow-Ups"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/scripts run classify-tasks"
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow]]
-name = "Add Pending Task"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/scripts run add-pending-task -- --id \"#NNN\" --title \"Your task title here\""
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow]]
-name = "test-api"
-author = "agent"
-
-[workflows.workflow.metadata]
-isValidation = true
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/api-server test"
-
-[[workflows.workflow]]
-name = "test-mobile"
-author = "agent"
-
-[workflows.workflow.metadata]
-isValidation = true
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/athlete-mobile test"
-
-[[workflows.workflow]]
-name = "test-scripts"
-author = "agent"
-
-[workflows.workflow.metadata]
-isValidation = true
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/scripts test"
-
-[[workflows.workflow]]
-name = "build"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm run build"
-
-[workflows.workflow.metadata]
-isValidation = true
-
-[[workflows.workflow]]
-name = "lint"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/athlete-mobile lint && pnpm --filter @workspace/api-server lint && pnpm --filter @workspace/db lint && pnpm --filter @workspace/scripts lint"
-
-[workflows.workflow.metadata]
-isValidation = true
-
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
 
 [postMerge]
 path = "scripts/post-merge.sh"
-timeoutMs = 60000
+timeoutMs = 20000
 
 [[ports]]
 localPort = 8080
@@ -183,32 +28,9 @@ localPort = 8081
 externalPort = 8081
 
 [[ports]]
-localPort = 8082
-externalPort = 3003
-
-[[ports]]
-localPort = 8083
-externalPort = 4200
-
-[[ports]]
-localPort = 8084
-externalPort = 5000
-
-[[ports]]
 localPort = 24284
 externalPort = 3001
 
 [[ports]]
-localPort = 24285
-externalPort = 3000
-
-[[ports]]
 localPort = 26119
 externalPort = 80
-
-[userenv]
-
-[userenv.shared]
-
-[nix]
-channel = "stable-25_05"

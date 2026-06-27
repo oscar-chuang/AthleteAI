@@ -10,4 +10,6 @@
 - [Expandable sections and test accessibility](expandable-sections-and-tests.md) — collapsed sections hide testIDs from jest; "movement" and "joints" start expanded in analysis/[id].tsx initial state.
 - [Fake-timer + async act() hang (React 19)](fake-timer-async-act.md) — setImmediate must be in doNotFake or await act(async()=>{}) stalls forever under jest.useFakeTimers().
 - [Route refactor mock patterns](route-refactor-mock-patterns.md) — orderBy() mock must consume queue synchronously AND return chainable thenable; vi.mock factories must re-export any constants (e.g. JOINT_KEYS) the route imports.
-- [File picker in sandboxed iframes](sandboxed-iframe-file-picker.md) — Replit preview iframe blocks programmatic .click() on hidden inputs; overlay a real visible <input type="file"> (opacity:0, position:absolute, inset:0) so the user's click goes directly to it.
+- [Infra package stubs](infra-package-stubs.md) — ioredis/bullmq/sharp/@aws-sdk not installable in Replit; ioredis: runtime require() stub; sharp: no-op return; aws-sdk/bullmq: tsconfig exclude the files.
+- [Integer ID migration](integer-id-migration.md) — GitHub code uses serial/integer IDs everywhere; any eq(table.id, value) and userId params must be number not string; chat referencedAnalysisId is now z.number().int().
+- [Mobile lib/api.ts as type source-of-truth](mobile-api-types.md) — all new screens/hooks import types from lib/api.ts; must add types/methods there before new screens typecheck; live analysis screen excluded from tsconfig due to local JointKey union conflict.

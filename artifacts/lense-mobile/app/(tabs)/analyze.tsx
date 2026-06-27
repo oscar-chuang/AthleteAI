@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,37 +8,33 @@ import {
   TouchableOpacity,
   Platform,
   Modal,
-  ActivityIndicator as RNActivityIndicator,
+  ActivityIndicator,
+  Alert,
   RefreshControl,
   TextInput,
-  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { toTitleCase } from "@/utils/formatDisplay";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImagePicker from "expo-image-picker";
 
 import { useColors } from "@/hooks/useColors";
-import { SkeletonCard } from "@/components/ui/SkeletonLoader";
+import { analyses as analysesApi, type AnalysisRecord, ApiError } from "@/lib/api";
 import { useAuth, useCanAccessFeature } from "@/lib/authContext";
-import RecordingTipsModal from "@/components/RecordingTipsModal";
-import JointHistorySheet from "@/components/JointHistorySheet";
-import { useAnalysisHistory } from "@/hooks/useAnalysisHistory";
-import { useAnalyses } from "@/hooks/useAnalyses";
-import { useVideoUpload, ANALYSIS_STEPS } from "@/hooks/useVideoUpload";
 
 const SPORTS = [
   "Weightlifting", "Running", "Basketball", "Golf", "Tennis",
-  "Swimming", "CrossFit", "Boxing", "Soccer", "Gymnastics",
-  "Cycling", "Fencing", "Rowing", "Volleyball", "Baseball",
-  "Wrestling", "Rugby", "Hockey", "Yoga", "Other",
+  "Swimming", "CrossFit", "Boxing", "Soccer", "Gymnastics", "Other",
 ];
 
-type SortMode = "newest" | "oldest" | "score-high" | "score-low";
-
-function getSportAccent(_sport: string, fallback: string) {
-  return fallback;
-}
+const ANALYSIS_STEPS = [
+  "Extracting video frames...",
+  "Detecting body pose...",
+  "Calculating joint angles...",
+  "Running AI analysis...",
+  "Generating report...",
+];
 
 function getScoreColor(score: number, colors: ReturnType<typeof useColors>) {
   if (score >= 80) return colors.success;
@@ -47,7 +43,7 @@ function getScoreColor(score: number, colors: ReturnType<typeof useColors>) {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 export default function AnalyzeScreen() {
@@ -57,296 +53,176 @@ export default function AnalyzeScreen() {
   const { profile } = useAuth();
   const canUnlimited = useCanAccessFeature("unlimitedAnalyses");
 
-  const {
-    analysisList, analysesWithTicks, loading, refreshing, setRefreshing,
-    loadError, jointTrendsData, historyJoint, setHistoryJoint, historyAnalysisId, setHistoryAnalysisId,
-    headerStats, deltaBadgeMap, heroAnalysis, loadAnalyses,
-  } = useAnalysisHistory();
+  const [analysisList, setAnalysisList] = useState<AnalysisRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisStep, setAnalysisStep] = useState(0);
 
-  const { searchQuery, setSearchQuery, sortBy, setSortBy, displayList } = useAnalyses(analysisList);
+  // Sport picker modal state
+  const [showSportPicker, setShowSportPicker] = useState(false);
+  const [pendingUri, setPendingUri] = useState<string | null>(null);
+  const [pendingTitle, setPendingTitle] = useState("");
+  const [selectedSport, setSelectedSport] = useState("");
 
-  const {
-    showSportPicker, setShowSportPicker, pendingTitle, setPendingTitle,
-    selectedSport, setSelectedSport, analyzing, analysisStep,
-    showRecordingTips, setShowRecordingTips, pendingAction,
-    handleUpload, handleRecord, handleRecordingTipsContinue, handleWebFileUri, submitAnalysis,
-  } = useVideoUpload(profile, headerStats, loadAnalyses, router);
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 84 + 16;
 
-  const topPad    = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
+  const loadAnalyses = useCallback(async () => {
+    try {
+      const { analyses } = await analysesApi.list();
+      setAnalysisList(analyses);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-  const sortOptions: { key: SortMode; label: string }[] = [
-    { key: "newest",     label: "Newest"    },
-    { key: "oldest",     label: "Oldest"    },
-    { key: "score-high", label: "Top Score"  },
-    { key: "score-low",  label: "Low Score"  },
-  ];
+  useEffect(() => { loadAnalyses(); }, [loadAnalyses]);
+
+  // Poll for processing analyses
+  useEffect(() => {
+    const processing = analysisList.some((a) => a.status === "processing" || a.status === "pending");
+    if (!processing) return;
+    const interval = setInterval(loadAnalyses, 5000);
+    return () => clearInterval(interval);
+  }, [analysisList, loadAnalyses]);
+
+  async function handleUpload() {
+    try {
+      if (Platform.OS !== "web") {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Permission needed", "Allow photo & video access in Settings to pick a clip.");
+          return;
+        }
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "videos",
+        allowsEditing: false,
+        quality: 1,
+      });
+
+      if (result.canceled) return;
+      const uri = result.assets[0]?.uri ?? "";
+      if (!uri) return;
+
+      setPendingUri(uri);
+      setPendingTitle("");
+      setSelectedSport(profile?.sport ?? "");
+      setShowSportPicker(true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const isiCloud = /3164|PHPhotos|could not be completed/i.test(msg);
+      Alert.alert(
+        "Couldn't load that video",
+        isiCloud
+          ? "This clip is in iCloud and hasn't downloaded yet. Open Photos, let it download fully, then try again."
+          : "Something went wrong. Please try a different clip.",
+      );
+    }
+  }
+
+  async function submitAnalysis() {
+    if (!selectedSport || !pendingUri) return;
+    setShowSportPicker(false);
+    setAnalyzing(true);
+    setAnalysisStep(0);
+
+    // Animate steps while API processes
+    const stepInterval = setInterval(() => {
+      setAnalysisStep((s) => Math.min(s + 1, ANALYSIS_STEPS.length - 1));
+    }, 900);
+
+    try {
+      const { analysis } = await analysesApi.create({
+        title: pendingTitle.trim() || `${selectedSport} — Analysis`,
+        sport: selectedSport.toLowerCase(),
+        videoUrl: pendingUri,
+      });
+
+      // Persist the local video URI so the skeleton overlay can find it later
+      await AsyncStorage.setItem(`video_uri_${analysis.id}`, pendingUri);
+
+      clearInterval(stepInterval);
+      setAnalysisStep(ANALYSIS_STEPS.length - 1);
+      await new Promise((r) => setTimeout(r, 500));
+      setAnalyzing(false);
+
+      await loadAnalyses();
+      router.push(`/analysis/${analysis.id}`);
+    } catch (err) {
+      clearInterval(stepInterval);
+      setAnalyzing(false);
+      if (err instanceof ApiError && err.code === "UPGRADE_REQUIRED") {
+        Alert.alert(
+          "Upgrade Required",
+          err.message,
+          [
+            { text: "Not now", style: "cancel" },
+            { text: "View Plans", onPress: () => router.push("/pricing") },
+          ]
+        );
+      } else {
+        Alert.alert("Analysis failed", "Please try again.");
+      }
+    }
+  }
 
   const s = StyleSheet.create({
-    container:       { flex: 1, backgroundColor: colors.background },
-    header:          { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 4 },
-    titleRow:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-    title:           { fontSize: 32, fontFamily: "Inter_700Bold", color: colors.foreground, letterSpacing: -0.5 },
-    statsRow:        { flexDirection: "row", gap: 10, marginBottom: 16 },
-    statPill:        { flex: 1, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 10, alignItems: "center" },
-    statVal:         { fontSize: 24, fontFamily: "Inter_700Bold", color: colors.foreground, letterSpacing: -0.5 },
-    statLbl:         { fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.3 },
-    searchRow:       { flexDirection: "row", alignItems: "center", backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginHorizontal: 20, marginBottom: 10, paddingHorizontal: 12 },
-    searchInput:     { flex: 1, paddingVertical: 10, paddingHorizontal: 8, color: colors.foreground, fontSize: 14, fontFamily: "Inter_400Regular" },
-    sortRow:         { flexDirection: "row", paddingHorizontal: 20, gap: 8, marginBottom: 14 },
-    sortChip:        { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
-    sortChipActive:  { backgroundColor: colors.primary + "22", borderColor: colors.primary },
-    sortChipText:    { fontSize: 12, fontFamily: "Inter_500Medium", color: colors.mutedForeground },
-    sortChipTextActive: { color: colors.primary },
-    actionRow:       { flexDirection: "row", gap: 8, marginHorizontal: 20, marginBottom: 16 },
-    recordBtn:       { width: 48, height: 48, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderRadius: colors.radius, borderWidth: 1.5, borderColor: colors.primary },
-    recordBtnText:   { color: colors.primary, fontSize: 14, fontFamily: "Inter_600SemiBold" },
-    uploadBtn:       { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.primary, borderRadius: colors.radius, paddingVertical: 14, paddingHorizontal: 20, justifyContent: "center" },
-    uploadBtnText:   { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
-    hero:            { marginHorizontal: 20, marginBottom: 16, borderRadius: 16, overflow: "hidden", height: 160 },
-    heroThumb:       { width: "100%", height: "100%" },
-    heroOverlay:     { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" },
-    heroInfo:        { position: "absolute", bottom: 14, left: 14, right: 72 },
-    heroTitle:       { fontSize: 17, fontFamily: "Inter_700Bold", color: "#fff", marginBottom: 3 },
-    heroSport:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.72)", textTransform: "capitalize" },
-    heroScoreBlock:  { position: "absolute", top: 14, right: 14, alignItems: "center" },
-    heroScoreNum:    { fontSize: 34, fontFamily: "Inter_700Bold", color: "#fff", lineHeight: 38 },
-    heroScoreLbl:    { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.72)", letterSpacing: 0.5 },
-    card:            { backgroundColor: colors.card, borderRadius: colors.radius, marginHorizontal: 20, marginBottom: 10, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
-    cardLeft:        { width: 4, alignSelf: "stretch" },
-    cardBody:        { flex: 1, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingRight: 16 },
-    iconBg:          { width: 44, height: 44, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-    cardTitle:       { fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground },
-    cardMeta:        { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 2, textTransform: "capitalize" },
-    deltaBadge:      { alignSelf: "flex-start", marginTop: 5, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, overflow: "hidden" },
-    deltaBadgeText:  { fontSize: 10, fontFamily: "Inter_700Bold" },
-    scoreCircle:     { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", borderWidth: 2 },
-    scoreText:       { fontSize: 15, fontFamily: "Inter_700Bold" },
-    processingBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: colors.primary + "22" },
-    processingText:  { fontSize: 12, fontFamily: "Inter_500Medium", color: colors.primary },
-    failedBadge:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: colors.destructive + "22" },
-    failedText:      { fontSize: 12, fontFamily: "Inter_500Medium", color: colors.destructive },
-    empty:           { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, paddingTop: 64 },
-    emptyIcon:       { width: 70, height: 70, borderRadius: 35, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center", marginBottom: 18 },
-    emptyTitle:      { fontSize: 19, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 8 },
-    emptyText:       { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 21 },
-    emptyBtn:        { marginTop: 22, backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 24 },
-    emptyBtnText:    { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
-    noResults:       { paddingVertical: 32, alignItems: "center" },
-    noResultsText:   { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-    overlay:         { flex: 1, backgroundColor: "rgba(0,0,0,0.88)", alignItems: "center", justifyContent: "center", padding: 32 },
-    overlayCard:     { backgroundColor: colors.card, borderRadius: 24, padding: 32, alignItems: "center", width: "100%", gap: 10 },
-    overlayIconRing: { width: 84, height: 84, borderRadius: 42, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-    overlayTitle:    { fontSize: 19, fontFamily: "Inter_700Bold", color: colors.foreground, marginTop: 4, marginBottom: 2 },
-    overlayStep:     { fontSize: 14, fontFamily: "Inter_600SemiBold", textAlign: "center" },
-    overlayBarBg:    { width: "100%", height: 6, borderRadius: 3, overflow: "hidden" },
-    overlayBarFill:  { height: 6, borderRadius: 3 },
-    stepDots:        { flexDirection: "row", gap: 6, marginTop: 4, marginBottom: 2, alignItems: "center" },
-    stepDot:         { height: 7, borderRadius: 4 },
-    pickerModal:     { flex: 1, backgroundColor: colors.background },
-    pickerHeader:    { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-    pickerTitle:     { fontSize: 16, fontFamily: "Inter_600SemiBold", color: colors.foreground },
-    pickerContent:   { flex: 1, padding: 20 },
-    pickerLabel:     { fontSize: 13, fontFamily: "Inter_500Medium", color: colors.foreground, marginBottom: 8 },
-    pickerInput:     { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12, color: colors.foreground, fontSize: 15, fontFamily: "Inter_400Regular", marginBottom: 20 },
-    sportGrid:       { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 28 },
-    sportChip:       { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.card },
-    sportChipSel:    { borderColor: colors.primary, backgroundColor: colors.primary + "22" },
-    sportChipText:   { fontSize: 13, fontFamily: "Inter_500Medium", color: colors.mutedForeground },
-    sportChipTextSel:{ color: colors.primary },
-    analyzeBtn:      { backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 16, alignItems: "center" },
-    analyzeBtnDis:   { opacity: 0.45 },
-    analyzeBtnText:  { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
-    limitRow:        { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingBottom: 12 },
-    limitText:       { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-    limitBold:       { fontFamily: "Inter_600SemiBold", color: colors.foreground },
-    breakdownChip:     { flexDirection: "row", alignItems: "center", gap: 3, alignSelf: "flex-start", marginTop: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: colors.primary + "66", backgroundColor: colors.primary + "14" },
-    breakdownChipText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: colors.primary },
+    container: { flex: 1, backgroundColor: colors.background },
+    header: { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 20 },
+    title: { fontSize: 28, fontFamily: "Archivo_800ExtraBold", color: colors.foreground, letterSpacing: -0.5 },
+    subtitle: { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 4 },
+    uploadBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.primary, borderRadius: colors.radius, paddingVertical: 14, paddingHorizontal: 20, marginHorizontal: 20, marginBottom: 20, justifyContent: "center" },
+    uploadBtnText: { color: "#07090B", fontSize: 15, fontFamily: "Inter_700Bold" },
+    card: { backgroundColor: colors.card, borderRadius: colors.radius, marginHorizontal: 20, marginBottom: 12, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
+    cardBody: { padding: 16, flexDirection: "row", alignItems: "center", gap: 14 },
+    iconBg: { width: 48, height: 48, borderRadius: 12, backgroundColor: colors.primary + "20", alignItems: "center", justifyContent: "center" },
+    cardTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground },
+    cardMeta: { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 2, textTransform: "capitalize" },
+    scoreCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", borderWidth: 2 },
+    scoreText: { fontSize: 16, fontFamily: "Archivo_800ExtraBold" },
+    empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, paddingTop: 60 },
+    emptyIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.primary + "22", alignItems: "center", justifyContent: "center", marginBottom: 16 },
+    emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold", color: colors.foreground, marginBottom: 8 },
+    emptyText: { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+    // Overlay
+    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", alignItems: "center", justifyContent: "center", padding: 32 },
+    overlayCard: { backgroundColor: colors.card, borderRadius: 20, padding: 28, alignItems: "center", width: "100%" },
+    overlayTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 8 },
+    overlayStep: { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 16, textAlign: "center" },
+    // Sport picker modal
+    pickerModal: { flex: 1, backgroundColor: colors.background },
+    pickerHeader: { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    pickerTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: colors.foreground },
+    pickerContent: { flex: 1, padding: 20 },
+    pickerLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: colors.foreground, marginBottom: 8 },
+    pickerInput: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12, color: colors.foreground, fontSize: 15, fontFamily: "Inter_400Regular", marginBottom: 20 },
+    sportGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 24 },
+    sportChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.card },
+    sportChipSelected: { borderColor: colors.primary, backgroundColor: colors.primary + "22" },
+    sportChipText: { fontSize: 13, fontFamily: "Inter_500Medium", color: colors.mutedForeground },
+    sportChipTextSelected: { color: colors.primary },
+    analyzeBtn: { backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 15, alignItems: "center" },
+    analyzeBtnDisabled: { opacity: 0.5 },
+    analyzeBtnText: { color: "#07090B", fontSize: 16, fontFamily: "Inter_700Bold" },
+    statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+    statusText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   });
-
-  const ListHeader = (
-    <>
-      <View style={s.header}>
-        <View style={s.titleRow}>
-          <Text style={s.title}>Analyse</Text>
-        </View>
-      </View>
-
-      {/* Hero block — most recent completed session */}
-      {heroAnalysis && !searchQuery && (
-        <TouchableOpacity
-          style={s.hero}
-          onPress={() => router.push(`/analysis/${heroAnalysis.id}` as any)}
-          activeOpacity={0.9}
-          accessibilityRole="button"
-          accessibilityLabel={`Open ${heroAnalysis.title}`}
-        >
-          {heroAnalysis.thumbnailUrl ? (
-            <Image source={{ uri: heroAnalysis.thumbnailUrl }} style={s.heroThumb} resizeMode="cover" />
-          ) : (
-            <View style={[s.heroThumb, { backgroundColor: colors.primary + "22", alignItems: "center", justifyContent: "center" }]}>
-              <Feather name="activity" size={40} color={colors.primary} />
-            </View>
-          )}
-          <View style={s.heroOverlay} />
-          <View style={s.heroInfo}>
-            <Text style={s.heroTitle} numberOfLines={1}>{heroAnalysis.title}</Text>
-            <Text style={s.heroSport}>{toTitleCase(heroAnalysis.sport)} · {formatDate(heroAnalysis.uploadedAt)}</Text>
-          </View>
-          <View style={s.heroScoreBlock}>
-            <Text style={s.heroScoreNum}>{Math.round(heroAnalysis.overallScore ?? 0)}</Text>
-            <Text style={s.heroScoreLbl}>SCORE</Text>
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {/* Upload CTA — dominant primary button + icon-only record */}
-      {!searchQuery && (
-        <View style={s.actionRow}>
-          {Platform.OS === "web" ? (
-            // On web: plain View (renders as a <div>) so the child <input> actually
-            // receives clicks. TouchableOpacity sets pointer-events:box-only on its
-            // wrapper which silently swallows all child pointer events.
-            // The absolutely-positioned <input> covers the whole button so the user's
-            // click goes straight to the native file-picker — works even in sandboxed
-            // Replit iframes where programmatic .click() is blocked.
-            <View style={[s.uploadBtn, { position: "relative" } as any]}>
-              <Feather name="upload" size={16} color="#fff" />
-              <Text style={s.uploadBtnText}>Upload Video</Text>
-              <input
-                type="file"
-                accept="video/*"
-                onChange={(e: any) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleWebFileUri(URL.createObjectURL(file));
-                  e.target.value = "";
-                }}
-                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" } as any}
-              />
-            </View>
-          ) : (
-            <TouchableOpacity style={s.uploadBtn} onPress={handleUpload} activeOpacity={0.85}>
-              <Feather name="upload" size={16} color="#fff" />
-              <Text style={s.uploadBtnText}>Upload Video</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={s.recordBtn}
-            onPress={handleRecord}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel="Record video"
-          >
-            <Feather name="video" size={15} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Search */}
-      <View style={s.searchRow}>
-        <Feather name="search" size={16} color={colors.mutedForeground} />
-        <TextInput
-          style={s.searchInput}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search by title or sport…"
-          placeholderTextColor={colors.mutedForeground}
-          returnKeyType="search"
-          clearButtonMode="while-editing"
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Clear search">
-            <Feather name="x" size={16} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Sort chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.sortRow} contentContainerStyle={{ gap: 8 }}>
-        {sortOptions.map((opt) => (
-          <TouchableOpacity
-            key={opt.key}
-            style={[s.sortChip, sortBy === opt.key && s.sortChipActive]}
-            onPress={() => setSortBy(opt.key)}
-            activeOpacity={0.8}
-          >
-            <Text style={[s.sortChipText, sortBy === opt.key && s.sortChipTextActive]}>{opt.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Limit indicator */}
-      {!canUnlimited && (
-        <View style={s.limitRow}>
-          <Feather name="info" size={13} color={colors.mutedForeground} />
-          <Text style={s.limitText}>
-            <Text style={s.limitBold}>{Math.min(analysisList.length, 3)}/3</Text> free analyses used
-            {analysisList.length >= 3 ? " — " : ""}
-            {analysisList.length >= 3 && (
-              <Text style={{ color: colors.primary }} onPress={() => router.push("/pricing" as any)}>
-                Upgrade for unlimited
-              </Text>
-            )}
-          </Text>
-        </View>
-      )}
-    </>
-  );
 
   return (
     <View style={s.container}>
-      {/* Joint angle history sheet — opened by tapping a delta badge */}
-      {historyJoint && jointTrendsData?.joints[historyJoint] && (
-        <JointHistorySheet
-          joint={historyJoint}
-          data={[...(jointTrendsData.joints[historyJoint] ?? [])].sort(
-            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-          )}
-          currentAnalysisId={historyAnalysisId}
-          onClose={() => { setHistoryJoint(null); setHistoryAnalysisId(""); }}
-        />
-      )}
-
-      {/* Recording tips gate — mandatory, no close/dismiss shortcut */}
-      <RecordingTipsModal
-        visible={showRecordingTips}
-        onContinue={handleRecordingTipsContinue}
-      />
-
       {/* Processing overlay */}
       <Modal visible={analyzing} transparent animationType="fade">
         <View style={s.overlay}>
           <View style={s.overlayCard}>
-            <View style={[s.overlayIconRing, {
-              backgroundColor: (ANALYSIS_STEPS[analysisStep]?.color ?? colors.primary) + "22",
-              borderColor: (ANALYSIS_STEPS[analysisStep]?.color ?? colors.primary) + "55",
-            }]}>
-              <Feather name={ANALYSIS_STEPS[analysisStep]?.icon as any ?? "cpu"} size={32} color={ANALYSIS_STEPS[analysisStep]?.color ?? colors.primary} />
-            </View>
-            <Text style={s.overlayTitle}>Analyzing your video…</Text>
-            <Text style={[s.overlayStep, { color: ANALYSIS_STEPS[analysisStep]?.color ?? colors.primary }]}>
-              {ANALYSIS_STEPS[analysisStep]?.label}
-            </Text>
-            <View style={[s.overlayBarBg, { backgroundColor: colors.border }]}>
-              <View style={[s.overlayBarFill, {
-                backgroundColor: ANALYSIS_STEPS[analysisStep]?.color ?? colors.primary,
-                width: `${((analysisStep + 1) / ANALYSIS_STEPS.length) * 100}%` as any,
-              }]} />
-            </View>
-            <View style={s.stepDots}>
-              {ANALYSIS_STEPS.map((step, i) => (
-                <View
-                  key={i}
-                  style={[
-                    s.stepDot,
-                    {
-                      backgroundColor: i <= analysisStep ? step.color : colors.border,
-                      width: i === analysisStep ? 20 : 7,
-                    },
-                  ]}
-                />
-              ))}
-            </View>
+            <ActivityIndicator color={colors.primary} size="large" />
+            <Text style={s.overlayTitle}>Analyzing your video</Text>
+            <Text style={s.overlayStep}>{ANALYSIS_STEPS[analysisStep]}</Text>
           </View>
         </View>
       </Modal>
@@ -355,7 +231,7 @@ export default function AnalyzeScreen() {
       <Modal visible={showSportPicker} animationType="slide">
         <View style={s.pickerModal}>
           <View style={s.pickerHeader}>
-            <TouchableOpacity onPress={() => setShowSportPicker(false)} accessibilityRole="button" accessibilityLabel="Close">
+            <TouchableOpacity onPress={() => setShowSportPicker(false)}>
               <Feather name="x" size={22} color={colors.foreground} />
             </TouchableOpacity>
             <Text style={s.pickerTitle}>Analysis Details</Text>
@@ -367,109 +243,68 @@ export default function AnalyzeScreen() {
               style={s.pickerInput}
               value={pendingTitle}
               onChangeText={setPendingTitle}
-              placeholder="e.g. Deadlift PR attempt, Race pace run…"
+              placeholder="e.g. Deadlift 180kg"
               placeholderTextColor={colors.mutedForeground}
               autoCapitalize="words"
-              returnKeyType="next"
             />
-            <Text style={s.pickerLabel}>Sport *</Text>
+            <Text style={s.pickerLabel}>Sport</Text>
             <View style={s.sportGrid}>
               {SPORTS.map((sport) => {
                 const sel = selectedSport.toLowerCase() === sport.toLowerCase();
                 return (
                   <TouchableOpacity
                     key={sport}
-                    style={[s.sportChip, sel && s.sportChipSel]}
+                    style={[s.sportChip, sel && s.sportChipSelected]}
                     onPress={() => setSelectedSport(sport)}
                     activeOpacity={0.8}
                   >
-                    <Text style={[s.sportChipText, sel && s.sportChipTextSel]}>{sport}</Text>
+                    <Text style={[s.sportChipText, sel && s.sportChipTextSelected]}>{sport}</Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
             <TouchableOpacity
-              style={[s.analyzeBtn, (!selectedSport || analyzing) && s.analyzeBtnDis]}
+              style={[s.analyzeBtn, !selectedSport && s.analyzeBtnDisabled]}
               onPress={submitAnalysis}
-              disabled={!selectedSport || analyzing}
+              disabled={!selectedSport}
               activeOpacity={0.85}
             >
-              <Text style={s.analyzeBtnText}>
-                {selectedSport ? `Analyze ${selectedSport} Video` : "Select a sport first"}
-              </Text>
+              <Text style={s.analyzeBtnText}>Analyze Video</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
       </Modal>
 
       <FlatList
-        data={displayList}
+        data={analysisList}
         keyExtractor={(item) => item.id}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); loadAnalyses(); }}
-            tintColor={colors.primary}
-          />
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadAnalyses(); }} tintColor={colors.primary} />}
+        ListHeaderComponent={
+          <>
+            <View style={s.header}>
+              <Text style={s.title}>Analyses</Text>
+              <Text style={s.subtitle}>
+                {canUnlimited ? "Unlimited" : `${analysisList.length}/3`} analyses used
+              </Text>
+            </View>
+            <TouchableOpacity style={s.uploadBtn} onPress={handleUpload} activeOpacity={0.85}>
+              <Feather name="upload" size={18} color={colors.primaryForeground} />
+              <Text style={s.uploadBtnText}>Upload Training Video</Text>
+            </TouchableOpacity>
+          </>
         }
-        ListHeaderComponent={ListHeader}
         ListEmptyComponent={
           loading ? (
             <View style={s.empty}>
-              <SkeletonCard />
-              <SkeletonCard />
-              <SkeletonCard />
-            </View>
-          ) : searchQuery ? (
-            <View style={s.noResults}>
-              <Feather name="search" size={24} color={colors.mutedForeground} />
-              <Text style={[s.noResultsText, { marginTop: 10 }]}>No results for "{searchQuery}"</Text>
-            </View>
-          ) : loadError ? (
-            <View style={s.empty}>
-              <View style={[s.emptyIcon, { backgroundColor: colors.warning + "18" }]}>
-                <Feather name="wifi-off" size={30} color={colors.warning} />
-              </View>
-              <Text style={s.emptyTitle}>Couldn't load analyses</Text>
-              <Text style={s.emptyText}>
-                Check your connection and pull down to refresh.
-              </Text>
-              <TouchableOpacity
-                style={[s.emptyBtn, { backgroundColor: colors.warning }]}
-                onPress={() => { setRefreshing(true); loadAnalyses(); }}
-                activeOpacity={0.85}
-              >
-                <Text style={s.emptyBtnText}>Retry</Text>
-              </TouchableOpacity>
+              <ActivityIndicator color={colors.primary} />
             </View>
           ) : (
             <View style={s.empty}>
               <View style={s.emptyIcon}>
-                <Feather name="video" size={30} color={colors.primary} />
+                <Feather name="video" size={28} color={colors.primary} />
               </View>
               <Text style={s.emptyTitle}>No analyses yet</Text>
-              <Text style={s.emptyText}>
-                Upload or record a training video and get AI-powered biomechanics coaching in seconds.
-              </Text>
-              {Platform.OS === "web" ? (
-                <View style={[s.emptyBtn, { position: "relative" } as any]}>
-                  <Text style={s.emptyBtnText}>Upload Your First Video</Text>
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={(e: any) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleWebFileUri(URL.createObjectURL(file));
-                      e.target.value = "";
-                    }}
-                    style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" } as any}
-                  />
-                </View>
-              ) : (
-                <TouchableOpacity style={s.emptyBtn} onPress={handleUpload} activeOpacity={0.85}>
-                  <Text style={s.emptyBtnText}>Upload Your First Video</Text>
-                </TouchableOpacity>
-              )}
+              <Text style={s.emptyText}>Upload a training video and get AI-powered biomechanics analysis in seconds.</Text>
             </View>
           )
         }
@@ -477,84 +312,24 @@ export default function AnalyzeScreen() {
           const isProcessing = item.status === "processing" || item.status === "pending";
           const score = item.overallScore ?? 0;
           const scoreColor = getScoreColor(score, colors);
-          const accent = getSportAccent(item.sport, colors.primary);
-          const deltaBadge = item.status === "complete"
-            ? (deltaBadgeMap.get(item.id) ?? null)
-            : null;
-
           return (
             <TouchableOpacity
-              style={[s.card, { flexDirection: "row" }]}
+              style={s.card}
               onPress={() => !isProcessing && router.push(`/analysis/${item.id}`)}
-              activeOpacity={isProcessing ? 1 : 0.82}
+              activeOpacity={isProcessing ? 1 : 0.85}
             >
-              <View style={[s.cardLeft, { backgroundColor: accent }]} />
-              <View style={[s.cardBody, { paddingLeft: 14 }]}>
-                {item.thumbnailUrl ? (
-                  <Image
-                    source={{ uri: item.thumbnailUrl }}
-                    style={[s.iconBg, { backgroundColor: accent + "22" }]}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={[s.iconBg, { backgroundColor: accent + "22" }]}>
-                    <Feather name="activity" size={20} color={accent} />
-                  </View>
-                )}
+              <View style={s.cardBody}>
+                <View style={s.iconBg}>
+                  <Feather name="activity" size={22} color={colors.primary} />
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.cardTitle} numberOfLines={1}>{item.title}</Text>
-                  <Text style={s.cardMeta}>
-                    {toTitleCase(item.sport)}{item.movementType ? ` · ${toTitleCase(item.movementType)}` : ""} · {formatDate(item.uploadedAt)}
-                    {item.duration ? ` · ${Math.round(item.duration)}s` : ""}
-                  </Text>
-                  {deltaBadge && (() => {
-                    const hasHistory = !!(jointTrendsData?.joints[deltaBadge.jointKey]?.length);
-                    const badgeContent = (
-                      <Text style={[s.deltaBadgeText, { color: deltaBadge.color }]}>
-                        {deltaBadge.delta > 0 ? "↑" : "↓"}{Math.abs(deltaBadge.delta)}° {deltaBadge.jointLabel}
-                      </Text>
-                    );
-                    if (hasHistory) {
-                      return (
-                        <TouchableOpacity
-                          testID={`delta-badge-${item.id}`}
-                          style={[s.deltaBadge, { borderColor: deltaBadge.color + "88", backgroundColor: deltaBadge.color + "18" }]}
-                          onPress={(e) => { e.stopPropagation(); setHistoryJoint(deltaBadge.jointKey); setHistoryAnalysisId(item.id); }}
-                          activeOpacity={0.7}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          {badgeContent}
-                        </TouchableOpacity>
-                      );
-                    }
-                    return (
-                      <View style={[s.deltaBadge, { borderColor: deltaBadge.color + "88", backgroundColor: deltaBadge.color + "18" }]}>
-                        {badgeContent}
-                      </View>
-                    );
-                  })()}
-                  {analysesWithTicks.has(item.id) && (
-                    <TouchableOpacity
-                      testID={`breakdown-chip-${item.id}`}
-                      style={s.breakdownChip}
-                      onPress={(e) => { e.stopPropagation(); router.push(`/analysis/live/${item.id}` as any); }}
-                      activeOpacity={0.7}
-                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                    >
-                      <Feather name="play" size={9} color={colors.primary} />
-                      <Text style={s.breakdownChipText}>Breakdown</Text>
-                    </TouchableOpacity>
-                  )}
+                  <Text style={s.cardMeta}>{item.sport} · {formatDate(item.uploadedAt)}</Text>
                 </View>
                 {isProcessing ? (
-                  <View style={s.processingBadge}>
-                    <RNActivityIndicator color={colors.primary} size="small" />
-                    <Text style={s.processingText}>AI</Text>
-                  </View>
+                  <ActivityIndicator color={colors.primary} size="small" />
                 ) : item.status === "failed" ? (
-                  <View style={s.failedBadge}>
-                    <Text style={s.failedText}>Failed</Text>
-                  </View>
+                  <Feather name="alert-circle" size={22} color={colors.destructive} />
                 ) : (
                   <View style={[s.scoreCircle, { borderColor: scoreColor }]}>
                     <Text style={[s.scoreText, { color: scoreColor }]}>{Math.round(score)}</Text>
