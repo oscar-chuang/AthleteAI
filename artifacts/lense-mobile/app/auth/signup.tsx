@@ -16,6 +16,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/lib/authContext";
+import { Logo } from "@/components/ui/Logo";
 
 export default function SignupScreen() {
   const colors = useColors();
@@ -59,17 +60,7 @@ export default function SignupScreen() {
     },
     backBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 32 },
     backText: { color: colors.mutedForeground, fontSize: 14, fontFamily: "Inter_400Regular" },
-    logo: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 32 },
-    logoIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: colors.primary + "22",
-      borderWidth: 1.5,
-      borderColor: colors.primary + "44",
-      alignItems: "center",
-      justifyContent: "center",
-    },
+    logo: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 32 },
     logoText: { fontSize: 20, fontFamily: "Inter_700Bold", color: colors.foreground },
     heading: { fontSize: 28, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 8 },
     subheading: { fontSize: 15, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginBottom: 32 },
@@ -148,9 +139,7 @@ export default function SignupScreen() {
         </TouchableOpacity>
 
         <View style={s.logo}>
-          <View style={s.logoIcon}>
-            <Feather name="zap" size={20} color={colors.primary} />
-          </View>
+          <Logo size={40} />
           <Text style={s.logoText}>AthleteAI</Text>
         </View>
 

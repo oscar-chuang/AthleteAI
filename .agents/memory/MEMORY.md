@@ -13,3 +13,5 @@
 - [Infra package stubs](infra-package-stubs.md) — ioredis/bullmq/sharp/@aws-sdk not installable in Replit; ioredis: runtime require() stub; sharp: no-op return; aws-sdk/bullmq: tsconfig exclude the files.
 - [Integer ID migration](integer-id-migration.md) — GitHub code uses serial/integer IDs everywhere; any eq(table.id, value) and userId params must be number not string; chat referencedAnalysisId is now z.number().int().
 - [Mobile lib/api.ts as type source-of-truth](mobile-api-types.md) — all new screens/hooks import types from lib/api.ts; must add types/methods there before new screens typecheck; live analysis screen excluded from tsconfig due to local JointKey union conflict.
+- [AthleteAI logo component](athleteai-logo.md) — Logo.tsx is SVG "A" with 3 volt-green dots; replaces Feather "zap" everywhere.
+- [Skeleton screen web fix](skeleton-web-fix.md) — Platform.OS==='web' must skip FileSystem ops; use source={{ html }} not source={{ uri }}.

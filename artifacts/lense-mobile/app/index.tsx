@@ -14,6 +14,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/lib/authContext";
+import { Logo } from "@/components/ui/Logo";
 
 const SPORTS = ["Fencing", "Weightlifting", "Basketball", "Golf", "Tennis", "Running"];
 
@@ -61,18 +62,8 @@ export default function LandingScreen() {
     logoRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
+      gap: 12,
       marginBottom: 40,
-    },
-    logoIcon: {
-      width: 48,
-      height: 48,
-      borderRadius: 14,
-      backgroundColor: colors.primary + "22",
-      borderWidth: 1.5,
-      borderColor: colors.primary + "44",
-      alignItems: "center",
-      justifyContent: "center",
     },
     logoText: {
       fontSize: 24,
@@ -202,9 +193,7 @@ export default function LandingScreen() {
       >
         <View style={s.topSection}>
           <View style={s.logoRow}>
-            <View style={s.logoIcon}>
-              <Feather name="zap" size={22} color={colors.primary} />
-            </View>
+            <Logo size={48} />
             <Text style={s.logoText}>AthleteAI</Text>
           </View>
 

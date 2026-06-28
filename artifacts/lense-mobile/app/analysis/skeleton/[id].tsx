@@ -106,7 +106,7 @@ canvas{pointer-events:none}
 #loading{position:fixed;inset:0;z-index:99;background:rgba(4,4,12,.92);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
 #loading.hide{display:none}
-.spin{width:38px;height:38px;border:3px solid #6c63ff33;border-top-color:#6c63ff;
+.spin{width:38px;height:38px;border:3px solid #C6FF3A33;border-top-color:#C6FF3A;
   border-radius:50%;animation:sp .75s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 .load-text{font-size:14px;font-weight:600}
@@ -120,20 +120,20 @@ canvas{pointer-events:none}
 /* Scrub */
 #timeL,#timeR{font-size:11px;color:#8888aa;font-variant-numeric:tabular-nums;min-width:32px}
 #timeR{text-align:right}
-#scrub{flex:1;height:4px;accent-color:#6c63ff;cursor:pointer}
+#scrub{flex:1;height:4px;accent-color:#C6FF3A;cursor:pointer}
 
 /* Buttons */
 .tbtn{background:#1c1c2e;border:none;border-radius:10px;color:#e0e0f0;
   display:flex;align-items:center;justify-content:center;cursor:pointer}
-#playBtn{width:42px;height:42px;background:#6c63ff;border-radius:13px;
-  box-shadow:0 0 18px #6c63ff77}
+#playBtn{width:42px;height:42px;background:#C6FF3A;border-radius:13px;
+  color:#07090B;box-shadow:0 0 18px #C6FF3A55}
 .step{width:34px;height:34px;font-size:16px}
 
 /* Speed pills */
 #speeds{display:flex;gap:2px;background:#1c1c2e;padding:4px;border-radius:10px}
 .spd{border:none;background:transparent;color:#8888aa;font-size:11px;font-weight:700;
   padding:4px 9px;border-radius:7px;cursor:pointer;transition:all .15s}
-.spd.on{background:#6c63ff;color:#fff}
+.spd.on{background:#C6FF3A;color:#07090B}
 
 /* Skeleton toggle */
 #skelBtn{padding:6px 11px;font-size:11px;font-weight:700;border-radius:9px;cursor:pointer;
@@ -549,15 +549,14 @@ export default function SkeletonScreen() {
   }
 
   // ── Prepare HTML + video on disk ──────────────────────────────────────────
-  // WebView loads from file:// so it gets a real origin (required for the
-  // MediaPipe CDN WASM fetch). WKWebView's allowingReadAccessTo covers only
-  // the HTML file's directory, so we copy the video into the same folder
-  // before rendering.
+  // On web: inject HTML directly via source={{ html }} — no file system needed.
+  // On native: write the HTML + a local copy of the video to the cache dir so
+  //   the WebView gets a real file:// origin (required for the MediaPipe CDN
+  //   WASM fetch). WKWebView's allowingReadAccessTo covers only the HTML file's
+  //   directory, so we copy the video into the same folder before rendering.
   const [htmlFileUri, setHtmlFileUri] = useState<string | null>(null);
+  const [webHtml, setWebHtml] = useState<string | null>(null);
   useEffect(() => {
-    let cancelled = false;
-    setPreparing(true);
-    setHtmlFileUri(null);
     // Reset per-video analysis state
     setAngles(null);
     setRisk(null);
@@ -565,6 +564,18 @@ export default function SkeletonScreen() {
     setPeak({});
     setVideoAspect(16 / 9);
     setModelReady(false);
+    setHtmlFileUri(null);
+    setWebHtml(null);
+
+    if (Platform.OS === "web") {
+      // On web, build the HTML string directly — no FileSystem ops needed.
+      setPreparing(false);
+      setWebHtml(buildHtml(videoUri));
+      return;
+    }
+
+    let cancelled = false;
+    setPreparing(true);
 
     (async () => {
       try {
@@ -630,16 +641,33 @@ export default function SkeletonScreen() {
 
   // Shared video/WebView block — fills the screen in landscape, aspect-fitted
   // height in portrait (so the angle cards below it stay scrollable into view).
-  const mediaBlock = preparing ? (
-    <View style={[ss.webviewSlot, { height: isLandscape ? undefined : portraitWebH, flex: isLandscape ? 1 : undefined }]}>
-      <ActivityIndicator color="#6c63ff" size="large" />
+  const sharedStyle = { flex: isLandscape ? 1 as const : undefined, height: isLandscape ? undefined : portraitWebH };
+
+  const mediaBlock = Platform.OS === "web" ? (
+    // Web: inject HTML directly (no file:// required — MediaPipe CDN loads fine from srcdoc)
+    webHtml ? (
+      <WebView
+        source={{ html: webHtml }}
+        style={sharedStyle}
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+        javaScriptEnabled
+        domStorageEnabled
+        originWhitelist={["*"]}
+        scrollEnabled={false}
+        onMessage={handleMessage}
+      />
+    ) : null
+  ) : preparing ? (
+    <View style={[ss.webviewSlot, sharedStyle]}>
+      <ActivityIndicator color="#C6FF3A" size="large" />
       <Text style={ss.preparingText}>Preparing video…</Text>
     </View>
   ) : htmlFileUri ? (
     <WebView
       ref={webviewRef}
       source={{ uri: htmlFileUri }}
-      style={{ flex: isLandscape ? 1 : undefined, height: isLandscape ? undefined : portraitWebH }}
+      style={sharedStyle}
       allowFileAccess
       allowFileAccessFromFileURLs
       allowUniversalAccessFromFileURLs
@@ -789,9 +817,9 @@ const ss = StyleSheet.create({
   header:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "#18182a", gap: 12 },
   backBtn:      { width: 36, height: 36, borderRadius: 10, backgroundColor: "#111118", borderWidth: 1, borderColor: "#18182a", alignItems: "center", justifyContent: "center" },
   headerTitle:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#f0f0f8", textTransform: "capitalize" },
-  rotateBtn:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#6c63ff", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
-  rotateBtnText:{ fontSize: 12, color: "#fff", fontFamily: "Inter_600SemiBold" },
-  portraitBtn:  { position: "absolute", top: 14, right: 14, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#6c63ff", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
+  rotateBtn:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#C6FF3A", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  rotateBtnText:{ fontSize: 12, color: "#07090B", fontFamily: "Inter_600SemiBold" },
+  portraitBtn:  { position: "absolute", top: 14, right: 14, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#C6FF3A", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
   angleSection: { paddingHorizontal: 18, paddingTop: 16 },
   angleHeaderRow:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   sectionLabel: { fontSize: 10, color: "#8888aa", fontFamily: "Inter_600SemiBold", letterSpacing: 1.5 },
