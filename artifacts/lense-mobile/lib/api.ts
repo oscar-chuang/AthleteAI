@@ -1,7 +1,18 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_URL =
-  (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001") + "/api";
+function resolveApiUrl(): string {
+  // On web (browser), dynamically use the same hostname on port 8080 (the API
+  // server's external port in the Replit proxy). This avoids the dead
+  // localhost:3001 fallback that only reaches the Expo dev server itself.
+  if (typeof window !== "undefined" && typeof window.location !== "undefined") {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:8080/api`;
+  }
+  // Native: use the configured env var or fall back to the local API port.
+  return (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8080") + "/api";
+}
+
+const API_URL = resolveApiUrl();
 
 const TOKEN_KEY = "auth_token";
 
