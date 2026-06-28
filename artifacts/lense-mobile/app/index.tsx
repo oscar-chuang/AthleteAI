@@ -239,7 +239,7 @@ export default function LandingScreen() {
           <TouchableOpacity
             style={s.primaryBtn}
             activeOpacity={0.85}
-            onPress={() => router.push("/onboarding")}
+            onPress={() => router.push("/auth/signup")}
           >
             <Feather name="zap" size={18} color={colors.primaryForeground} />
             <Text style={s.primaryBtnText}>Get Started Free</Text>
