@@ -140,7 +140,10 @@ export default function SignupScreen() {
 
         <View style={s.logo}>
           <Logo size={40} />
-          <Text style={s.logoText}>AthleteAI</Text>
+          <Text style={s.logoText}>
+            <Text style={{ color: colors.foreground }}>Athlete</Text>
+            <Text style={{ color: colors.primary }}>AI</Text>
+          </Text>
         </View>
 
         <Text style={s.heading}>Create account</Text>

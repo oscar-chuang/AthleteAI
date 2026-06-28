@@ -22,6 +22,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useColors } from "@/hooks/useColors";
 import { analyses as analysesApi, type AnalysisRecord, ApiError } from "@/lib/api";
 import { useAuth, useCanAccessFeature } from "@/lib/authContext";
+import Svg, { Circle as SvgCircle } from "react-native-svg";
 
 const SPORTS = [
   "Weightlifting", "Running", "Basketball", "Golf", "Tennis",
@@ -190,11 +191,33 @@ export default function AnalyzeScreen() {
     emptyIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.primary + "22", alignItems: "center", justifyContent: "center", marginBottom: 16 },
     emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold", color: colors.foreground, marginBottom: 8 },
     emptyText: { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
-    // Overlay
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", alignItems: "center", justifyContent: "center", padding: 32 },
-    overlayCard: { backgroundColor: colors.card, borderRadius: 20, padding: 28, alignItems: "center", width: "100%" },
-    overlayTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 8 },
-    overlayStep: { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 16, textAlign: "center" },
+    // Processing overlay
+    overlay: { flex: 1, backgroundColor: "#07090B", paddingTop: topPad + 16, paddingHorizontal: 20 },
+    overlayHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24 },
+    overlayClose: { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.card, alignItems: "center", justifyContent: "center" },
+    overlayHeaderTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground, letterSpacing: 2 },
+    videoBg: {
+      height: 180, borderRadius: 16, backgroundColor: "#141414",
+      borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+      alignItems: "center", justifyContent: "center", gap: 10,
+      overflow: "hidden",
+    },
+    sportBadge: {
+      flexDirection: "row", alignItems: "center", gap: 5,
+      backgroundColor: "#07090B", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
+      borderWidth: 1, borderColor: colors.primary + "44",
+    },
+    sportBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: colors.primary, letterSpacing: 1 },
+    uploadedLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground, letterSpacing: 2 },
+    progressPct: { fontSize: 22, fontFamily: "Archivo_800ExtraBold", color: "#FFFFFF" },
+    progressLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground, letterSpacing: 1.5, marginTop: 2 },
+    stepList: { gap: 16, paddingHorizontal: 4 },
+    stepRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+    stepIcon: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: "#2A2A2A", alignItems: "center", justifyContent: "center" },
+    stepIconDone: { backgroundColor: colors.primary, borderColor: colors.primary },
+    stepIconActive: { borderColor: colors.primary },
+    stepDotInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
+    stepText: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.mutedForeground, flex: 1 },
     // Sport picker modal
     pickerModal: { flex: 1, backgroundColor: colors.background },
     pickerHeader: { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
@@ -217,15 +240,86 @@ export default function AnalyzeScreen() {
   return (
     <View style={s.container}>
       {/* Processing overlay */}
-      <Modal visible={analyzing} transparent animationType="fade">
-        <View style={s.overlay}>
-          <View style={s.overlayCard}>
-            <ActivityIndicator color={colors.primary} size="large" />
-            <Text style={s.overlayTitle}>Analyzing your video</Text>
-            <Text style={s.overlayStep}>{ANALYSIS_STEPS[analysisStep]}</Text>
-          </View>
-        </View>
-      </Modal>
+      {(() => {
+        const progress     = ANALYSIS_STEPS.length > 1 ? (analysisStep / (ANALYSIS_STEPS.length - 1)) * 100 : 0;
+        const RADIUS       = 45;
+        const CIRC         = 2 * Math.PI * RADIUS;
+        const dashOffset   = CIRC - (progress / 100) * CIRC;
+        const vStepCount   = 4;
+        const visualStep   = Math.min(Math.floor((analysisStep / (ANALYSIS_STEPS.length - 1)) * vStepCount), vStepCount - 1);
+
+        const VSTEPS = [
+          { label: "Sport detected",          detail: selectedSport || "Running" },
+          { label: "Pose estimated",           detail: "6 joints" },
+          { label: "Measuring joint angles",   detail: "" },
+          { label: "Grounding coaching tips",  detail: "" },
+        ];
+
+        return (
+          <Modal visible={analyzing} transparent={false} animationType="fade">
+            <View style={s.overlay}>
+              {/* Header */}
+              <View style={s.overlayHeader}>
+                <TouchableOpacity onPress={() => {}} style={s.overlayClose} activeOpacity={0.7}>
+                  <Feather name="x" size={18} color={colors.foreground} />
+                </TouchableOpacity>
+                <Text style={s.overlayHeaderTitle}>ANALYSING</Text>
+                <View style={{ width: 36 }} />
+              </View>
+
+              {/* Video placeholder */}
+              <View style={s.videoBg}>
+                <View style={s.sportBadge}>
+                  <Feather name="zap" size={12} color={colors.primary} />
+                  <Text style={s.sportBadgeText}>{(selectedSport || "Running").toUpperCase()} {Math.round(progress)}%</Text>
+                </View>
+                <Text style={s.uploadedLabel}>UPLOADED CLIP</Text>
+              </View>
+
+              {/* Circular progress */}
+              <View style={{ alignItems: "center", marginVertical: 28 }}>
+                <Svg width={130} height={130} viewBox="0 0 120 120">
+                  <SvgCircle cx="60" cy="60" r={RADIUS} fill="none" stroke="#2A2A2A" strokeWidth="8" />
+                  <SvgCircle
+                    cx="60" cy="60" r={RADIUS}
+                    fill="none"
+                    stroke={colors.primary}
+                    strokeWidth="8"
+                    strokeDasharray={`${CIRC} ${CIRC}`}
+                    strokeDashoffset={dashOffset}
+                    strokeLinecap="round"
+                    rotation="-90"
+                    origin="60, 60"
+                  />
+                </Svg>
+                <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
+                  <Text style={s.progressPct}>{Math.round(progress)}%</Text>
+                  <Text style={s.progressLabel}>EXTRACTING</Text>
+                </View>
+              </View>
+
+              {/* Step checklist */}
+              <View style={s.stepList}>
+                {VSTEPS.map((vs, i) => {
+                  const isDone   = i < visualStep;
+                  const isActive = i === visualStep;
+                  return (
+                    <View key={i} style={s.stepRow}>
+                      <View style={[s.stepIcon, isDone && s.stepIconDone, isActive && s.stepIconActive]}>
+                        {isDone   && <Feather name="check" size={11} color="#07090B" />}
+                        {isActive && <View style={s.stepDotInner} />}
+                      </View>
+                      <Text style={[s.stepText, (isDone || isActive) && { color: colors.foreground }]}>
+                        {vs.label}{vs.detail ? ` — ${vs.detail}` : ""}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          </Modal>
+        );
+      })()}
 
       {/* Sport/title picker modal */}
       <Modal visible={showSportPicker} animationType="slide">

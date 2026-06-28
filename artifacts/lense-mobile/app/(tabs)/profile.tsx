@@ -106,10 +106,16 @@ export default function ProfileScreen() {
         <View style={s.section}>
           <TouchableOpacity
             style={s.signOutBtn}
-            onPress={() => Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-              { text: "Cancel", style: "cancel" },
-              { text: "Sign Out", style: "destructive", onPress: logout },
-            ])}
+            onPress={() => {
+              if (Platform.OS === "web") {
+                logout();
+              } else {
+                Alert.alert("Sign Out", "Are you sure?", [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Sign Out", style: "destructive", onPress: logout },
+                ]);
+              }
+            }}
             activeOpacity={0.8}
           >
             <Feather name="log-out" size={18} color={C.destructive} />
